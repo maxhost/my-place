@@ -16,7 +16,10 @@ const serverSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
   // Database
+  // DATABASE_URL: pooler (Supavisor) en transaction mode (puerto 6543) para runtime.
+  // DIRECT_URL: session mode (puerto 5432) para migraciones Prisma.
   DATABASE_URL: z.string().url(),
+  DIRECT_URL: z.string().url(),
 
   // Stripe (opcionales en dev local sin billing). Obligatorios en prod.
   STRIPE_SECRET_KEY: z.string().optional(),

@@ -118,7 +118,8 @@ Si algo supera estos límites, se divide antes de continuar.
 
 Problemas descubiertos durante el desarrollo. Se actualizan a medida que aparecen.
 
-_(Vacío por ahora — agregar aquí cuando encuentres algo no obvio que te costó tiempo)._
+- **Cambiar `DATABASE_URL` / `DIRECT_URL` requiere reiniciar el dev server.** Next reloca `.env.local` en hot reload, pero el `PrismaClient` vive cacheado en `globalThis` (ver `src/db/client.ts`), así que sigue usando la URL vieja hasta que matás el proceso. Síntoma: cambiás el hostname del pooler, guardás, y `/api/health` sigue tirando el mismo error de conexión.
+- **Supabase connection string: copiar literal del dashboard.** El hostname del pooler varía entre proyectos (`aws-0-<region>` vs `aws-1-<region>` vs otros) y no es derivable del project ref ni de la región. Siempre ir a Dashboard → Connect → ORMs y pegar el URI exacto, nunca construirlo a mano.
 
 ## Qué hacer cuando tengas dudas
 
