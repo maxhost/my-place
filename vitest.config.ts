@@ -21,6 +21,7 @@ export default defineConfig({
       '@/features': resolve(__dirname, 'src/features'),
       '@/shared': resolve(__dirname, 'src/shared'),
       '@/db': resolve(__dirname, 'src/db'),
+      'server-only': resolve(__dirname, 'src/shared/test/server-only-stub.ts'),
     },
   },
 })

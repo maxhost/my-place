@@ -26,6 +26,21 @@ Orden de construcción priorizado para minimizar bloqueos y permitir iteración.
 
 **Entregable**: podés crear un place, invitar a alguien, sumarse, multi-admin funciona.
 
+## Fase 2.5 — Hours (horario de apertura del place)
+
+Implementar según `docs/features/hours/spec.md`:
+
+- Shape JSON en `Place.openingHours`: `unconfigured` | `always_open` | `scheduled { timezone, recurring, exceptions }`.
+- Utility pura `isPlaceOpen(hours, now)` + `nextOpeningWindow` (IANA timezone-aware).
+- Validación Zod en el borde: timezones allowlist, `start < end`, sin overlap, fechas únicas en excepciones.
+- CRUD admin: `/settings/hours` con form de timezone + ventanas recurrentes + excepciones.
+- **Hard gate** total al contenido fuera de horario vía route group `(gated)/` en `src/app/[placeSlug]/`. Admin/owner mantiene acceso SOLO a `/settings/*`; member queda fuera de todo.
+- `<PlaceClosedView>` con variants `member` / `admin` (con CTA a `/settings/hours`).
+- Helper `assertPlaceOpenOrThrow(placeId)` exportado para que conversaciones (Fase 5) y eventos (Fase 6) defiendan sus server actions.
+- Corrección de ontología: fuera del horario **no hay acceso al contenido**, ni siquiera lectura.
+
+**Entregable**: un place nace cerrado; el owner configura horario desde settings; el gate funciona para member y admin con las reglas correctas.
+
 ## Fase 3 — Billing
 
 - Feature `billing` con los tres modos
@@ -55,7 +70,7 @@ Implementar según `docs/ontologia/conversaciones.md`:
 - Audios efímeros (15-20s, expiran a las 24h, quedan como transcripción)
 - Bloque de lectores de la apertura actual
 - Estados vivo/dormido (30+ días → tipografía atenuada, reactivable)
-- Horario del place: composer deshabilitado fuera de horario
+- Horario del place: ya gated por `features/hours` (ver Fase 2.5); las server actions de escritura llaman `assertPlaceOpenOrThrow` como defensa en profundidad
 - Presencia viva en thread (burbujas con borde verde)
 
 **Entregable**: feature de conversaciones completa y funcional.
@@ -111,6 +126,45 @@ Explícito para proteger scope. Cada cosa acá es tentación que hay que resisti
 - **Analytics/dashboards de uso.** El producto no mide engagement.
 - **Onboarding wizard complejo.** Arranca simple: nombre, slug, billing.
 - **Cambio de billing mode** después de crear el place. v2.
+
+## Gaps técnicos agendados
+
+Tareas conocidas que quedan pendientes durante el MVP y que no bloquean la entrega
+de ninguna fase, pero hay que retomar antes de dar el producto por maduro.
+
+### Horario (Fase 2.5)
+
+- **Refresh automático al `closesAt`.** Hoy el viewer que está navegando cuando
+  llega la hora de cierre ve el contenido hasta que haga una nueva request. Hacer
+  un `setTimeout` client-side que dispare `router.refresh()` al instante de cierre
+  (o un intervalo corto mientras la pestaña esté visible). Análogo para
+  apertura: miembro esperando fuera del horario ve el gate hasta refresh manual.
+- **Audit trail de cambios de horario.** Cuando exista la tabla `AuditLog`
+  (gap agendado en Fase 2), incluir `placeHoursUpdated` con antes/después. Hoy
+  solo se logea con pino — no queryable para compliance.
+- **Rate limiting de `updatePlaceHoursAction`.** Extender el rate limit
+  compartido (gap existente) a este action. Propuesta: max 10 updates por admin
+  por hora. Previene floods accidentales de `revalidatePath` sobre el layout.
+- **Habilitar `alwaysOpen` en UI.** El shape ya lo soporta y `isPlaceOpen` lo
+  interpreta; falta toggle + confirmación de "esto desactiva el horario" en
+  `settings/hours`. Decisión de producto pendiente.
+- **Cross-midnight windows sin partir en dos.** Hoy una ventana que cruza
+  medianoche se escribe como dos ventanas (SAT 22:00–23:59 + SUN 00:00–01:00).
+  Aceptar `{start:'22:00', end:'01:00'}` implica cambiar el invariante y el
+  render.
+- **Feriados automáticos por país.** Integrar `date-holidays` o similar para
+  pre-poblar excepciones según `timezone` / país detectado.
+- **Multi-timezone por place.** Un place con una sede en Madrid y otra en BA
+  hoy tiene que elegir una sola timezone. Fuera de scope MVP.
+
+### Global
+
+- **Rate limiting compartido** para todos los server actions sensibles (invite,
+  create-place, transfer-ownership, update-hours).
+- **AuditLog general.** Tabla + helpers para registrar mutaciones críticas
+  (archivado, transferencia, cambios de horario, expulsiones cuando existan).
+- **Desarchivar place.** Hoy `archivedAt` es monótono.
+- **Anti-squatting de slugs.** Cuando aparezca el requerimiento.
 
 ## Cómo evaluar cuándo pasar de MVP a v2
 

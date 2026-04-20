@@ -24,7 +24,7 @@ Las discusiones en Place no son un foro tradicional donde los miembros postean c
 
 ### Uno — Vive dentro del horario del place
 
-Un foro tradicional está siempre abierto, 24/7, indiferente al tiempo humano. Las discusiones en Place **solo aceptan escritura cuando el place está abierto**. Fuera del horario, la conversación está pausada. Lo que no se dijo hoy, se dirá el próximo jueves.
+Un foro tradicional está siempre abierto, 24/7, indiferente al tiempo humano. Las discusiones en Place **solo existen cuando el place está abierto**. Fuera del horario, el place no está accesible — no hay acceso a las discusiones. Lo que no se dijo hoy, se dirá el próximo jueves.
 
 Esto no es restricción arbitraria — es lo que hace que la conversación tenga ritmo y densidad. Cuando el taller abre los jueves de 19 a 23, esas cuatro horas son de conversación real. No es un chorro asíncrono interminable.
 
@@ -105,10 +105,9 @@ Al abrir un tema, la estructura es:
 
 ### Comportamiento fuera de la apertura
 
-- Lectura: disponible (podés revisar lo que pasó)
-- Escritura: **deshabilitada**
-- Registro de lectores: no se acumula
-- Audios: solo se pueden escuchar los grabados durante aperturas anteriores, no grabar nuevos
+Fuera del horario el place **no está accesible** para el contenido. Ni member ni admin/owner ven discusiones, eventos, miembros o threads. La única excepción es admin/owner, que mantiene acceso a `/settings/*` para administrar el place (incluyendo configurar el horario). Cualquier ruta no-settings muestra `<PlaceClosedView>` indicando cuándo vuelve a abrir.
+
+Ver `docs/features/hours/spec.md` para el contrato completo del gate por rol.
 
 ---
 
@@ -210,7 +209,6 @@ Es importante ser honestos:
 
 - Pantalla de crear/traer tema nuevo
 - Pantalla de temas dormidos (lista)
-- Vista del foro fuera de horario (read-only)
 - Cierre de temporada + generación de artefacto
 
 ---

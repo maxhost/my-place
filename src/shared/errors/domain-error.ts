@@ -13,6 +13,7 @@ export type DomainErrorCode =
   | 'NOT_FOUND'
   | 'VALIDATION'
   | 'CONFLICT'
+  | 'OUT_OF_HOURS'
 
 export abstract class DomainError extends Error {
   abstract readonly code: DomainErrorCode
@@ -49,6 +50,26 @@ export class ValidationError extends DomainError {
 /** Conflicto de concurrencia o estado. Ej: slug duplicado, racing conditions. */
 export class ConflictError extends DomainError {
   readonly code = 'CONFLICT' as const
+}
+
+/**
+ * El place está cerrado (fuera de horario). Lanzado por `assertPlaceOpenOrThrow`
+ * al tope de server actions de escritura en conversaciones/eventos. La UI lo mapea
+ * a un mensaje tipo "El place está cerrado — abrimos {opensAt}".
+ *
+ * `opensAt` puede ser `null` si el place está `unconfigured` (sin horario).
+ *
+ * Ver `docs/features/hours/spec.md` § "Errores estructurados".
+ */
+export class OutOfHoursError extends DomainError {
+  readonly code = 'OUT_OF_HOURS' as const
+  constructor(
+    message: string,
+    public readonly placeId: string,
+    public readonly opensAt: Date | null,
+  ) {
+    super(message, { placeId, opensAt })
+  }
 }
 
 export function isDomainError(err: unknown): err is DomainError {
