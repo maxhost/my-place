@@ -157,6 +157,43 @@ export function isPlaceOpen(hours: OpeningHours, now: Date): OpenStatus {
 }
 
 /**
+ * Ventana actualmente vigente para `now`. `null` si el place está cerrado o si
+ * es `always_open` (contrato: la "apertura eterna" no tiene ventana acotada
+ * computable desde `hours` — la fila `PlaceOpening` con `endAt=null` vive en DB
+ * y el slice de discussions la orquesta). Helper puro: sin I/O.
+ *
+ * Consumido por `discussions` (Fase 5) para resolver `PlaceOpening` activa y
+ * agrupar `PostRead` por apertura. Ver `docs/features/discussions/spec.md`
+ * § "Contrato de apertura y lectores".
+ */
+export function currentOpeningWindow(
+  hours: OpeningHours,
+  now: Date,
+): { start: Date; end: Date } | null {
+  if (hours.kind === 'unconfigured') return null
+  if (hours.kind === 'always_open') return null
+
+  const zNow = toZoned(now, hours.timezone)
+  const dKey = localDateKey(zNow)
+  const dow = DOW_FROM_TEMPORAL[zNow.dayOfWeek]!
+  const windows = effectiveWindowsFor(dKey, dow, hours)
+  if (windows === 'closed_by_exception') return null
+
+  const nowTime = localHhMm(zNow)
+  for (const w of windows) {
+    if (nowTime >= w.start && nowTime < w.end) {
+      const startZ = zonedAt(dKey, w.start, hours.timezone)
+      const endZ = zonedAt(dKey, w.end, hours.timezone)
+      return {
+        start: new Date(startZ.epochMilliseconds),
+        end: new Date(endZ.epochMilliseconds),
+      }
+    }
+  }
+  return null
+}
+
+/**
  * Próximo instante en que el place abre después de `now`. Escanea hasta 14 días
  * hacia adelante en el timezone del place. `null` si no hay ventana en ese rango
  * (place `unconfigured`, o `scheduled` con recurring vacío y sin excepciones

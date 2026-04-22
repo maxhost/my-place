@@ -1,7 +1,9 @@
 import { notFound } from 'next/navigation'
-import { createSupabaseServer } from '@/shared/lib/supabase/server'
+import { getCurrentAuthUser } from '@/shared/lib/auth-user'
+import { findOrCreateCurrentOpening } from '@/features/discussions/public'
 import { findMemberPermissions } from '@/features/members/public'
-import { findPlaceHours, isPlaceOpen, PlaceClosedView } from '@/features/hours/public'
+import { isPlaceOpen, parseOpeningHours, PlaceClosedView } from '@/features/hours/public'
+import { logger } from '@/shared/lib/logger'
 import { loadPlace } from '../layout'
 
 type Props = {
@@ -24,20 +26,24 @@ type Props = {
 export default async function GatedLayout({ children, params }: Props) {
   const { placeSlug } = await params
 
-  const supabase = await createSupabaseServer()
-  const { data: auth } = await supabase.auth.getUser()
+  const auth = await getCurrentAuthUser()
   const place = await loadPlace(placeSlug)
-  if (!auth.user || !place) {
+  if (!auth || !place) {
     notFound()
   }
 
-  const [perms, hours] = await Promise.all([
-    findMemberPermissions(auth.user.id, place.id),
-    findPlaceHours(place.id),
-  ])
-
+  const perms = await findMemberPermissions(auth.id, place.id)
+  const hours = parseOpeningHours(place.openingHours)
   const status = isPlaceOpen(hours, new Date())
   if (status.open) {
+    // Materializa (o reusa) la apertura actual como efecto del request abierto.
+    // Fire-and-forget: no bloqueamos el render; si falla, la próxima acción
+    // que necesite la apertura (ej: markPostRead) la reintenta. React.cache
+    // en `findOrCreateCurrentOpening` evita el round-trip duplicado si un RSC
+    // hijo lo invoca en la misma request.
+    findOrCreateCurrentOpening(place.id).catch((err) => {
+      logger.error({ err, placeId: place.id }, 'failed to materialize opening')
+    })
     return <>{children}</>
   }
 
@@ -46,7 +52,6 @@ export default async function GatedLayout({ children, params }: Props) {
   return (
     <PlaceClosedView
       placeName={place.name}
-      placeSlug={place.slug}
       opensAt={status.opensAt}
       hours={hours}
       variant={variant}

@@ -1,9 +1,8 @@
 import { notFound, redirect } from 'next/navigation'
-import { cache } from 'react'
-import { prisma } from '@/db/client'
-import { createSupabaseServer } from '@/shared/lib/supabase/server'
+import { getCurrentAuthUser } from '@/shared/lib/auth-user'
 import { findMemberPermissions } from '@/features/members/public'
 import { buildThemeVars, type ThemeConfig } from '@/shared/config/theme'
+import { loadPlaceBySlug } from '@/shared/lib/place-loader'
 
 type Props = {
   children: React.ReactNode
@@ -26,18 +25,17 @@ type Props = {
 export default async function PlaceLayout({ children, params }: Props) {
   const { placeSlug } = await params
 
-  const supabase = await createSupabaseServer()
-  const { data: auth } = await supabase.auth.getUser()
-  if (!auth.user) {
+  const auth = await getCurrentAuthUser()
+  if (!auth) {
     redirect(`/login?next=/${placeSlug}`)
   }
 
-  const place = await loadPlace(placeSlug)
+  const place = await loadPlaceBySlug(placeSlug)
   if (!place || place.archivedAt) {
     notFound()
   }
 
-  const perms = await findMemberPermissions(auth.user.id, place.id)
+  const perms = await findMemberPermissions(auth.id, place.id)
   if (!perms.isOwner && !perms.role) {
     notFound()
   }
@@ -52,18 +50,8 @@ export default async function PlaceLayout({ children, params }: Props) {
 }
 
 /**
- * Cacheado por request — los layouts de `(gated)` y las páginas hijas pueden
- * llamar `loadPlace(slug)` sin disparar una nueva query.
+ * Reexport del loader compartido. Las pages y layouts hijos pueden importar
+ * `loadPlace` desde acá (misma carpeta, import corto) o `loadPlaceBySlug`
+ * desde `@/shared/lib/place-loader` — ambos resuelven al mismo cache.
  */
-export const loadPlace = cache(async (slug: string) => {
-  return prisma.place.findUnique({
-    where: { slug },
-    select: {
-      id: true,
-      slug: true,
-      name: true,
-      archivedAt: true,
-      themeConfig: true,
-    },
-  })
-})
+export { loadPlaceBySlug as loadPlace } from '@/shared/lib/place-loader'

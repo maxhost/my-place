@@ -10,7 +10,7 @@ Documento índice y marco general del producto. Punto de entrada para cualquier 
 
 No es una app. No es una red social. No es una plataforma de comunidad estilo Circle o Discord. Es una categoría distinta de objeto en el vocabulario de internet, caracterizado por tres propiedades estructurales que no están presentes combinadas en ningún producto existente:
 
-1. **Horario propio** — el place abre y cierra en momentos definidos por sus miembros. Fuera del horario, las interacciones quedan en pausa.
+1. **Horario propio** — el place abre y cierra en momentos definidos por sus miembros. Fuera del horario, el place no está accesible: no se entra al contenido, no hay lectura ni escritura. Solo el admin/owner conserva acceso a la configuración para poder abrirlo.
 2. **Existencia Schrödinger** — si no hay observador, el place no se manifiesta. Se materializa cuando alguien entra.
 3. **Pertenencia como primitivo** — el place no es un contenedor que contiene miembros. El place ES sus miembros encontrándose en un momento. Sin gente presente, no hay lugar.
 
@@ -51,7 +51,7 @@ La receta de "añadir reglas nuevas a átomos viejos" es exactamente cómo se cr
 - Definido al crear el place por el admin fundador.
 - Puede ser: horario fijo recurrente (jueves 19-23), múltiples ventanas (sábados y domingos de mañana), siempre abierto por ahora (empresas que lo necesitan así), etc.
 - El horario es **el alma del lugar**, no una feature. Ejerce fuerza real sobre cómo se comporta el producto.
-- Fuera del horario: lectura puede estar disponible según configuración, pero escritura e interacción se pausan en la mayoría de objetos.
+- Fuera del horario: el place no está accesible. No hay lectura ni escritura, ni siquiera del foro. El gate es duro y uniforme (no configurable por feature). La única excepción es admin/owner, que conserva acceso a `/settings/*` para administrar y eventualmente abrir el lugar. Ver `docs/features/hours/spec.md`.
 
 ### Membresía
 

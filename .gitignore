@@ -35,6 +35,7 @@ playwright-report/
 playwright/.cache/
 test-results/
 blob-report/
+tests/.auth/
 
 # prisma
 prisma/migrations/dev.db
@@ -55,3 +56,6 @@ Thumbs.db
 .glados/
 .vercel/
 .turbo/
+
+# GlaDOS Studio image context
+glados-images/

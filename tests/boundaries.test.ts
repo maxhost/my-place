@@ -56,7 +56,14 @@ describe('boundaries entre capas (architecture.md)', () => {
         if (!m) continue
         const [, feature, rest] = m
         if (feature === ownFeature) continue
-        if (rest === 'public' || rest === 'public.ts') continue
+        if (
+          rest === 'public' ||
+          rest === 'public.ts' ||
+          rest === 'public.server' ||
+          rest === 'public.server.ts'
+        ) {
+          continue
+        }
         violations.push(`${rel} → @/features/${feature}/${rest}`)
       }
     }

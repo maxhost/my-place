@@ -32,9 +32,10 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  serverExternalPackages: ['@prisma/client'],
+  serverExternalPackages: ['@prisma/client', 'pino', 'pino-pretty'],
   typedRoutes: true,
   outputFileTracingRoot: path.join(__dirname),
+  allowedDevOrigins: ['lvh.me', '*.lvh.me'],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }]
   },

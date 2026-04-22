@@ -1,12 +1,13 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { prisma } from '@/db/client'
+import { loadPlaceBySlug } from '@/shared/lib/place-loader'
 import {
   ALLOWED_TIMEZONES,
-  findPlaceHours,
   HoursForm,
   HoursPreview,
+  parseOpeningHours,
   type HoursFormDefaults,
+  type OpeningHours,
 } from '@/features/hours/public'
 
 export const metadata: Metadata = {
@@ -24,15 +25,12 @@ type Props = { params: Promise<{ placeSlug: string }> }
 export default async function SettingsHoursPage({ params }: Props) {
   const { placeSlug } = await params
 
-  const place = await prisma.place.findUnique({
-    where: { slug: placeSlug },
-    select: { id: true, name: true, slug: true, archivedAt: true },
-  })
+  const place = await loadPlaceBySlug(placeSlug)
   if (!place || place.archivedAt) {
     notFound()
   }
 
-  const hours = await findPlaceHours(place.id)
+  const hours = parseOpeningHours(place.openingHours)
   const defaults = hoursToFormDefaults(hours)
 
   return (
@@ -55,7 +53,7 @@ export default async function SettingsHoursPage({ params }: Props) {
   )
 }
 
-function hoursToFormDefaults(hours: Awaited<ReturnType<typeof findPlaceHours>>): HoursFormDefaults {
+function hoursToFormDefaults(hours: OpeningHours): HoursFormDefaults {
   if (hours.kind === 'scheduled') {
     return {
       timezone: coerceTimezone(hours.timezone),

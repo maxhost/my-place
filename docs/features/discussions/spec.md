@@ -1,0 +1,904 @@
+# Discussions — Especificación
+
+> **Alcance:** el foro del place. Post (título + body rich text opcional) y Comment (rich text obligatorio, con cita opcional). Reacciones, moderación con flags, lectores por apertura, realtime acotado, paginación keyset, erasure 365d. Gated por `hours` (Fase 2.5): el place cerrado no expone nada de este slice.
+
+> **Referencias:** `docs/ontologia/conversaciones.md` (ontología canónica), `docs/features/hours/spec.md` (gate de horario + helpers consumidos), `docs/data-model.md` (invariantes globales, erasure 365d), `docs/stack.md` (RLS mandatoria, TanStack Query), `docs/realtime.md` (contrato acotado thread-only), `docs/multi-tenancy.md` (rutas `{slug}.place.app/*`), `CLAUDE.md` (principios no negociables).
+
+## 1. Modelo mental
+
+El foro es el **espacio central** del place: donde la comunidad habla mientras el lugar está abierto y donde esa conversación queda como tejido del lugar mismo. No es un chat (turnos editoriales largos, sin presión de respuesta inmediata) ni un feed (sin scroll infinito, sin algoritmo, sin métricas vanidosas).
+
+Tres propiedades estructurales lo separan de un foro tradicional:
+
+- **Vive dentro del horario del place.** Fuera del horario no se accede (hard gate a nivel place, no por feature). Ver `docs/features/hours/spec.md`.
+- **Los temas son traídos, no autorizados.** El Post pertenece al place: si el autor se va, el contenido queda. El derecho al olvido se ejecuta a los 365 días vía `authorUserId` nullable + `authorSnapshot`.
+- **Los lectores son presencia visible.** Leer durante la apertura cuenta como participación: cada `PlaceOpening` acumula quién estuvo en cada Post (dwell ≥ 5s).
+
+## 2. Vocabulario y convenciones
+
+- **Post**: unidad raíz del foro. Tiene `title` obligatorio (1–160 chars) y `body` opcional (TipTap JSON AST, ≤ 20 KB serializado). Pertenece al `place`.
+- **Comment**: respuesta a un Post. `body` obligatorio, `quotedCommentId?` opcional con snapshot congelado. No hay árbol: todos los comments son hermanos, vertical plano con citas.
+- **Reaction**: emoji del set cerrado (👍 ❤️ 😂 🙏 🤔 😢) sobre Post o Comment. Una por `(target, user, emoji)`.
+- **PlaceOpening**: instancia de apertura del place. Agrupa `PostRead` para que "los lectores de la apertura actual" sea una consulta trivial.
+- **PostRead**: marca de lectura idempotente `(postId, userId, placeOpeningId)` emitida tras ≥ 5s de dwell en el thread.
+- **Flag**: reporte de moderación de un usuario sobre un Post o Comment con motivo.
+
+**Slice se llama `discussions`** (no `conversations`) y el vocabulario **Post/Comment** se usa tanto en UI como en código. Razón: "message" colisionaría con DMs futuras; "tema/mensaje" quedaba ambiguo entre thread/root y reply.
+
+**Idioma:** UI en español (`es-AR`), código en inglés, commits en español. Mensajes al usuario: "Post", "Comentario", "Traer post", "Responder".
+
+### URLs y slugs
+
+La zona del foro en la UI se llama **conversations** (más cálido, español), mientras que el slice interno sigue siendo `discussions`. Rutas efectivas:
+
+- **Lista:** `/[placeSlug]/conversations`
+- **Detalle:** `/[placeSlug]/conversations/[postSlug]` (ej. `/palermo/conversations/por-que-el-pub-hoy`)
+- Sin ruta `/thread/[id]` — el id interno nunca se expone en URL.
+
+**Derivación del slug** (determinística, `generatePostSlug(title)`):
+
+1. `title.normalize('NFD').replace(/[\u0300-\u036f]/g, '')` — strip diacríticos.
+2. `.toLowerCase()` → `[^a-z0-9]+` → `-` → trim `-` → corte a 80 chars sin dejar palabra mutilada.
+3. Si el resultado queda vacío (título solo-emojis/puntuación) → `fallback = 'tema'`.
+4. Si colisiona con un slug reservado o ya existente en ese `placeId`, sufija `-2`, `-3`, …
+
+**Reservados** (`RESERVED_POST_SLUGS` en `domain/slug.ts`): `settings`, `m`, `conversations`, `new`, `create`, `edit`, `drafts`, `admin`, `flags`, `moderation`, `null`, `undefined`.
+
+**Estabilidad:** el slug se fija al crear. `editPostAction` cambia título/body/`editedAt`/`version` pero **no** regenera el slug — los links externos y citas no se rompen. Documentado como invariante en §8.
+
+**Race-safe:** `UNIQUE(placeId, slug)` + `generatePostSlug` con set de colisiones frescas. Si aún así un `INSERT` concurrente gana, `createPostAction` reintenta una vez con re-fetch; segundo fallo → `ConflictError` ("reintentá con otro título").
+
+## 3. Arquitectura del slice
+
+Sigue el template de `src/features/_template/`:
+
+```
+src/features/discussions/
+├── public.ts                    # único punto de entrada inter-slice
+├── domain/
+│   ├── types.ts                 # Post, Comment, Reaction, PlaceOpening, PostRead, Flag + enums
+│   ├── invariants.ts            # editWindowOpen, canEdit, canDelete, etc.
+│   └── errors.ts                # subclases de DomainError específicas
+├── schemas.ts                   # Zod: TipTap JSON AST, inputs de actions
+├── server/
+│   ├── queries.ts               # findPostById, listPostsForPlace, listCommentsForPost, findFlagsOpen, etc.
+│   ├── actions.ts               # createPost, createComment, editPost, editComment, hidePost, deletePost, deleteComment, react, unreact, flag, reviewFlag, markPostRead
+│   ├── opening.ts               # findOrCreateCurrentOpening(placeId): lazy open/close de PlaceOpening
+│   ├── realtime.ts              # broadcastNewComment(postId, comment): emit desde action post-commit
+│   └── tiptap-render.ts         # @tiptap/html renderer SSR con extensions allowlist
+├── ui/
+│   ├── post-list.tsx            # server component: lista paginada por place
+│   ├── post-detail.tsx          # server component: Post + hero + lista de comments
+│   ├── comment-list.tsx         # server component + client bridge para realtime
+│   ├── composer.tsx             # client: TipTap editor
+│   ├── quote-block.tsx          # server component: renderiza quotedSnapshot
+│   ├── reaction-bar.tsx         # client: toggle optimista
+│   ├── presence-ring.tsx        # client: canal Supabase realtime
+│   ├── dwell-tracker.tsx        # client: 5s timer + markPostReadAction
+│   ├── dot-indicator.tsx        # client: diff lastReadAt vs lastActivityAt
+│   ├── flag-modal.tsx           # client: modal de reportar
+│   ├── flag-queue.tsx           # server component: cola admin /settings/flags
+│   └── tiptap/
+│       ├── editor-client.tsx    # wrapper @tiptap/react
+│       └── extensions.ts        # allowlist única compartida editor+render
+├── __tests__/
+│   ├── edit-window.test.ts
+│   ├── quote-snapshot.test.ts
+│   ├── rich-text-schema.test.ts
+│   ├── mention-validation.test.ts
+│   ├── optimistic-lock.test.ts
+│   ├── opening-lifecycle.test.ts
+│   ├── actions-create-post.test.ts
+│   ├── actions-create-comment.test.ts
+│   ├── actions-moderation.test.ts
+│   ├── actions-flag.test.ts
+│   ├── actions-react.test.ts
+│   ├── actions-mark-read.test.ts
+│   ├── rls-policies.test.ts     # SQL directo con JWT distintos
+│   └── pagination.test.ts
+```
+
+`public.ts` exporta: tipos de dominio, `createPostFromSystem` (para events), funciones de query agregadas que eventos pueda necesitar. Nunca exporta internals de UI, schemas ni actions.
+
+## 4. Entidades y shape de datos
+
+Schema Prisma definitivo en C.B. Pseudocódigo con columnas, constraints e índices:
+
+### Post
+
+```
+id            cuid pk
+placeId       fk Place  not null
+authorUserId  fk User?  (nullable — erasure 365d)
+authorSnapshot jsonb    not null  -- { displayName, avatarUrl } congelado al leftAt o a valores 'Sistema'
+title         varchar(160) not null
+slug          varchar(180) not null  -- derivado del título al crear, estable (ver §URLs y slugs)
+body          jsonb?                -- TipTap AST
+createdAt     timestamptz not null default now()
+editedAt      timestamptz?
+hiddenAt      timestamptz?          -- admin hide (reversible)
+deletedAt     timestamptz?          -- soft delete (irreversible UI)
+lastActivityAt timestamptz not null default now()  -- update en cada Comment nuevo
+version       int not null default 0                 -- optimistic lock
+```
+
+Índices:
+
+- `(placeId, lastActivityAt DESC) WHERE deletedAt IS NULL` — lista foro ordenada por última actividad.
+- `(placeId, createdAt DESC)` — lista admin con deleted incluidos.
+- `(authorUserId) WHERE authorUserId IS NOT NULL` — perfil contextual del miembro + job de erasure.
+- **UNIQUE `(placeId, slug)`** — lookup por URL y garantía de unicidad del slug dentro del place.
+
+Constraints:
+
+- `title` no puede ser solo-whitespace (CHECK `btrim(title) <> ''`).
+- `authorSnapshot` no puede ser `{}` (CHECK `authorSnapshot ? 'displayName'`).
+- `slug` no vacío y derivado por `generatePostSlug()` — no se edita tras crear.
+
+### Comment
+
+```
+id            cuid pk
+postId        fk Post  not null  on delete restrict
+placeId       fk Place not null  -- denormalizado para RLS y queries rápidas
+authorUserId  fk User?
+authorSnapshot jsonb   not null
+body          jsonb    not null   -- TipTap AST obligatorio
+quotedCommentId fk Comment? on delete set null
+quotedSnapshot jsonb?             -- { commentId, authorLabel, bodyExcerpt (≤200 chars), createdAt }
+createdAt     timestamptz not null default now()
+editedAt      timestamptz?
+deletedAt     timestamptz?
+version       int not null default 0
+```
+
+Índices:
+
+- `(postId, createdAt ASC)` — orden natural del thread.
+- `(postId, createdAt DESC, id DESC) WHERE deletedAt IS NULL` — cursor paginación backward.
+- `(authorUserId) WHERE authorUserId IS NOT NULL`.
+
+Constraints:
+
+- `quotedCommentId` debe pertenecer al mismo `postId` — enforced en action + CHECK opcional vía trigger.
+- Si `quotedCommentId IS NOT NULL` entonces `quotedSnapshot IS NOT NULL`.
+
+### Reaction
+
+```
+id         cuid pk
+targetType enum('POST', 'COMMENT') not null
+targetId   text  not null  -- id de Post o Comment
+placeId    fk Place not null
+userId     fk User  not null
+emoji      enum('THUMBS_UP', 'HEART', 'LAUGH', 'PRAY', 'THINKING', 'CRY') not null
+createdAt  timestamptz not null default now()
+```
+
+Constraints:
+
+- UNIQUE `(targetType, targetId, userId, emoji)` — un user = una reacción por emoji por target.
+
+Índice:
+
+- `(targetType, targetId)` — agregado para render rápido de bar de reacciones.
+
+### PlaceOpening
+
+```
+id        cuid pk
+placeId   fk Place not null
+startAt   timestamptz not null
+endAt     timestamptz?          -- null = apertura activa
+source    enum('SCHEDULED', 'ALWAYS_OPEN', 'EXCEPTION') not null
+createdAt timestamptz not null default now()
+```
+
+Índices:
+
+- `(placeId, startAt DESC)`.
+- **UNIQUE parcial `(placeId) WHERE endAt IS NULL`** — máx 1 apertura activa simultánea por place.
+
+### PostRead
+
+```
+id              cuid pk
+postId          fk Post         not null
+userId          fk User         not null
+placeOpeningId  fk PlaceOpening not null
+readAt          timestamptz not null default now()
+dwellMs         int not null
+```
+
+Constraints:
+
+- UNIQUE `(postId, userId, placeOpeningId)` — idempotente dentro de una apertura.
+
+Índices:
+
+- `(postId, placeOpeningId)` — render de bloque "leyeron esta noche".
+- `(userId, postId)` — dot indicator y erasure.
+
+### Flag
+
+```
+id                     cuid pk
+targetType             enum('POST', 'COMMENT') not null
+targetId               text not null
+placeId                fk Place not null
+reporterUserId         fk User  not null
+reason                 enum('SPAM', 'HARASSMENT', 'OFFTOPIC', 'MISINFO', 'OTHER') not null
+reasonNote             varchar(500)?
+status                 enum('OPEN', 'REVIEWED_ACTIONED', 'REVIEWED_DISMISSED') not null default 'OPEN'
+createdAt              timestamptz not null default now()
+reviewedAt             timestamptz?
+reviewerAdminUserId    fk User?
+reviewNote             varchar(500)?
+```
+
+Constraints:
+
+- UNIQUE `(targetType, targetId, reporterUserId)` — un reporte por usuario por target.
+- CHECK `status='OPEN' OR reviewedAt IS NOT NULL` — consistencia de estado.
+
+Índice:
+
+- `(placeId, status, createdAt DESC)` — cola admin paginada.
+
+## 5. RLS (Row Level Security)
+
+Mandatoria por `docs/stack.md`. Aplica a las 6 tablas con service role bypass para jobs (erasure, cron de opening). Políticas SQL textuales (implementación en C.B):
+
+### Helper común
+
+```sql
+CREATE FUNCTION is_active_member(place_id text)
+RETURNS boolean LANGUAGE sql STABLE AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM "Membership" m
+    WHERE m."placeId" = place_id
+      AND m."userId" = auth.uid()
+      AND m."leftAt" IS NULL
+  );
+$$;
+
+CREATE FUNCTION is_place_admin(place_id text)
+RETURNS boolean LANGUAGE sql STABLE AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM "Membership" m
+    WHERE m."placeId" = place_id
+      AND m."userId" = auth.uid()
+      AND m."leftAt" IS NULL
+      AND m.role = 'ADMIN'
+  ) OR EXISTS (
+    SELECT 1 FROM "PlaceOwnership" o
+    WHERE o."placeId" = place_id
+      AND o."userId" = auth.uid()
+  );
+$$;
+```
+
+### Post
+
+- `SELECT`: `is_active_member(placeId) AND (deletedAt IS NULL AND hiddenAt IS NULL OR is_place_admin(placeId))`.
+- `INSERT`: `is_active_member(placeId) AND authorUserId = auth.uid()`.
+- `UPDATE`: `is_active_member(placeId) AND (authorUserId = auth.uid() OR is_place_admin(placeId))`. La ventana 60s y las columnas mutables se enforzan en la action; RLS solo restringe quién puede tocar la fila.
+- `DELETE`: `false` — soft delete siempre.
+
+### Comment
+
+- Mismo patrón. `SELECT` permite leer deleted para mostrar placeholder (cliente ya filtra `deletedAt` para rendering), admin ve todo. Alternativa: filtrar deleted con predicate y dejar que el placeholder se hidrate desde snapshot — C.B decide. Recomendación: mostrar `deletedAt` siempre y hacer el filtrado de contenido en render.
+
+### Reaction
+
+- `SELECT`: `is_active_member(placeId)`.
+- `INSERT`: `is_active_member(placeId) AND userId = auth.uid()`.
+- `DELETE`: `userId = auth.uid()` (hard delete OK — es una reacción, no contenido).
+
+### PlaceOpening
+
+- `SELECT`: `is_active_member(placeId)`.
+- `INSERT / UPDATE`: service role only (se orquesta desde backend).
+
+### PostRead
+
+- `SELECT`: `is_active_member(placeId)` (resolved joining Post→placeId) O `userId = auth.uid()`. Decisión: join-based; render de "leyeron esta noche" es público dentro del place.
+- `INSERT`: `is_active_member(placeId) AND userId = auth.uid()`. Además gate de horario en action.
+- `UPDATE / DELETE`: service role only (erasure).
+
+### Flag
+
+- `SELECT`: `is_place_admin(placeId) OR reporterUserId = auth.uid()`.
+- `INSERT`: `is_active_member(placeId) AND reporterUserId = auth.uid()`.
+- `UPDATE`: `is_place_admin(placeId)` — solo admin marca review.
+- `DELETE`: `false`.
+
+### Service role
+
+Jobs que bypassean RLS (conectan con `SUPABASE_SERVICE_ROLE_KEY`):
+
+- Erasure 365d (nullifica `authorUserId` + congela `authorSnapshot`).
+- Lazy/cron de `PlaceOpening` (abre/cierra filas).
+- Export de temporada (v2).
+
+## 6. Estados del dominio
+
+| Entidad      | Estados                                                                                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Post         | `VISIBLE` (no `hiddenAt`, no `deletedAt`), `HIDDEN` (`hiddenAt`, no `deletedAt`), `DELETED` (`deletedAt`). Dimensión ortogonal derivada: `VIVO` vs `DORMIDO` según `lastActivityAt`. |
+| Comment      | `VISIBLE`, `DELETED`.                                                                                                                                                                |
+| Flag         | `OPEN`, `REVIEWED_ACTIONED`, `REVIEWED_DISMISSED`.                                                                                                                                   |
+| PlaceOpening | activa (`endAt IS NULL`), cerrada.                                                                                                                                                   |
+
+**Vivo/dormido** es presentación: `dormido = now - lastActivityAt > 30 días`. Se deriva en render, no es columna. Cualquier Comment actualiza `lastActivityAt` y reactiva.
+
+## 7. Comportamiento por rol
+
+| Acción                              | Member      | Admin                                       | Owner        | Ex-miembro | No-miembro auth |
+| ----------------------------------- | ----------- | ------------------------------------------- | ------------ | ---------- | --------------- |
+| Ver Post/Comment (visible)          | ✓           | ✓                                           | ✓            | ✗          | ✗               |
+| Ver Post HIDDEN                     | ✗           | ✓                                           | ✓            | ✗          | ✗               |
+| Ver Post/Comment DELETED (como tal) | placeholder | ✓ raw                                       | ✓ raw        | ✗          | ✗               |
+| Crear Post                          | ✓           | ✓                                           | ✓            | ✗          | ✗               |
+| Crear Comment                       | ✓           | ✓                                           | ✓            | ✗          | ✗               |
+| Editar propio <60s                  | ✓           | ✓                                           | ✓            | ✗          | ✗               |
+| Editar propio ≥60s                  | ✗           | admin edita Post propio                     | ✓ como admin | ✗          | ✗               |
+| Editar Post de otro                 | ✗           | ✗ (no puede re-escribir — solo hide/delete) | ✗            | ✗          | ✗               |
+| Eliminar Post propio <60s           | ✓           | ✓                                           | ✓            | ✗          | ✗               |
+| Eliminar Post de otro               | ✗           | ✓                                           | ✓            | ✗          | ✗               |
+| Eliminar Comment propio <60s        | ✓           | ✓                                           | ✓            | ✗          | ✗               |
+| Eliminar Comment de otro            | ✗           | ✓                                           | ✓            | ✗          | ✗               |
+| Hide/Unhide Post                    | ✗           | ✓                                           | ✓            | ✗          | ✗               |
+| Reaccionar                          | ✓           | ✓                                           | ✓            | ✗          | ✗               |
+| Flaggear                            | ✓           | ✓ (flaggea también)                         | ✓            | ✗          | ✗               |
+| Revisar flags (/settings/flags)     | ✗           | ✓                                           | ✓            | ✗          | ✗               |
+| Mark read (dwell)                   | ✓           | ✓                                           | ✓            | ✗          | ✗               |
+
+Todas las acciones requieren **place abierto** (`assertPlaceOpenOrThrow`). El gate de `(gated)/layout.tsx` ya lo cubre en lectura; las actions lo re-enforzan como defensa en profundidad.
+
+## 8. Invariantes del dominio
+
+1. **Edit window 60s para abrir, +5min de gracia para guardar.** El autor puede **abrir** el formulario de edición si `now - target.createdAt < 60_000ms`. Al abrirlo, el server emite un edit-session token firmado HMAC (`subjectType|subjectId|userId|openedAt`) con grace window de 5min desde `openedAt`. Al guardar, el server exige el token; si es válido y el grace no expiró, acepta el edit **aunque ya hayan pasado los 60s desde `createdAt`**. La ventana de 60s sigue siendo un invariante hard sobre el momento de **apertura**, no sobre el momento de save — evita castigar al autor que tarda en tipear sin permitir ediciones arbitrariamente tardías. Admin no edita Post (solo hide/delete). Comments no tienen admin-edit. Motivación y tradeoffs en `docs/decisions/2026-04-21-edit-session-token.md`.
+2. **Delete permissions.** Post: autor <60s O admin siempre. Comment: autor <60s O admin siempre.
+3. **Quote snapshot congelado** al crear el Comment. Inmutable aun si el target se hide/delete. El render diferencia entre snapshot y estado actual del target para mostrar overlay.
+4. **Vivo/dormido** derivado (`lastActivityAt < now - 30d`). Cada Comment exitoso update `Post.lastActivityAt` en la misma transacción.
+5. **Reaction UNIQUE** `(targetType, targetId, userId, emoji)`. Set cerrado de 6 emojis.
+6. **Flag UNIQUE** `(targetType, targetId, reporterUserId)`. No permite repetir.
+7. **PostRead upsert monótono.** `INSERT … ON CONFLICT (postId, userId, placeOpeningId) DO UPDATE SET readAt = now(), dwellMs = GREATEST("PostRead"."dwellMs", EXCLUDED."dwellMs")`. Idempotente: re-leer el mismo post en la misma apertura actualiza `readAt` (necesario para que el dot ambar se apague cuando llega actividad nueva) y nunca retrocede `dwellMs`. Cambió de `DO NOTHING` a esta forma en 2026-04-20 — ver `docs/decisions/2026-04-20-post-read-upsert-semantics.md`.
+8. **PlaceOpening activa ≤ 1 por place** (UNIQUE parcial DB).
+9. **Post sin body es válido** (solo título).
+10. **Comment body obligatorio** y no puede ser AST vacío (mínimo un paragraph con al menos un char o una mention).
+11. **`quotedCommentId`** debe pertenecer al mismo `postId` del Comment que lo cita.
+12. **Profundidad de cita ≤ 1.** No se permite `quotedCommentId` apuntando a un Comment que también tenga `quotedCommentId`. Validado en action.
+13. **Título 1–160 chars**, trim, no solo-whitespace.
+14. **Body ≤ 20 KB serializado** (JSON.stringify del AST). Lanza `RichTextTooLarge`.
+15. **Profundidad de listas anidadas ≤ 5.** Prevenir DoS por AST patológico.
+16. **Optimistic locking.** `UPDATE ... SET version = version + 1 WHERE id = ? AND version = ?`. 0 rows ⇒ `ConflictError`.
+17. **Rich text AST pasa Zod restrictivo** (sección 12).
+18. **Mention userId** debe ser miembro activo del place al momento de crear el Comment/Post.
+19. **Slug estable.** `Post.slug` se fija al crear (derivado del título) y nunca se regenera al editar. Único por `(placeId, slug)`.
+20. **`Post.lastActivityAt` sólo lo bumpean `createPostAction` y `createCommentAction`.** Ninguna otra acción (reactions, flags, moderación hide/unhide, edits de título/body, reads, soft-delete) toca `lastActivityAt`. Consecuencia: leer un post nunca lo marca como "no leído" para otros; el dot ámbar refleja estrictamente contenido nuevo (comentarios). Lockea el contrato del indicador de §13. Verificado por `__tests__/last-activity-bumps.test.ts`.
+
+## 9. Contrato de apertura y lectores
+
+### PlaceOpening lifecycle
+
+Función principal: `findOrCreateCurrentOpening(placeId): Promise<PlaceOpening | null>` en `server/opening.ts`. Idempotente:
+
+1. Carga `hours` del place.
+2. `now = new Date()`.
+3. `win = currentOpeningWindow(hours, now)` (helper de `hours/public.ts`).
+4. `active = await findActiveOpening(placeId)` — fila con `endAt IS NULL`.
+5. Casos:
+   - `hours.kind === 'always_open'` y no hay activa ⇒ INSERT `{startAt: now, endAt: null, source: 'ALWAYS_OPEN'}`.
+   - `hours.kind === 'always_open'` y hay activa ⇒ retorna activa.
+   - `win !== null` y no hay activa ⇒ INSERT `{startAt: win.start, endAt: null, source: hours.kind === 'scheduled' ? derivar('SCHEDULED'|'EXCEPTION') : 'ALWAYS_OPEN'}`.
+   - `win !== null` y hay activa pero `active.startAt < win.start` (otra ventana) ⇒ UPDATE `endAt = active.startAt + duración previa estimada` (o mejor: usar `now` como cierre aproximado), luego INSERT nueva.
+   - `win === null` y hay activa ⇒ UPDATE `endAt = now`. Retorna `null`.
+   - `win === null` y no hay activa ⇒ retorna `null`.
+
+**Decisión:** MVP usa lazy open/close. Cada render de `(gated)/layout.tsx` invoca el helper una vez (cached por request). Sin cron.
+
+**Gap agendado** en roadmap: cron dedicado por minuto que cierre aperturas vencidas para places que nadie visita. Mitiga aperturas eternamente abiertas si el place no recibe tráfico.
+
+### `currentOpeningWindow` helper (hours)
+
+Firma: `(hours: OpeningHours, now: Date) => { start: Date; end: Date } | null`.
+
+- `unconfigured` ⇒ null.
+- `always_open` ⇒ null. **Rationale:** la apertura eterna no tiene ventana acotada computable desde `hours` solo; el registro vive en la tabla `PlaceOpening` con `endAt=null` creada al activar. El slice `discussions` orquesta esto mediante `findOrCreateCurrentOpening`. `hours` queda puro, sin I/O.
+- `scheduled`: convierte `now` a zone, resuelve `effectiveWindowsFor(dateKey, dow, hours)`, si `'closed_by_exception'` retorna null, sino busca la ventana que contenga `nowTime` y retorna `{start, end}` como `Date`.
+
+### Dwell tracking
+
+Cliente (`<DwellTracker postId={...} />`):
+
+- `useEffect` con `document.visibilityState === 'visible'`, arranca timer 5s.
+- Al disparar, llama `markPostReadAction({postId})` vía TanStack Query mutation.
+- Si el usuario cambia de pestaña antes de los 5s (visibilitychange → hidden), cancela el timer. Reanuda al volver.
+
+Server action `markPostReadAction`:
+
+1. `assertPlaceOpenOrThrow(placeId)` (derivado del postId).
+2. Resolver miembro activo.
+3. `opening = await findOrCreateCurrentOpening(placeId)`; si null ⇒ `OutOfHoursError` (cliente silencia).
+4. `INSERT INTO "PostRead" (...) VALUES (...) ON CONFLICT ("postId","userId","placeOpeningId") DO UPDATE SET "readAt" = now(), "dwellMs" = GREATEST("PostRead"."dwellMs", EXCLUDED."dwellMs") RETURNING (xmax = 0) AS inserted`. El `RETURNING` distingue insert (`inserted = true`) vs update (`false`); el action retorna `recorded` mapeado 1:1 con `inserted` para preservar telemetría. Monótono por diseño (no retrocede `readAt` ni `dwellMs`).
+5. Log pino con `event: 'postReadRecorded'` (insert) o `'postReadUpdated'` (re-read en misma apertura). La rama `updated` confirma que el fix C.F.1 está actuando en prod.
+
+Cliente trata `OutOfHoursError` como silencioso (no muestra toast — el place ya se cerró y el layout va a refrescar a su ritmo).
+
+## 10. Contrato de moderación
+
+### Hide (Post only)
+
+Admin hace click en "Ocultar" en el dropdown del Post. Action `hidePostAction(postId)`:
+
+1. `assertPlaceOpenOrThrow(placeId)`.
+2. Verifica admin.
+3. `UPDATE Post SET hiddenAt = now(), version = version + 1 WHERE id = ? AND version = ?`.
+4. Log pino `postHidden`.
+5. `revalidatePath` del thread.
+
+Reversible con `unhidePostAction`.
+
+### Delete soft
+
+Post: `deletePostAction`. Action paralela a hide; setea `deletedAt`. Miembros ya no lo ven; admin ve con marcador "eliminado por admin". Irreversible desde UI.
+
+Comment: `deleteCommentAction`. Mismo patrón. UI renderiza `[mensaje eliminado — {fecha}]` preservando el autor solo si el actor es admin; para miembros, el nombre también se reemplaza por "miembro" (respeto del tono del producto, no dar pie a doxing).
+
+### Hard delete
+
+Solo DBA por SQL manual. No hay ruta desde UI.
+
+### Flag workflow
+
+`flagAction({targetType, targetId, reason, reasonNote?})`:
+
+1. `assertPlaceOpenOrThrow`.
+2. Miembro activo.
+3. `INSERT INTO Flag (...)` con UNIQUE catch → `FlagAlreadyExists`.
+4. Log pino `flagCreated`.
+
+Cola admin en `/settings/flags`:
+
+- Server component `<FlagQueue />` lista `Flag` con status `OPEN` ordenadas `createdAt DESC`.
+- Cada fila: ver target (link al Post/Comment), motivo, reporter, fecha, nota.
+- Acciones: **Ignorar** (`reviewFlagAction(flagId, 'DISMISS', note?)`) / **Ocultar** (hide target + `REVIEWED_ACTIONED`) / **Eliminar** (delete target + `REVIEWED_ACTIONED`).
+- `reviewFlagAction` hace todo en transacción: update Flag + update target si aplica.
+
+### Badge
+
+`<SettingsSidebar>` muestra badge con count de flags OPEN. Query cacheada `findOpenFlagsCount(placeId)` con `revalidate: 30`. Sin animación pulsante — principio anti-atención.
+
+### Audit
+
+Cada hide/unhide/delete/flag-review loguea pino con: `action`, `placeId`, `actorUserId`, `targetType`, `targetId`, `reason?`, `outcome`. Cuando exista `AuditLog` global, se escribe también (gap roadmap). Sin AuditLog, pino es la fuente única.
+
+## 11. Contrato de citas
+
+- **Profundidad ≤ 1.** No se cita una cita. Action valida.
+- **Snapshot congelado** al crear:
+  ```json
+  {
+    "commentId": "cmt_abc",
+    "authorLabel": "María Gómez",
+    "bodyExcerpt": "primeros ~200 chars de texto plano derivados del AST",
+    "createdAt": "2026-05-07T23:10:00.000Z"
+  }
+  ```
+- **Texto plano derivado** del AST: walker que extrae nodos `text` ignorando marks, trunca a 200 chars con elipsis. Se computa server-side al crear el Comment.
+- **Target se hide/delete después:** render compara `quotedCommentId` con estado actual; si target `deletedAt !== null` muestra `[mensaje eliminado]`; si `hiddenAt !== null` muestra `[mensaje oculto]`. Los miembros comunes no distinguen hide de delete en UI — solo admin.
+- **`quotedCommentId` nullable.** Preserva citas si un DBA hard-deletea el target (muy raro).
+- **Borde ámbar izquierdo** en UI (clase Tailwind `border-l-2 border-l-amber-500` compatible con CSS vars del place).
+
+## 12. Rich text — TipTap + JSON AST
+
+### Decisión
+
+Editor: **TipTap** (wrapper de ProseMirror). Storage: **JSON AST** en columna `jsonb`. Render SSR: `@tiptap/html`.
+
+Rationale:
+
+- Más extensions listas que Lexical (headings, lists, blockquote, codeBlock, mentions); reutilizables para docs internos (v2) y descripción de eventos (Fase 6).
+- JSON AST es safe-by-construction: nunca inyecta HTML arbitrario. No requiere sanitización en read.
+- `@tiptap/html` es stateless: renderiza en server sin cliente.
+
+### Extensions permitidas (allowlist)
+
+Archivo canónico: `src/features/discussions/ui/tiptap/extensions.ts`. Compartido por editor client y renderer SSR.
+
+```
+paragraph, text, bold, italic, link, heading (levels: [2, 3]),
+bulletList, orderedList, listItem, blockquote, code (inline),
+codeBlock, mention
+```
+
+**Explícitamente excluidos:** image, video, embed, iframe, table, horizontalRule, strike, underline, highlight, taskList, subscript, superscript. Cada uno rechazado por el schema Zod.
+
+### Schema Zod restrictivo
+
+`discussions/schemas.ts` define un schema recursivo con discriminador por `type`:
+
+```ts
+const textNode = z
+  .object({
+    type: z.literal('text'),
+    text: z.string().min(1),
+    marks: z.array(markSchema).optional(),
+  })
+  .strict()
+
+const paragraphNode = z
+  .object({
+    type: z.literal('paragraph'),
+    content: z.array(inlineNode).optional(),
+  })
+  .strict()
+
+// ... (resto de nodos)
+
+const richTextSchema = z
+  .object({
+    type: z.literal('doc'),
+    content: z.array(blockNode),
+  })
+  .strict()
+  .superRefine((doc, ctx) => {
+    const serialized = JSON.stringify(doc)
+    if (new Blob([serialized]).size > 20_000) {
+      ctx.addIssue({ code: 'custom', message: 'RICH_TEXT_TOO_LARGE' })
+    }
+    if (listDepth(doc) > 5) {
+      ctx.addIssue({ code: 'custom', message: 'LIST_DEPTH_EXCEEDED' })
+    }
+  })
+```
+
+**Link mark:** `href` validado con `z.string().url().refine(u => /^(https|mailto):/.test(u))`. Atributos de render fijos: `target="_blank"`, `rel="noopener noreferrer"`.
+
+**Mention node:**
+
+```ts
+{ type: 'mention', attrs: { userId: z.string().cuid(), label: z.string().min(1).max(80) } }
+```
+
+Action valida server-side que `userId` sea miembro activo del place (query `members/public.ts#findMembership`). Si no ⇒ `InvalidMention`. El `label` se re-resuelve server-side al `displayName` actual del user antes de persistir, evitando confianza ciega en el cliente.
+
+**CodeBlock:** `attrs.language` restringido a allowlist `['ts','js','python','go','rust','bash','json','sql','html','css','markdown','plaintext']`.
+
+### Render SSR
+
+`src/features/discussions/server/tiptap-render.ts`:
+
+```ts
+import { generateHTML } from '@tiptap/html'
+import { richTextExtensions } from '@/features/discussions/ui/tiptap/extensions'
+
+export function renderRichText(ast: unknown): string {
+  const parsed = richTextSchema.parse(ast) // nunca renderizar sin validar
+  return generateHTML(parsed, richTextExtensions)
+}
+```
+
+El componente `<PostBody>` llama `renderRichText` y usa `dangerouslySetInnerHTML` con el output — safe porque `generateHTML` solo emite tags que están en las extensions (sin `<script>`, sin inline handlers). Atributos de `link` se fijan vía `HTMLAttributes` en la extension config.
+
+### Editor client
+
+`src/features/discussions/ui/tiptap/editor-client.tsx` — wrapper `@tiptap/react` con `StarterKit` deshabilitado y extensions individuales de la allowlist. Ctrl+B/I/K soportado por default. `aria-label` en el editable area. Soporte `<Tab>` en listas, atajos estándar.
+
+### Accesibilidad
+
+- TipTap default aria-labels + roving tabindex + screen reader support.
+- Composer: `aria-label="Escribir comentario"` o `"Escribir post"`.
+- Toolbar: botones con `aria-label` y `aria-pressed`.
+- Mention autocomplete: `role="listbox"`, navegación con flechas, `Enter` selecciona, `Escape` cierra.
+- Alt text de avatars en mention labels.
+
+## 13. Realtime y presencia
+
+> **Alcance MVP (C.F, 2026-04-24):** de todo lo que describe esta sección, el MVP
+> implementa **solo presence** en `post:<postId>`. No se broadcastean nuevos
+> comments — aparecen al recargar o navegar. Rationale: priorizar "saber quién
+> está" por sobre "ver mensajes aparecer" evita el forking de state optimista vs
+> SSR. La misma infraestructura (private channels + policies en `realtime.messages`)
+> servirá después para DM/chat y, si se decide, para broadcast de comments.
+> Decisión registrada en `.claude/plans/gleaming-chasing-comet.md`.
+
+### Canales
+
+Supabase Realtime, **solo** dentro del thread (per `docs/realtime.md`):
+
+- `post:<postId>`:
+  - **Presence:** miembros con la vista del Post abierta. **Implementado en MVP.**
+  - **Broadcast:** nuevos comments emitidos desde server action post-commit. **Fuera de MVP — post-C.F.**
+
+**Sin canales a nivel place/list.** Contradice `docs/realtime.md` y el principio anti-ansiedad.
+
+### Autorización
+
+- **Subscribe:** RLS enforcea que `auth.uid()` es miembro activo del place derivado del postId. La subscripción a `post:<postId>` requiere que el cliente tenga permiso de lectura sobre ese Post (política SELECT). El canal se abre con `{ config: { private: true } }` contra `realtime.messages` — ver migration `20260424000000_realtime_discussions_presence` y funciones `realtime.discussions_post_id_from_topic()` + `realtime.discussions_viewer_is_thread_member()`.
+- **Broadcast:** **emitido desde server action tras commit** (`supabase.channel(…).send({type: 'broadcast', event: 'comment_created', payload})`). Nunca desde cliente. Previene flooding. (Fuera del MVP.)
+
+### Presencia
+
+- Heartbeat automático del socket de Supabase Realtime (~30s); el cliente solo llama `channel.track({ userId, avatarUrl, displayName })` una vez al recibir `SUBSCRIBED`.
+- Stale peer se descarta por `presence:leave` tras ~60s sin heartbeat — sin timeout manual.
+- Dedupe por `userId` al renderizar (misma persona, varias pestañas = una burbuja).
+- Filtra al viewer (no se muestra a sí mismo).
+- UI: burbuja circular con borde verde (`--place-presence`) alrededor del avatar. Sin animaciones. Máximo 8 avatares visibles + `+N más` como overflow (este contador **no** contradice "sin contadores" del dot de unread: cuenta avatares humanos, no mensajes).
+- Empty state: componente retorna `null`. No renderiza "0 personas".
+
+### Dot indicator
+
+Client-side sin queries extra:
+
+```
+lastReadAt = max(PostRead.readAt) WHERE userId = me AND postId = p
+showDot = post.lastActivityAt > lastReadAt
+```
+
+`lastReadAt` ya viene en el payload del Post al cargar la lista (join agregado). Sin contador — solo el dot.
+
+**Contrato binario del dot depende de dos invariantes:**
+
+1. **`lastActivityAt` sólo se bumpea por creación de contenido** (invariante 20). Si reactions, flags o edits lo tocaran, el dot se encendería sin motivo genuino.
+2. **`readAt` avanza en cada re-lectura** (invariante 7, upsert monótono). Si `DO NOTHING`, un re-read dentro de la misma apertura no lograría apagar el dot cuando llegó un comentario nuevo post-primera-lectura — ese fue el bug C.F.1 (fix 2026-04-20).
+
+Romper cualquiera de las dos degrada el indicador al punto de hacerlo ruido. Ambas están cubiertas por tests.
+
+### Fallback sin realtime
+
+Thread funciona sin ws: los comments aparecen al refrescar manual. Presencia no se actualiza. Alineado con `docs/realtime.md#Fallback`.
+
+### Dedupe broadcasts
+
+Si usuario creó un comment hace <2s y recibe el broadcast del suyo propio, el cliente deduplica por `commentId` contra el state optimista que ya insertó.
+
+## 14. Paginación
+
+### Cursor keyset
+
+- Orden: `(createdAt DESC, id DESC)` — `id` como tiebreaker estable bajo inserts concurrentes.
+- Query:
+  ```sql
+  SELECT ... FROM "Comment"
+  WHERE "postId" = ?
+    AND "deletedAt" IS NULL
+    AND ("createdAt", id) < (?, ?)  -- cursor
+  ORDER BY "createdAt" DESC, id DESC
+  LIMIT 50
+  ```
+- Input: `?before=<createdAt>,<id>` (o sin cursor para la primera página).
+- Page size: **50** constante.
+- Output: `{ items: Comment[], nextCursor: { createdAt, id } | null }`.
+
+### Filtros
+
+- Miembro común: `deletedAt IS NULL`.
+- Admin con `?includeDeleted=1`: sin filtro.
+
+### UX
+
+No virtual scroll. Botón **"Ver más antiguos"** al final de la lista que carga la siguiente página. Elegido para mantener el producto sin "infinite scroll" (principio no negociable).
+
+## 15. Errores estructurados
+
+Subclases que se agregan en C.C. Viven en `src/features/discussions/domain/errors.ts` (feature-local; `shared/errors` ya tiene base + OutOfHoursError):
+
+| Error                | Code                  | Cuándo                                                                                                             |
+| -------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `EditWindowExpired`  | `EDIT_WINDOW_EXPIRED` | Autor intenta editar tras 60s.                                                                                     |
+| `PostHiddenError`    | `POST_HIDDEN`         | Comentar en Post con `hiddenAt IS NOT NULL`.                                                                       |
+| `PostDeletedError`   | `POST_DELETED`        | Comentar en Post con `deletedAt IS NOT NULL`.                                                                      |
+| `InvalidQuoteTarget` | `INVALID_QUOTE`       | `quotedCommentId` no pertenece al postId, no existe, o pertenece a un Comment que a su vez cita (profundidad > 1). |
+| `FlagAlreadyExists`  | `FLAG_DUPLICATE`      | UNIQUE violation en Flag.                                                                                          |
+| `RichTextTooLarge`   | `RICH_TEXT_TOO_LARGE` | Body serializado > 20 KB.                                                                                          |
+| `InvalidMention`     | `INVALID_MENTION`     | `userId` mencionado no es miembro activo del place.                                                                |
+
+Reusos de `shared/errors/domain-error.ts`:
+
+- `ValidationError` (Zod).
+- `AuthorizationError` (no-miembro, no-admin).
+- `NotFoundError` (Post/Comment no existe).
+- `ConflictError` (optimistic lock falla).
+- `OutOfHoursError` (place cerrado).
+
+UI mapea errores a mensajes localizados en `es-AR` via un switch central por `code`.
+
+## 16. Seguridad
+
+- **Server-only.** Todo `queries.ts`, `actions.ts`, `opening.ts`, `tiptap-render.ts` importa `'server-only'`.
+- **Zod en bordes.** Mismo schema client + server. Import desde `schemas.ts`.
+- **`auth.uid()`** siempre desde `supabase.auth.getUser()` del server client, nunca del input del form.
+- **Membership check** en cada action: no basta con tener sesión, hay que ser miembro activo del place.
+- **Gate de horario** en cada action de escritura: `assertPlaceOpenOrThrow(placeId)` al tope de `createPost`, `createComment`, `editPost`, `editComment`, `hidePost`, `unhidePost`, `deletePost`, `deleteComment`, `react`, `unreact`, `flag`, `reviewFlag`, `markPostRead`.
+- **RLS** como defensa en profundidad.
+- **Rate limits concretos** (utilidad compartida agendada; gap roadmap). Propuesta:
+
+| Acción                                      | Límite                          |
+| ------------------------------------------- | ------------------------------- |
+| `createPost`                                | 5/min, 20/hora por user+place   |
+| `createComment`                             | 20/min, 200/hora por user+place |
+| `editPost` / `editComment`                  | 20/min                          |
+| `hidePost` / `deletePost` / `deleteComment` | 30/min por admin                |
+| `react` / `unreact`                         | 60/min por user                 |
+| `flag`                                      | 5/hora por user+target          |
+| `reviewFlag`                                | 30/min por admin                |
+| `markPostRead`                              | sin límite (idempotente)        |
+
+- **CSRF:** Next server actions incluyen token anti-CSRF automático.
+- **XSS:** JSON AST + renderer SSR nunca inyecta HTML arbitrario. Atributos de link fijos (`target`, `rel`). Mention labels re-sanean server-side.
+- **SQLi:** Prisma parametriza todas las queries.
+- **Enumeración:** IDs `cuid`, no secuenciales. No se expone `createdAt` a nivel de segundo en URLs.
+- **Denegación de servicio:** rate limits + límite de body 20 KB + profundidad de listas 5.
+
+## 17. Observabilidad y auditoría
+
+### Logs estructurados (pino)
+
+Cada action loguea al inicio y al final:
+
+```ts
+logger.info({
+  action: 'createPost',
+  placeId,
+  actorUserId,
+  outcome: 'success', // 'validation_error', 'authorization_error', 'out_of_hours', etc.
+  durationMs,
+  targetId: post.id,
+})
+```
+
+Errores inesperados ⇒ `logger.error` con stack.
+
+### Audit events (para AuditLog global futuro)
+
+Cuando exista la tabla `AuditLog` (gap roadmap), discussions emite:
+
+- `postCreated`, `postEdited`, `postHidden`, `postUnhidden`, `postDeleted`.
+- `commentCreated`, `commentEdited`, `commentDeleted`.
+- `reactionAdded`, `reactionRemoved`.
+- `flagCreated`, `flagReviewed` (con acción resultante).
+- `placeOpeningOpened`, `placeOpeningClosed`.
+
+Mientras no exista AuditLog, pino es la fuente única; los eventos ya están estructurados para exportarse con una migración simple.
+
+### Métricas
+
+**Fuera de MVP.** El producto no mide engagement. Los únicos contadores que importan — miembros por place — ya están cubiertos por `members`.
+
+## 18. Integración con otros slices
+
+### `hours` (Fase 2.5)
+
+- Consume `assertPlaceOpenOrThrow(placeId)` y `currentOpeningWindow(hours, now)` desde `features/hours/public.ts`.
+- El gate visual (`(gated)/layout.tsx`) ya bloquea acceso cuando el place está cerrado; actions lo re-enforzan.
+
+### `members` (Fase 2)
+
+- Los nombres de autor en Post/Comment linkean a `/m/[userId]` (perfil contextual del miembro).
+- `mention` resuelve via `findMembership(userId, placeId)` exportado por `members/public.ts`.
+- **Erasure 365d** (definida en `docs/data-model.md`): job global ejecutado por `features/members/` que pasa `authorUserId = null` en todos los Post y Comment del ex-miembro cuya `leftAt + 365d < now`. `authorSnapshot` se congela al `leftAt` (no al crear) — `members/` es responsable de ese freeze cuando setea `leftAt`; `discussions/` solo expone el contrato de columnas nullable + snapshot.
+- `authorSnapshot` para system posts: `{displayName: 'Sistema', avatarUrl: null}`.
+
+### `events` (Fase 6)
+
+- Al crear un evento, `events/` llama `createPostFromSystem({placeId, title, body, systemKind: 'EVENT', eventId})` exportado por `discussions/public.ts`.
+- Los system posts tienen `authorUserId = null` y `authorSnapshot.displayName = 'Sistema'`.
+- La vinculación `Post ↔ Event` se guarda en la tabla de `events`, no en Post.
+
+### `settings`
+
+- Ruta `/settings/flags` es propiedad de `discussions/` pero vive físicamente bajo `src/app/[placeSlug]/settings/flags/` y monta `<FlagQueue />` importado desde `discussions/public.ts`.
+- Badge de flags abiertos en `<SettingsSidebar>` consume `findOpenFlagsCount(placeId)` exportado.
+
+## 19. Fuera de scope MVP
+
+- **Audio** (grabación 15-20s, Whisper, Storage, 24h TTL). Difiere a v2.
+- **Temporadas** (cierre, PDF artefacto, anuarios).
+- **UI dedicada de dormidos** (solo apilados cronológicos en la lista; el principio es "siguen ahí, no hay lista separada").
+- **Búsqueda full-text.**
+- **DMs** (slice separado si llega).
+- **Edit de Post por admin** — admin solo puede hide/delete; no puede reescribir contenido ajeno.
+- **Hard delete desde UI.**
+- **Rich text avanzado:** imágenes embed, video, tablas, footnotes.
+- **Notificaciones push / email** por nueva actividad.
+- **Analytics / métricas** visibles a miembros o admins.
+- **Multi-timezone por place** (viene de hours — un place = un timezone).
+- **Cross-post entre places.**
+- **Reacciones custom** (set cerrado fijo).
+
+## 20. Verificación
+
+Checklist que C.B–C.H deben cumplir:
+
+### Migration (C.B)
+
+- Tablas con columnas, enums y constraints como en sección 4.
+- Índices declarados.
+- Políticas RLS SQL aplicadas y verificadas con `supabase db push`.
+- Service role documentado en helpers (`is_active_member`, `is_place_admin`).
+
+### Dominio (C.C)
+
+- Types exportados desde `domain/types.ts`.
+- Invariantes testeadas: edit window 60s, quote snapshot inmutabilidad, optimistic lock 0-rows ⇒ `ConflictError`.
+- Schema Zod del JSON AST cubre: paragraph/heading/lists/quote/code/mention/link. Rechaza: image, iframe, script, href con `javascript:` o `http:`, body > 20 KB, listas > 5 niveles, mention con userId no-miembro.
+- Errores nuevos presentes con códigos correctos.
+
+### Actions + queries (C.D)
+
+- Happy path + 403 no-miembro + 400 Zod + 409 lock + 422 business (`PostHidden`, `EditWindowExpired`, `InvalidQuote`, `InvalidMention`) + `OutOfHoursError`.
+- Transacciones: `createComment` en `$transaction([insertComment, update Post.lastActivityAt])`.
+- `findOrCreateCurrentOpening` testeado en los 6 casos del lifecycle (sección 9).
+- Pino log verificable en tests (spy en logger).
+
+### RLS (tests SQL directos)
+
+- Con JWT de user A miembro del place X, SELECT no retorna filas de place Y.
+- Con JWT de user A no-miembro, INSERT en Post falla.
+- Con service role, SELECT retorna todo sin filtro.
+
+### UI (C.E, C.F, C.G)
+
+- Composer Tip Tap crea, edita (dentro de 60s) y valida Zod en cliente antes de enviar.
+- Lista de Posts + lista de Comments pagina correctamente; `id` tiebreaker cubierto.
+- Dwell tracker marca read a los 5s; no marca si el user cambia de pestaña.
+- Reacciones: toggle optimista + reconciliation tras respuesta.
+- Citas: snapshot visible; target hide/delete → placeholder.
+- Flag modal crea flag + UNIQUE rechaza duplicado.
+- `/settings/flags` lista + acciones funcionan + badge count.
+- Realtime: nuevo comment aparece en todos los clientes presentes.
+
+### E2E (Playwright, C.H)
+
+Escenario golden path:
+
+1. User A crea Post.
+2. User B abre el thread, dwell ≥5s ⇒ A ve a B como lector.
+3. B comenta.
+4. A recibe el comment vía realtime sin refresh.
+5. B reacciona con 👍.
+6. A flaggea el comment por `OTHER` con nota.
+7. Admin entra a `/settings/flags`, oculta el post.
+8. Miembros ya no ven el post; admin ve como `HIDDEN`.
+
+### Build
+
+`pnpm typecheck && pnpm lint && pnpm test && pnpm build` verdes.
+
+### MCP supabase (manual)
+
+```sql
+SELECT id, "placeId", "authorUserId", title, "deletedAt", "hiddenAt"
+FROM "Post" WHERE "placeId" = 'place_xxx' ORDER BY "lastActivityAt" DESC;
+
+SELECT COUNT(*) FROM "Flag" WHERE "placeId" = 'place_xxx' AND status = 'OPEN';
+
+SELECT * FROM "PlaceOpening" WHERE "placeId" = 'place_xxx' AND "endAt" IS NULL;
+```
+
+## Apéndice — Ejemplos concretos
+
+### Taller profesional, sábado 9-13 BA, admin crea post
+
+1. Sábado 09:05, owner entra. `(gated)/layout.tsx` llama `findOrCreateCurrentOpening`; no hay activa y `currentOpeningWindow` retorna `{start: 09:00, end: 13:00}` ⇒ INSERT PlaceOpening activa.
+2. Owner crea Post "Retrospectiva sprint X". Zod valida title y body, action verifica membership + admin + `assertPlaceOpenOrThrow`, INSERT con `authorUserId=owner.id`, `authorSnapshot={displayName:'Maxi',avatarUrl:...}`, `version=0`. Log pino `postCreated`.
+3. Member entra 09:10, abre el Post. `<DwellTracker>` arranca timer 5s. A los 5s llama `markPostReadAction` ⇒ UPSERT PostRead.
+4. Member comenta "agrego esto sobre testing". Zod valida AST, action `createComment` en transacción: INSERT Comment + UPDATE Post.lastActivityAt. Broadcast al canal `post:<id>`. Owner (que está mirando) recibe el comment vía realtime.
+5. 13:00. Miembro intenta comentar a las 13:01 ⇒ layout recalcula: helper cierra PlaceOpening (endAt=13:00), muestra `<PlaceClosedView>`. La action de comment adicional falla con `OutOfHoursError` como defensa.
+
+### Erasure a los 365 días
+
+Member María se va el 2025-06-01. `members/` setea `leftAt=2025-06-01` y congela `authorSnapshot` en todos los Post y Comment con `authorUserId=maria.id` (paso atómico del action de leave).
+
+El 2026-06-02, cron job de `members/` encuentra Post/Comment con `authorUserId=maria.id` AND miembro con `leftAt+365d < now`. Ejecuta `UPDATE Post SET authorUserId = NULL WHERE authorUserId = maria.id` con service role (bypass RLS). El `authorSnapshot` se mantiene — el render muestra "ex-miembro · María Gómez" durante los 365 días y "ex-miembro" después de que el avatar se borre (política separada de members).
+
+### Flag de comment ofensivo
+
+Member A flaggea Comment C reportado por B como `HARASSMENT` con nota. Admin entra a `/settings/flags`, ve la fila con link al thread. Abre target, lee contexto, decide eliminar el Comment. Click "Eliminar". Action `reviewFlagAction(flagId, 'DELETE', 'contenido inapropiado')` ejecuta en transacción: UPDATE Flag (status=REVIEWED_ACTIONED, reviewedAt, reviewerAdminUserId, reviewNote) + UPDATE Comment (deletedAt). Log pino. Badge baja de 3 a 2.
+
+---
+
+Este spec es canónico. Cualquier cambio estructural se agrega con fecha en `docs/decisions/`.

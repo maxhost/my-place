@@ -12,7 +12,7 @@ export type {
   TimeOfDay,
 } from './domain/types'
 
-export { isPlaceOpen, nextOpeningWindow } from './domain/invariants'
+export { currentOpeningWindow, isPlaceOpen, nextOpeningWindow } from './domain/invariants'
 export { ALLOWED_TIMEZONES, isAllowedTimezone } from './domain/timezones'
 export type { AllowedTimezone } from './domain/timezones'
 export {

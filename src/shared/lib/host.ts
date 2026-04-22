@@ -13,8 +13,8 @@ export type HostResolution =
 /**
  * Resuelve el tipo de ruta según el hostname.
  *
- * @param hostname  ej. "thecompany.localhost:3000" o "app.place.app"
- * @param appDomain ej. "localhost:3000" o "place.app"
+ * @param hostname  ej. "thecompany.lvh.me:3000" o "app.place.app"
+ * @param appDomain ej. "lvh.me:3000" o "place.app"
  */
 export function resolveHost(hostname: string, appDomain: string): HostResolution {
   const normalized = hostname.toLowerCase().trim()

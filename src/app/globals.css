@@ -23,6 +23,10 @@
 
   /* Color fijo del producto: presencia viva. No customizable (theming.md). */
   --place-presence: #22c55e;
+
+  /* Dot de novedad (posts con actividad más reciente que la última lectura
+     del viewer). Ámbar fijo del producto — señal consistente entre places. */
+  --place-unread: #f59e0b;
 }
 
 html,

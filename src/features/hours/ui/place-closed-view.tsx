@@ -17,13 +17,12 @@ import { HoursPreview, humanTimezone } from './hours-preview'
 
 type Props = {
   placeName: string
-  placeSlug: string
   opensAt: Date | null
   hours: OpeningHours
   variant: 'admin' | 'member'
 }
 
-export function PlaceClosedView({ placeName, placeSlug, opensAt, hours, variant }: Props) {
+export function PlaceClosedView({ placeName, opensAt, hours, variant }: Props) {
   const timezone = hours.kind === 'scheduled' ? hours.timezone : undefined
 
   return (
@@ -42,7 +41,7 @@ export function PlaceClosedView({ placeName, placeSlug, opensAt, hours, variant 
 
       {variant === 'admin' ? (
         <Link
-          href={`/${placeSlug}/settings/hours`}
+          href="/settings/hours"
           className="rounded-md border border-place-divider px-4 py-2 text-sm text-place-text hover:border-place-text"
         >
           Ir a configuración

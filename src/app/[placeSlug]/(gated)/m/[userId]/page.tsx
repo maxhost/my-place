@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
-import { prisma } from '@/db/client'
-import { createSupabaseServer } from '@/shared/lib/supabase/server'
+import { getCurrentAuthUser } from '@/shared/lib/auth-user'
+import { loadPlaceBySlug } from '@/shared/lib/place-loader'
 import { findMemberProfile, findMemberPermissions } from '@/features/members/public'
 
 export const metadata: Metadata = {
@@ -25,17 +25,13 @@ type Props = { params: Promise<{ placeSlug: string; userId: string }> }
 export default async function MemberProfilePage({ params }: Props) {
   const { placeSlug, userId } = await params
 
-  const supabase = await createSupabaseServer()
-  const { data: auth } = await supabase.auth.getUser()
-  if (!auth.user) {
-    redirect(`/login?next=/${placeSlug}/m/${userId}`)
+  const auth = await getCurrentAuthUser()
+  if (!auth) {
+    redirect(`/login?next=/m/${userId}`)
   }
-  const visitorId = auth.user.id
+  const visitorId = auth.id
 
-  const place = await prisma.place.findUnique({
-    where: { slug: placeSlug },
-    select: { id: true, slug: true, name: true, archivedAt: true },
-  })
+  const place = await loadPlaceBySlug(placeSlug)
   if (!place || place.archivedAt) {
     notFound()
   }

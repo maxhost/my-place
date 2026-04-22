@@ -23,6 +23,7 @@ Orden de construcción priorizado para minimizar bloqueos y permitir iteración.
 - Roles: MEMBER, ADMIN
 - Invariante de 150 miembros max enforceado en el modelo
 - Perfil contextual del miembro (sin bio, solo lo que hizo)
+- **Invitaciones vía Resend + `generateLink` de Supabase** — el SMTP de Supabase queda solo como generador de URLs (bypass de sus rate limits). Fallback automático `invite → magiclink` para users que ya existen en `auth.users`. Botón "Reenviar" en `/settings/members`. Webhook `POST /api/webhooks/resend` actualiza `Invitation.deliveryStatus`. Ver `docs/decisions/2026-04-20-mailer-resend-primary.md`. ✅ (2026-04-20)
 
 **Entregable**: podés crear un place, invitar a alguien, sumarse, multi-admin funciona.
 
@@ -60,20 +61,46 @@ Implementar según `docs/features/hours/spec.md`:
 
 **Entregable**: un place puede encender/apagar features y la UI responde.
 
-## Fase 5 — Conversaciones
+## Fase 5 — Discussions (foro)
 
-Implementar según `docs/ontologia/conversaciones.md`:
+Implementar según `docs/features/discussions/spec.md` (spec canónico) y `docs/ontologia/conversaciones.md` (ontología).
 
-- Traer tema
-- Thread individual con mensajes editoriales largos
-- Citas tipo WhatsApp con borde ámbar
-- Audios efímeros (15-20s, expiran a las 24h, quedan como transcripción)
-- Bloque de lectores de la apertura actual
-- Estados vivo/dormido (30+ días → tipografía atenuada, reactivable)
-- Horario del place: ya gated por `features/hours` (ver Fase 2.5); las server actions de escritura llaman `assertPlaceOpenOrThrow` como defensa en profundidad
-- Presencia viva en thread (burbujas con borde verde)
+- Vocabulario **Post** (título + body rich text opcional) y **Comment** (body obligatorio, con cita opcional).
+- Editor **TipTap + JSON AST** en `body jsonb`. Renderer SSR con `@tiptap/html`. Allowlist estricta de extensions (paragraph, headings h2/h3, lists, blockquote, code, link, mention). Reutilizable en docs internos y descripción de eventos (Fase 6).
+- **Citas tipo WhatsApp** con snapshot congelado al momento de responder (borde ámbar). Profundidad máx 1.
+- **Reacciones**: set cerrado de 6 emojis (👍❤️😂🙏🤔😢). UNIQUE `(target, user, emoji)`.
+- **Ventana de edición autor 60s**; tras 60s solo admin (delete para Comment; edit O delete para Post — admin no reescribe contenido ajeno, solo hide/delete).
+- **Moderación humana**: hide (soft reversible) + delete (soft irreversible UI) para Post; delete para Comment. Usuarios pueden flaggear con motivo; admin revisa cola en `/settings/flags`.
+- **Lectores de la apertura actual**: dwell ≥ 5s en thread → `PostRead` idempotente `(postId, userId, placeOpeningId)`. Requiere tabla `PlaceOpening` y helper `currentOpeningWindow` exportado por `hours/public.ts` (agregado en C.A).
+- **Vivo/dormido** (30 días) derivado, no columna. Cualquier Comment reactiva actualizando `Post.lastActivityAt` en la misma transacción.
+- **Realtime** Supabase acotado según `docs/realtime.md`: canal `post:<id>` con presencia (burbuja borde verde) + broadcast de comments nuevos emitidos desde server action post-commit.
+- **Dot indicator** client-side comparando `lastReadAt` del user con `Post.lastActivityAt`. Sin contador.
+- **Paginación** cursor keyset `(createdAt DESC, id DESC)`, 50 comments por página. Sin infinite scroll.
+- **RLS por tabla** (6 entidades: Post, Comment, Reaction, PlaceOpening, PostRead, Flag). Multi-tenant enforcement a nivel DB; service role bypass para jobs.
+- **Optimistic locking** (`version int`) para update de Post/Comment.
+- **Horario** ya gated por hours; server actions de escritura llaman `assertPlaceOpenOrThrow(placeId)` como defensa en profundidad.
+- **Erasure 365d** vía `authorUserId` nullable + `authorSnapshot` congelado al `leftAt` (implementa la parte que toca a discussions; el job vive en `members/`).
+- **Observabilidad** pino estructurado por action; eventos listos para `AuditLog` global cuando exista (gap agendado).
+- **Errores estructurados** nuevos: `EditWindowExpired`, `PostHiddenError`, `PostDeletedError`, `InvalidQuoteTarget`, `FlagAlreadyExists`, `RichTextTooLarge`, `InvalidMention`.
 
-**Entregable**: feature de conversaciones completa y funcional.
+**Entregable**: foro completo sin audio, con moderación humana activa, realtime acotado, RLS, audit-ready.
+
+**Sub-milestones de Fase 5:**
+
+- **C.A** — Schema Prisma + RLS policies (6 entidades). ✅
+- **C.B** — Dominio + Zod del AST + invariantes puras. ✅
+- **C.C** — Queries server-side (find/list) + mappers. ✅
+- **C.D** — 13 server actions con revalidate, optimistic lock, audit. ✅
+- **C.E** — UI camino feliz: lista, detalle, composer TipTap, citas, reacciones, delete propio <60s, slug + URL `/[placeSlug]/conversations/[postSlug]`. ✅ (2026-04-20)
+- **C.F** — Realtime presencia (private channels + RLS sobre `realtime.messages`) + dwell tracker 5s + dot indicator unread + hook `findOrCreateCurrentOpening` en `(gated)/layout`. Broadcast de nuevos comments se descartó del MVP (registrado en `docs/features/discussions/spec.md § 13`). ✅ (2026-04-20)
+- **C.F.1** — Fix dot indicator: `PostRead` upsert monótono (`DO NOTHING` → `DO UPDATE SET readAt = now(), dwellMs = GREATEST(...)`) + invariante 20 (`lastActivityAt` sólo lo bumpean creación de Post/Comment). Repro: user A lee → user B comenta → dot aparece → user A re-lee → dot no se apagaba dentro de la misma apertura. ADR: `docs/decisions/2026-04-20-post-read-upsert-semantics.md`. ✅ (2026-04-20)
+- **C.F.2** — Request-scoped identity cache: `getCurrentAuthUser` y `loadPlaceById` en `shared/lib/`, más `findActiveMembership` / `findPlaceOwnership` / `findUserProfile` en `shared/lib/identity-cache.ts`, todos envueltos en `React.cache`. `findInviterPermissions` (members) y `resolveActorForPlace` (discussions) recompuestos sobre estos primitives; pages `/conversations` y `/conversations/[postSlug]` pasan `placeSlug` al resolver para compartir el cache de `loadPlaceBySlug` que ya hidratan los layouts. Un GET a `/conversations` baja de ~15 queries totales a 8 y evita el "Suspense boundary" abort por exceso de round-trips en pgbouncer. ADR: `docs/decisions/2026-04-20-request-scoped-identity-cache.md`. ✅ (2026-04-20)
+- **C.G** — Moderación UI: `FlagButton` discreto en `PostDetail` + `CommentItem`, `FlagModal` con Radix Dialog (Zod + `useTransition` + Sonner), cola admin `/settings/flags` con `FlagQueueItem` (ignorar / ocultar / eliminar). `reviewFlagAction` ampliado con `sideEffect` transaccional (HIDE_TARGET / DELETE_TARGET) — aplica la review + update del target en la misma `prisma.$transaction`. Split del sub-slice `features/flags/` (backend migrado desde discussions; `public.ts` client-safe + `public.server.ts` server-only por el chain de `server-only` que Next traza al bundle cliente). ADR: `docs/decisions/2026-04-21-flags-subslice-split.md`. ✅ (2026-04-21)
+- **C.G.1** — Moderación inline: `PostAdminMenu` (kebab en `PostDetail` con Editar / Ocultar / Eliminar) + `CommentAdminMenu` (kebab en `CommentItem` con Eliminar). Post delete pasó a **hard delete** (cascade de comments + postReads vía FK, cleanup polimórfico de reactions + flags en la misma tx) — desapareció la columna `Post.deletedAt` y el estado `DELETED`. `reviewFlagAction` con `sideEffect: DELETE_TARGET` sobre POST delega en `hardDeletePost` tras reclamar el flag. Edit/Delete bypasean la ventana de 60s para admin (`canEditPost` + `canDeleteContent` con admin-bypass existente). Cola `/settings/flags` con tabs Pendientes/Resueltos + paginación 20 (cursor keyset). Edit del post vive en `/conversations/new?edit=<postId>` — la misma página sirve crear y editar. `shared/ui/dropdown-menu.tsx` nuevo primitive Radix. ADR: `docs/decisions/2026-04-21-post-hard-delete.md`. ✅ (2026-04-21)
+- **C.H** — E2E Playwright + RLS tests directos con JWT alterno. Infra production-ready sobre `my-place` Cloud: `/api/test/sign-in` con gate doble + 9 casos unit, seed E2E aditivo FK-safe con prefijos reservados (`usr_e2e_*`, `place_e2e_*`, `/^e2e-.*@e2e\.place\.local$/`), harness RLS `pg` + `SET LOCAL request.jwt.claims` sobre `DIRECT_URL` con **72 casos directos** cubriendo las 16 policies + 2 helpers (`is_active_member`, `is_place_admin`). Playwright `globalSetup` seedea + loguea los 6 roles a `storageState`. 24 tests E2E verdes × 2 browsers (chromium + mobile-safari): smokes (health, auth, middleware-routing, auth-storageState) + `flows/post-crud` MVP. CI job `e2e` rescripted con branches Supabase efímeras vía Management API (`scripts/ci/branch-helpers.sh`): `create → poll → fetch env → migrate → seed → rls → e2e → delete (always())`, `concurrency.cancel-in-progress` evita branches leaked. ADR: `docs/decisions/2026-04-22-e2e-rls-testing-cloud-branches.md`. ✅ (2026-04-22)
+- **C.H.1** — Flows E2E adicionales (mecánicos sobre la infra de C.H): `flows/comment-reactions`, `flows/moderation`, `flows/invite-accept` (con FakeMailer), `flows/hours-gate`, `flows/admin-inline` (C.G.1), test de ventana 60s via `backdatePost`. Pendiente.
+
+**Fuera de esta fase** (v2 o descartado): audio, temporadas, UI dedicada de dormidos, búsqueda full-text, DMs, push/email, analytics visibles, rich text con imágenes/tablas.
 
 ## Fase 6 — Eventos
 
@@ -157,6 +184,25 @@ de ninguna fase, pero hay que retomar antes de dar el producto por maduro.
 - **Multi-timezone por place.** Un place con una sede en Madrid y otra en BA
   hoy tiene que elegir una sola timezone. Fuera de scope MVP.
 
+### Discusiones (post-C.F)
+
+- **Wrap `listPostsByPlace` con `React.cache`.** Hoy lo llama solo el page
+  `/conversations`. Cuando aparezca un segundo caller en la misma request (p.ej.
+  widget de "novedades" en portada, panel admin de moderación), envolver con
+  `cache()` — mismo patrón que `findOrCreateCurrentOpening`. Evita groupBy
+  duplicado del `PostRead` por viewer.
+- **Broadcast de nuevos comments.** Decidido fuera de MVP (ver
+  `docs/features/discussions/spec.md § 13`). Infra lista (private channels +
+  policies `realtime.messages` sobre `post:%`); implementación: emisión
+  post-commit desde `createCommentAction` + dedupe client-side por `commentId`.
+- **Bloque "leyeron esta noche"** en `PostDetail`. Lista de lectores durante la
+  apertura actual. Requiere query `PostRead.findMany({ placeOpeningId })` + UI
+  compacta. Deferido hasta tener feedback de uso real.
+- **Cron de cierre de `PlaceOpening` sin tráfico.** Hoy el opening se cierra al
+  próximo `findOrCreateCurrentOpening`; si el place no recibe tráfico durante
+  muchos días, el opening queda abierto nominalmente. No afecta el funcionamiento
+  (el gate se deriva del horario, no del opening). Valorar un job periódico.
+
 ### Global
 
 - **Rate limiting compartido** para todos los server actions sensibles (invite,
@@ -165,6 +211,11 @@ de ninguna fase, pero hay que retomar antes de dar el producto por maduro.
   (archivado, transferencia, cambios de horario, expulsiones cuando existan).
 - **Desarchivar place.** Hoy `archivedAt` es monótono.
 - **Anti-squatting de slugs.** Cuando aparezca el requerimiento.
+- **`QueryClientProvider` global cuando aparezca el primer cliente real de
+  TanStack Query.** Hoy `docs/stack.md:20` lo nombra aspiracionalmente pero no
+  hay un provider montado. `DwellTracker` usa `useTransition` (decisión
+  registrada en `docs/decisions/2026-04-24-dwell-tracker-usetransition.md`);
+  revisar esa decisión cuando se monte el provider.
 
 ## Cómo evaluar cuándo pasar de MVP a v2
 

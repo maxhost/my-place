@@ -110,6 +110,9 @@ export default tseslint.config(
     // Excepciones donde el admin client sí puede vivir
     files: [
       'src/app/api/**/*.{ts,tsx}',
+      'src/app/**/actions.ts',
+      'src/app/**/dev-actions.ts',
+      'src/app/auth/callback/route.ts',
       'src/features/*/server/**/*.{ts,tsx}',
       'src/shared/lib/supabase/admin.ts',
       'src/middleware.ts',

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Fraunces, Inter } from 'next/font/google'
 import { buildThemeVars } from '@/shared/config/theme'
+import { Toaster } from '@/shared/ui/toaster'
 import './globals.css'
 
 const inter = Inter({
@@ -24,7 +25,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className={`${inter.variable} ${fraunces.variable}`} style={buildThemeVars()}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Toaster />
+      </body>
     </html>
   )
 }

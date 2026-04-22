@@ -19,8 +19,14 @@ model User {
   avatarUrl   String?
   createdAt   DateTime @default(now())
 
-  memberships Membership[]
-  ownedPlaces PlaceOwnership[]
+  memberships   Membership[]
+  ownedPlaces   PlaceOwnership[]
+  posts         Post[]           @relation("PostAuthor")
+  comments      Comment[]        @relation("CommentAuthor")
+  reactions     Reaction[]
+  postReads     PostRead[]
+  flagsFiled    Flag[]           @relation("FlagReporter")
+  flagsReviewed Flag[]           @relation("FlagReviewer")
 }
 
 model Place {
@@ -45,6 +51,11 @@ model Place {
   memberships Membership[]
   ownerships  PlaceOwnership[]
   invitations Invitation[]
+  posts       Post[]
+  comments    Comment[]
+  reactions   Reaction[]
+  openings    PlaceOpening[]
+  flags       Flag[]
 }
 
 model Membership {
@@ -80,14 +91,38 @@ model Invitation {
   placeId    String
   email      String
   invitedBy  String
+  asAdmin    Boolean   @default(false)
   acceptedAt DateTime?
   expiresAt  DateTime
   token      String    @unique
 
+  // Delivery tracking (ver docs/plans/2026-04-20-members-email-resend.md).
+  // `deliveryStatus` evoluciona: PENDING → SENT → (DELIVERED | BOUNCED | COMPLAINED)
+  // o PENDING → FAILED si el mailer falla en el send inicial. `providerMessageId`
+  // correlaciona con los webhooks de Resend. `lastSentAt` permite rate-limitar el
+  // botón de Reenviar desde UI.
+  deliveryStatus    InvitationDeliveryStatus @default(PENDING)
+  providerMessageId String?
+  lastDeliveryError String?
+  lastSentAt        DateTime?
+
   place Place @relation(fields: [placeId], references: [id])
+  // Unique parcial `WHERE "acceptedAt" IS NULL` sobre (placeId, lower(email))
+  // está definido en la migración 20260420000000_members_invitation_fields.
+  // Prisma no soporta expresar índices parciales declarativamente — ver docs/features/members/spec.md.
 
   @@index([placeId])
   @@index([email])
+  @@index([providerMessageId])
+}
+
+enum InvitationDeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  BOUNCED
+  COMPLAINED
+  FAILED
 }
 
 enum MembershipRole {
@@ -99,4 +134,160 @@ enum BillingMode {
   OWNER_PAYS
   OWNER_PAYS_AND_CHARGES
   SPLIT_AMONG_MEMBERS
+}
+
+// Slice `discussions` (Fase 5). Ver docs/features/discussions/spec.md § 4.
+
+model Post {
+  id             String    @id @default(cuid())
+  placeId        String
+  authorUserId   String?
+  authorSnapshot Json
+  title          String    @db.VarChar(160)
+  slug           String    @db.VarChar(180)
+  body           Json?
+  createdAt      DateTime  @default(now())
+  editedAt       DateTime?
+  hiddenAt       DateTime?
+  lastActivityAt DateTime  @default(now())
+  version        Int       @default(0)
+
+  place    Place      @relation(fields: [placeId], references: [id], onDelete: Restrict)
+  author   User?      @relation("PostAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  comments Comment[]
+  reads    PostRead[]
+  // Índice parcial en migración discussions_core (Prisma no soporta WHERE):
+  //   (authorUserId) WHERE authorUserId IS NOT NULL
+
+  @@unique([placeId, slug])
+  @@index([placeId, createdAt(sort: Desc)])
+  @@index([placeId, lastActivityAt(sort: Desc)])
+}
+
+model Comment {
+  id              String    @id @default(cuid())
+  postId          String
+  placeId         String
+  authorUserId    String?
+  authorSnapshot  Json
+  body            Json
+  quotedCommentId String?
+  quotedSnapshot  Json?
+  createdAt       DateTime  @default(now())
+  editedAt        DateTime?
+  deletedAt       DateTime?
+  version         Int       @default(0)
+
+  post          Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  place         Place     @relation(fields: [placeId], references: [id], onDelete: Restrict)
+  author        User?     @relation("CommentAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  quotedComment Comment?  @relation("CommentQuote", fields: [quotedCommentId], references: [id], onDelete: SetNull)
+  quotedBy      Comment[] @relation("CommentQuote")
+  // Índices parciales en migración: cursor backward y authorUserId.
+
+  @@index([postId, createdAt])
+}
+
+model Reaction {
+  id         String            @id @default(cuid())
+  targetType ContentTargetKind
+  targetId   String
+  placeId    String
+  userId     String
+  emoji      ReactionEmoji
+  createdAt  DateTime          @default(now())
+
+  place Place @relation(fields: [placeId], references: [id], onDelete: Restrict)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([targetType, targetId, userId, emoji])
+  @@index([targetType, targetId])
+}
+
+model PlaceOpening {
+  id        String             @id @default(cuid())
+  placeId   String
+  startAt   DateTime
+  endAt     DateTime?
+  source    PlaceOpeningSource
+  createdAt DateTime           @default(now())
+
+  place Place      @relation(fields: [placeId], references: [id], onDelete: Restrict)
+  reads PostRead[]
+  // UNIQUE parcial `(placeId) WHERE endAt IS NULL` en migración: máx 1 apertura activa por place.
+
+  @@index([placeId, startAt(sort: Desc)])
+}
+
+model PostRead {
+  id             String   @id @default(cuid())
+  postId         String
+  userId         String
+  placeOpeningId String
+  readAt         DateTime @default(now())
+  dwellMs        Int
+
+  post    Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  opening PlaceOpening @relation(fields: [placeOpeningId], references: [id], onDelete: Restrict)
+
+  @@unique([postId, userId, placeOpeningId])
+  @@index([postId, placeOpeningId])
+  @@index([userId, postId])
+}
+
+model Flag {
+  id                  String            @id @default(cuid())
+  targetType          ContentTargetKind
+  targetId            String
+  placeId             String
+  reporterUserId      String
+  reason              FlagReason
+  reasonNote          String?           @db.VarChar(500)
+  status              FlagStatus        @default(OPEN)
+  createdAt           DateTime          @default(now())
+  reviewedAt          DateTime?
+  reviewerAdminUserId String?
+  reviewNote          String?           @db.VarChar(500)
+
+  place    Place @relation(fields: [placeId], references: [id], onDelete: Restrict)
+  reporter User  @relation("FlagReporter", fields: [reporterUserId], references: [id], onDelete: Restrict)
+  reviewer User? @relation("FlagReviewer", fields: [reviewerAdminUserId], references: [id], onDelete: SetNull)
+
+  @@unique([targetType, targetId, reporterUserId])
+  @@index([placeId, status, createdAt(sort: Desc)])
+}
+
+enum ContentTargetKind {
+  POST
+  COMMENT
+}
+
+enum ReactionEmoji {
+  THUMBS_UP
+  HEART
+  LAUGH
+  PRAY
+  THINKING
+  CRY
+}
+
+enum PlaceOpeningSource {
+  SCHEDULED
+  ALWAYS_OPEN
+  EXCEPTION
+}
+
+enum FlagReason {
+  SPAM
+  HARASSMENT
+  OFFTOPIC
+  MISINFO
+  OTHER
+}
+
+enum FlagStatus {
+  OPEN
+  REVIEWED_ACTIONED
+  REVIEWED_DISMISSED
 }

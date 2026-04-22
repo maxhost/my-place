@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
-import { prisma } from '@/db/client'
-import { createSupabaseServer } from '@/shared/lib/supabase/server'
+import { getCurrentAuthUser } from '@/shared/lib/auth-user'
+import { loadPlaceBySlug } from '@/shared/lib/place-loader'
 import { findMemberPermissions } from '@/features/members/public'
 
 type Props = {
@@ -20,21 +20,17 @@ type Props = {
 export default async function SettingsLayout({ children, params }: Props) {
   const { placeSlug } = await params
 
-  const supabase = await createSupabaseServer()
-  const { data: auth } = await supabase.auth.getUser()
-  if (!auth.user) {
-    redirect(`/login?next=/${placeSlug}/settings`)
+  const auth = await getCurrentAuthUser()
+  if (!auth) {
+    redirect(`/login?next=/settings`)
   }
 
-  const place = await prisma.place.findUnique({
-    where: { slug: placeSlug },
-    select: { id: true, archivedAt: true },
-  })
+  const place = await loadPlaceBySlug(placeSlug)
   if (!place || place.archivedAt) {
     notFound()
   }
 
-  const perms = await findMemberPermissions(auth.user.id, place.id)
+  const perms = await findMemberPermissions(auth.id, place.id)
   if (!perms.isOwner && perms.role !== 'ADMIN') {
     notFound()
   }

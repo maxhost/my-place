@@ -2,6 +2,7 @@ import 'server-only'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { clientEnv } from '@/shared/config/env'
+import { cookieDomain } from './cookie-domain'
 
 /**
  * Cliente Supabase para Server Components, Server Actions y Route Handlers.
@@ -9,6 +10,7 @@ import { clientEnv } from '@/shared/config/env'
  */
 export async function createSupabaseServer() {
   const cookieStore = await cookies()
+  const domain = cookieDomain(clientEnv.NEXT_PUBLIC_APP_DOMAIN)
 
   return createServerClient(
     clientEnv.NEXT_PUBLIC_SUPABASE_URL,
@@ -21,7 +23,7 @@ export async function createSupabaseServer() {
         setAll(cookiesToSet) {
           try {
             for (const { name, value, options } of cookiesToSet) {
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, { ...options, ...(domain ? { domain } : {}) })
             }
           } catch {
             // Llamado desde un Server Component (read-only). Next maneja sessions via middleware.

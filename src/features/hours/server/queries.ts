@@ -1,6 +1,6 @@
 import 'server-only'
-import { cache } from 'react'
 import { prisma } from '@/db/client'
+import { loadPlaceById } from '@/shared/lib/place-loader'
 import { OutOfHoursError } from '@/shared/errors/domain-error'
 import { isPlaceOpen } from '../domain/invariants'
 import { parseOpeningHours } from '../schemas'
@@ -13,17 +13,15 @@ import type { OpeningHours } from '../domain/types'
 
 /**
  * Lee `Place.openingHours` y lo pasa por `parseOpeningHours` (fallback defensivo).
- * Wrappeado en `React.cache` para que layout + página dentro de la misma request
- * no hagan dos queries — la próxima request invalida el cache.
+ * Delega a `loadPlaceById` para reusar el cache unificado de Place — si el layout
+ * padre ya hizo `loadPlaceBySlug(slug)` en el mismo request, este lookup es gratis
+ * (cache hit cross-key). Ver `docs/decisions/2026-04-21-unified-place-cache.md`.
  */
-export const findPlaceHours = cache(async (placeId: string): Promise<OpeningHours> => {
-  const place = await prisma.place.findUnique({
-    where: { id: placeId },
-    select: { openingHours: true },
-  })
+export async function findPlaceHours(placeId: string): Promise<OpeningHours> {
+  const place = await loadPlaceById(placeId)
   if (!place) return { kind: 'unconfigured' }
   return parseOpeningHours(place.openingHours)
-})
+}
 
 /**
  * Helper para que server actions de Fase 5 (conversaciones) y Fase 6 (eventos)

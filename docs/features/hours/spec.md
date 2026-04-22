@@ -149,7 +149,7 @@ await assertPlaceOpenOrThrow(placeId) // throws OutOfHoursError si cerrado
 
 ## Integración con slices futuros
 
-- **Fase 5 (conversaciones):** `src/features/conversations/server/actions.ts` (cuando exista) importa `assertPlaceOpenOrThrow` desde `features/hours/public.ts` y lo llama al tope de `createThreadAction`, `sendMessageAction`, `uploadAudioAction`, etc. El mounting de widgets de conversaciones en la portada NO necesita el assert — ya están detrás de `(gated)/layout.tsx`.
+- **Fase 5 (discussions):** `src/features/discussions/server/actions.ts` importa `assertPlaceOpenOrThrow` y `currentOpeningWindow` desde `features/hours/public.ts`. El assert se llama al tope de `createPostAction`, `createCommentAction`, `editPostAction`, `editCommentAction`, `hidePostAction`, `deletePostAction`, `deleteCommentAction`, `reactAction`, `flagAction`, `reviewFlagAction`, `markPostReadAction`. `currentOpeningWindow` se consume en `findOrCreateCurrentOpening(placeId)` (server/opening.ts) para resolver la `PlaceOpening` activa y agrupar `PostRead` por apertura. Ver `docs/features/discussions/spec.md` § "Contrato de apertura y lectores". El mounting de widgets de discussions en la portada NO necesita el assert — ya están detrás de `(gated)/layout.tsx`.
 - **Fase 6 (eventos):** mismo patrón. Además, según `docs/ontologia/eventos.md:95-100`, un evento virtual fuera del horario regular del place "abre" el place solo para ese evento — esa lógica se resuelve en `events/` pisando el estado de hours para los invitados al evento. Se especifica en la spec de eventos cuando toque.
 - **Portada (Fase 7):** renderiza widgets de conversaciones/eventos según `enabledFeatures`. Ya está gated por horario; la lógica de portada no necesita saber de hours directamente.
 

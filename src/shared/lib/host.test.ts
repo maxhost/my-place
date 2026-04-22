@@ -2,7 +2,26 @@ import { describe, expect, it } from 'vitest'
 import { resolveHost } from './host'
 
 describe('resolveHost', () => {
-  describe('en desarrollo (appDomain=localhost:3000)', () => {
+  describe('en desarrollo (appDomain=lvh.me:3000)', () => {
+    const appDomain = 'lvh.me:3000'
+
+    it('dominio raíz → marketing', () => {
+      expect(resolveHost('lvh.me:3000', appDomain)).toEqual({ kind: 'marketing' })
+    })
+
+    it('app.lvh.me:3000 → inbox', () => {
+      expect(resolveHost('app.lvh.me:3000', appDomain)).toEqual({ kind: 'inbox' })
+    })
+
+    it('{slug}.lvh.me:3000 → place', () => {
+      expect(resolveHost('thecompany.lvh.me:3000', appDomain)).toEqual({
+        kind: 'place',
+        slug: 'thecompany',
+      })
+    })
+  })
+
+  describe('en desarrollo legacy (appDomain=localhost:3000)', () => {
     const appDomain = 'localhost:3000'
 
     it('dominio raíz → marketing', () => {

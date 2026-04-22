@@ -11,10 +11,13 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # Dummy para el job `quality` — no toca DB real. Deben estar presentes para
+  # que `next build` pase validación de serverEnv (zod) durante SSG.
   NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
   NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
   SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
   DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+  DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
   NEXT_PUBLIC_APP_URL: http://localhost:3000
   NEXT_PUBLIC_APP_DOMAIN: localhost:3000
 
@@ -40,24 +43,50 @@ jobs:
       - run: pnpm build
 
   e2e:
-    name: e2e smokes
+    name: e2e · rls (branch Supabase efímera)
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    # Concurrency independiente del job quality → CI quality corre simultáneo
+    # pero branches se serializan por ref para evitar acumulación por runs
+    # consecutivos.
+    concurrency:
+      group: e2e-branch-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      E2E_TEST_SECRET: ${{ secrets.E2E_TEST_SECRET }}
+      NEXT_PUBLIC_APP_URL: http://lvh.me:3001
+      NEXT_PUBLIC_APP_DOMAIN: lvh.me:3001
+      PLAYWRIGHT_BASE_URL: http://lvh.me:3001
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verificar secrets presentes
+        run: |
+          set -e
+          for var in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF E2E_TEST_SECRET; do
+            if [[ -z "${!var:-}" ]]; then
+              echo "::error::Falta secret $var en GitHub Actions" && exit 1
+            fi
+          done
+
+      - name: Crear branch Supabase efímera
+        id: create_branch
+        run: |
+          branch_name="ci-${{ github.run_id }}-${{ github.job }}-$(date +%s)"
+          branch_id=$(bash scripts/ci/branch-helpers.sh create_branch "$branch_name")
+          echo "branch_id=$branch_id" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$branch_name" >> "$GITHUB_OUTPUT"
+
+      - name: Esperar branch ACTIVE
+        run: bash scripts/ci/branch-helpers.sh poll_until_active "${{ steps.create_branch.outputs.branch_id }}"
+
+      - name: Resolver env de la branch
+        run: |
+          bash scripts/ci/branch-helpers.sh fetch_branch_env \
+            "${{ steps.create_branch.outputs.branch_id }}" >> "$GITHUB_ENV"
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10
@@ -65,8 +94,35 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+
       - run: pnpm install --frozen-lockfile
+
       - run: pnpm prisma generate
-      - run: pnpm prisma migrate deploy
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+
+      - name: Aplicar migraciones sobre la branch
+        run: pnpm prisma migrate deploy
+
+      - name: Sembrar fixtures E2E
+        run: pnpm tsx tests/fixtures/e2e-seed.ts
+
+      - name: RLS tests directos (vitest + pg + SET LOCAL)
+        run: pnpm vitest run --config vitest.rls.config.ts
+
+      - run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: E2E Playwright (globalSetup + smoke + flows)
+        run: pnpm exec playwright test
+
+      - name: Cleanup — borrar branch Supabase
+        if: always() && steps.create_branch.outputs.branch_id != ''
+        run: bash scripts/ci/branch-helpers.sh delete_branch "${{ steps.create_branch.outputs.branch_id }}"
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
