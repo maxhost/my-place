@@ -10,6 +10,7 @@ import {
 import { E2E_PLACES, type E2ERole } from '../fixtures/e2e-data'
 
 const palermoId = E2E_PLACES.palermo.id
+const belgranoId = E2E_PLACES.belgrano.id
 
 async function rlsInsertPostRead(
   client: PoolClient,
@@ -24,7 +25,7 @@ async function rlsInsertPostRead(
   return id
 }
 
-describe('RLS: PostRead (6 casos)', () => {
+describe('RLS: PostRead (7 casos)', () => {
   let userIds: Record<E2ERole, string>
 
   beforeAll(async () => {
@@ -205,6 +206,40 @@ describe('RLS: PostRead (6 casos)', () => {
             id: 'pr_rls_select_nm',
             postId,
             userId: userIds.memberA,
+            openingId,
+          })
+        },
+      },
+    )
+  })
+
+  it('SELECT: cross-place isolation — memberA de Palermo NO ve reads de Belgrano', async () => {
+    // Confirma el invariante crítico del bloque "Leyeron": un miembro activo de
+    // un place nunca puede ver lectores de otro place aunque conozca postId y
+    // opening. La policy `is_active_member(placeId)` es la que bloquea.
+    // memberA está sólo en Palermo (por fixtures); memberB está en Belgrano.
+    await withUser(
+      userIds.memberA,
+      async (client) => {
+        const { rows } = await client.query<{ id: string }>(
+          `SELECT id FROM "PostRead" WHERE id = $1`,
+          ['pr_rls_cross_place'],
+        )
+        expect(rows).toHaveLength(0)
+      },
+      {
+        setup: async (client) => {
+          // Post + opening en Belgrano (place distinto al de memberA)
+          const postId = await insertTestPost(client, {
+            placeId: belgranoId,
+            authorUserId: userIds.memberB,
+            slug: 'rls-pr-cross-place',
+          })
+          const openingId = await insertTestOpening(client, { placeId: belgranoId })
+          await rlsInsertPostRead(client, {
+            id: 'pr_rls_cross_place',
+            postId,
+            userId: userIds.memberB,
             openingId,
           })
         },

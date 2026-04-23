@@ -86,7 +86,9 @@ export {
   findPostBySlug,
   listCommentsByPost,
   listPostsByPlace,
+  listReadersByPost,
   type CommentView,
+  type PostReader,
 } from './server/queries'
 
 export {
@@ -132,6 +134,7 @@ export { DwellTracker } from './ui/dwell-tracker'
 export { PostComposer } from './ui/post-composer'
 export { PostDetail } from './ui/post-detail'
 export { PostList } from './ui/post-list'
+export { PostReadersBlock } from './ui/post-readers-block'
 export { PostUnreadDot } from './ui/post-unread-dot'
 export { ThreadPresence } from './ui/thread-presence'
 

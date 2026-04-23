@@ -432,6 +432,57 @@ Server action `markPostReadAction`:
 
 Cliente trata `OutOfHoursError` como silencioso (no muestra toast — el place ya se cerró y el layout va a refrescar a su ritmo).
 
+El action invoca `revalidatePath(/<placeSlug>/conversations/<postSlug>)` al
+final (siempre, tanto insert como update) para que el bloque de lectores
+(ver siguiente sub-sección) refleje al nuevo lector y el dot indicator
+recompute `lastReadAt > lastActivityAt` en la próxima navegación del
+viewer. Revalidate es idempotente — múltiples fires concurrentes colapsan
+en un solo refetch por cliente.
+
+### Bloque de lectores de la apertura (C.K, 2026-04-21)
+
+Render en el hero del thread, debajo de `ThreadPresence`:
+`<PostReadersBlock postId placeId placeSlug viewerUserId />`. Contrato
+(derivado de `docs/ontologia/conversaciones.md § Tres`,
+`CLAUDE.md § Sobre la comunicación`: "Los lectores son parte de la
+conversación. Leer es una forma visible de presencia, no lurking
+invisible.").
+
+**Query**: `listReadersByPost({ postId, placeId, placeOpeningId,
+excludeUserId? }): Promise<PostReader[]>` vive en `server/queries.ts`.
+Filtros:
+
+- `(postId, placeOpeningId)` exacto (index ya existente).
+- Ex-miembros excluidos: `user.memberships.some({ placeId, leftAt: null })`
+  — derecho al olvido estructurado.
+- Viewer excluido cuando `excludeUserId` se pasa — simetría con
+  `ThreadPresence`.
+- Orden `readAt DESC` (lector más reciente primero).
+- Sin LIMIT en query; el cap es 150 miembros/place por invariante.
+
+**UI** (Server Component):
+
+- Si `findOrCreateCurrentOpening(placeId)` retorna null (place
+  `unconfigured`) → `null`.
+- Si `readers.length === 0` → `null` (consistencia con "nada demanda
+  atención"; sin texto "aún nadie leyó").
+- Hasta 8 avatars visibles; overflow `+N más`.
+- Avatars **sin borde verde** (distinguir de `ThreadPresence` que SÍ lo
+  tiene): `ReaderAvatar` privado del archivo.
+- Cada avatar es `<Link href="/m/<userId>" prefetch={false}
+aria-label={displayName}>` — clickeable al perfil contextual.
+  `prefetch={false}` evita 8 prefetches por cada thread en viewport.
+- `avatarUrl` null → inicial del `displayName` en `<span>` (pattern de
+  `thread-presence.tsx:111-122`).
+- Label "Leyeron:" con `aria-label="Lectores de la apertura"` en el
+  contenedor.
+- No WS: revalida via `markPostReadAction` → `revalidatePath`.
+
+**Interacción con `ThreadPresence`**: un usuario puede aparecer en ambos
+bloques simultáneamente (presente live WS + lector persistido en la
+apertura actual). Diseño intencional — dimensiones temporales distintas:
+presence = "ahora mismo"; readers = "durante esta apertura".
+
 ## 10. Contrato de moderación
 
 ### Hide (Post only)
@@ -918,7 +969,7 @@ Patrón oficial Supabase — sin firma de JWTs, sin libs nuevas. Ver `tests/rls/
 | Comment           | 12    | `tests/rls/comment.test.ts`           |
 | Reaction          | 8     | `tests/rls/reaction.test.ts`          |
 | Flag              | 14    | `tests/rls/flag.test.ts`              |
-| PostRead          | 6     | `tests/rls/post-read.test.ts`         |
+| PostRead          | 7     | `tests/rls/post-read.test.ts`         |
 | PlaceOpening      | 5     | `tests/rls/place-opening.test.ts`     |
 
 Roles ejercitados: `owner`, `admin`, `memberA`, `memberB`, `exMember` (leftAt set), `nonMember`, `anon`.

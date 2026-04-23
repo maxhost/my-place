@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { Prisma } from '@prisma/client'
+import { revalidatePath } from 'next/cache'
 import { prisma } from '@/db/client'
 import { logger } from '@/shared/lib/logger'
 import { NotFoundError, OutOfHoursError, ValidationError } from '@/shared/errors/domain-error'
@@ -46,7 +47,7 @@ export async function markPostReadAction(input: unknown): Promise<{ ok: true; re
 
   const post = await prisma.post.findUnique({
     where: { id: data.postId },
-    select: { id: true, placeId: true, hiddenAt: true },
+    select: { id: true, placeId: true, slug: true, hiddenAt: true },
   })
   if (!post) throw new NotFoundError('Post no encontrado.', { postId: data.postId })
   assertPostOpenForActivity(post)
@@ -85,6 +86,15 @@ export async function markPostReadAction(input: unknown): Promise<{ ok: true; re
     },
     recorded ? 'post read recorded' : 'post read updated (re-read in same opening)',
   )
+
+  // Revalida el thread para que:
+  // 1. El bloque `PostReadersBlock` refleje al nuevo lector (o el readAt actualizado
+  //    en re-lecturas, que altera el orden `readAt DESC`).
+  // 2. El dot indicator (`PostUnreadDot`) recompute `lastReadAt > lastActivityAt`
+  //    en la próxima navegación del viewer.
+  // Revalidate es idempotente — múltiples fires en ventana corta colapsan en un
+  // solo refetch por cliente.
+  revalidatePath(`/${actor.placeSlug}/conversations/${post.slug}`)
 
   return { ok: true, recorded }
 }

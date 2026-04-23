@@ -5,6 +5,7 @@ import {
   CommentThread,
   DwellTracker,
   PostDetail,
+  PostReadersBlock,
   ThreadPresence,
   aggregateReactions,
   findPostBySlug,
@@ -58,6 +59,12 @@ export default async function PostDetailPage({ params }: Props) {
           displayName: viewer.user.displayName,
           avatarUrl: viewer.user.avatarUrl,
         }}
+      />
+      <PostReadersBlock
+        postId={post.id}
+        placeId={viewer.placeId}
+        placeSlug={viewer.placeSlug}
+        viewerUserId={viewer.actorId}
       />
       <PostDetail
         post={post}

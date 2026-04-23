@@ -226,4 +226,24 @@ describe('markPostReadAction', () => {
     )
     expect(postReadQueryRaw).not.toHaveBeenCalled()
   })
+
+  it('primera lectura: revalida el path del thread para refrescar PostReadersBlock + dot', async () => {
+    mockActiveMember()
+    mockPostAndOpening()
+    postReadQueryRaw.mockResolvedValue([{ inserted: true }])
+
+    await markPostReadAction({ postId: 'po-1', dwellMs: 6000 })
+
+    expect(revalidatePathFn).toHaveBeenCalledWith('/the-place/conversations/tema-1')
+  })
+
+  it('re-lectura también revalida (readAt avanza → altera orden del bloque + apaga dot)', async () => {
+    mockActiveMember()
+    mockPostAndOpening()
+    postReadQueryRaw.mockResolvedValue([{ inserted: false }])
+
+    await markPostReadAction({ postId: 'po-1', dwellMs: 6000 })
+
+    expect(revalidatePathFn).toHaveBeenCalledWith('/the-place/conversations/tema-1')
+  })
 })
