@@ -58,6 +58,22 @@ export async function countOpenFlags(placeId: string): Promise<number> {
   return prisma.flag.count({ where: { placeId, status: 'OPEN' } })
 }
 
+type PostSnapshotRow = {
+  id: string
+  title: string
+  body: unknown
+  hiddenAt: Date | null
+  slug: string
+}
+
+type CommentSnapshotRow = {
+  id: string
+  body: unknown
+  deletedAt: Date | null
+  postId: string
+  post: { slug: string } | null
+}
+
 /**
  * Resuelve en batch los snapshots de los targets flageados. Hace a lo sumo
  * 2 `findMany` (post + comment) agrupadas en un solo `$transaction` — O(1)
@@ -70,24 +86,39 @@ export async function listFlagTargetSnapshots(
 ): Promise<Map<string, FlagTargetSnapshot>> {
   const result = new Map<string, FlagTargetSnapshot>()
   if (flags.length === 0) return result
+  const { postIds, commentIds } = collectFlagTargetIds(flags)
+  const { posts, comments } = await fetchFlagTargetsBatch(postIds, commentIds)
+  for (const p of posts) result.set(`POST:${p.id}`, mapPostSnapshot(p))
+  for (const c of comments) result.set(`COMMENT:${c.id}`, mapCommentSnapshot(c))
+  return result
+}
 
+function collectFlagTargetIds(flags: readonly Flag[]): {
+  postIds: string[]
+  commentIds: string[]
+} {
   const postIds = [...new Set(flags.filter((f) => f.targetType === 'POST').map((f) => f.targetId))]
   const commentIds = [
     ...new Set(flags.filter((f) => f.targetType === 'COMMENT').map((f) => f.targetId)),
   ]
+  return { postIds, commentIds }
+}
 
+/**
+ * Ejecuta los 2 `findMany` (post + comment) en un solo `$transaction` para
+ * snapshot isolation. Cada rama se agrega al batch sólo si hay ids — evita
+ * queries triviales. Retorna arrays tipados para que el caller no haga casts.
+ */
+async function fetchFlagTargetsBatch(
+  postIds: string[],
+  commentIds: string[],
+): Promise<{ posts: PostSnapshotRow[]; comments: CommentSnapshotRow[] }> {
   const ops: Prisma.PrismaPromise<unknown>[] = []
   if (postIds.length > 0) {
     ops.push(
       prisma.post.findMany({
         where: { id: { in: postIds } },
-        select: {
-          id: true,
-          title: true,
-          body: true,
-          hiddenAt: true,
-          slug: true,
-        },
+        select: { id: true, title: true, body: true, hiddenAt: true, slug: true },
       }),
     )
   }
@@ -105,53 +136,34 @@ export async function listFlagTargetSnapshots(
       }),
     )
   }
-
-  if (ops.length === 0) return result
-
+  if (ops.length === 0) return { posts: [], comments: [] }
   const results = (await prisma.$transaction(ops)) as unknown[]
   let idx = 0
+  const posts = postIds.length > 0 ? (results[idx++] as PostSnapshotRow[]) : []
+  const comments = commentIds.length > 0 ? (results[idx++] as CommentSnapshotRow[]) : []
+  return { posts, comments }
+}
 
-  if (postIds.length > 0) {
-    const posts = results[idx++] as Array<{
-      id: string
-      title: string
-      body: unknown
-      hiddenAt: Date | null
-      slug: string
-    }>
-    for (const p of posts) {
-      result.set(`POST:${p.id}`, {
-        targetType: 'POST',
-        targetId: p.id,
-        title: p.title,
-        body: p.body,
-        hiddenAt: p.hiddenAt,
-        slug: p.slug,
-      })
-    }
+function mapPostSnapshot(row: PostSnapshotRow): FlagTargetSnapshot {
+  return {
+    targetType: 'POST',
+    targetId: row.id,
+    title: row.title,
+    body: row.body,
+    hiddenAt: row.hiddenAt,
+    slug: row.slug,
   }
+}
 
-  if (commentIds.length > 0) {
-    const comments = results[idx++] as Array<{
-      id: string
-      body: unknown
-      deletedAt: Date | null
-      postId: string
-      post: { slug: string } | null
-    }>
-    for (const c of comments) {
-      result.set(`COMMENT:${c.id}`, {
-        targetType: 'COMMENT',
-        targetId: c.id,
-        body: c.body,
-        deletedAt: c.deletedAt,
-        postId: c.postId,
-        postSlug: c.post?.slug ?? null,
-      })
-    }
+function mapCommentSnapshot(row: CommentSnapshotRow): FlagTargetSnapshot {
+  return {
+    targetType: 'COMMENT',
+    targetId: row.id,
+    body: row.body,
+    deletedAt: row.deletedAt,
+    postId: row.postId,
+    postSlug: row.post?.slug ?? null,
   }
-
-  return result
 }
 
 type FlagRow = Prisma.FlagGetPayload<Record<string, never>>
