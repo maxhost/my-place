@@ -59,12 +59,16 @@ model Place {
 }
 
 model Membership {
-  id       String         @id @default(cuid())
-  userId   String
-  placeId  String
-  role     MembershipRole @default(MEMBER)
-  joinedAt DateTime       @default(now())
-  leftAt   DateTime?
+  id               String         @id @default(cuid())
+  userId           String
+  placeId          String
+  role             MembershipRole @default(MEMBER)
+  joinedAt         DateTime       @default(now())
+  leftAt           DateTime?
+  // Timestamp de aplicación del job de erasure 365d (C.L). NULL = nunca
+  // procesada. Lo escribe `runErasure` cuando la membership cumple 365d
+  // desde `leftAt`. Sirve como idempotency guard.
+  erasureAppliedAt DateTime?
 
   user  User  @relation(fields: [userId], references: [id])
   place Place @relation(fields: [placeId], references: [id])
@@ -290,4 +294,35 @@ enum FlagStatus {
   OPEN
   REVIEWED_ACTIONED
   REVIEWED_DISMISSED
+}
+
+// Audit trail del job de erasure 365d (C.L). Cada run del job inserta
+// una fila por membership procesada, capturando los snapshots `authorSnapshot`
+// ANTES de sobrescribir con "ex-miembro". Permite rollback manual via SQL
+// si se detecta bug en `leftAt` o ejecución prematura. RLS deny-all por
+// default (sin policies): solo service_role puede leer/escribir.
+//
+// Ver `docs/decisions/2026-04-24-erasure-365d.md`.
+model ErasureAuditLog {
+  id              String   @id @default(cuid())
+  membershipId    String
+  userId          String
+  placeId         String
+  postIds         String[]
+  commentIds      String[]
+  // Array<{ type: 'POST'|'COMMENT', id, displayName, avatarUrl: string | null }>
+  // Shape exacto validable desde TS; no constraint a nivel DB (Json genérico
+  // por simplicidad del rollback manual).
+  snapshotsBefore Json
+  appliedAt       DateTime @default(now())
+  // True cuando el run fue con `?dryRun=true` — la tx rollbackeó los UPDATEs
+  // pero el insert queda. Permite inspeccionar qué HABRÍA hecho el job.
+  dryRun          Boolean  @default(false)
+  // Null si la tx committed exitosa. String si hubo error y se capturó
+  // fuera de la tx (la fila NO se escribe si la tx rollbackea — esto solo
+  // aplica a errores post-commit del job orchestrator).
+  error           String?
+
+  @@index([membershipId])
+  @@index([appliedAt])
 }
