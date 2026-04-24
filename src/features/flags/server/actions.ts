@@ -8,7 +8,17 @@ import { AuthorizationError, NotFoundError, ValidationError } from '@/shared/err
 import { hardDeletePost } from '@/features/discussions/public.server'
 import { FlagAlreadyExists } from '../domain/errors'
 import { flagInputSchema, reviewFlagInputSchema } from '../schemas'
-import { resolveActorForPlace } from './actor'
+import { resolveActorForPlace, type FlagActor } from './actor'
+
+type FlagRecord = {
+  id: string
+  placeId: string
+  status: string
+  targetType: 'POST' | 'COMMENT'
+  targetId: string
+}
+
+type ReviewInput = ReturnType<typeof parseReviewInput>
 
 /**
  * Crea un flag sobre un Post o Comment. UNIQUE `(targetType, targetId, reporterUserId)`
@@ -86,18 +96,34 @@ export async function flagAction(input: unknown): Promise<{ ok: true; flagId: st
  * ya lo resolvió, `count=0` ⇒ rollback completo de la tx + `NotFoundError`.
  *
  * Hard delete sobre POST sale fuera de la tx del flag update porque el flag
- * row desaparece cuando `hardDeletePost` hace el `flag.deleteMany` interno —
- * si intentaramos updateMany después, no habría a qué escribir. Orden:
- * 1) cargar el postSlug (para revalidar), 2) update del flag + guard race,
- * 3) hard delete (atomic por sí mismo), 4) revalidate.
+ * row desaparece cuando `hardDeletePost` hace el `flag.deleteMany` interno.
  */
 export async function reviewFlagAction(input: unknown): Promise<{ ok: true }> {
+  const data = parseReviewInput(input)
+  const { flag, actor } = await loadAndAuthorizeFlag(data)
+
+  if (data.sideEffect === 'DELETE_TARGET' && flag.targetType === 'POST') {
+    await reviewFlagPostHardDelete(flag, actor, data)
+    return { ok: true }
+  }
+
+  const targetPostSlug = await reviewFlagTx(flag, actor, data)
+  logFlagReviewed(actor, flag, data)
+  revalidateFlagPaths(actor, flag, data, targetPostSlug)
+  return { ok: true }
+}
+
+function parseReviewInput(input: unknown) {
   const parsed = reviewFlagInputSchema.safeParse(input)
   if (!parsed.success) {
     throw new ValidationError('Datos inválidos.', { issues: parsed.error.issues })
   }
-  const data = parsed.data
+  return parsed.data
+}
 
+async function loadAndAuthorizeFlag(
+  data: ReviewInput,
+): Promise<{ flag: FlagRecord; actor: FlagActor }> {
   const flag = await prisma.flag.findUnique({
     where: { id: data.flagId },
     select: { id: true, placeId: true, status: true, targetType: true, targetId: true },
@@ -106,9 +132,7 @@ export async function reviewFlagAction(input: unknown): Promise<{ ok: true }> {
 
   const actor = await resolveActorForPlace({ placeId: flag.placeId })
   if (!actor.isAdmin) {
-    throw new AuthorizationError('Sólo admins pueden revisar flags.', {
-      flagId: flag.id,
-    })
+    throw new AuthorizationError('Sólo admins pueden revisar flags.', { flagId: flag.id })
   }
 
   if (data.sideEffect === 'HIDE_TARGET' && flag.targetType === 'COMMENT') {
@@ -118,74 +142,74 @@ export async function reviewFlagAction(input: unknown): Promise<{ ok: true }> {
     })
   }
 
-  const now = new Date()
+  return { flag, actor }
+}
 
-  if (data.sideEffect === 'DELETE_TARGET' && flag.targetType === 'POST') {
-    const post = await prisma.post.findUnique({
-      where: { id: flag.targetId },
-      select: { slug: true },
-    })
-    if (!post) {
-      throw new NotFoundError('Post ya fue eliminado.', { postId: flag.targetId })
-    }
-    const claimed = await prisma.flag.updateMany({
-      where: { id: flag.id, status: 'OPEN' },
-      data: {
-        status: data.decision,
-        reviewedAt: now,
-        reviewerAdminUserId: actor.actorId,
-        reviewNote: data.reviewNote ?? null,
-      },
-    })
-    if (claimed.count === 0) {
-      throw new NotFoundError('El flag ya fue resuelto por otro admin.', {
-        flagId: flag.id,
-      })
-    }
-    await hardDeletePost(flag.targetId)
+/**
+ * Rama DELETE_TARGET + POST: fuera de tx porque `hardDeletePost` borra el
+ * flag internamente. Orden: (1) cargar post.slug (revalidate), (2) claim del
+ * flag con guard status=OPEN, (3) hardDelete, (4) revalidate.
+ */
+async function reviewFlagPostHardDelete(
+  flag: FlagRecord,
+  actor: FlagActor,
+  data: ReviewInput,
+): Promise<void> {
+  const post = await prisma.post.findUnique({
+    where: { id: flag.targetId },
+    select: { slug: true },
+  })
+  if (!post) throw new NotFoundError('Post ya fue eliminado.', { postId: flag.targetId })
 
-    logger.info(
-      {
-        event: 'flagReviewed',
-        placeId: actor.placeId,
-        flagId: flag.id,
-        decision: data.decision,
-        sideEffect: data.sideEffect,
-        targetType: flag.targetType,
-        targetId: flag.targetId,
-        actorId: actor.actorId,
-      },
-      'flag reviewed',
-    )
-
-    revalidatePath(`/${actor.placeSlug}/settings/flags`)
-    revalidatePath(`/${actor.placeSlug}/conversations`)
-    revalidatePath(`/${actor.placeSlug}/conversations/${post.slug}`)
-    return { ok: true }
+  const claimed = await prisma.flag.updateMany({
+    where: { id: flag.id, status: 'OPEN' },
+    data: {
+      status: data.decision,
+      reviewedAt: new Date(),
+      reviewerAdminUserId: actor.actorId,
+      reviewNote: data.reviewNote ?? null,
+    },
+  })
+  if (claimed.count === 0) {
+    throw new NotFoundError('El flag ya fue resuelto por otro admin.', { flagId: flag.id })
   }
 
-  const targetPostSlug = await prisma.$transaction(async (tx) => {
+  await hardDeletePost(flag.targetId)
+  logFlagReviewed(actor, flag, data)
+  revalidatePath(`/${actor.placeSlug}/settings/flags`)
+  revalidatePath(`/${actor.placeSlug}/conversations`)
+  revalidatePath(`/${actor.placeSlug}/conversations/${post.slug}`)
+}
+
+/**
+ * Rama genérica: update del flag + sideEffect (HIDE_POST, DELETE_COMMENT, o
+ * ninguno) en una sola tx. Retorna `targetPostSlug` del post afectado (o del
+ * padre en DELETE_COMMENT) para que el caller revalide.
+ */
+async function reviewFlagTx(
+  flag: FlagRecord,
+  actor: FlagActor,
+  data: ReviewInput,
+): Promise<string | null> {
+  return prisma.$transaction(async (tx) => {
     const updated = await tx.flag.updateMany({
       where: { id: flag.id, status: 'OPEN' },
       data: {
         status: data.decision,
-        reviewedAt: now,
+        reviewedAt: new Date(),
         reviewerAdminUserId: actor.actorId,
         reviewNote: data.reviewNote ?? null,
       },
     })
     if (updated.count === 0) {
-      throw new NotFoundError('El flag ya fue resuelto por otro admin.', {
-        flagId: flag.id,
-      })
+      throw new NotFoundError('El flag ya fue resuelto por otro admin.', { flagId: flag.id })
     }
-
     if (data.sideEffect === null) return null
 
     if (flag.targetType === 'POST') {
       const post = await tx.post.update({
         where: { id: flag.targetId },
-        data: { hiddenAt: now },
+        data: { hiddenAt: new Date() },
         select: { slug: true },
       })
       return post.slug
@@ -193,7 +217,7 @@ export async function reviewFlagAction(input: unknown): Promise<{ ok: true }> {
 
     const comment = await tx.comment.update({
       where: { id: flag.targetId },
-      data: { deletedAt: now },
+      data: { deletedAt: new Date() },
       select: { postId: true },
     })
     const parentPost = await tx.post.findUnique({
@@ -202,7 +226,9 @@ export async function reviewFlagAction(input: unknown): Promise<{ ok: true }> {
     })
     return parentPost?.slug ?? null
   })
+}
 
+function logFlagReviewed(actor: FlagActor, flag: FlagRecord, data: ReviewInput): void {
   logger.info(
     {
       event: 'flagReviewed',
@@ -216,20 +242,22 @@ export async function reviewFlagAction(input: unknown): Promise<{ ok: true }> {
     },
     'flag reviewed',
   )
+}
 
+function revalidateFlagPaths(
+  actor: FlagActor,
+  flag: FlagRecord,
+  data: ReviewInput,
+  targetPostSlug: string | null,
+): void {
   revalidatePath(`/${actor.placeSlug}/settings/flags`)
-  if (data.sideEffect !== null) {
-    if (flag.targetType === 'POST') {
-      revalidatePath(`/${actor.placeSlug}/conversations`)
-      if (targetPostSlug) {
-        revalidatePath(`/${actor.placeSlug}/conversations/${targetPostSlug}`)
-      }
-    } else if (data.sideEffect === 'DELETE_TARGET' && targetPostSlug) {
-      revalidatePath(`/${actor.placeSlug}/conversations/${targetPostSlug}`)
-    }
+  if (data.sideEffect === null) return
+  if (flag.targetType === 'POST') {
+    revalidatePath(`/${actor.placeSlug}/conversations`)
+    if (targetPostSlug) revalidatePath(`/${actor.placeSlug}/conversations/${targetPostSlug}`)
+  } else if (data.sideEffect === 'DELETE_TARGET' && targetPostSlug) {
+    revalidatePath(`/${actor.placeSlug}/conversations/${targetPostSlug}`)
   }
-
-  return { ok: true }
 }
 
 async function resolveFlaggableTarget(

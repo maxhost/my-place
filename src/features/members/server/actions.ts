@@ -42,8 +42,25 @@ import {
 
 const DELIVERY_ERROR_MAX_LEN = 500
 
+type PlaceWithName = { id: string; slug: string; name: string; archivedAt: Date | null }
+
 function truncate(s: string, n = DELIVERY_ERROR_MAX_LEN): string {
   return s.length <= n ? s : s.slice(0, n)
+}
+
+async function requireAuthUserId(reason: string): Promise<string> {
+  const supabase = await createSupabaseServer()
+  const { data: auth } = await supabase.auth.getUser()
+  if (!auth.user) throw new AuthorizationError(reason)
+  return auth.user.id
+}
+
+async function fetchInviterDisplayName(actorId: string): Promise<string> {
+  const inviter = await prisma.user.findUnique({
+    where: { id: actorId },
+    select: { displayName: true },
+  })
+  return inviter?.displayName ?? 'Alguien de Place'
 }
 
 /**
@@ -60,74 +77,21 @@ function truncate(s: string, n = DELIVERY_ERROR_MAX_LEN): string {
 export async function inviteMemberAction(
   input: unknown,
 ): Promise<{ ok: true; invitationId: string }> {
-  const parsed = inviteMemberSchema.safeParse(input)
-  if (!parsed.success) {
-    throw new ValidationError('Datos inválidos para invitar.', {
-      issues: parsed.error.issues,
-    })
-  }
-  const data: InviteMemberInput = parsed.data
-
-  const supabase = await createSupabaseServer()
-  const { data: auth } = await supabase.auth.getUser()
-  if (!auth.user) {
-    throw new AuthorizationError('Necesitás iniciar sesión para invitar.')
-  }
-  const actorId = auth.user.id
-
-  const place = await findPlaceStateBySlugWithName(data.placeSlug)
-  if (!place) {
-    throw new NotFoundError('Place no encontrado.', { slug: data.placeSlug })
-  }
-  assertPlaceActive(place)
-
-  const perms = await findInviterPermissions(actorId, place.id)
-  assertInviterHasRole(perms)
-
-  const activeCount = await countActiveMemberships(place.id)
-  assertPlaceHasCapacity(activeCount)
+  const data = parseInviteInput(input)
+  const actorId = await requireAuthUserId('Necesitás iniciar sesión para invitar.')
+  const place = await assertInvitablePlace(data.placeSlug, actorId)
 
   const token = generateInvitationToken()
   const expiresAt = new Date(Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000)
-  const redirectTo = `${clientEnv.NEXT_PUBLIC_APP_URL}/invite/accept/${token}`
-
-  let invitationId: string
-  try {
-    const created = await prisma.invitation.create({
-      data: {
-        placeId: place.id,
-        email: data.email,
-        invitedBy: actorId,
-        asAdmin: data.asAdmin,
-        token,
-        expiresAt,
-      },
-      select: { id: true },
-    })
-    invitationId = created.id
-  } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      throw new ConflictError('Ya existe una invitación abierta para este email.', {
-        placeId: place.id,
-        reason: 'already_open',
-      })
-    }
-    throw err
-  }
-
-  const inviter = await prisma.user.findUnique({
-    where: { id: actorId },
-    select: { displayName: true },
-  })
-  const inviterDisplayName = inviter?.displayName ?? 'Alguien de Place'
+  const invitationId = await insertInvitationOrConflict(data, place.id, actorId, token, expiresAt)
 
   await deliverInvitationEmail({
     invitationId,
     email: data.email,
-    redirectTo,
+    redirectTo: `${clientEnv.NEXT_PUBLIC_APP_URL}/invite/accept/${token}`,
     placeName: place.name,
     placeSlug: place.slug,
-    inviterDisplayName,
+    inviterDisplayName: await fetchInviterDisplayName(actorId),
     expiresAt,
   })
 
@@ -146,6 +110,56 @@ export async function inviteMemberAction(
   return { ok: true, invitationId }
 }
 
+function parseInviteInput(input: unknown): InviteMemberInput {
+  const parsed = inviteMemberSchema.safeParse(input)
+  if (!parsed.success) {
+    throw new ValidationError('Datos inválidos para invitar.', { issues: parsed.error.issues })
+  }
+  return parsed.data
+}
+
+async function assertInvitablePlace(slug: string, actorId: string): Promise<PlaceWithName> {
+  const place = await findPlaceStateBySlugWithName(slug)
+  if (!place) throw new NotFoundError('Place no encontrado.', { slug })
+  assertPlaceActive(place)
+  const perms = await findInviterPermissions(actorId, place.id)
+  assertInviterHasRole(perms)
+  const activeCount = await countActiveMemberships(place.id)
+  assertPlaceHasCapacity(activeCount)
+  return place
+}
+
+async function insertInvitationOrConflict(
+  data: InviteMemberInput,
+  placeId: string,
+  actorId: string,
+  token: string,
+  expiresAt: Date,
+): Promise<string> {
+  try {
+    const created = await prisma.invitation.create({
+      data: {
+        placeId,
+        email: data.email,
+        invitedBy: actorId,
+        asAdmin: data.asAdmin,
+        token,
+        expiresAt,
+      },
+      select: { id: true },
+    })
+    return created.id
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw new ConflictError('Ya existe una invitación abierta para este email.', {
+        placeId,
+        reason: 'already_open',
+      })
+    }
+    throw err
+  }
+}
+
 /**
  * Reenvía el email de una invitación pending: regenera magic link y vuelve a
  * disparar el mailer. No rota el token — el link del email anterior sigue
@@ -157,54 +171,25 @@ export async function resendInvitationAction(
 ): Promise<{ ok: true; invitationId: string }> {
   const parsed = resendInvitationSchema.safeParse(input)
   if (!parsed.success) {
-    throw new ValidationError('Datos inválidos para reenviar.', {
-      issues: parsed.error.issues,
-    })
+    throw new ValidationError('Datos inválidos para reenviar.', { issues: parsed.error.issues })
   }
   const { invitationId }: ResendInvitationInput = parsed.data
-
-  const supabase = await createSupabaseServer()
-  const { data: auth } = await supabase.auth.getUser()
-  if (!auth.user) {
-    throw new AuthorizationError('Necesitás iniciar sesión para reenviar.')
-  }
-  const actorId = auth.user.id
+  const actorId = await requireAuthUserId('Necesitás iniciar sesión para reenviar.')
 
   const invitation = await findInvitationById(invitationId)
-  if (!invitation) {
-    throw new NotFoundError('Invitación no encontrada.', { invitationId })
-  }
-  if (invitation.acceptedAt) {
-    throw new ConflictError('Esta invitación ya fue aceptada.', {
-      invitationId,
-      reason: 'already_accepted',
-    })
-  }
-  if (invitation.expiresAt.getTime() < Date.now()) {
-    throw new ValidationError('Esta invitación ya venció.', {
-      invitationId,
-      reason: 'expired',
-    })
-  }
-  assertPlaceActive(invitation.place)
+  if (!invitation) throw new NotFoundError('Invitación no encontrada.', { invitationId })
+  assertInvitationResendable(invitation)
 
   const perms = await findInviterPermissions(actorId, invitation.placeId)
   assertInviterHasRole(perms)
 
-  const redirectTo = `${clientEnv.NEXT_PUBLIC_APP_URL}/invite/accept/${invitation.token}`
-  const inviter = await prisma.user.findUnique({
-    where: { id: actorId },
-    select: { displayName: true },
-  })
-  const inviterDisplayName = inviter?.displayName ?? 'Alguien de Place'
-
   await deliverInvitationEmail({
     invitationId: invitation.id,
     email: invitation.email,
-    redirectTo,
+    redirectTo: `${clientEnv.NEXT_PUBLIC_APP_URL}/invite/accept/${invitation.token}`,
     placeName: invitation.place.name,
     placeSlug: invitation.place.slug,
-    inviterDisplayName,
+    inviterDisplayName: await fetchInviterDisplayName(actorId),
     expiresAt: invitation.expiresAt,
   })
 
@@ -220,6 +205,31 @@ export async function resendInvitationAction(
 
   revalidatePath(`/${invitation.place.slug}/settings/members`)
   return { ok: true, invitationId: invitation.id }
+}
+
+/**
+ * Checks encapsulados para resend: ya aceptada, expirada, y que el place
+ * siga activo. Throws typed errors — el caller propaga.
+ */
+function assertInvitationResendable(invitation: {
+  id: string
+  acceptedAt: Date | null
+  expiresAt: Date
+  place: { archivedAt: Date | null }
+}): void {
+  if (invitation.acceptedAt) {
+    throw new ConflictError('Esta invitación ya fue aceptada.', {
+      invitationId: invitation.id,
+      reason: 'already_accepted',
+    })
+  }
+  if (invitation.expiresAt.getTime() < Date.now()) {
+    throw new ValidationError('Esta invitación ya venció.', {
+      invitationId: invitation.id,
+      reason: 'expired',
+    })
+  }
+  assertPlaceActive(invitation.place)
 }
 
 /**
@@ -294,9 +304,7 @@ async function deliverInvitationEmail(params: {
   })
 }
 
-async function findPlaceStateBySlugWithName(
-  slug: string,
-): Promise<{ id: string; slug: string; name: string; archivedAt: Date | null } | null> {
+async function findPlaceStateBySlugWithName(slug: string): Promise<PlaceWithName | null> {
   return prisma.place.findUnique({
     where: { slug },
     select: { id: true, slug: true, name: true, archivedAt: true },
@@ -315,13 +323,7 @@ export async function acceptInvitationAction(
   if (typeof token !== 'string' || token.trim() === '') {
     throw new ValidationError('Token de invitación inválido.')
   }
-
-  const supabase = await createSupabaseServer()
-  const { data: auth } = await supabase.auth.getUser()
-  if (!auth.user) {
-    throw new AuthorizationError('Necesitás iniciar sesión para aceptar la invitación.')
-  }
-  const actorId = auth.user.id
+  const actorId = await requireAuthUserId('Necesitás iniciar sesión para aceptar la invitación.')
 
   const invitation = await findInvitationByToken(token)
   if (!invitation) {
@@ -336,33 +338,71 @@ export async function acceptInvitationAction(
   assertPlaceActive(invitation.place)
 
   if (invitation.acceptedAt) {
-    const existing = await findActiveMembership(actorId, invitation.placeId)
-    if (existing) {
-      logger.info(
-        {
-          event: 'invitationAccepted',
-          placeId: invitation.placeId,
-          invitationId: invitation.id,
-          userId: actorId,
-          alreadyMember: true,
-        },
-        'invitation idempotent accept',
-      )
-      return { ok: true, placeSlug: invitation.place.slug, alreadyMember: true }
-    }
-    throw new ConflictError('Esta invitación ya fue usada por otra persona.', {
-      reason: 'already_used',
-    })
+    return handleAlreadyAcceptedInvitation(invitation, actorId)
   }
 
-  let alreadyMember = false
+  const alreadyMember = await acceptInvitationTx(invitation, actorId)
+
+  logger.info(
+    {
+      event: 'invitationAccepted',
+      placeId: invitation.placeId,
+      invitationId: invitation.id,
+      userId: actorId,
+      role: invitation.asAdmin ? 'ADMIN' : 'MEMBER',
+      alreadyMember,
+    },
+    'invitation accepted',
+  )
+
+  revalidatePath('/inbox')
+  revalidatePath(`/${invitation.place.slug}`)
+
+  return { ok: true, placeSlug: invitation.place.slug, alreadyMember }
+}
+
+async function handleAlreadyAcceptedInvitation(
+  invitation: { id: string; placeId: string; place: { slug: string } },
+  actorId: string,
+): Promise<{ ok: true; placeSlug: string; alreadyMember: boolean }> {
+  const existing = await findActiveMembership(actorId, invitation.placeId)
+  if (existing) {
+    logger.info(
+      {
+        event: 'invitationAccepted',
+        placeId: invitation.placeId,
+        invitationId: invitation.id,
+        userId: actorId,
+        alreadyMember: true,
+      },
+      'invitation idempotent accept',
+    )
+    return { ok: true, placeSlug: invitation.place.slug, alreadyMember: true }
+  }
+  throw new ConflictError('Esta invitación ya fue usada por otra persona.', {
+    reason: 'already_used',
+  })
+}
+
+/**
+ * Transacción del accept: chequea existing membership (idempotente), valida
+ * capacity, crea membership (o no si ya existe), y marca la invitation como
+ * acepted. `P2002` sobre Membership indica race con otro accept — se mapea a
+ * `ConflictError` typed fuera de la tx.
+ *
+ * Retorna `alreadyMember=true` si había membership activa previa (idempotente
+ * a nivel tx — cubre el caso de que otro tab aceptó entre el pre-check y el tx).
+ */
+async function acceptInvitationTx(
+  invitation: { id: string; placeId: string; asAdmin: boolean },
+  actorId: string,
+): Promise<boolean> {
   try {
-    alreadyMember = await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx) => {
       const existing = await tx.membership.findFirst({
         where: { userId: actorId, placeId: invitation.placeId, leftAt: null },
         select: { id: true },
       })
-
       if (existing) {
         await tx.invitation.updateMany({
           where: { id: invitation.id, acceptedAt: null },
@@ -392,9 +432,6 @@ export async function acceptInvitationAction(
       return false
     })
   } catch (err) {
-    // P2002 en `Membership` = race con otro accept (misma sesión en dos tabs, o
-    // una membership previa con `leftAt IS NOT NULL` que choca con `@@unique`).
-    // Re-joins post-leave no están soportados en MVP — gap documentado en la spec.
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
       throw new ConflictError(
         'No pudimos crear la membresía (posible carrera o re-joining no soportado).',
@@ -403,23 +440,6 @@ export async function acceptInvitationAction(
     }
     throw err
   }
-
-  logger.info(
-    {
-      event: 'invitationAccepted',
-      placeId: invitation.placeId,
-      invitationId: invitation.id,
-      userId: actorId,
-      role: invitation.asAdmin ? 'ADMIN' : 'MEMBER',
-      alreadyMember,
-    },
-    'invitation accepted',
-  )
-
-  revalidatePath('/inbox')
-  revalidatePath(`/${invitation.place.slug}`)
-
-  return { ok: true, placeSlug: invitation.place.slug, alreadyMember }
 }
 
 /**
@@ -437,18 +457,10 @@ export async function leaveMembershipAction(
   if (typeof placeSlug !== 'string' || placeSlug.trim() === '') {
     throw new ValidationError('Slug del place inválido.')
   }
-
-  const supabase = await createSupabaseServer()
-  const { data: auth } = await supabase.auth.getUser()
-  if (!auth.user) {
-    throw new AuthorizationError('Necesitás iniciar sesión para salir de un place.')
-  }
-  const actorId = auth.user.id
+  const actorId = await requireAuthUserId('Necesitás iniciar sesión para salir de un place.')
 
   const place = await findPlaceStateBySlug(placeSlug)
-  if (!place) {
-    throw new NotFoundError('Place no encontrado.', { slug: placeSlug })
-  }
+  if (!place) throw new NotFoundError('Place no encontrado.', { slug: placeSlug })
   assertPlaceActive(place)
 
   const membership = await findActiveMembership(actorId, place.id)
@@ -459,14 +471,33 @@ export async function leaveMembershipAction(
     })
   }
 
+  await performMembershipLeaveTx(actorId, place.id, membership.id)
+
+  logger.info({ event: 'memberLeft', placeId: place.id, actorId }, 'member left place')
+  revalidatePath('/inbox')
+  revalidatePath(`/${place.slug}`)
+  return { ok: true, placeSlug: place.slug }
+}
+
+/**
+ * Tx del leave: lock pesimista sobre `PlaceOwnership` del place, chequeo de
+ * único-owner, eventual delete de ownership, y update `leftAt` del membership.
+ * El caller provee `membershipId` ya resuelto para que el helper sea puro
+ * sobre IDs.
+ */
+async function performMembershipLeaveTx(
+  actorId: string,
+  placeId: string,
+  membershipId: string,
+): Promise<void> {
   await prisma.$transaction(async (tx) => {
     // Lock de fila pesimista sobre TODAS las ownerships del place. Serializa owners
     // concurrentes: si dos owners ejecutan leave al mismo tiempo, el segundo espera
     // y lee el estado ya modificado por el primero — uno gana, el otro falla.
-    await tx.$queryRaw`SELECT id FROM "PlaceOwnership" WHERE "placeId" = ${place.id} FOR UPDATE`
+    await tx.$queryRaw`SELECT id FROM "PlaceOwnership" WHERE "placeId" = ${placeId} FOR UPDATE`
 
     const ownerships = await tx.placeOwnership.findMany({
-      where: { placeId: place.id },
+      where: { placeId },
       select: { userId: true },
     })
     const actorIsOwner = ownerships.some((o) => o.userId === actorId)
@@ -474,27 +505,20 @@ export async function leaveMembershipAction(
     if (actorIsOwner && ownerships.length === 1) {
       throw new InvariantViolation('Sos el único owner. Transferí la ownership antes de salir.', {
         reason: 'last_owner',
-        placeId: place.id,
+        placeId,
         actorId,
       })
     }
 
     if (actorIsOwner) {
       await tx.placeOwnership.delete({
-        where: { userId_placeId: { userId: actorId, placeId: place.id } },
+        where: { userId_placeId: { userId: actorId, placeId } },
       })
     }
 
     await tx.membership.update({
-      where: { id: membership.id },
+      where: { id: membershipId },
       data: { leftAt: new Date() },
     })
   })
-
-  logger.info({ event: 'memberLeft', placeId: place.id, actorId }, 'member left place')
-
-  revalidatePath('/inbox')
-  revalidatePath(`/${place.slug}`)
-
-  return { ok: true, placeSlug: place.slug }
 }

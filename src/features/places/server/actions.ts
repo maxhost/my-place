@@ -161,72 +161,10 @@ export async function transferOwnershipAction(
     })
   }
   const data: TransferOwnershipInput = parsed.data
-
-  const supabase = await createSupabaseServer()
-  const { data: auth } = await supabase.auth.getUser()
-  if (!auth.user) {
-    throw new AuthorizationError('Necesitás iniciar sesión para transferir ownership.')
-  }
-  const actorId = auth.user.id
-
-  if (data.toUserId === actorId) {
-    throw new ValidationError('No tiene sentido transferirte la ownership a vos mismo.', {
-      reason: 'self_transfer',
-    })
-  }
-
-  const place = await findPlaceBySlug(data.placeSlug)
-  if (!place) {
-    throw new NotFoundError('Place no encontrado.', { slug: data.placeSlug })
-  }
-  if (place.archivedAt) {
-    throw new ConflictError('Este place está archivado.', { archivedAt: place.archivedAt })
-  }
-
-  const actorOwnership = await findPlaceOwnership(actorId, place.id)
-  if (!actorOwnership) {
-    throw new AuthorizationError('Solo un owner puede transferir ownership.', {
-      placeId: place.id,
-      actorId,
-    })
-  }
+  const { actorId, place } = await validateTransferPreconditions(data)
 
   try {
-    await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "PlaceOwnership" WHERE "placeId" = ${place.id} FOR UPDATE`
-
-      const targetMembership = await tx.membership.findFirst({
-        where: { userId: data.toUserId, placeId: place.id, leftAt: null },
-        select: { id: true },
-      })
-      if (!targetMembership) {
-        throw new ValidationError('El destinatario no es miembro activo de este place.', {
-          reason: 'target_not_member',
-          toUserId: data.toUserId,
-          placeId: place.id,
-        })
-      }
-
-      // Upsert idempotente: si ya era owner, el @@unique lo detecta y no duplica.
-      await tx.placeOwnership.upsert({
-        where: { userId_placeId: { userId: data.toUserId, placeId: place.id } },
-        create: { userId: data.toUserId, placeId: place.id },
-        update: {},
-      })
-
-      if (data.removeActor) {
-        await tx.placeOwnership.delete({
-          where: { userId_placeId: { userId: actorId, placeId: place.id } },
-        })
-        await tx.membership.updateMany({
-          where: { userId: actorId, placeId: place.id, leftAt: null },
-          data: { leftAt: new Date() },
-        })
-      }
-
-      const countAfter = await tx.placeOwnership.count({ where: { placeId: place.id } })
-      assertMinOneOwner(countAfter, { placeId: place.id })
-    })
+    await performTransferTx(actorId, place.id, data.toUserId, data.removeActor)
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
       throw new ConflictError('Conflicto al transferir ownership.', {
@@ -252,4 +190,90 @@ export async function transferOwnershipAction(
   revalidatePath('/inbox')
 
   return { ok: true, placeSlug: place.slug, actorRemoved: data.removeActor }
+}
+
+/**
+ * Resuelve y valida todo el estado pre-tx: auth del actor, no-self-transfer,
+ * place activo, actor es owner. Throws typed errors — el caller propaga.
+ */
+async function validateTransferPreconditions(
+  data: TransferOwnershipInput,
+): Promise<{ actorId: string; place: { id: string; slug: string; archivedAt: Date | null } }> {
+  const supabase = await createSupabaseServer()
+  const { data: auth } = await supabase.auth.getUser()
+  if (!auth.user) {
+    throw new AuthorizationError('Necesitás iniciar sesión para transferir ownership.')
+  }
+  const actorId = auth.user.id
+
+  if (data.toUserId === actorId) {
+    throw new ValidationError('No tiene sentido transferirte la ownership a vos mismo.', {
+      reason: 'self_transfer',
+    })
+  }
+
+  const place = await findPlaceBySlug(data.placeSlug)
+  if (!place) throw new NotFoundError('Place no encontrado.', { slug: data.placeSlug })
+  if (place.archivedAt) {
+    throw new ConflictError('Este place está archivado.', { archivedAt: place.archivedAt })
+  }
+
+  const actorOwnership = await findPlaceOwnership(actorId, place.id)
+  if (!actorOwnership) {
+    throw new AuthorizationError('Solo un owner puede transferir ownership.', {
+      placeId: place.id,
+      actorId,
+    })
+  }
+
+  return { actorId, place }
+}
+
+/**
+ * Tx del transfer: lock pesimista sobre `PlaceOwnership`, validación de
+ * membership activa del target, upsert de ownership del target, y opcional
+ * remove del actor (delete ownership + update leftAt de membership).
+ * Guard `assertMinOneOwner` al final preserva el invariante del dominio.
+ */
+async function performTransferTx(
+  actorId: string,
+  placeId: string,
+  toUserId: string,
+  removeActor: boolean,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "PlaceOwnership" WHERE "placeId" = ${placeId} FOR UPDATE`
+
+    const targetMembership = await tx.membership.findFirst({
+      where: { userId: toUserId, placeId, leftAt: null },
+      select: { id: true },
+    })
+    if (!targetMembership) {
+      throw new ValidationError('El destinatario no es miembro activo de este place.', {
+        reason: 'target_not_member',
+        toUserId,
+        placeId,
+      })
+    }
+
+    // Upsert idempotente: si ya era owner, el @@unique lo detecta y no duplica.
+    await tx.placeOwnership.upsert({
+      where: { userId_placeId: { userId: toUserId, placeId } },
+      create: { userId: toUserId, placeId },
+      update: {},
+    })
+
+    if (removeActor) {
+      await tx.placeOwnership.delete({
+        where: { userId_placeId: { userId: actorId, placeId } },
+      })
+      await tx.membership.updateMany({
+        where: { userId: actorId, placeId, leftAt: null },
+        data: { leftAt: new Date() },
+      })
+    }
+
+    const countAfter = await tx.placeOwnership.count({ where: { placeId } })
+    assertMinOneOwner(countAfter, { placeId })
+  })
 }
