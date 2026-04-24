@@ -26,7 +26,7 @@ Este slice entrega (2.E–2.F–2.G–2.H):
 Fuera del slice (difieren a otras fases o gaps técnicos):
 
 - Roles granulares más allá de `MEMBER | ADMIN` → futuro.
-- Cron de anonimización a los 365 días → gap técnico (`Derecho al olvido`).
+- Cron de anonimización a los 365 días → **implementado en C.L** (ver ADR `docs/decisions/2026-04-24-erasure-365d.md`).
 - DMs entre miembros (ver `docs/ontologia/miembros.md` § DMs) → post-MVP.
 - UI de "settings > miembros" con lista completa → Fase 2.F (parcial) y Fase 7 (completo).
 - Búsqueda/filtro de miembros → post-MVP.
@@ -301,7 +301,7 @@ Los tests de 2.E/2.F ejercitan al menos:
 
 ## Gaps técnicos relacionados (no bloquean MVP)
 
-- **Cron de anonimización a 365 días** — `Membership.leftAt + 365d < now()` ⇒ reemplazar user references por "ex-miembro". Depende de qué tablas (threads, messages, events) existen. Agendar post-Fase 5.
+- **Cron de anonimización a 365 días** — **IMPLEMENTADO (C.L, 2026-04-24)**. Vercel Cron diario `/api/cron/erasure` + cron audit semanal. Nullifica `Post.authorUserId` / `Comment.authorUserId` + renombra `authorSnapshot.displayName` a "ex-miembro" tras 365d del `leftAt`. Audit trail con `snapshotsBefore` en tabla `ErasureAuditLog` para rollback manual. RLS + filters existentes cumplen la capa 1 (invisibilidad at-leave) sin borrado físico. Ver ADR `docs/decisions/2026-04-24-erasure-365d.md`.
 - **Revoke de invitación abierta** — sencillo; action que setea `Invitation.acceptedAt` con un sentinel o flaga "revoked" (requiere columna nueva). Agendar si hay UX push.
 - **Verificación email-invitee match en accept** — ver "Seguridad". Agendar antes del lanzamiento público.
 - **Invitation email provider custom** — migrar de Supabase default a Resend/Postmark si branding o deliverability lo requiere. Agendar en Fase 8 (marketing) o antes si hace falta.
