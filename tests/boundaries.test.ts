@@ -83,4 +83,25 @@ describe('boundaries entre capas (architecture.md)', () => {
     }
     expect(violations, `violaciones:\n${violations.join('\n')}`).toEqual([])
   })
+
+  it('ningún archivo de una feature importa OTRA feature vía path relativo profundo (bypass de alias)', () => {
+    // El check anterior sólo matchea `@/features/X/Y`. Un import tipo
+    // `../../features/X/public` (relativo profundo que sale del slice y
+    // vuelve a entrar) bypasea el alias pero viola el boundary. Este
+    // regex caza ≥2 niveles hacia arriba aterrizando en `features/`:
+    // desde `src/features/<X>/**`, cualquier `../../features/...` cae
+    // necesariamente en OTRO slice o en `src/features/` (ambos violan).
+    const RELATIVE_CROSS_REGEX = /^(?:\.\.\/){2,}features\//
+    const violations: string[] = []
+    for (const file of files) {
+      const rel = relative(SRC_ROOT, file)
+      if (!rel.startsWith('features/')) continue
+      for (const imp of importsOf(file)) {
+        if (RELATIVE_CROSS_REGEX.test(imp)) {
+          violations.push(`${rel} → ${imp}`)
+        }
+      }
+    }
+    expect(violations, `violaciones:\n${violations.join('\n')}`).toEqual([])
+  })
 })

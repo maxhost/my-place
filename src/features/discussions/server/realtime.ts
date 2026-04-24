@@ -1,5 +1,6 @@
 import 'server-only'
 import { getBroadcastSender } from '@/shared/lib/realtime/server'
+import { serverEnv } from '@/shared/config/env'
 import { logger } from '@/shared/lib/logger'
 import type { CommentView } from './queries'
 
@@ -65,9 +66,10 @@ export async function broadcastNewComment(
 
 /**
  * Flag de rollback. Opt-out explícito con `'false'`. Cualquier otro valor
- * (incluido empty string, undefined) deja el broadcast habilitado — default
- * ON es deliberado (ver ADR `2026-04-21-shared-realtime-module.md`).
+ * (incluido undefined) deja el broadcast habilitado — default ON es
+ * deliberado (ver ADR `2026-04-21-shared-realtime-module.md`). Validado
+ * por Zod en `shared/config/env.ts` (enum `'true' | 'false' | undefined`).
  */
 function isBroadcastEnabled(): boolean {
-  return process.env.DISCUSSIONS_BROADCAST_ENABLED !== 'false'
+  return serverEnv.DISCUSSIONS_BROADCAST_ENABLED !== 'false'
 }

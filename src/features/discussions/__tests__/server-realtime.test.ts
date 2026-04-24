@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { loggerWarn, loggerDebug } = vi.hoisted(() => ({
+const { loggerWarn, loggerDebug, getBroadcastFlag } = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
   loggerDebug: vi.fn(),
+  // Getter dinámico: el test controla el valor con `getBroadcastFlag.mockReturnValue(...)`
+  // por caso. Simula `serverEnv.DISCUSSIONS_BROADCAST_ENABLED` con cache bypass
+  // (el Proxy real cachea después del primer read; acá cada lectura es fresh).
+  getBroadcastFlag: vi.fn<() => 'true' | 'false' | undefined>(),
 }))
 
 vi.mock('@/shared/lib/logger', () => ({
@@ -10,14 +14,23 @@ vi.mock('@/shared/lib/logger', () => ({
 }))
 
 // El sender-provider importa SupabaseBroadcastSender → clientEnv → parsea env en
-// boot. En tests no queremos ese path: mockeamos `clientEnv` con valores dummy
-// para que el import no rompa. Los tests operan siempre con `FakeBroadcastSender`
-// inyectado vía `setBroadcastSender`.
+// boot. En tests no queremos ese path: mockeamos `clientEnv` + `serverEnv` con
+// getters dinámicos para que el código bajo test lea valores controlados sin
+// disparar el Proxy real del env.
 vi.mock('@/shared/config/env', () => ({
   clientEnv: {
     NEXT_PUBLIC_SUPABASE_URL: 'https://project.supabase.co',
     NEXT_PUBLIC_SUPABASE_ANON_KEY: 'anon-key',
   },
+  serverEnv: new Proxy(
+    {},
+    {
+      get(_target, key) {
+        if (key === 'DISCUSSIONS_BROADCAST_ENABLED') return getBroadcastFlag()
+        return undefined
+      },
+    },
+  ),
 }))
 
 import { FakeBroadcastSender } from '@/shared/lib/realtime/server'
@@ -45,7 +58,7 @@ describe('broadcastNewComment', () => {
   let fake: FakeBroadcastSender
 
   beforeEach(() => {
-    vi.stubEnv('DISCUSSIONS_BROADCAST_ENABLED', 'true')
+    getBroadcastFlag.mockReturnValue('true')
     fake = new FakeBroadcastSender()
     setBroadcastSender(fake)
     loggerWarn.mockReset()
@@ -54,7 +67,6 @@ describe('broadcastNewComment', () => {
 
   afterEach(() => {
     resetBroadcastSender()
-    vi.unstubAllEnvs()
   })
 
   it('emite sobre topic `post:<id>` con event `comment_created` y payload {comment}', async () => {
@@ -69,7 +81,7 @@ describe('broadcastNewComment', () => {
   })
 
   it('feature flag DISCUSSIONS_BROADCAST_ENABLED=false desactiva la emisión', async () => {
-    vi.stubEnv('DISCUSSIONS_BROADCAST_ENABLED', 'false')
+    getBroadcastFlag.mockReturnValue('false')
 
     await broadcastNewComment('post-abc', { comment: baseComment })
 
@@ -80,7 +92,7 @@ describe('broadcastNewComment', () => {
   })
 
   it('ausencia del env var = flag ON por default (rollback explícito)', async () => {
-    vi.stubEnv('DISCUSSIONS_BROADCAST_ENABLED', '')
+    getBroadcastFlag.mockReturnValue(undefined)
 
     await broadcastNewComment('post-abc', { comment: baseComment })
 

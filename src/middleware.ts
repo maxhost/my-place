@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { clientEnv } from '@/shared/config/env'
 import { resolveHost, type HostResolution } from '@/shared/lib/host'
 import { REQUEST_ID_HEADER, getOrCreateRequestId } from '@/shared/lib/request-id'
 import { updateSession } from '@/shared/lib/supabase/middleware'
@@ -21,14 +22,12 @@ function isAuthPath(pathname: string): boolean {
  * Ver `docs/multi-tenancy.md` y `docs/features/auth/spec.md`.
  */
 export async function middleware(req: NextRequest) {
-  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN
-  if (!appDomain) {
-    return new NextResponse('NEXT_PUBLIC_APP_DOMAIN no configurado', { status: 500 })
-  }
-
+  // `clientEnv` valida `NEXT_PUBLIC_APP_DOMAIN` al boot con Zod (ver
+  // `shared/config/env.ts`); si falta, el build falla antes de ejecutarse
+  // este middleware, por lo que el check defensivo previo es redundante.
   const requestId = getOrCreateRequestId(req.headers)
   const hostname = req.headers.get('host') ?? ''
-  const resolution = resolveHost(hostname, appDomain)
+  const resolution = resolveHost(hostname, clientEnv.NEXT_PUBLIC_APP_DOMAIN)
 
   const { response: sessionResponse, user } = await updateSession(req)
 

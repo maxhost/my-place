@@ -50,6 +50,16 @@ const serverSchema = z.object({
   // endpoint responde 404 (no se puede usar). En prod siempre ignorado — el gate primario
   // del handler es `NODE_ENV === 'production'` → 404.
   E2E_TEST_SECRET: z.string().min(24).optional(),
+
+  // Feature flag de rollback del broadcast de comentarios en realtime (C.J).
+  // Default: broadcast habilitado. Setear `'false'` desactiva la emisión —
+  // consumido por `broadcastNewComment` en `features/discussions/server/realtime.ts`.
+  // Ver ADR `docs/decisions/2026-04-21-shared-realtime-module.md`.
+  DISCUSSIONS_BROADCAST_ENABLED: z.enum(['true', 'false']).optional(),
+
+  // Override del nivel de log de pino. Default `debug` en dev, `info` en prod.
+  // Consumido por `shared/lib/logger.ts`. Valores válidos = niveles estándar pino.
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
 })
 
 const clientSchema = z.object({
