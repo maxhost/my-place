@@ -10,7 +10,7 @@ import { join, relative } from 'node:path'
  * 2. `shared/` no importa de `features/`.
  *
  * Complementa la regla ESLint — si alguien bypassa ESLint, el test falla el build.
- * Ver `architecture.md` § "Reglas de aislamiento entre módulos".
+ * Ver `docs/architecture.md` § "Reglas de aislamiento entre módulos".
  */
 
 const SRC_ROOT = join(__dirname, '..', 'src')
@@ -40,7 +40,7 @@ function importsOf(file: string): string[] {
   return imports
 }
 
-describe('boundaries entre capas (architecture.md)', () => {
+describe('boundaries entre capas (docs/architecture.md)', () => {
   const files = walk(SRC_ROOT)
 
   it('ningún archivo fuera de una feature importa internals de una feature (solo public.ts)', () => {
