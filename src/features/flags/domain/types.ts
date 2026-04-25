@@ -65,6 +65,20 @@ export type FlagTargetSnapshot =
       /** Slug del post padre para construir links; null si el post padre ya no existe. */
       postSlug: string | null
     }
+  | {
+      // Eventos reportables (F.C Fase 6 — PR-2). Ver
+      // docs/features/events/spec-integrations.md § 4.4 para la firma exacta.
+      targetType: 'EVENT'
+      targetId: string
+      title: string
+      authorSnapshot: { displayName: string; avatarUrl: string | null }
+      /** ISO 8601 UTC. */
+      startsAt: string
+      /** IANA del evento (la "intención" del autor; el viewer puede vivir en otro huso). */
+      timezone: string
+      /** ISO 8601 si el evento fue cancelado, null si está activo. */
+      cancelledAt: string | null
+    }
 
 /** Estado narrativo del contenido al momento del render de la cola admin. */
 export type FlagContentStatus = 'VISIBLE' | 'HIDDEN' | 'DELETED'

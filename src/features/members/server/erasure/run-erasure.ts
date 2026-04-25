@@ -91,6 +91,8 @@ async function processEligible(dryRun: boolean, now: Date): Promise<ErasureRunRe
       result.membershipsProcessed += 1
       result.postsAnonymized += counts.posts
       result.commentsAnonymized += counts.comments
+      result.eventsAnonymized += counts.events
+      result.rsvpsDeleted += counts.rsvpsDeleted
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       result.errorsPerMembership.push({ membershipId: m.id, error: msg })
@@ -140,6 +142,13 @@ async function processOneMembership(
         id: string
         authorSnapshot: { displayName: string; avatarUrl: string | null }
       }>
+      const events = (await tx.event.findMany({
+        where: { authorUserId: m.userId, placeId: m.placeId },
+        select: { id: true, authorSnapshot: true },
+      })) as Array<{
+        id: string
+        authorSnapshot: { displayName: string; avatarUrl: string | null }
+      }>
 
       const snapshotsBefore: ErasureSnapshotBeforeEntry[] = [
         ...posts.map((p) => ({
@@ -153,6 +162,12 @@ async function processOneMembership(
           id: c.id,
           displayName: c.authorSnapshot.displayName,
           avatarUrl: c.authorSnapshot.avatarUrl,
+        })),
+        ...events.map((e) => ({
+          type: 'EVENT' as const,
+          id: e.id,
+          displayName: e.authorSnapshot.displayName,
+          avatarUrl: e.authorSnapshot.avatarUrl,
         })),
       ]
 
@@ -169,7 +184,15 @@ async function processOneMembership(
       })
 
       if (dryRun) {
-        throw new DryRunAbort({ posts: posts.length, comments: comments.length })
+        // En dry-run no contamos `rsvpsDeleted` porque el deleteMany no se
+        // ejecuta. Los counts informativos reportan posts + comments + events
+        // que SE HABRÍAN anonimizado.
+        throw new DryRunAbort({
+          posts: posts.length,
+          comments: comments.length,
+          events: events.length,
+          rsvpsDeleted: 0,
+        })
       }
 
       await tx.$executeRaw(Prisma.sql`
@@ -184,13 +207,33 @@ async function processOneMembership(
           "authorSnapshot" = jsonb_set("authorSnapshot", '{displayName}', ${Prisma.raw(`'"${EX_MEMBER_DISPLAY}"'`)}::jsonb)
         WHERE "authorUserId" = ${m.userId} AND "placeId" = ${m.placeId}
       `)
+      // 3ª UPDATE: Event (F.C Fase 6, PR-3). Mismo patrón que Post/Comment.
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE "Event" SET
+          "authorUserId" = NULL,
+          "authorSnapshot" = jsonb_set("authorSnapshot", '{displayName}', ${Prisma.raw(`'"${EX_MEMBER_DISPLAY}"'`)}::jsonb)
+        WHERE "authorUserId" = ${m.userId} AND "placeId" = ${m.placeId}
+      `)
+
+      // DELETE EventRSVP del ex-miembro **sólo en el place que dejó** (filtro
+      // nested vía `event.placeId`). NO global: si el user sigue activo en
+      // otros places, sus RSVPs allá se preservan como parte de su vida
+      // activa. Ver spec-integrations.md § 3.4.
+      const deletedRsvps = await tx.eventRSVP.deleteMany({
+        where: { userId: m.userId, event: { placeId: m.placeId } },
+      })
 
       await tx.membership.update({
         where: { id: m.id },
         data: { erasureAppliedAt: now },
       })
 
-      return { posts: posts.length, comments: comments.length }
+      return {
+        posts: posts.length,
+        comments: comments.length,
+        events: events.length,
+        rsvpsDeleted: deletedRsvps.count,
+      }
     })
   } catch (err) {
     if (err instanceof DryRunAbort) return err.counts
@@ -204,6 +247,8 @@ function emptyResult(dryRun: boolean): ErasureRunResult {
     membershipsProcessed: 0,
     postsAnonymized: 0,
     commentsAnonymized: 0,
+    eventsAnonymized: 0,
+    rsvpsDeleted: 0,
     errorsPerMembership: [],
   }
 }

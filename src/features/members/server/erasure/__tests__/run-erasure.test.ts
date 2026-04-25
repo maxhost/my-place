@@ -4,10 +4,13 @@ const {
   membershipFindMany,
   postFindMany,
   commentFindMany,
+  eventFindMany,
+  eventRsvpDeleteMany,
   erasureAuditCreate,
   membershipUpdate,
   postExecuteRaw,
   commentExecuteRaw,
+  eventExecuteRaw,
   advisoryLockQueryRaw,
   transactionFn,
   loggerWarn,
@@ -17,10 +20,13 @@ const {
   membershipFindMany: vi.fn(),
   postFindMany: vi.fn(),
   commentFindMany: vi.fn(),
+  eventFindMany: vi.fn(),
+  eventRsvpDeleteMany: vi.fn(),
   erasureAuditCreate: vi.fn(),
   membershipUpdate: vi.fn(),
   postExecuteRaw: vi.fn(),
   commentExecuteRaw: vi.fn(),
+  eventExecuteRaw: vi.fn(),
   advisoryLockQueryRaw: vi.fn(),
   transactionFn: vi.fn(),
   loggerWarn: vi.fn(),
@@ -38,6 +44,8 @@ vi.mock('@/db/client', () => ({
     },
     post: { findMany: (...a: unknown[]) => postFindMany(...a) },
     comment: { findMany: (...a: unknown[]) => commentFindMany(...a) },
+    event: { findMany: (...a: unknown[]) => eventFindMany(...a) },
+    eventRSVP: { deleteMany: (...a: unknown[]) => eventRsvpDeleteMany(...a) },
     erasureAuditLog: { create: (...a: unknown[]) => erasureAuditCreate(...a) },
     $queryRaw: (...a: unknown[]) => advisoryLockQueryRaw(...a),
     $transaction: (fn: (tx: unknown) => unknown) => transactionFn(fn),
@@ -90,12 +98,15 @@ function setupTransactionPassthrough() {
     return cb({
       post: { findMany: postFindMany },
       comment: { findMany: commentFindMany },
+      event: { findMany: eventFindMany },
+      eventRSVP: { deleteMany: eventRsvpDeleteMany },
       erasureAuditLog: { create: erasureAuditCreate },
       membership: { update: membershipUpdate },
       $executeRaw: (arg: unknown, ...vals: unknown[]) => {
         const text = sqlText(arg)
         if (text.includes('"Post"')) return postExecuteRaw(text, ...vals)
         if (text.includes('"Comment"')) return commentExecuteRaw(text, ...vals)
+        if (text.includes('"Event"')) return eventExecuteRaw(text, ...vals)
         return 0
       },
     })
@@ -108,8 +119,11 @@ beforeEach(() => {
   setupTransactionPassthrough()
   postFindMany.mockResolvedValue([])
   commentFindMany.mockResolvedValue([])
+  eventFindMany.mockResolvedValue([])
+  eventRsvpDeleteMany.mockResolvedValue({ count: 0 })
   postExecuteRaw.mockResolvedValue(0)
   commentExecuteRaw.mockResolvedValue(0)
+  eventExecuteRaw.mockResolvedValue(0)
   erasureAuditCreate.mockResolvedValue({ id: 'audit-1' })
   membershipUpdate.mockResolvedValue({ id: 'mem-1' })
 })
@@ -129,6 +143,8 @@ describe('runErasure', () => {
       membershipsProcessed: 0,
       postsAnonymized: 0,
       commentsAnonymized: 0,
+      eventsAnonymized: 0,
+      rsvpsDeleted: 0,
       errorsPerMembership: [],
     })
     expect(transactionFn).not.toHaveBeenCalled()
@@ -219,6 +235,8 @@ describe('runErasure', () => {
       return cb({
         post: { findMany: postFindMany },
         comment: { findMany: commentFindMany },
+        event: { findMany: eventFindMany },
+        eventRSVP: { deleteMany: eventRsvpDeleteMany },
         erasureAuditLog: { create: erasureAuditCreate },
         membership: { update: membershipUpdate },
         $executeRaw: () => 0,
@@ -282,13 +300,16 @@ describe('runErasure', () => {
     expect(unlockCall).toBeDefined()
   })
 
-  it('snapshotsBefore en audit incluye type + id + displayName + avatarUrl de Post y Comment', async () => {
+  it('snapshotsBefore en audit incluye type + id + displayName + avatarUrl de Post, Comment y Event', async () => {
     membershipFindMany.mockResolvedValue([eligibleMembership])
     postFindMany.mockResolvedValue([
       { id: 'p1', authorSnapshot: { displayName: 'Alice', avatarUrl: 'https://x/a.png' } },
     ])
     commentFindMany.mockResolvedValue([
       { id: 'c1', authorSnapshot: { displayName: 'Alice', avatarUrl: null } },
+    ])
+    eventFindMany.mockResolvedValue([
+      { id: 'e1', authorSnapshot: { displayName: 'Alice', avatarUrl: null } },
     ])
 
     await runErasure({ dryRun: false, now: NOW })
@@ -299,6 +320,58 @@ describe('runErasure', () => {
     expect(auditArg.data.snapshotsBefore).toEqual([
       { type: 'POST', id: 'p1', displayName: 'Alice', avatarUrl: 'https://x/a.png' },
       { type: 'COMMENT', id: 'c1', displayName: 'Alice', avatarUrl: null },
+      { type: 'EVENT', id: 'e1', displayName: 'Alice', avatarUrl: null },
     ])
+  })
+
+  // ── F.C Fase 6 (PR-3): Event + EventRSVP per-place ────────────────────
+
+  it('PR-3: Event del ex-miembro queda anonimizado (UPDATE Event en la 3ª raw SQL)', async () => {
+    membershipFindMany.mockResolvedValue([eligibleMembership])
+    eventFindMany.mockResolvedValue([
+      { id: 'e1', authorSnapshot: { displayName: 'Alice', avatarUrl: null } },
+      { id: 'e2', authorSnapshot: { displayName: 'Alice', avatarUrl: null } },
+    ])
+
+    const result = await runErasure({ dryRun: false, now: NOW })
+
+    expect(result.eventsAnonymized).toBe(2)
+    expect(eventExecuteRaw).toHaveBeenCalledTimes(1)
+    const sqlCalled = eventExecuteRaw.mock.calls[0]![0] as string
+    expect(sqlCalled).toMatch(/UPDATE "Event"/)
+    expect(sqlCalled).toMatch(/jsonb_set/)
+  })
+
+  it('PR-3: RSVPs del ex-miembro borradas en el place que dejó (filtro nested event.placeId)', async () => {
+    membershipFindMany.mockResolvedValue([eligibleMembership])
+    eventRsvpDeleteMany.mockResolvedValue({ count: 5 })
+
+    const result = await runErasure({ dryRun: false, now: NOW })
+
+    expect(result.rsvpsDeleted).toBe(5)
+    expect(eventRsvpDeleteMany).toHaveBeenCalledWith({
+      where: {
+        userId: 'user-1',
+        event: { placeId: 'place-1' },
+      },
+    })
+  })
+
+  it('PR-3: el filtro nested event.placeId asegura que NO borra RSVPs en otros places (scope per-place)', async () => {
+    // Validamos por contrato del where: el filtro siempre incluye
+    // `event: { placeId }`. Si un futuro refactor lo elimina, este test rompe.
+    membershipFindMany.mockResolvedValue([eligibleMembership])
+    eventRsvpDeleteMany.mockResolvedValue({ count: 1 })
+
+    await runErasure({ dryRun: false, now: NOW })
+
+    const callArgs = eventRsvpDeleteMany.mock.calls[0]![0] as {
+      where: { userId: string; event?: { placeId?: string } }
+    }
+    expect(callArgs.where.userId).toBe('user-1')
+    // CRÍTICO: el filtro DEBE incluir event.placeId. Sin esto, el deleteMany
+    // sería global y borraría RSVPs en todos los places donde el user
+    // sigue activo.
+    expect(callArgs.where.event).toEqual({ placeId: 'place-1' })
   })
 })

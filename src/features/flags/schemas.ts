@@ -10,7 +10,7 @@ import { z } from 'zod'
 import { FLAG_NOTE_MAX_LENGTH } from './domain/invariants'
 import { FlagReasonValues } from './domain/types'
 
-const targetKindSchema = z.enum(['POST', 'COMMENT'])
+const targetKindSchema = z.enum(['POST', 'COMMENT', 'EVENT'])
 
 const flagReasonSchema = z.enum([
   FlagReasonValues.SPAM,

@@ -34,6 +34,7 @@ function isAllowedWriteFile(relPath: string): boolean {
   const n = relPath.replace(/\\/g, '/')
   return (
     n.endsWith('/posts/create.ts') ||
+    n.endsWith('/posts/create-from-system.ts') ||
     n.endsWith('/comments/create.ts') ||
     n.endsWith('/posts.ts') ||
     n.endsWith('/comments.ts')

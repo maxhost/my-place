@@ -1,15 +1,19 @@
 #!/usr/bin/env tsx
 /**
- * Smoke test manual del cron de erasure 365d (C.L).
+ * Smoke test manual del cron de erasure 365d (C.L + F.C Fase 6 PR-3).
  *
  * Crea una fixture artificial con prefijos reservados propios
- * (`usr_erasure_smoke_*`, `place_erasure_smoke_*`) + `leftAt` backdated
- * a 400 días. Invoca el endpoint cron en dev local y verifica que:
+ * (`usr_erasure_smoke_*`, `place_erasure_smoke_*`, `evt_erasure_smoke_*`)
+ * + `leftAt` backdated a 400 días. Invoca el endpoint cron en dev local
+ * y verifica que:
  *
- *  1. Dry-run reporta 1 membership elegible sin aplicar UPDATEs.
+ *  1. Dry-run reporta 1 membership elegible sin aplicar UPDATEs (counts
+ *     incluyen postsAnonymized, commentsAnonymized y eventsAnonymized).
  *  2. Real run nullifica `authorUserId` + renombra snapshot a
- *     "ex-miembro" + marca `erasureAppliedAt`.
- *  3. `ErasureAuditLog` captura `snapshotsBefore` correctamente.
+ *     "ex-miembro" en Post, Comment **y Event** + marca `erasureAppliedAt`.
+ *  3. `ErasureAuditLog` captura `snapshotsBefore` con entradas POST +
+ *     COMMENT + EVENT.
+ *  4. PR-3: EventRSVP del ex-miembro borrada en el place que dejó.
  *
  * Cleanup automático al final (incluso si algún paso falla) — borra
  * todas las filas con los prefijos reservados.
@@ -28,6 +32,8 @@ const USER_ID = `usr_${PREFIX}_user1`
 const PLACE_ID = `place_${PREFIX}_1`
 const POST_ID = `post_${PREFIX}_1`
 const COMMENT_ID = `comment_${PREFIX}_1`
+const EVENT_ID = `evt_${PREFIX}_1`
+const RSVP_ID = `rsvp_${PREFIX}_1`
 const MEMBERSHIP_ID = `mem_${PREFIX}_1`
 const ORIGINAL_NAME = 'Alice Test'
 
@@ -47,6 +53,8 @@ type ErasureResult = {
   membershipsProcessed: number
   postsAnonymized: number
   commentsAnonymized: number
+  eventsAnonymized: number
+  rsvpsDeleted: number
   errorsPerMembership: Array<{ membershipId: string; error: string }>
 }
 
@@ -106,6 +114,28 @@ async function seedFixture(): Promise<void> {
     },
   })
 
+  // Event + EventRSVP — F.C Fase 6 PR-3.
+  await prisma.event.create({
+    data: {
+      id: EVENT_ID,
+      placeId: PLACE_ID,
+      authorUserId: USER_ID,
+      authorSnapshot: { displayName: ORIGINAL_NAME, avatarUrl: null },
+      title: 'Smoke Event',
+      startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      timezone: 'America/Argentina/Buenos_Aires',
+    },
+  })
+
+  await prisma.eventRSVP.create({
+    data: {
+      id: RSVP_ID,
+      eventId: EVENT_ID,
+      userId: USER_ID,
+      state: 'GOING',
+    },
+  })
+
   // Backdate leftAt 400 días: past el cutoff de 365d.
   await prisma.$executeRaw`
     UPDATE "Membership"
@@ -118,6 +148,9 @@ async function seedFixture(): Promise<void> {
 
 async function cleanup(): Promise<void> {
   await prisma.erasureAuditLog.deleteMany({ where: { membershipId: MEMBERSHIP_ID } })
+  // EventRSVP cascadea desde Event/User, pero limpio explícito por las dudas.
+  await prisma.eventRSVP.deleteMany({ where: { id: RSVP_ID } })
+  await prisma.event.deleteMany({ where: { id: EVENT_ID } })
   await prisma.comment.deleteMany({ where: { id: COMMENT_ID } })
   await prisma.post.deleteMany({ where: { id: POST_ID } })
   await prisma.membership.deleteMany({ where: { id: MEMBERSHIP_ID } })
@@ -168,6 +201,20 @@ async function verifyAfter(): Promise<void> {
     )
   console.log(`[smoke] comment anonimizado ✓`)
 
+  // F.C Fase 6 PR-3: Event anonimizado.
+  const event = await prisma.event.findUniqueOrThrow({ where: { id: EVENT_ID } })
+  const eventSnap = event.authorSnapshot as { displayName: string }
+  if (event.authorUserId !== null)
+    throw new Error(`event: authorUserId debería ser NULL, es ${event.authorUserId}`)
+  if (eventSnap.displayName !== 'ex-miembro')
+    throw new Error(`event: displayName debería ser "ex-miembro", es "${eventSnap.displayName}"`)
+  console.log(`[smoke] event anonimizado ✓`)
+
+  // F.C Fase 6 PR-3: EventRSVP del ex-miembro borrada (per-place).
+  const rsvp = await prisma.eventRSVP.findUnique({ where: { id: RSVP_ID } })
+  if (rsvp !== null) throw new Error('rsvp: debería estar borrada (per-place erasure)')
+  console.log(`[smoke] eventRSVP borrada ✓`)
+
   const membership = await prisma.membership.findUniqueOrThrow({ where: { id: MEMBERSHIP_ID } })
   if (!membership.erasureAppliedAt)
     throw new Error('membership: erasureAppliedAt debería tener fecha')
@@ -182,10 +229,13 @@ async function verifyAfter(): Promise<void> {
   if (!audit) throw new Error('audit: no se encontró entry real-run para la membership')
   const snapshots = audit.snapshotsBefore as Array<{ type: string; displayName: string }>
   const postSnapBefore = snapshots.find((s) => s.type === 'POST')
+  const eventSnapBefore = snapshots.find((s) => s.type === 'EVENT')
   if (postSnapBefore?.displayName !== ORIGINAL_NAME)
     throw new Error(`audit: snapshotsBefore.POST.displayName debería capturar "${ORIGINAL_NAME}"`)
+  if (eventSnapBefore?.displayName !== ORIGINAL_NAME)
+    throw new Error(`audit: snapshotsBefore.EVENT.displayName debería capturar "${ORIGINAL_NAME}"`)
   console.log(
-    `[smoke] audit log ✓ id=${audit.id}, postIds=${JSON.stringify(audit.postIds)}, snapshotsBefore capturó displayName="${ORIGINAL_NAME}"`,
+    `[smoke] audit log ✓ id=${audit.id}, postIds=${JSON.stringify(audit.postIds)}, snapshotsBefore incluye POST + COMMENT + EVENT con displayName="${ORIGINAL_NAME}"`,
   )
 }
 
@@ -206,6 +256,9 @@ async function main(): Promise<void> {
       throw new Error(`dry: esperaba membershipsProcessed=1, got ${dry.membershipsProcessed}`)
     if (dry.postsAnonymized !== 1) throw new Error(`dry: esperaba postsAnonymized=1`)
     if (dry.commentsAnonymized !== 1) throw new Error(`dry: esperaba commentsAnonymized=1`)
+    if (dry.eventsAnonymized !== 1) throw new Error(`dry: esperaba eventsAnonymized=1`)
+    if (dry.rsvpsDeleted !== 0)
+      throw new Error(`dry: rsvpsDeleted debe ser 0 en dry-run (deleteMany no se ejecuta)`)
     if (!dry.dryRun) throw new Error(`dry: debería ser dryRun=true`)
 
     // Dry-run NO debe haber aplicado UPDATE
@@ -220,6 +273,8 @@ async function main(): Promise<void> {
     if (real.membershipsProcessed !== 1) throw new Error('real: esperaba membershipsProcessed=1')
     if (real.postsAnonymized !== 1) throw new Error('real: esperaba postsAnonymized=1')
     if (real.commentsAnonymized !== 1) throw new Error('real: esperaba commentsAnonymized=1')
+    if (real.eventsAnonymized !== 1) throw new Error('real: esperaba eventsAnonymized=1')
+    if (real.rsvpsDeleted !== 1) throw new Error('real: esperaba rsvpsDeleted=1')
     if (real.dryRun) throw new Error('real: debería ser dryRun=false')
 
     await verifyAfter()

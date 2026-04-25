@@ -1,6 +1,7 @@
 import 'server-only'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/db/client'
+import { assertNever } from '@/shared/lib/assert-never'
 import { FLAG_PAGE_SIZE } from '../domain/invariants'
 import type { Flag, FlagReason, FlagStatus, FlagTargetSnapshot } from '../domain/types'
 
@@ -74,6 +75,15 @@ type CommentSnapshotRow = {
   post: { slug: string } | null
 }
 
+type EventSnapshotRow = {
+  id: string
+  title: string
+  authorSnapshot: unknown
+  startsAt: Date
+  timezone: string
+  cancelledAt: Date | null
+}
+
 /**
  * Resuelve en batch los snapshots de los targets flageados. Hace a lo sumo
  * 2 `findMany` (post + comment) agrupadas en un solo `$transaction` — O(1)
@@ -86,33 +96,64 @@ export async function listFlagTargetSnapshots(
 ): Promise<Map<string, FlagTargetSnapshot>> {
   const result = new Map<string, FlagTargetSnapshot>()
   if (flags.length === 0) return result
-  const { postIds, commentIds } = collectFlagTargetIds(flags)
-  const { posts, comments } = await fetchFlagTargetsBatch(postIds, commentIds)
+  const { postIds, commentIds, eventIds } = collectFlagTargetIds(flags)
+  const { posts, comments, events } = await fetchFlagTargetsBatch(postIds, commentIds, eventIds)
   for (const p of posts) result.set(`POST:${p.id}`, mapPostSnapshot(p))
   for (const c of comments) result.set(`COMMENT:${c.id}`, mapCommentSnapshot(c))
+  for (const e of events) result.set(`EVENT:${e.id}`, mapEventSnapshot(e))
   return result
 }
 
+/**
+ * Switch exhaustivo sobre `ContentTargetKind`. `assertNever` enforce que si
+ * en el futuro se agrega un nuevo target type al enum (`'REACTION'`,
+ * `'PROFILE'`, etc.) y nadie actualiza este switch, TS marca compile error.
+ */
 function collectFlagTargetIds(flags: readonly Flag[]): {
   postIds: string[]
   commentIds: string[]
+  eventIds: string[]
 } {
-  const postIds = [...new Set(flags.filter((f) => f.targetType === 'POST').map((f) => f.targetId))]
-  const commentIds = [
-    ...new Set(flags.filter((f) => f.targetType === 'COMMENT').map((f) => f.targetId)),
-  ]
-  return { postIds, commentIds }
+  const postIds = new Set<string>()
+  const commentIds = new Set<string>()
+  const eventIds = new Set<string>()
+  for (const f of flags) {
+    switch (f.targetType) {
+      case 'POST':
+        postIds.add(f.targetId)
+        break
+      case 'COMMENT':
+        commentIds.add(f.targetId)
+        break
+      case 'EVENT':
+        eventIds.add(f.targetId)
+        break
+      default:
+        assertNever(f.targetType)
+    }
+  }
+  return {
+    postIds: [...postIds],
+    commentIds: [...commentIds],
+    eventIds: [...eventIds],
+  }
 }
 
 /**
- * Ejecuta los 2 `findMany` (post + comment) en un solo `$transaction` para
- * snapshot isolation. Cada rama se agrega al batch sólo si hay ids — evita
- * queries triviales. Retorna arrays tipados para que el caller no haga casts.
+ * Ejecuta los 3 `findMany` (post + comment + event) en un solo `$transaction`
+ * para snapshot isolation. Cada rama se agrega al batch sólo si hay ids —
+ * evita queries triviales. Retorna arrays tipados para que el caller no haga
+ * casts.
  */
 async function fetchFlagTargetsBatch(
   postIds: string[],
   commentIds: string[],
-): Promise<{ posts: PostSnapshotRow[]; comments: CommentSnapshotRow[] }> {
+  eventIds: string[],
+): Promise<{
+  posts: PostSnapshotRow[]
+  comments: CommentSnapshotRow[]
+  events: EventSnapshotRow[]
+}> {
   const ops: Prisma.PrismaPromise<unknown>[] = []
   if (postIds.length > 0) {
     ops.push(
@@ -136,12 +177,28 @@ async function fetchFlagTargetsBatch(
       }),
     )
   }
-  if (ops.length === 0) return { posts: [], comments: [] }
+  if (eventIds.length > 0) {
+    ops.push(
+      prisma.event.findMany({
+        where: { id: { in: eventIds } },
+        select: {
+          id: true,
+          title: true,
+          authorSnapshot: true,
+          startsAt: true,
+          timezone: true,
+          cancelledAt: true,
+        },
+      }),
+    )
+  }
+  if (ops.length === 0) return { posts: [], comments: [], events: [] }
   const results = (await prisma.$transaction(ops)) as unknown[]
   let idx = 0
   const posts = postIds.length > 0 ? (results[idx++] as PostSnapshotRow[]) : []
   const comments = commentIds.length > 0 ? (results[idx++] as CommentSnapshotRow[]) : []
-  return { posts, comments }
+  const events = eventIds.length > 0 ? (results[idx++] as EventSnapshotRow[]) : []
+  return { posts, comments, events }
 }
 
 function mapPostSnapshot(row: PostSnapshotRow): FlagTargetSnapshot {
@@ -164,6 +221,40 @@ function mapCommentSnapshot(row: CommentSnapshotRow): FlagTargetSnapshot {
     postId: row.postId,
     postSlug: row.post?.slug ?? null,
   }
+}
+
+/**
+ * Convierte una row de Event a `FlagTargetSnapshot` para la cola admin.
+ * `cancelledAt` se incluye porque el admin que revisa el flag necesita ver
+ * si el evento ya fue cancelado (afecta la decisión de moderación).
+ *
+ * Ver `docs/features/events/spec-integrations.md § 4.4`.
+ */
+function mapEventSnapshot(row: EventSnapshotRow): FlagTargetSnapshot {
+  const snapshot = readEventAuthorSnapshot(row.authorSnapshot)
+  return {
+    targetType: 'EVENT',
+    targetId: row.id,
+    title: row.title,
+    authorSnapshot: snapshot,
+    startsAt: row.startsAt.toISOString(),
+    timezone: row.timezone,
+    cancelledAt: row.cancelledAt?.toISOString() ?? null,
+  }
+}
+
+function readEventAuthorSnapshot(raw: unknown): {
+  displayName: string
+  avatarUrl: string | null
+} {
+  if (raw && typeof raw === 'object' && 'displayName' in raw) {
+    const obj = raw as { displayName: unknown; avatarUrl?: unknown }
+    return {
+      displayName: typeof obj.displayName === 'string' ? obj.displayName : 'ex-miembro',
+      avatarUrl: typeof obj.avatarUrl === 'string' ? obj.avatarUrl : null,
+    }
+  }
+  return { displayName: 'ex-miembro', avatarUrl: null }
 }
 
 type FlagRow = Prisma.FlagGetPayload<Record<string, never>>

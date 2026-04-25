@@ -4,6 +4,7 @@ const flagFindMany = vi.fn()
 const flagCount = vi.fn()
 const postFindMany = vi.fn()
 const commentFindMany = vi.fn()
+const eventFindMany = vi.fn()
 const transactionFn = vi.fn()
 
 vi.mock('@/db/client', () => ({
@@ -14,6 +15,7 @@ vi.mock('@/db/client', () => ({
     },
     post: { findMany: (...a: unknown[]) => postFindMany(...a) },
     comment: { findMany: (...a: unknown[]) => commentFindMany(...a) },
+    event: { findMany: (...a: unknown[]) => eventFindMany(...a) },
     $transaction: (...a: unknown[]) => transactionFn(...a),
   },
 }))
@@ -250,7 +252,7 @@ describe('listFlagTargetSnapshots', () => {
     expect(snapshots.get('POST:po-gone')).toBeUndefined()
   })
 
-  it('sólo POSTs ⇒ 1 findMany (no hace query de comments)', async () => {
+  it('sólo POSTs ⇒ 1 findMany (no hace query de comments ni events)', async () => {
     postFindMany.mockResolvedValue([])
     transactionFn.mockImplementation(async (ops: unknown[]) => {
       expect(ops).toHaveLength(1)
@@ -277,5 +279,148 @@ describe('listFlagTargetSnapshots', () => {
     await listFlagTargetSnapshots(flags)
     expect(postFindMany).toHaveBeenCalled()
     expect(commentFindMany).not.toHaveBeenCalled()
+    expect(eventFindMany).not.toHaveBeenCalled()
+  })
+
+  it('EVENT target: hace 1 findMany sobre Event y produce snapshot con title + authorSnapshot + startsAt + timezone + cancelledAt', async () => {
+    eventFindMany.mockResolvedValue([
+      {
+        id: 'evt-1',
+        title: 'Asado del viernes',
+        authorSnapshot: { displayName: 'Max', avatarUrl: null },
+        startsAt: new Date('2026-05-01T22:00:00Z'),
+        timezone: 'America/Argentina/Buenos_Aires',
+        cancelledAt: null,
+      },
+    ])
+    transactionFn.mockImplementation(async (ops: unknown[]) => {
+      expect(ops).toHaveLength(1)
+      return Promise.all(ops as Promise<unknown>[])
+    })
+
+    const flags: Flag[] = [
+      {
+        id: 'f-evt-1',
+        targetType: 'EVENT',
+        targetId: 'evt-1',
+        placeId: 'pl-1',
+        reporterUserId: 'u-1',
+        reason: 'SPAM',
+        reasonNote: null,
+        status: 'OPEN',
+        createdAt: new Date(),
+        reviewedAt: null,
+        reviewerAdminUserId: null,
+        reviewNote: null,
+      },
+    ]
+
+    const snapshots = await listFlagTargetSnapshots(flags)
+    expect(snapshots.size).toBe(1)
+    expect(snapshots.get('EVENT:evt-1')).toMatchObject({
+      targetType: 'EVENT',
+      targetId: 'evt-1',
+      title: 'Asado del viernes',
+      authorSnapshot: { displayName: 'Max', avatarUrl: null },
+      startsAt: '2026-05-01T22:00:00.000Z',
+      timezone: 'America/Argentina/Buenos_Aires',
+      cancelledAt: null,
+    })
+    expect(postFindMany).not.toHaveBeenCalled()
+    expect(commentFindMany).not.toHaveBeenCalled()
+  })
+
+  it('EVENT cancelado: cancelledAt aparece en el snapshot como ISO string', async () => {
+    const cancelledAt = new Date('2026-04-25T10:00:00Z')
+    eventFindMany.mockResolvedValue([
+      {
+        id: 'evt-c',
+        title: 'Evento cancelado',
+        authorSnapshot: { displayName: 'Max', avatarUrl: null },
+        startsAt: new Date('2026-05-01T22:00:00Z'),
+        timezone: 'UTC',
+        cancelledAt,
+      },
+    ])
+    transactionFn.mockImplementation(async (ops: unknown[]) =>
+      Promise.all(ops as Promise<unknown>[]),
+    )
+
+    const snapshots = await listFlagTargetSnapshots([
+      {
+        id: 'f-c',
+        targetType: 'EVENT',
+        targetId: 'evt-c',
+        placeId: 'pl-1',
+        reporterUserId: 'u-1',
+        reason: 'OTHER',
+        reasonNote: null,
+        status: 'OPEN',
+        createdAt: new Date(),
+        reviewedAt: null,
+        reviewerAdminUserId: null,
+        reviewNote: null,
+      },
+    ])
+    expect(snapshots.get('EVENT:evt-c')).toMatchObject({
+      cancelledAt: cancelledAt.toISOString(),
+    })
+  })
+
+  it('mezcla POST + COMMENT + EVENT ⇒ 3 findMany batched dentro de $transaction', async () => {
+    postFindMany.mockResolvedValue([
+      { id: 'po-1', title: 'p', body: { type: 'doc', content: [] }, hiddenAt: null, slug: 'p' },
+    ])
+    commentFindMany.mockResolvedValue([
+      {
+        id: 'co-1',
+        body: { type: 'doc', content: [] },
+        deletedAt: null,
+        postId: 'po-1',
+        post: { slug: 'p' },
+      },
+    ])
+    eventFindMany.mockResolvedValue([
+      {
+        id: 'evt-1',
+        title: 'e',
+        authorSnapshot: { displayName: 'X', avatarUrl: null },
+        startsAt: new Date('2026-05-01T22:00:00Z'),
+        timezone: 'UTC',
+        cancelledAt: null,
+      },
+    ])
+    transactionFn.mockImplementation(async (ops: unknown[]) => {
+      expect(ops).toHaveLength(3)
+      return Promise.all(ops as Promise<unknown>[])
+    })
+
+    const flags: Flag[] = [
+      makeFlag('f-p', 'POST', 'po-1'),
+      makeFlag('f-c', 'COMMENT', 'co-1'),
+      makeFlag('f-e', 'EVENT', 'evt-1'),
+    ]
+    const snapshots = await listFlagTargetSnapshots(flags)
+    expect(snapshots.size).toBe(3)
+    expect(snapshots.has('POST:po-1')).toBe(true)
+    expect(snapshots.has('COMMENT:co-1')).toBe(true)
+    expect(snapshots.has('EVENT:evt-1')).toBe(true)
   })
 })
+
+function makeFlag(id: string, targetType: 'POST' | 'COMMENT' | 'EVENT', targetId: string): Flag {
+  return {
+    id,
+    targetType,
+    targetId,
+    placeId: 'pl-1',
+    reporterUserId: 'u-1',
+    reason: 'SPAM',
+    reasonNote: null,
+    status: 'OPEN',
+    createdAt: new Date(),
+    reviewedAt: null,
+    reviewerAdminUserId: null,
+    reviewNote: null,
+  }
+}

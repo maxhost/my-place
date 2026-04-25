@@ -14,6 +14,11 @@ type FlagRecord = {
   id: string
   placeId: string
   status: string
+  // F.C: el enum DB acepta EVENT, pero el review action de moderación todavía
+  // sólo procesa POST/COMMENT (admin actúa sobre eventos cancelando vía
+  // /events/[id]/edit, no via flag queue). El guard en `loadAndAuthorizeFlag`
+  // rechaza EVENT antes de devolver este record. F.D / post-F1 puede agregar
+  // un sideEffect `CANCEL_EVENT` si producto lo pide.
   targetType: 'POST' | 'COMMENT'
   targetId: string
 }
@@ -149,13 +154,12 @@ async function loadAndAuthorizeFlag(
   }
 
   if (flag.targetType === 'EVENT') {
-    // F.B agregó EVENT al enum ContentTargetKind (events_core_schema), pero el
-    // soporte completo de flags sobre eventos llega en F.C (PR-2 — switch
-    // exhaustivo + mapEventSnapshot + UI). Hasta entonces, ningún path de UI
-    // crea flags de tipo EVENT (flag-modal.tsx limita targetType a POST/COMMENT).
-    // Si igualmente llega uno (insert manual / SQL admin), rechazamos limpio
-    // en lugar de propagar `targetType` ancho hacia abajo.
-    throw new ValidationError('Soporte de flag sobre eventos llega en F.C.', {
+    // F.C: la cola admin renderiza EVENT flags (mapper + queries lo soportan)
+    // pero el review action no aplica HIDE/DELETE sobre eventos — el patrón
+    // para moderar un evento es cancelarlo desde `/events/[id]/edit`. Hasta
+    // que F.D o post-F1 agreguen un sideEffect `CANCEL_EVENT`, rechazamos
+    // las acciones de review sobre EVENT con un mensaje claro.
+    throw new ValidationError('Para moderar un evento, cancelalo desde su detalle.', {
       flagId: flag.id,
       targetType: flag.targetType,
     })
@@ -289,7 +293,7 @@ function revalidateFlagPaths(
 }
 
 async function resolveFlaggableTarget(
-  targetType: 'POST' | 'COMMENT',
+  targetType: 'POST' | 'COMMENT' | 'EVENT',
   targetId: string,
 ): Promise<{ placeId: string }> {
   if (targetType === 'POST') {
@@ -300,15 +304,24 @@ async function resolveFlaggableTarget(
     if (!post) throw new NotFoundError('Post no encontrado.', { postId: targetId })
     return { placeId: post.placeId }
   }
-  const comment = await prisma.comment.findUnique({
+  if (targetType === 'COMMENT') {
+    const comment = await prisma.comment.findUnique({
+      where: { id: targetId },
+      select: { id: true, placeId: true, deletedAt: true },
+    })
+    if (!comment) {
+      throw new NotFoundError('Comentario no encontrado.', { commentId: targetId })
+    }
+    if (comment.deletedAt) {
+      throw new NotFoundError('Comentario ya fue eliminado.', { commentId: targetId })
+    }
+    return { placeId: comment.placeId }
+  }
+  // EVENT
+  const event = await prisma.event.findUnique({
     where: { id: targetId },
-    select: { id: true, placeId: true, deletedAt: true },
+    select: { id: true, placeId: true },
   })
-  if (!comment) {
-    throw new NotFoundError('Comentario no encontrado.', { commentId: targetId })
-  }
-  if (comment.deletedAt) {
-    throw new NotFoundError('Comentario ya fue eliminado.', { commentId: targetId })
-  }
-  return { placeId: comment.placeId }
+  if (!event) throw new NotFoundError('Evento no encontrado.', { eventId: targetId })
+  return { placeId: event.placeId }
 }

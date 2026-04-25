@@ -14,6 +14,12 @@ export const maxDuration = 300
  * También invocable manualmente con `Authorization: Bearer <CRON_SECRET>`
  * para forzar un run o inspeccionar con `?dryRun=true`.
  *
+ * Response shape (JSON): `{ ok: true, ...ErasureRunResult }` con campos:
+ * `dryRun`, `membershipsProcessed`, `postsAnonymized`, `commentsAnonymized`,
+ * `eventsAnonymized` (F.C Fase 6 — eventos anonimizados),
+ * `rsvpsDeleted` (F.C Fase 6 — RSVPs DELETEadas en places que el user dejó,
+ * scope per-place; no global), `errorsPerMembership`.
+ *
  * Gate: sin header correcto → 401. Sin `CRON_SECRET` en env → 401 (el
  * endpoint nunca funciona). Comparación timing-safe.
  *
@@ -24,7 +30,8 @@ export const maxDuration = 300
  * - Inyecta automáticamente el header `Authorization: Bearer
  *   <CRON_SECRET>` si la env var está configurada en el proyecto.
  *
- * Ver `docs/decisions/2026-04-24-erasure-365d.md`.
+ * Ver `docs/decisions/2026-04-24-erasure-365d.md` y
+ * `docs/features/events/spec-integrations.md § 3` (extensión PR-3).
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!isAuthorized(req)) {

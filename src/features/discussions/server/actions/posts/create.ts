@@ -8,9 +8,8 @@ import { ConflictError, ValidationError } from '@/shared/errors/domain-error'
 import { createPostInputSchema } from '@/features/discussions/schemas'
 import { buildAuthorSnapshot } from '@/features/discussions/domain/invariants'
 import { assertRichTextSize } from '@/features/discussions/domain/rich-text'
-import { RESERVED_POST_SLUGS, generatePostSlug } from '@/features/discussions/domain/slug'
 import { resolveActorForPlace, type DiscussionActor } from '@/features/discussions/server/actor'
-import { revalidatePostPaths } from './shared'
+import { resolveUniqueSlug, revalidatePostPaths } from './shared'
 
 /**
  * Crea un Post nuevo en un place. Gate por `assertPlaceOpenOrThrow` y membership
@@ -51,20 +50,6 @@ export async function createPostAction(
 
   revalidatePostPaths(actor.placeSlug, created.slug)
   return { ok: true, postId: created.id, slug: created.slug }
-}
-
-/**
- * Resuelve un slug único dentro de un place. Lee las colisiones existentes que
- * empiezan con el mismo prefijo y construye el reserved set combinado.
- */
-async function resolveUniqueSlug(placeId: string, title: string): Promise<string> {
-  const base = generatePostSlug(title, { reserved: new Set() })
-  const existing = await prisma.post.findMany({
-    where: { placeId, slug: { startsWith: base } },
-    select: { slug: true },
-  })
-  const reserved = new Set<string>([...RESERVED_POST_SLUGS, ...existing.map((e) => e.slug)])
-  return generatePostSlug(title, { reserved })
 }
 
 async function attemptCreate(
