@@ -30,39 +30,45 @@ export default async function PostDetailPage({ params }: Props) {
   const place = await loadPlaceBySlug(placeSlug)
   if (!place) notFound()
 
-  const post = await findPostBySlug(place.id, postSlug)
+  // Paralelizamos lo que no tiene dependencia entre sí. `resolveViewerForPlace`
+  // internamente comparte el cache de `loadPlaceBySlug` (React.cache) — no
+  // duplica queries (ver discussions/server/actor.ts:48-93).
+  const [post, viewer] = await Promise.all([
+    findPostBySlug(place.id, postSlug),
+    resolveViewerForPlace({ placeSlug }),
+  ])
   if (!post) notFound()
-
-  const viewer = await resolveViewerForPlace({ placeSlug })
   if (post.hiddenAt && !viewer.isAdmin) notFound()
-
-  const { items: comments, nextCursor } = await listCommentsByPost({
-    postId: post.id,
-    includeDeleted: viewer.isAdmin,
-  })
-
-  const reactionsByKey: ReactionAggregationMap = await aggregateReactions({
-    targets: [
-      { type: 'POST', id: post.id },
-      ...comments.map((c) => ({ type: 'COMMENT' as const, id: c.id })),
-    ],
-    viewerUserId: viewer.actorId,
-  })
-
-  const quoteStateByCommentId = await resolveQuoteTargetStates(comments)
 
   // F.F: el evento ES el thread. Si el Post fue auto-creado por un evento
   // (`post.event` poblado en `findPostBySlug`), levantamos el detalle
   // completo del evento y renderizamos `EventMetadataHeader` arriba del
   // PostDetail. Sin event poblado, la page se comporta como antes (Post
   // standalone).
-  const eventDetail = post.event
-    ? await getEvent({
-        eventId: post.event.id,
-        placeId: place.id,
-        viewerUserId: viewer.actorId,
-      })
-    : null
+  const [{ items: comments, nextCursor }, eventDetail] = await Promise.all([
+    listCommentsByPost({
+      postId: post.id,
+      includeDeleted: viewer.isAdmin,
+    }),
+    post.event
+      ? getEvent({
+          eventId: post.event.id,
+          placeId: place.id,
+          viewerUserId: viewer.actorId,
+        })
+      : Promise.resolve(null),
+  ])
+
+  const [reactionsByKey, quoteStateByCommentId] = await Promise.all([
+    aggregateReactions({
+      targets: [
+        { type: 'POST', id: post.id },
+        ...comments.map((c) => ({ type: 'COMMENT' as const, id: c.id })),
+      ],
+      viewerUserId: viewer.actorId,
+    }) as Promise<ReactionAggregationMap>,
+    resolveQuoteTargetStates(comments),
+  ])
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-4 md:p-8">

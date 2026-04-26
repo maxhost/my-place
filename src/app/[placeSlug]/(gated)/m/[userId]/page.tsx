@@ -25,25 +25,29 @@ type Props = { params: Promise<{ placeSlug: string; userId: string }> }
 export default async function MemberProfilePage({ params }: Props) {
   const { placeSlug, userId } = await params
 
-  const auth = await getCurrentAuthUser()
+  // auth y place son independientes; van en paralelo. React.cache garantiza
+  // que `getCurrentAuthUser` no dispara una segunda llamada a Supabase Auth
+  // si el middleware ya la hizo en el mismo render.
+  const [auth, place] = await Promise.all([getCurrentAuthUser(), loadPlaceBySlug(placeSlug)])
   if (!auth) {
     redirect(`/login?next=/m/${userId}`)
   }
-  const visitorId = auth.id
-
-  const place = await loadPlaceBySlug(placeSlug)
   if (!place || place.archivedAt) {
     notFound()
   }
+  const visitorId = auth.id
 
+  // visitor permissions y profile son independientes (mismas claves: place.id +
+  // userId). Ambas se piden en paralelo para reducir un RTT del critical path.
+  const [visitorPerms, profile] = await Promise.all([
+    findMemberPermissions(visitorId, place.id),
+    findMemberProfile(place.id, userId),
+  ])
   // Visitor debe ser miembro activo del place — sino, 404 (no podés ver perfiles de
   // un place al que no pertenecés).
-  const visitorPerms = await findMemberPermissions(visitorId, place.id)
   if (!visitorPerms.role) {
     notFound()
   }
-
-  const profile = await findMemberProfile(place.id, userId)
   if (!profile) {
     notFound()
   }
