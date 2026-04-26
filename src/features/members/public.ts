@@ -37,6 +37,7 @@ export {
   type MemberProfile,
 } from './server/queries'
 export { InviteMemberForm } from './ui/invite-form'
+export { MemberAvatar } from './ui/member-avatar'
 export { AcceptInvitationView } from './ui/accept-invitation-view'
 export { LeaveButton } from './ui/leave-button'
 export { PendingInvitationsList } from './ui/pending-invitations-list'
