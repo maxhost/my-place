@@ -1099,4 +1099,157 @@ Member A flaggea Comment C reportado por B como `HARASSMENT` con nota. Admin ent
 
 ---
 
+## 21. Layout R.6 (rediseño handoff threads + threads-detail)
+
+> Agregado el 2026-04-26. Documenta el rediseño visual completo de las pages `/conversations` (lista) y `/conversations/[postSlug]` (detalle) según los handoffs `handoff/threads/` y `handoff/threads-detail/`. Reemplaza el layout heredado de cards uniformes por la estructura del handoff. Decisiones formalizadas en ADR `docs/decisions/2026-04-26-threads-layout-redesign.md`.
+
+> R.1 (commits `f17099b` + `698fa5f`) migró tokens visuales (`place-*` → tokens nuevos) sin tocar el layout. R.6 cubre el rediseño de layout que faltaba.
+
+### 21.1 Threads list layout (`/conversations`)
+
+Estructura top-down:
+
+- **Section header** (`<ThreadsSectionHeader>`):
+  - Chip 56×56, `bg-surface`, `border-[0.5px] border-border`, radius 14, emoji 💬 centrado 32px.
+  - Título "Discusiones" en `font-title font-bold text-[38px] tracking-[-0.02em]`.
+  - CTA "Nueva conversación" a la derecha del título (botón discreto, no fab) — único punto de entrada para crear posts F1.
+  - Padding 24px desde top viewport, 18px gap chip-título, 12px padding horizontal sides.
+
+- **Filter pills** (`<ThreadFilterPills>`, client component):
+  - 3 pills: `Todos` (default activo), `Sin respuesta`, `En los que participo`.
+  - Gap 6px, padding 8/14, radius 999, `font-body text-[13px] font-medium`.
+  - Active: `bg-text text-bg`. Inactive: transparent + `text-muted` + `border-[0.5px] border-border`.
+  - **Estado R.6**: solo `Todos` funcional. `Sin respuesta` y `En los que participo` con `aria-disabled="true"` + `title="Próximamente"`. Filtros reales = R.6.X follow-up.
+
+- **Featured thread** (`<FeaturedThreadCard>`, primer post por `lastActivityAt`):
+  - Card con `bg-surface border-[0.5px] border-border rounded-[18px] p-[18px]`, margin 14px 12px.
+  - Author row: `MemberAvatar` 24×24 + nombre `font-body text-[13px] font-medium` + tiempo relativo `text-muted`.
+  - Título `font-title font-bold text-[22px]`, margin 12px 0 6px.
+  - Snippet `font-body text-sm text-muted` clamped 2 lines (`-webkit-line-clamp: 2`), 140 chars max server-side.
+  - Footer: `<ReaderStack>` 4 avatars 22×22 overlap -6px ring 1.5px `bg-bg` + count "{n} respuestas" `font-body text-xs text-muted`.
+
+- **Thread row** (`<ThreadRow>`, resto de posts):
+  - Sin card chrome. Padding 14px vertical / 12px horizontal.
+  - Hairline divider `border-[0.5px] border-border` entre rows (no en último).
+  - Author row idéntica a featured (24×24 avatar + nombre + tiempo).
+  - Título `font-title font-semibold text-[17px]`, margin 6px 0 2px.
+  - Snippet 1 line clamp + ellipsis, `font-body text-[13.5px] text-muted`.
+  - Footer: `<ReaderStack>` 3-4 avatars + count "{n} respuestas {N} lectores".
+  - Full-row hit target: `<Link href="/conversations/{slug}">`.
+
+- **Empty state** (`<EmptyThreads>`):
+  - Emoji 🪶 (feather) centrado, "Todavía nadie escribió" como title, "Iniciá la conversación con un tema que te interese" subtitle, pill CTA "Nueva discusión" → `/conversations/new`.
+
+### 21.2 Threads detail layout (`/conversations/[postSlug]`)
+
+Estructura top-down (todo dentro del shell viewport):
+
+- **`<ThreadHeaderBar>`** sticky 56px (border-bottom hairline):
+  - Slot izquierda: `<BackButton>` (chip 36×36 `bg-surface border-[0.5px] border-border rounded-full`, icono `ChevronLeft` lucide 18px). Click → `useRouter().back()` con fallback `<Link href="/conversations">` si `window.history.length <= 1`.
+  - Slot derecha: `<PostAdminMenu>` existente (admin only) montado acá. Para non-admin queda vacío. Futuro: agregar Reportar/Silenciar.
+
+- **Body** (padding 20px 16px 0):
+  - Author row: `MemberAvatar` 28×28 + nombre `font-body text-sm font-semibold` + tiempo `text-muted`.
+  - Título `font-title font-bold text-[28px] tracking-[-0.02em]`, margin 14px 0.
+  - Body con `<RichTextRenderer>` (intacto): `font-body text-base leading-[1.55] text-text`, spacing entre paragraphs 12px.
+
+- **Action row** (padding 16px 16px 0):
+  - `<ReactionBar>` (intacto, 6 emojis del producto). Restyle visual: cada emoji con su count compacto, gap 18px, sin background propio (solo hover state).
+
+- **Readers** (padding 14px 16px 18px):
+  - `<PostReadersBlock>` restilead: hasta 5 avatars 22×22 overlap -6px ring 1.5px `bg-bg` + texto "{n} leyeron" `font-body text-[13px] text-muted`.
+
+- **Replies separator**:
+  - Hairline border-top, padding 14px 16px 6px, label "{n} RESPUESTAS" `font-body text-[11px] font-semibold uppercase tracking-wider text-muted`.
+
+- **Reply list** (`<CommentThread>` + `<CommentItem>` restileados):
+  - Cada reply: padding 14px 16px, hairline top (no en primero).
+  - Author row: 28×28 avatar + nombre `font-body text-sm font-semibold` + tiempo `text-muted text-xs`.
+  - Body: `font-body text-[14.5px] leading-[1.55]`, margin-top 8px.
+  - QuotePreview restilead: `border-l-[2px] border-accent pl-[10px]`, texto italic `text-[13.5px] text-muted` 1 line clamp, attribution "— Nombre" italic `text-[11.5px] text-muted`.
+  - Footer reply: `<ReactionBar>` (mismas 6 emojis) + `<QuoteButton>` ("responder/citar") + `<EditWindowActions>` (autor 60s) + `<CommentAdminMenu>` (admin), gap 14px, margin-top 10px.
+
+- **`<CommentComposer>`** sticky bottom:
+  - Layout: `MemberAvatar` 36×36 izq + `<RichTextEditor>` (TipTap full, intacto) centro + send button 36×36 round `bg-accent text-bg` der.
+  - Padding 8/12, top hairline `border-[0.5px] border-border`, bottom += `env(safe-area-inset-bottom)`.
+  - Quoting chip activo (cuando `quoting !== null`): arriba del editor, `border-l-[2px] border-accent`, "Citando a {nombre}: '...'", × button para clear.
+  - **Gap a resolver en R.6.4**: el shell viewport actual es `flex-1 overflow-hidden`, lo que bloquea sticky bottom. Approaches: cambiar viewport del shell a `overflow-y-auto`, o hacer el composer `fixed bottom-0` en vez de sticky. Decisión arquitectónica chica con su propio mini-ADR si requiere.
+
+### 21.3 Excepciones intencionales (NO migrar al handoff literal)
+
+- **6 emojis de `ReactionBar`** (decisión F.A) vs ♥ simple del handoff. La spec ya documenta los 6 emojis en § 3 — el rediseño respeta esa decisión.
+- **TipTap rico en composer** (decisión F1) vs textarea plano del handoff. Mantenemos el editor full con allowlist (§ 12) y toolbar.
+- **URL `/conversations/[postSlug]`** (decisión F.F) vs `/t/[threadId]` del handoff. Mantenemos la URL canónica del producto.
+- **Share button**: SKIP en R.6 (no existe en producto, fuera de scope F1, no es decisión de producto).
+- **Pull-to-refresh**: SKIP (igual que el macro handoff sugiere).
+- **Overflow menu** del header detail: usa `<PostAdminMenu>` existente (admin only), no construye menu nuevo. Para non-admin queda vacío en R.6 (futuro: Reportar/Silenciar).
+
+### 21.4 Filter pills (estado de implementación R.6)
+
+- **`Todos`**: funcional inmediato (default, sin filter arg al query).
+- **`Sin respuesta`** + **`En los que participo`**: UI visible pero `aria-disabled="true"` + `title="Próximamente"`. NO se hace click-fetch en R.6 — los pills son solo decorativos hasta el follow-up.
+- **R.6.X follow-up**: extender `listPostsByPlace` para aceptar `filter: 'all' | 'unanswered' | 'participating'`. `Sin respuesta` = `commentCount === 0`. `En los que participo` = viewer es autor del post O viewer hizo al menos un comment activo. Tests + ADR si producto prioriza.
+
+### 21.5 Data shape extendida (`PostListView` en `domain/types.ts`)
+
+Campos nuevos a agregar (R.6.1):
+
+- **`snippet: string`** — primeros 140 chars del `body` plain text. Helper server-side `richTextExcerpt(body, 140)` (verificar si ya existe en el slice; si no, agregar a `discussions/server/`). Strip de marks/links/mentions, solo concatena texto plano.
+- **`commentCount: number`** — count de comments del post con `deletedAt IS NULL`. Soft-deleted excluidos (consistente con la UI que no los muestra como números).
+- **`readerSample: ReaderForStack[]`** — top 4 reader IDs por post de la apertura actual. Cada elemento: `{ userId, displayName, avatarUrl }`. Para `<ReaderStack>` en cada row.
+- **`isFeatured: boolean`** — derivado, no persistido. `true` para el primer thread por `lastActivityAt` en la response. Cero schema change.
+
+Performance: el query `listPostsByPlace` agrega 1-2 sub-queries por request (count batch + readers batch). Paralelizables vía `Promise.all`. Index `(postId, placeOpeningId)` ya existente cubre el `readerSample`. Performance ya validada en patrón `listReadersByPost` del PostReadersBlock.
+
+### 21.6 Componentes del rediseño
+
+**Nuevos en `discussions/ui/`**:
+
+- `<ThreadsSectionHeader>` (server) — chip + título + CTA.
+- `<ThreadFilterPills>` (client) — 3 pills, local state (router refresh con query param en follow-up; en R.6 solo `Todos` funcional).
+- `<FeaturedThreadCard>` (server) — featured layout.
+- `<ThreadRow>` (server) — row simple sin card chrome.
+- `<EmptyThreads>` (server) — emoji + copy + CTA.
+- `<ThreadHeaderBar>` (server, slot props) — sticky top del detail.
+
+**Nuevos en `shared/ui/`** (primitivos puros, agnósticos del dominio):
+
+- `<BackButton>` — client component. `useRouter().back()` con fallback `<Link>` si no hay history. Recibe `fallbackHref` y `label` por prop.
+- `<ReaderStack>` — recibe `readers: { userId, displayName, avatarUrl }[]` y `max?: number` (default 4). Compone N `<MemberAvatar>` con overlap negativo + `+N` chip cuando hay más. Mismo pattern visual que `<AttendeeAvatars>` de events.
+
+**Reescrituras en `discussions/ui/`**:
+
+- `<PostList>` → `<ThreadList>` (compone SectionHeader + FilterPills + Featured + Rows).
+- `<PostCard>` → reemplazado por `<FeaturedThreadCard>` + `<ThreadRow>` (split por modo).
+- `<PostDetail>` → restyle (title 28px, body spacing).
+- `<CommentThread>` + `<CommentItem>` → restyle (28px avatar, sin card chrome, hairline).
+- `<QuotePreview>` → restyle (border-l-2 accent + italic muted).
+- `<CommentComposer>` → restyle (sticky bottom, avatar+editor+send 3-col, mantener TipTap interno).
+- `<ReactionBar>` → restyle visual (mantener 6 emojis y data flow intactos).
+- `<PostReadersBlock>` → restyle acorde al handoff (5 max avatars + count compacto).
+
+**Intactos en R.6** (sin cambios):
+
+- `<ThreadPresence>` (Realtime presence)
+- `<DwellTracker>` (PostRead tracking ≥5s)
+- `<RichTextEditor>` (TipTap setup, toolbar, allowlist)
+- `<RichTextRenderer>` (renderer SSR)
+- `<EventMetadataHeader>` (montado arriba del PostDetail cuando `post.event`, F.F)
+- `<EditWindowActions>` / `<EditWindowForm>` (edit 60s)
+- `<FlagButton>` / `<FlagModal>` (reportes)
+- `<LoadMorePosts>` / `<LoadMoreComments>` (paginación cursor keyset)
+- `<PostAdminMenu>` (admin kebab — MOVIDO al slot derecho de `<ThreadHeaderBar>`, sin cambiar lógica)
+
+### 21.7 Sub-fases de implementación (R.6.1 → R.6.5)
+
+| Sub       | Deliverable                                                                                                                                                                                                                                                                          |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **R.6.1** | Helper `richTextExcerpt` server + extensión `PostListView` con `snippet`, `commentCount`, `readerSample`. Tests del query (TDD).                                                                                                                                                     |
+| **R.6.2** | `<BackButton>` y `<ReaderStack>` en `shared/ui/` + tests.                                                                                                                                                                                                                            |
+| **R.6.3** | Slice `discussions/ui` rewrite list: nuevos componentes + reescritura de `<PostList>` + adaptación de page + update `loading.tsx` + adaptación de tests existentes (TDD rojo→verde) + verificación E2E (`comment-reactions`, `post-crud`).                                           |
+| **R.6.4** | Thread detail rewrite: `<ThreadHeaderBar>` + restyle de `<PostDetail>`/`<CommentThread>`/`<CommentItem>`/`<QuotePreview>`/`<CommentComposer>`/`<ReactionBar>`/`<PostReadersBlock>`. Resolver gap del shell viewport vs composer sticky. Tests adaptados. Manual QA presence + dwell. |
+| **R.6.5** | Cleanup + verificación full + manual QA + update spec § 21 con diff descubierto + update roadmap.md con R.6 ✅.                                                                                                                                                                      |
+
+---
+
 Este spec es canónico. Cualquier cambio estructural se agrega con fecha en `docs/decisions/`.

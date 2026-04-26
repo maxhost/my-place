@@ -152,6 +152,9 @@ Documento de planificación maestra: `~/.claude/plans/tidy-stargazing-summit.md`
   - **R.2.5 (follow-up obligatorio, separado)**: swipe horizontal real entre zonas. ADR propio cuando se planifique. Decisión arquitectónica (single-page vs SSR cross-page) requiere su propio análisis.
 - **R.3 — Home / portada (`home`)** — pendiente. Spec `docs/features/home/spec.md` antes de código.
 - **R.4 — Search (overlay global)** — pendiente. Spec `docs/features/search/spec.md` antes de código + migration DB fulltext.
+- **R.6 — Rediseño layout threads (handoff threads + threads-detail)** — sub-fase R.6.0 cerrada.
+  - **R.6.0 — Spec del rediseño** ✅ (2026-04-26). `docs/features/discussions/spec.md` § 21 (15 sub-secciones cubriendo list layout, detail layout, excepciones, filter pills, data shape extendida, componentes nuevos/reescritos/intactos, sub-fases) + ADR `docs/decisions/2026-04-26-threads-layout-redesign.md`. Decisiones (consultadas al user): 6 emojis preservados (decisión F.A) vs ♥ del handoff; featured heurístico (primer thread por `lastActivityAt`) sin admin pinning; filtros incrementales (solo "Todos" funcional en R.6); header detail dentro del shell (suma chrome 136px arriba). Cierra el gap del roadmap macro original (R.1 fue solo tokens, no layout).
+  - **R.6.1+ (pendientes)**: helper `richTextExcerpt` + extensión `PostListView` (snippet, commentCount, readerSample); `<BackButton>` y `<ReaderStack>` shared; rewrite del slice `discussions/ui` list + detail; resolver gap composer sticky vs shell viewport. Sub-milestones detallados en spec § 21.7.
 
 ## Fase 7 — Portada y zonas
 
