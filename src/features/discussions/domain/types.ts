@@ -199,12 +199,37 @@ export type Post = {
 }
 
 /**
- * Post enriquecido con el último `readAt` del viewer para derivar el dot de
- * novedad en la lista (`hasUnread = lastActivityAt > (lastReadAt ?? 0)`).
- * `lastReadAt` es null si el viewer nunca dwelleó el post durante una apertura
- * donde se materializó `PostRead`, o si no hay viewer autenticado.
+ * Subset de un reader para `<ReaderStack>` en la lista de threads (R.6).
+ * Mismos campos que `PostReader` pero sin `readAt` (no se muestra en el stack).
  */
-export type PostListView = Post & { lastReadAt: Date | null }
+export type ReaderForStack = {
+  userId: string
+  displayName: string
+  avatarUrl: string | null
+}
+
+/**
+ * Post enriquecido para la lista (`/conversations`):
+ * - `lastReadAt`: dot de novedad (`hasUnread = lastActivityAt > (lastReadAt ?? 0)`).
+ *   Null si el viewer nunca dwelleó o no hay viewer autenticado.
+ * - `snippet` (R.6): primeros 140 chars del body plain text via `richTextExcerpt`.
+ *   Cadena vacía si el body es null.
+ * - `commentCount` (R.6): comments activos del post (deletedAt IS NULL).
+ *   Soft-deleted excluidos para consistency con la UI.
+ * - `readerSample` (R.6): top 4 readers de la apertura actual del place para
+ *   `<ReaderStack>` en cada row. Array vacío si el place no tiene opening
+ *   activa o si el post no tiene lectores aún.
+ * - `isFeatured` (R.6): `true` solo para el primer post de la primera página
+ *   (sin cursor). Heurística simple — el thread con `lastActivityAt` más
+ *   reciente. Diferenciación visual `<FeaturedThreadCard>` vs `<ThreadRow>`.
+ */
+export type PostListView = Post & {
+  lastReadAt: Date | null
+  snippet: string
+  commentCount: number
+  readerSample: ReaderForStack[]
+  isFeatured: boolean
+}
 
 export type Comment = {
   id: CommentId

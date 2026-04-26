@@ -10,6 +10,13 @@ vi.mock('@/db/client', () => ({
   },
 }))
 
+// `queries.ts` ahora importa `findOrCreateCurrentOpening` (R.6.1) que
+// arrastra el chain de hours/env al test runtime. Mockeamos para evitarlo
+// — esta suite cubre listReadersByPost que NO usa findOrCreateCurrentOpening.
+vi.mock('../server/place-opening', () => ({
+  findOrCreateCurrentOpening: vi.fn().mockResolvedValue(null),
+}))
+
 vi.mock('server-only', () => ({}))
 
 import { listReadersByPost } from '../server/queries'

@@ -6,10 +6,13 @@ import type {
   Post,
   PostEventLink,
   PostListView,
+  ReaderForStack,
   Comment,
   QuoteSnapshot,
   RichTextDocument,
 } from '../domain/types'
+import { richTextExcerpt } from '../domain/rich-text'
+import { findOrCreateCurrentOpening } from './place-opening'
 
 /**
  * Vista de Comment para lectores: cuando el comment está deletado y el actor no es
@@ -106,13 +109,36 @@ export async function listPostsByPlace(params: {
 
   const hasMore = rows.length > pageSize
   const pageRows = hasMore ? rows.slice(0, pageSize) : rows
-  const lastReadByPostId = await fetchLastReadByPostId({
-    viewerUserId: params.viewerUserId,
-    postIds: pageRows.map((r) => r.id),
-  })
-  const items: PostListView[] = pageRows.map((row) => ({
+  const postIds = pageRows.map((r) => r.id)
+
+  // R.6.1: agregamos commentCount + readerSample al shape del view en
+  // paralelo con lastReadAt. Si la opening del place falla (place sin
+  // hours configuradas, race condition), readers cae a Map vacío sin
+  // romper el render — los rows muestran "0 lectores" igual que cuando
+  // no hay readers reales. La opening se cachea con React.cache, así
+  // que esta llamada es 0 round-trips si el caller (page o layout) ya
+  // la disparó.
+  const [lastReadByPostId, commentCountByPostId, readersByPostId] = await Promise.all([
+    fetchLastReadByPostId({
+      viewerUserId: params.viewerUserId,
+      postIds,
+    }),
+    fetchCommentCountByPostId(postIds),
+    fetchReadersSampleByPostId({
+      placeId: params.placeId,
+      postIds,
+    }),
+  ])
+
+  const items: PostListView[] = pageRows.map((row, idx) => ({
     ...mapPost(row),
     lastReadAt: lastReadByPostId.get(row.id) ?? null,
+    snippet: row.body ? richTextExcerpt(row.body as RichTextDocument, 140) : '',
+    commentCount: commentCountByPostId.get(row.id) ?? 0,
+    readerSample: readersByPostId.get(row.id) ?? [],
+    // Featured solo el primer post de la primera página (sin cursor).
+    // Páginas subsiguientes (cursor !== null) no destacan ningún post.
+    isFeatured: idx === 0 && !params.cursor,
   }))
   const last = items[items.length - 1]
   const nextCursor = hasMore && last ? { createdAt: last.lastActivityAt, id: last.id } : null
@@ -202,6 +228,82 @@ async function fetchLastReadByPostId(params: {
   const map = new Map<string, Date>()
   for (const row of rows) {
     if (row._max.readAt) map.set(row.postId, row._max.readAt)
+  }
+  return map
+}
+
+/**
+ * Cuenta comments activos (deletedAt IS NULL) por `postId`. Soft-deleted
+ * excluidos para consistency con la UI que no muestra placeholders en el
+ * count. Un solo groupBy. Sin posts, short-circuit a Map vacío.
+ */
+async function fetchCommentCountByPostId(postIds: string[]): Promise<Map<string, number>> {
+  if (postIds.length === 0) return new Map()
+  const rows = await prisma.comment.groupBy({
+    by: ['postId'],
+    where: { postId: { in: postIds }, deletedAt: null },
+    _count: { id: true },
+  })
+  const map = new Map<string, number>()
+  for (const row of rows) {
+    map.set(row.postId, row._count.id)
+  }
+  return map
+}
+
+/**
+ * Top 4 readers por `postId` de la **apertura actual** del place — para el
+ * `<ReaderStack>` en la lista de threads (R.6).
+ *
+ * Approach: una sola query `findMany` sobre `PostRead` filtrada por
+ * `placeOpeningId = currentOpeningId AND postId IN (...)`, joins a `User`
+ * para `displayName` + `avatarUrl`, ordered por `readAt DESC`. Filtramos
+ * client-side al top 4 por post. Aceptable porque el cap es 150
+ * miembros/place — el peor caso es ~150 readers por post × 50 posts =
+ * 7500 rows en una page, manageable.
+ *
+ * Si el place no tiene opening activa (`unconfigured` o ventana cerrada),
+ * cae a Map vacío silencioso. El `<ReaderStack>` con array vacío no se
+ * renderiza (mismo silencio que `<PostReadersBlock>` en el detail).
+ *
+ * **Ex-miembros excluidos**: solo readers con `Membership` activa
+ * (`leftAt IS NULL`) en el mismo place aparecen — alineado con
+ * `listReadersByPost` en el detail (derecho al olvido estructurado).
+ */
+async function fetchReadersSampleByPostId(params: {
+  placeId: string
+  postIds: string[]
+}): Promise<Map<string, ReaderForStack[]>> {
+  if (params.postIds.length === 0) return new Map()
+  const opening = await findOrCreateCurrentOpening(params.placeId).catch(() => null)
+  if (!opening) return new Map()
+
+  const rows = await prisma.postRead.findMany({
+    where: {
+      placeOpeningId: opening.id,
+      postId: { in: params.postIds },
+      user: {
+        memberships: { some: { placeId: params.placeId, leftAt: null } },
+      },
+    },
+    orderBy: { readAt: 'desc' },
+    select: {
+      postId: true,
+      userId: true,
+      user: { select: { displayName: true, avatarUrl: true } },
+    },
+  })
+
+  const map = new Map<string, ReaderForStack[]>()
+  for (const row of rows) {
+    const existing = map.get(row.postId) ?? []
+    if (existing.length >= 4) continue
+    existing.push({
+      userId: row.userId,
+      displayName: row.user.displayName,
+      avatarUrl: row.user.avatarUrl,
+    })
+    map.set(row.postId, existing)
   }
   return map
 }

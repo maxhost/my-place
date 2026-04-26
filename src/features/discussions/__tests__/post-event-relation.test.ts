@@ -7,6 +7,12 @@ vi.mock('@/db/client', () => ({
     post: { findUnique: (...a: unknown[]) => postFindUnique(...a) },
   },
 }))
+// `queries.ts` ahora importa `findOrCreateCurrentOpening` (R.6.1) que
+// arrastra el chain de hours/env. Mock evita el chain — esta suite cubre
+// `findPostById/findPostBySlug` que NO usan `findOrCreateCurrentOpening`.
+vi.mock('../server/place-opening', () => ({
+  findOrCreateCurrentOpening: vi.fn().mockResolvedValue(null),
+}))
 vi.mock('server-only', () => ({}))
 
 import { findPostById, findPostBySlug } from '../server/queries'
