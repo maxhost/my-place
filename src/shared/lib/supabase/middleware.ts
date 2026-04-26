@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { clientEnv } from '@/shared/config/env'
 import { cookieDomain } from './cookie-domain'
+import { isStaleSessionError } from './refresh-token-error'
+import { logger } from '@/shared/lib/logger'
 
 /**
  * Refresca la sesión de Supabase en cada request.
@@ -42,8 +44,26 @@ export async function updateSession(req: NextRequest): Promise<{
     },
   )
 
-  const { data } = await supabase.auth.getUser()
-  const user = data.user ? { id: data.user.id, email: data.user.email ?? null } : null
+  // `auth.getUser()` puede disparar refresh interno de Supabase. Si el refresh
+  // token está stale (race con otra request paralela, revocación, expire), el
+  // SDK tira AuthApiError. En vez de crashear el render, deslogueamos local
+  // (limpia las cookies) y devolvemos `user: null` para que el gate redirija
+  // a `/login` sin overlay.
+  let user: { id: string; email: string | null } | null = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user ? { id: data.user.id, email: data.user.email ?? null } : null
+  } catch (err) {
+    if (!isStaleSessionError(err)) throw err
+    logger.warn(
+      { event: 'authSessionStale', reason: (err as { code?: string }).code ?? 'unknown' },
+      'session stale — clearing cookies and treating as anonymous',
+    )
+    // `signOut({ scope: 'local' })` no llama a Supabase; sólo limpia cookies
+    // locales via el callback `setAll` configurado arriba, que también se
+    // refleja en `response.cookies` (Domain=apex preservado).
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => {})
+  }
 
   return { response, user }
 }

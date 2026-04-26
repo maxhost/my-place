@@ -2,6 +2,8 @@ import 'server-only'
 import { cache } from 'react'
 import { AuthorizationError } from '@/shared/errors/domain-error'
 import { createSupabaseServer } from './supabase/server'
+import { isStaleSessionError } from './supabase/refresh-token-error'
+import { logger } from './logger'
 
 export type AuthUser = { id: string; email: string | null }
 
@@ -14,9 +16,26 @@ export type AuthUser = { id: string; email: string | null }
  */
 export const getCurrentAuthUser = cache(async (): Promise<AuthUser | null> => {
   const supabase = await createSupabaseServer()
-  const { data } = await supabase.auth.getUser()
-  if (!data.user) return null
-  return { id: data.user.id, email: data.user.email ?? null }
+  // El middleware ya intentó refrescar tokens stale (ver
+  // `supabase/middleware.ts`). Si igual llega un AuthApiError de refresh
+  // acá, tratarlo como anonymous evita crashear el render — el siguiente
+  // hop hará el redirect correspondiente.
+  try {
+    const { data } = await supabase.auth.getUser()
+    if (!data.user) return null
+    return { id: data.user.id, email: data.user.email ?? null }
+  } catch (err) {
+    if (!isStaleSessionError(err)) throw err
+    logger.warn(
+      {
+        event: 'authSessionStale',
+        layer: 'rsc',
+        reason: (err as { code?: string }).code ?? 'unknown',
+      },
+      'session stale during RSC render — treating as anonymous',
+    )
+    return null
+  }
 })
 
 /**
