@@ -1,10 +1,13 @@
 import Link from 'next/link'
+import { MapPin } from 'lucide-react'
 import type { EventDetailView } from '../domain/types'
 import { EventCancelledBadge } from './event-cancelled-badge'
-import { formatEventDateTime, formatTimezoneLabel } from './format-event-time'
+import { formatEventTimeRange, formatTimezoneLabel } from './format-event-time'
 import { RSVPButton } from './rsvp-button'
-import { RsvpList } from './rsvp-list'
 import { CancelEventButton } from './cancel-event-button'
+import { EventDateTile } from './event-date-tile'
+import { AttendeeAvatars } from './attendee-avatars'
+import { OverlineTag } from '@/shared/ui/overline-tag'
 import { RichTextRenderer } from '@/features/discussions/public'
 
 /**
@@ -12,14 +15,14 @@ import { RichTextRenderer } from '@/features/discussions/public'
  * un Post tiene `event` poblado (auto-thread).
  *
  * Reemplaza la antigua `EventDetail` page (F.D) — el evento ES el thread,
- * no hay URL separada (F.F). Toda la cara visible del evento (fecha,
- * timezone, location, descripción, RSVPs, acciones admin) vive arriba del
- * primer Post + comments del thread.
+ * no hay URL separada (F.F). Aplica el design del handoff F.G:
+ * OverlineTag "🎉 EVENTO", título serif grande, event card (calendar tile +
+ * info + attendees + RSVP), descripción serif, footer admin/author.
  *
  * Server Component. Toma el `EventDetailView` completo y compone los
  * client components (`RSVPButton`, `CancelEventButton`).
  *
- * Ver `docs/features/events/spec.md` § 11 (revisado en F.F).
+ * Ver `docs/features/events/spec.md` § 11 (revisado en F.F + F.G).
  */
 export function EventMetadataHeader({
   event,
@@ -35,61 +38,73 @@ export function EventMetadataHeader({
   const isAuthor = event.authorUserId !== null && event.authorUserId === viewerUserId
   const isCancelled = event.state === 'cancelled'
   const isHappening = event.state === 'happening'
+  const timeRange = formatEventTimeRange(event.startsAt, event.endsAt, event.timezone)
 
   return (
-    <section
-      aria-label="Metadata del evento"
-      className="space-y-4 rounded-lg border border-place-divider bg-place-card p-4 md:p-5"
-    >
-      <header className="space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-place-text-soft">Evento</p>
-            <h2 className="font-serif text-2xl text-place-text">{event.title}</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            {isCancelled ? <EventCancelledBadge /> : null}
-            {isHappening ? (
-              <span className="rounded bg-place-mark-bg px-2 py-0.5 text-xs text-place-mark-fg">
-                Pasando ahora
-              </span>
+    <section aria-label="Metadata del evento" className="space-y-[18px]">
+      <div>
+        <OverlineTag emoji="🎉">Evento</OverlineTag>
+        <h2 className="mt-1.5 font-title text-[28px] font-semibold leading-[1.15] tracking-tight text-text">
+          {event.title}
+        </h2>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          {isCancelled ? <EventCancelledBadge /> : null}
+          {isHappening ? <span className="italic text-text">Pasando ahora</span> : null}
+        </div>
+      </div>
+
+      <div className="rounded-[14px] border-[0.5px] border-border bg-surface p-3.5">
+        {/* Row 1 — calendar tile + info */}
+        <div className="flex items-center gap-3.5">
+          <EventDateTile date={event.startsAt} timezone={event.timezone} />
+          <div className="min-w-0 flex-1">
+            <div className="font-body text-sm font-semibold text-text">{timeRange}</div>
+            <div className="mt-0.5 font-body text-[11px] text-muted">
+              Hora del evento — {formatTimezoneLabel(event.timezone)}
+            </div>
+            {event.location ? (
+              <div className="mt-1 flex items-center gap-1 font-body text-[13px] text-muted">
+                <MapPin size={13} aria-hidden="true" />
+                <span className="truncate">{event.location}</span>
+              </div>
             ) : null}
+            <div className="mt-1 font-body text-xs text-muted">
+              Organiza{' '}
+              <span className="font-medium text-text">{event.authorSnapshot.displayName}</span>
+            </div>
           </div>
         </div>
-        <div className="space-y-0.5 text-sm text-place-text-soft">
-          <p>{formatEventDateTime(event.startsAt, event.endsAt, event.timezone)}</p>
-          <p className="text-xs">Hora del evento — {formatTimezoneLabel(event.timezone)}</p>
-          {event.location ? <p>{event.location}</p> : null}
+
+        {/* Row 2 — attendees + count */}
+        {event.attendingCount > 0 || event.publicAttendees.length > 0 ? (
+          <div className="mt-3.5 flex items-center gap-2 border-t-[0.5px] border-border pt-3">
+            <AttendeeAvatars attendees={event.publicAttendees} />
+            <span className="font-body text-[13px] text-muted">van {event.attendingCount}</span>
+          </div>
+        ) : null}
+
+        {/* Row 3 — RSVP */}
+        <div className="mt-3 border-t-[0.5px] border-border pt-3">
+          <RSVPButton
+            eventId={event.id}
+            initialState={event.viewerOwnRsvp?.state ?? null}
+            initialNote={event.viewerOwnRsvp?.note ?? null}
+            cancelled={isCancelled}
+          />
         </div>
-        <p className="text-xs text-place-text-soft">
-          Propuesto por {event.authorSnapshot.displayName}
-        </p>
-      </header>
+      </div>
 
       {event.description ? (
-        <div className="border-t border-place-divider pt-3 leading-relaxed text-place-text">
+        <div className="font-title text-[17px] leading-[1.55] tracking-tight text-text">
           <RichTextRenderer doc={event.description as never} placeSlug={placeSlug} />
         </div>
       ) : null}
 
-      <div className="border-t border-place-divider pt-3">
-        <RsvpList publicAttendees={event.publicAttendees} attendingCount={event.attendingCount} />
-      </div>
-
-      <div className="border-t border-place-divider pt-3">
-        <RSVPButton
-          eventId={event.id}
-          initialState={event.viewerOwnRsvp?.state ?? null}
-          initialNote={event.viewerOwnRsvp?.note ?? null}
-          cancelled={isCancelled}
-        />
-      </div>
-
       {isAuthor || viewerIsAdmin ? (
-        <footer className="flex flex-wrap items-center gap-3 border-t border-place-divider pt-3 text-sm">
+        <footer className="flex flex-wrap items-center gap-3 border-t-[0.5px] border-border pt-3 text-sm">
           <Link
             href={`/events/${event.id}/edit`}
-            className="rounded-md border border-place-divider px-3 py-1.5 text-place-text hover:border-place-mark-fg"
+            className="rounded-[10px] border-[0.5px] border-border px-3 py-1.5 text-text hover:bg-soft motion-safe:transition-colors"
           >
             Editar evento
           </Link>
