@@ -65,3 +65,106 @@ export function formatTimezoneLabel(timezone: string): string {
   const last = parts[parts.length - 1] ?? timezone
   return last.replace(/_/g, ' ')
 }
+
+/**
+ * Fecha compacta para overlines y cards bento. "Sáb 27 Abr".
+ *
+ * Sin "HOY"/"MAÑANA" — el principio "sin urgencia artificial" descarta
+ * relativos gritados. Siempre absoluto.
+ */
+export function formatEventCompactDate(date: Date, timezone: string): string {
+  const dow = new Intl.DateTimeFormat('es-AR', {
+    weekday: 'short',
+    timeZone: timezone,
+  }).format(date)
+  const day = new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    timeZone: timezone,
+  }).format(date)
+  const month = new Intl.DateTimeFormat('es-AR', {
+    month: 'short',
+    timeZone: timezone,
+  }).format(date)
+  return `${capitalize(stripTrailingDot(dow))} ${day} ${capitalize(stripTrailingDot(month))}`
+}
+
+/**
+ * Rango horario compacto. "10:00–14:00" si mismo día; "10:00" si no hay
+ * `endsAt`; "10:00 → 14:00 (28 abr)" si cruza día.
+ */
+export function formatEventTimeRange(
+  startsAt: Date,
+  endsAt: Date | null,
+  timezone: string,
+): string {
+  const startTime = formatTime24h(startsAt, timezone)
+
+  if (!endsAt) return startTime
+
+  const endTime = formatTime24h(endsAt, timezone)
+  const startDay = dayInTz(startsAt, timezone)
+  const endDay = dayInTz(endsAt, timezone)
+
+  if (startDay === endDay) return `${startTime}–${endTime}`
+  // Cross-day: añadimos la fecha de fin separada para no confundir.
+  const endDayLabel = `${endDay} ${stripTrailingDot(monthShortInTz(endsAt, timezone))}`
+  return `${startTime} → ${endTime} (${endDayLabel})`
+}
+
+function formatTime24h(date: Date, timezone: string): string {
+  return new Intl.DateTimeFormat('es-AR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: timezone,
+  }).format(date)
+}
+
+function dayInTz(date: Date, timezone: string): string {
+  return new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    timeZone: timezone,
+  }).format(date)
+}
+
+function monthShortInTz(date: Date, timezone: string): string {
+  return new Intl.DateTimeFormat('es-AR', {
+    month: 'short',
+    timeZone: timezone,
+  }).format(date)
+}
+
+/**
+ * Partes de la fecha para el calendar tile del header. `dow` y `month` en
+ * uppercase y sin punto final ("SÁB", "ABR"); `day` en numérico.
+ *
+ * Format determinístico desde el timezone IANA del evento — distintos TZ
+ * producen distintos `{dow, day, month}` para una misma `Date` cuando la
+ * hora cae cerca de medianoche.
+ */
+export function formatEventDateParts(
+  date: Date,
+  timezone: string,
+): { dow: string; day: string; month: string } {
+  const dow = new Intl.DateTimeFormat('es-AR', {
+    weekday: 'short',
+    timeZone: timezone,
+  }).format(date)
+  const day = new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    timeZone: timezone,
+  }).format(date)
+  const month = new Intl.DateTimeFormat('es-AR', {
+    month: 'short',
+    timeZone: timezone,
+  }).format(date)
+  return {
+    dow: stripTrailingDot(dow).toUpperCase(),
+    day,
+    month: stripTrailingDot(month).toUpperCase(),
+  }
+}
+
+function stripTrailingDot(s: string): string {
+  return s.replace(/\.$/, '')
+}
