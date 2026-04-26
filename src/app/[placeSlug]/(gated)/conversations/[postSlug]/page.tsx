@@ -5,8 +5,10 @@ import { logger } from '@/shared/lib/logger'
 import {
   CommentThread,
   DwellTracker,
+  PostAdminMenu,
   PostDetail,
   PostReadersBlock,
+  ThreadHeaderBar,
   ThreadPresence,
   aggregateReactions,
   findOrCreateCurrentOpening,
@@ -25,9 +27,17 @@ import { getEvent } from '@/features/events/public.server'
 type Props = { params: Promise<{ placeSlug: string; postSlug: string }> }
 
 /**
- * Detalle de un post: header + body + thread + composer. Admin ve posts
- * `hiddenAt` con badge; miembros comunes reciben 404 para que la ausencia sea
+ * Detalle de un post (R.6.4 layout): ThreadHeaderBar sticky + PostDetail
+ * + readers + thread + composer fixed bottom. Admin ve posts `hiddenAt`
+ * con badge; miembros comunes reciben 404 para que la ausencia sea
  * silenciosa (consistente con la lista).
+ *
+ * Layout chrome top: AppShell TopBar (52px, no sticky) + dots (28px, no
+ * sticky) + ThreadHeaderBar (56px, sticky). Cuando el user scrollea, los
+ * dos primeros se van con el body, el ThreadHeaderBar queda pinned arriba.
+ *
+ * `pb-32` reserva espacio para el `<CommentComposer>` que vive `fixed
+ * bottom-0` — sin este padding el último comment quedaría tapado.
  */
 export default async function PostDetailPage({ params }: Props) {
   const { placeSlug, postSlug } = await params
@@ -94,7 +104,19 @@ export default async function PostDetailPage({ params }: Props) {
   ])
 
   return (
-    <div className="space-y-6 p-4 md:p-8">
+    <div className="pb-32">
+      <ThreadHeaderBar
+        rightSlot={
+          viewer.isAdmin ? (
+            <PostAdminMenu
+              postId={post.id}
+              hiddenAt={post.hiddenAt}
+              expectedVersion={post.version}
+            />
+          ) : null
+        }
+      />
+
       <DwellTracker postId={post.id} />
       <ThreadPresence
         postId={post.id}
@@ -104,7 +126,7 @@ export default async function PostDetailPage({ params }: Props) {
           avatarUrl: viewer.user.avatarUrl,
         }}
       />
-      <PostReadersBlock readers={readers} />
+
       {eventDetail ? (
         <EventMetadataHeader
           event={eventDetail}
@@ -113,13 +135,17 @@ export default async function PostDetailPage({ params }: Props) {
           viewerIsAdmin={viewer.isAdmin}
         />
       ) : null}
+
       <PostDetail
         post={post}
         viewerUserId={viewer.actorId}
-        viewerIsAdmin={viewer.isAdmin}
         placeSlug={viewer.placeSlug}
         reactions={reactionsByKey.get(reactionMapKey('POST', post.id)) ?? []}
       />
+
+      <div className="mt-3">
+        <PostReadersBlock readers={readers} />
+      </div>
 
       <CommentThread
         postId={post.id}

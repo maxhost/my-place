@@ -43,7 +43,7 @@ export function AppShell({
     <div className="mx-auto flex min-h-screen max-w-[420px] flex-col bg-bg">
       <TopBar places={places} currentSlug={currentSlug} apexUrl={apexUrl} apexDomain={apexDomain} />
       <SectionDots disabled={placeClosed} />
-      <main className="flex-1 overflow-hidden">{children}</main>
+      <main className="flex-1 overflow-x-hidden">{children}</main>
     </div>
   )
 }

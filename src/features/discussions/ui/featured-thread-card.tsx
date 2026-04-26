@@ -20,8 +20,7 @@ import { isDormant } from '../domain/invariants'
  * Click → navegación al thread. Posts dormidos (≥30 días sin actividad)
  * con opacity reducida — señal visual sin grito.
  *
- * Server Component puro. La lógica `isDormant` viene de invariants
- * (también usada en el viejo `<PostCard>`).
+ * Server Component puro. La lógica `isDormant` viene de invariants.
  *
  * Ver `docs/features/discussions/spec.md` § 21.1.
  */

@@ -3,21 +3,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
-// Next.js Link se mockea a un <a> simple para poder asercionar props en el DOM.
-vi.mock('next/link', () => ({
-  default: ({
-    children,
-    href,
-    prefetch,
-    ...rest
-  }: {
-    children: React.ReactNode
-    href: string
-    prefetch?: boolean
-  } & Record<string, unknown>) => (
-    <a href={href} data-prefetch={String(prefetch)} {...rest}>
-      {children}
-    </a>
+// Stub MemberAvatar para no arrastrar el chain de members/server-only env al
+// test runtime (mismo patrón que reader-stack.test.tsx). PostReadersBlock
+// reusa <ReaderStack> que internamente usa MemberAvatar.
+vi.mock('@/features/members/public', () => ({
+  MemberAvatar: (props: { displayName: string; userId: string; size?: number }) => (
+    <span data-testid="member-avatar" data-user={props.userId} data-size={props.size ?? 28}>
+      {props.displayName}
+    </span>
   ),
 }))
 
@@ -53,7 +46,7 @@ function renderBlock(readers: PostReader[]) {
   return render(<PostReadersBlock readers={readers} />)
 }
 
-describe('PostReadersBlock (pure component)', () => {
+describe('PostReadersBlock (R.6.4 layout: stack + "{n} leyeron")', () => {
   afterEach(() => {
     cleanup()
   })
@@ -63,60 +56,41 @@ describe('PostReadersBlock (pure component)', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('rendea lista con avatares hasta 8 + overflow "+N más"', () => {
-    const readers = Array.from({ length: 10 }).map((_, i) =>
+  it('renderiza hasta 5 avatares + chip "+N" cuando overflow', () => {
+    const readers = Array.from({ length: 8 }).map((_, i) =>
       makeReader({ userId: `u-${i}`, displayName: `User ${i}` }),
     )
     renderBlock(readers)
 
-    const list = screen.getByLabelText('Lectores de la apertura')
-    expect(list).toBeInTheDocument()
-    // 8 visibles + overflow "+2 más"
-    const links = list.querySelectorAll('a')
-    expect(links).toHaveLength(8)
-    expect(screen.getByText('+2 más')).toBeInTheDocument()
+    const block = screen.getByLabelText('Lectores de la apertura')
+    expect(block).toBeInTheDocument()
+    // 5 visibles + overflow "+3"
+    expect(screen.getAllByTestId('member-avatar')).toHaveLength(5)
+    expect(screen.getByText('+3')).toBeInTheDocument()
   })
 
-  it('sin overflow cuando hay ≤8 lectores', () => {
+  it('sin overflow cuando hay ≤5 lectores', () => {
     renderBlock([
       makeReader({ userId: 'u-1', displayName: 'Max' }),
       makeReader({ userId: 'u-2', displayName: 'Lucía' }),
     ])
 
-    expect(screen.queryByText(/\+\d+ más/)).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('member-avatar')).toHaveLength(2)
+    expect(screen.queryByText(/^\+/)).not.toBeInTheDocument()
   })
 
-  it('cada lector es link a /m/<userId> con prefetch=false y aria-label', () => {
-    renderBlock([makeReader({ userId: 'u-abc', displayName: 'Lucía' })])
+  it('label "{n} leyeron" muestra count total (no visible)', () => {
+    const readers = Array.from({ length: 10 }).map((_, i) =>
+      makeReader({ userId: `u-${i}`, displayName: `User ${i}` }),
+    )
+    renderBlock(readers)
 
-    const link = screen.getByRole('link', { name: 'Lucía' })
-    expect(link).toHaveAttribute('href', '/m/u-abc')
-    expect(link).toHaveAttribute('data-prefetch', 'false')
+    expect(screen.getByText('10 leyeron')).toBeInTheDocument()
   })
 
-  it('avatar con URL: <img> con alt + title = displayName', () => {
-    renderBlock([
-      makeReader({
-        userId: 'u-1',
-        displayName: 'Max',
-        avatarUrl: 'https://cdn/a.png',
-      }),
-    ])
-
-    const img = screen.getByAltText('Max') as HTMLImageElement
-    expect(img.src).toBe('https://cdn/a.png')
-    expect(img.title).toBe('Max')
-  })
-
-  it('avatar sin URL: inicial del displayName', () => {
-    renderBlock([makeReader({ userId: 'u-1', displayName: 'lucía', avatarUrl: null })])
-
-    expect(screen.getByText('L')).toBeInTheDocument()
-  })
-
-  it('label visible "Leyeron:" junto a los avatares', () => {
+  it('label en singular cuando count = 1 (acepta plural también — handoff usa "leyeron" para todos)', () => {
     renderBlock([makeReader()])
 
-    expect(screen.getByText('Leyeron:')).toBeInTheDocument()
+    expect(screen.getByText('1 leyeron')).toBeInTheDocument()
   })
 })

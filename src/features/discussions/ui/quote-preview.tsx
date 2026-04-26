@@ -2,7 +2,8 @@ import type { QuoteSnapshot, QuoteTargetState } from '../domain/types'
 import { formatAbsoluteTime } from '@/shared/lib/format-date'
 
 /**
- * Preview de un comment citado. Congelado al momento de responder, pero la UI
+ * Preview de un comment citado (R.6.4 visual): border-left 2px accent
+ * + texto italic muted. Congelado al momento de responder, pero la UI
  * puede ajustar el body según `currentState`:
  *  - VISIBLE ⇒ render el excerpt del snapshot.
  *  - DELETED ⇒ `[mensaje eliminado]` (autor/fecha del snapshot persisten).
@@ -19,8 +20,8 @@ export function QuotePreview({
   const body = currentState === 'DELETED' ? '[mensaje eliminado]' : snapshot.bodyExcerpt
 
   return (
-    <div className="bg-accent/40 my-2 rounded border-l-4 border-bg p-3 text-sm">
-      <div className="mb-1 flex items-center justify-between gap-2 text-xs text-muted">
+    <div className="my-2 border-l-2 border-accent pl-3 text-[13.5px]">
+      <div className="mb-0.5 flex items-center justify-between gap-2 text-xs text-muted">
         <span>
           <span className="font-medium text-muted">{snapshot.authorLabel}</span>
           <span className="mx-1">·</span>
@@ -30,7 +31,7 @@ export function QuotePreview({
         </span>
         {onRemove}
       </div>
-      <p className="whitespace-pre-wrap text-muted">{body}</p>
+      <p className="whitespace-pre-wrap italic text-muted">{body}</p>
     </div>
   )
 }

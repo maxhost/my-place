@@ -75,7 +75,7 @@ export function ReactionBar({ targetType, targetId, initial }: Props): React.Rea
   }
 
   return (
-    <div className="mt-2">
+    <div>
       <div className="flex flex-wrap gap-1.5">
         {REACTION_EMOJI_DISPLAY.map((emoji) => {
           const { count, viewerReacted } = state[emoji]
@@ -86,20 +86,20 @@ export function ReactionBar({ targetType, targetId, initial }: Props): React.Rea
               aria-pressed={viewerReacted}
               aria-label={`Reaccionar con ${EMOJI_LABELS[emoji]}`}
               onClick={() => toggle(emoji)}
-              className={`inline-flex min-h-[32px] min-w-[44px] items-center gap-1 rounded-full border px-2 py-1 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-bg ${
+              className={`focus-visible:ring-accent/50 inline-flex min-h-[30px] items-center gap-1 rounded-full border-[0.5px] px-2.5 py-1 text-[13px] focus:outline-none focus-visible:ring-2 motion-safe:transition-colors ${
                 viewerReacted
-                  ? 'border-bg bg-accent text-bg'
-                  : 'border-border bg-surface text-muted hover:border-muted'
+                  ? 'border-accent/40 bg-accent/10 text-text'
+                  : 'border-border bg-surface text-muted hover:border-muted hover:text-text'
               }`}
             >
               <span aria-hidden="true">{EMOJI_GLYPHS[emoji]}</span>
-              <span className="min-w-[1ch] text-xs tabular-nums">{count}</span>
+              <span className="min-w-[1ch] tabular-nums">{count}</span>
             </button>
           )
         })}
       </div>
       {error ? (
-        <p role="alert" aria-live="polite" className="mt-1 text-xs text-bg">
+        <p role="alert" aria-live="polite" className="mt-1 text-xs text-amber-700">
           {error}
         </p>
       ) : null}

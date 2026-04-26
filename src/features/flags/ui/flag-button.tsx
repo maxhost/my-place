@@ -11,10 +11,10 @@ type Props = {
 
 /**
  * Trigger discreto para reportar un Post, Comment o Event. Abre el `FlagModal`
- * interno. Se monta en `PostDetail` (al costado del título), `CommentItem`
+ * interno. Se monta en `PostDetail` (junto a `ReactionBar`), `CommentItem`
  * (junto a `ReactionBar`) y `EventDetail` (F.D Fase 6). Por principio de
- * producto no va en `PostCard` ni en `EventListItem` — ver
- * `docs/decisions/2026-04-21-flags-subslice-split.md` §5.
+ * producto no va en `<ThreadRow>` / `<FeaturedThreadCard>` ni en
+ * `EventListItem` — ver `docs/decisions/2026-04-21-flags-subslice-split.md` §5.
  */
 export function FlagButton({ targetType, targetId, className }: Props): React.ReactElement {
   const [open, setOpen] = useState(false)
