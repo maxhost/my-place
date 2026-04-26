@@ -25,10 +25,15 @@ Tres propiedades estructurales lo separan de un evento de plataforma típica:
 
 ### URLs
 
-- **Lista:** `/[placeSlug]/events` — próximos arriba, pasados collapsed bajo disclosure.
-- **Detalle:** `/[placeSlug]/events/[eventId]` — eventId crudo (no slug). Razón: el thread asociado ya tiene slug en `/conversations/[postSlug]`; duplicar slug en el evento abre drift cuando el título del evento cambia y el del Post no.
-- **Crear:** `/[placeSlug]/events/new`.
-- **Editar:** `/[placeSlug]/events/[eventId]/edit` (author/admin).
+**Decisión F.F (2026-04-26)**: el evento ES el thread. La URL canónica de
+"ver el evento" es la del thread auto-creado, no una page separada. Ver
+`docs/decisions/2026-04-26-events-as-thread-unified-url.md`.
+
+- **Lista:** `/[placeSlug]/events` — próximos arriba, pasados collapsed bajo disclosure. Cards linkean al thread.
+- **Detalle (canónico):** `/[placeSlug]/conversations/[postSlug]` — el thread renderiza `EventMetadataHeader` arriba (fecha, RSVP, location, descripción, acciones admin) cuando `Post.event` está poblado. La página de conversation hace fetch de `getEvent` si detecta evento asociado.
+- **Detalle (legacy redirect):** `/[placeSlug]/events/[eventId]` — redirect 308 server-side a `/conversations/[postSlug]`. Mantenido para no romper links externos / bookmarks pre-F.F.
+- **Crear:** `/[placeSlug]/events/new`. Tras guardar, redirect al thread.
+- **Editar:** `/[placeSlug]/events/[eventId]/edit` (author/admin) — page dedicada porque el form es complejo (datetime + timezone + 7 campos). Tras guardar, redirect al thread.
 
 ## 3. Arquitectura del slice
 

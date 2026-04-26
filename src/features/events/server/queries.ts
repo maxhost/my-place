@@ -64,6 +64,9 @@ export async function listEvents(params: {
       location: true,
       cancelledAt: true,
       authorSnapshot: true,
+      // F.F: el card linkea a `/conversations/${postSlug}` (el evento ES el
+      // thread). Lo incluimos acá para evitar round-trips por cada item.
+      post: { select: { slug: true } },
     },
   })
   if (events.length === 0) return []
@@ -98,6 +101,7 @@ export async function listEvents(params: {
       { startsAt: e.startsAt, endsAt: e.endsAt, cancelledAt: e.cancelledAt },
       now,
     ),
+    postSlug: e.post?.slug ?? null,
     attendingCount: countByEventId.get(e.id) ?? 0,
     viewerRsvpState: viewerStateByEventId.get(e.id) ?? null,
   }))
@@ -116,6 +120,10 @@ export async function getEvent(params: {
   const now = params.now ?? new Date()
   const event = await prisma.event.findFirst({
     where: { id: params.eventId, placeId: params.placeId },
+    // F.F: el thread asociado es el "container" del evento (el evento ES el
+    // thread). Incluimos `post.slug` para que la UI construya links/redirects
+    // sin round-trip extra.
+    include: { post: { select: { slug: true } } },
   })
   if (!event) return null
 
@@ -134,6 +142,7 @@ export async function getEvent(params: {
     timezone: event.timezone,
     location: event.location,
     postId: event.postId,
+    postSlug: event.post?.slug ?? null,
     cancelledAt: event.cancelledAt,
     createdAt: event.createdAt,
     updatedAt: event.updatedAt,

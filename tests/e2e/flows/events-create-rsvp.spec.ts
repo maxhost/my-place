@@ -5,10 +5,14 @@ import { E2E_PLACES } from '../../fixtures/e2e-data'
 import { deleteEventsByPlace, findEventIdByTitle } from '../../helpers/db'
 
 /**
- * Flow Events F.D — smoke E2E del slice eventos (Fase 6).
+ * Flow Events F.D + F.F — smoke E2E del slice eventos (Fase 6).
+ *
+ * F.F: el evento ES el thread; tras crear, el form redirige a
+ * `/conversations/[postSlug]` con `EventMetadataHeader` arriba del Post.
  *
  * Cubre:
- *  - memberA propone evento → redirect al detalle → thread auto-creado linkeado.
+ *  - memberA propone evento → redirect al thread (`/conversations/[slug]`)
+ *    con `EventMetadataHeader` visible (título del evento + RSVP buttons).
  *  - RSVP "Voy" → optimistic + persistencia tras refresh.
  *  - RSVP "Voy si…" → textfield aparece + nota se guarda.
  *  - non-member intenta entrar a /events → bloqueado.
@@ -37,7 +41,7 @@ test.describe('Events F.D — Palermo', () => {
       await expect(page.getByRole('link', { name: /Proponer evento/i })).toBeVisible()
     })
 
-    test('crear evento: navega al detalle + thread auto-creado linkeado', async ({ page }) => {
+    test('crear evento: redirect al thread con EventMetadataHeader visible', async ({ page }) => {
       await page.goto(placeUrl(palermoSlug, '/events/new'))
       await expect(page.getByRole('heading', { name: /^Proponer evento$/i })).toBeVisible()
 
@@ -54,14 +58,23 @@ test.describe('Events F.D — Palermo', () => {
 
       await page.getByRole('button', { name: /Proponer evento/i }).click()
 
-      // Esperamos el redirect al detalle: heading h1 con el título exacto.
-      await expect(page.getByRole('heading', { name: SPEC_EVENT_TITLE })).toBeVisible({
-        timeout: 10_000,
-      })
+      // F.F: el redirect va al thread (`/conversations/[slug]`), no a una
+      // page de detalle separada. El URL debería contener `/conversations/`.
+      await page.waitForURL(/\/conversations\//, { timeout: 10_000 })
 
-      // Thread auto-creado: link "Ver la conversación del evento →"
+      // EventMetadataHeader: el `<h2>` con el título del evento debe estar.
+      await expect(page.getByRole('heading', { level: 2, name: SPEC_EVENT_TITLE })).toBeVisible()
+
+      // El header se identifica por su aria-label "Metadata del evento".
+      await expect(page.getByLabel(/Metadata del evento/i)).toBeVisible()
+
+      // El Post auto-creado también es visible — su título tiene prefix
+      // "Conversación: " (lo asigna `createEventAction`).
       await expect(
-        page.getByRole('link', { name: /Ver la conversación del evento/i }),
+        page.getByRole('heading', {
+          level: 1,
+          name: new RegExp(`Conversación: ${SPEC_EVENT_TITLE}`),
+        }),
       ).toBeVisible()
     })
 
@@ -77,16 +90,19 @@ test.describe('Events F.D — Palermo', () => {
       await page.getByLabel(/Timezone/i).selectOption('America/Argentina/Buenos_Aires')
       await page.getByRole('button', { name: /Proponer evento/i }).click()
 
-      // En el detalle del evento.
-      await expect(page.getByRole('heading', { name: SPEC_EVENT_TITLE_RSVP })).toBeVisible({
-        timeout: 10_000,
-      })
+      // F.F: redirect al thread con `EventMetadataHeader` visible. El título
+      // del evento aparece como `<h2>` en el header.
+      await page.waitForURL(/\/conversations\//, { timeout: 10_000 })
+      await expect(
+        page.getByRole('heading', { level: 2, name: SPEC_EVENT_TITLE_RSVP }),
+      ).toBeVisible()
 
-      // Click "Voy".
+      // Click "Voy" — botón vive en el RSVPButton dentro del
+      // EventMetadataHeader.
       await page.getByRole('button', { name: /^Voy$/ }).click()
 
       // Confirmar persistencia: tras refresh, el botón "Voy" sigue activo
-      // (aria-pressed=true) y aparece en "Quién viene".
+      // (aria-pressed=true).
       await page.reload()
       await expect(page.getByRole('button', { name: /^Voy$/, pressed: true })).toBeVisible({
         timeout: 5_000,
@@ -96,11 +112,10 @@ test.describe('Events F.D — Palermo', () => {
       await page.getByRole('button', { name: /Voy si/ }).click()
       await expect(page.getByLabel(/¿Qué necesitarías\?/i)).toBeVisible()
 
-      // Cleanup explícito por si afterAll falla.
-      const eventId = await findEventIdByTitle(palermoId, SPEC_EVENT_TITLE_RSVP)
-      if (eventId !== null) {
-        // El cleanup en afterAll cubre, no hace falta delete específico acá.
-      }
+      // findEventIdByTitle se mantiene importado por si una iteración futura
+      // necesita asserts directos sobre la DB (no hace falta acá — el
+      // afterAll borra todos los events del place).
+      void findEventIdByTitle
     })
   })
 

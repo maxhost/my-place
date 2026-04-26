@@ -34,8 +34,14 @@ export default async function EditEventPage({ params }: Props) {
   if (!event) notFound()
 
   const isAuthor = event.authorUserId !== null && event.authorUserId === viewer.actorId
+  // F.F: el evento ES el thread; sin permiso para editar redirigimos al
+  // thread (donde igualmente pueden ver el evento), no a una page que ya
+  // no existe. `event.postSlug` viene incluido en `getEvent` (un solo
+  // round-trip) — fallback al listado en el caso defensivo de evento sin
+  // Post asociado.
+  const fallbackUrl = event.postSlug ? `/conversations/${event.postSlug}` : '/events'
   if (!isAuthor && !viewer.isAdmin) {
-    redirect(`/events/${event.id}`)
+    redirect(fallbackUrl)
   }
 
   // datetime-local quiere YYYY-MM-DDTHH:MM en hora local del browser.
@@ -64,6 +70,7 @@ export default async function EditEventPage({ params }: Props) {
           initialEndsAt: event.endsAt ? toDatetimeLocal(event.endsAt) : '',
           initialTimezone: event.timezone,
           initialLocation: event.location ?? '',
+          postSlug: event.postSlug,
         }}
         allowedTimezones={ALLOWED_TIMEZONES}
       />

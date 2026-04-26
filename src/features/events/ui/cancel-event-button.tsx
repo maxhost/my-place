@@ -8,10 +8,10 @@ import { friendlyEventErrorMessage } from './errors'
 /**
  * Botón "Cancelar evento" con confirmación inline. Tras confirmar, llama
  * `cancelEventAction` (soft-cancel — preserva RSVPs y Post asociado) y
- * refresca el detail.
+ * refresca el thread (donde vive el header del evento, F.F).
  *
- * Sólo se renderiza para author/admin (gate en `EventDetail`). El server
- * re-valida permisos.
+ * Sólo se renderiza para author/admin (gate en `EventMetadataHeader`). El
+ * server re-valida permisos.
  */
 export function CancelEventButton({ eventId }: { eventId: string }): React.ReactNode {
   const router = useRouter()

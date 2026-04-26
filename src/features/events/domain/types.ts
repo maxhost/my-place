@@ -57,6 +57,10 @@ export type EventListView = {
   cancelledAt: Date | null
   authorSnapshot: AuthorSnapshot
   state: EventState
+  /** Slug del Post asociado (auto-thread). Null si el evento se creó sin
+   *  thread (transición de estados o discussions deshabilitado). El card
+   *  linkea a `/conversations/${postSlug}` — el evento ES el thread (F.F). */
+  postSlug: string | null
   /** Count de confirmados (GOING + GOING_CONDITIONAL). */
   attendingCount: number
   /** RSVP del viewer si tiene una; sirve para mostrar su estado en la card. */
@@ -64,8 +68,13 @@ export type EventListView = {
 }
 
 /**
- * Vista de evento para detalle (`/events/[eventId]`). Incluye todos los campos
- * + RSVPs públicas (filtradas a estados visibles) + RSVP del viewer.
+ * Vista de evento para el header de metadata renderizado arriba del thread
+ * asociado (`/conversations/[postSlug]`). Incluye todos los campos del Event
+ * + RSVPs públicas (filtradas a estados visibles) + RSVP del viewer +
+ * `postSlug` para construir links / redirects sin re-fetch.
+ *
+ * F.F: el evento ES el thread; no existe una page `/events/[eventId]`
+ * separada. Esta vista la consume `EventMetadataHeader`.
  */
 export type EventDetailView = {
   id: string
@@ -77,6 +86,10 @@ export type EventDetailView = {
   timezone: string
   location: string | null
   postId: string | null
+  /** Slug del thread asociado, derivado de `Post.slug`. Null sólo en el caso
+   *  defensivo de evento sin Post (transición de estado). El form de edit
+   *  redirige a `/conversations/${postSlug}` tras guardar. */
+  postSlug: string | null
   cancelledAt: Date | null
   createdAt: Date
   updatedAt: Date

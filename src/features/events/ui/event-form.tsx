@@ -26,6 +26,10 @@ type EditMode = {
   initialEndsAt: string
   initialTimezone: string
   initialLocation: string
+  /** Slug del thread asociado — el evento ES el thread (F.F). Tras guardar,
+   *  redirigimos a `/conversations/${postSlug}`. Null en el caso defensivo
+   *  de evento sin Post asociado. */
+  postSlug: string | null
 }
 
 type Props = {
@@ -118,7 +122,9 @@ export function EventForm({ mode, allowedTimezones, defaultTimezone }: Props): R
             timezone: values.timezone,
             location: values.location.trim() === '' ? null : values.location.trim(),
           })
-          router.push(`/events/${result.eventId}`)
+          // F.F: el evento ES el thread; tras crear redirigimos al thread,
+          // no a una page de detalle aparte.
+          router.push(`/conversations/${result.postSlug}`)
         } else {
           await updateEventAction({
             eventId: mode.eventId,
@@ -129,7 +135,9 @@ export function EventForm({ mode, allowedTimezones, defaultTimezone }: Props): R
             timezone: values.timezone,
             location: values.location.trim() === '' ? null : values.location.trim(),
           })
-          router.push(`/events/${mode.eventId}`)
+          // F.F: redirect al thread del evento. Si por alguna razón defensiva
+          // no hay postSlug (debería ser raro), volvemos al listado.
+          router.push(mode.postSlug ? `/conversations/${mode.postSlug}` : '/events')
           router.refresh()
         }
       } catch (err) {
@@ -239,7 +247,9 @@ export function EventForm({ mode, allowedTimezones, defaultTimezone }: Props): R
         {mode.kind === 'edit' ? (
           <button
             type="button"
-            onClick={() => router.push(`/events/${mode.eventId}`)}
+            onClick={() =>
+              router.push(mode.postSlug ? `/conversations/${mode.postSlug}` : '/events')
+            }
             disabled={pending}
             className="rounded-md px-3 py-2 text-sm text-place-text-soft hover:text-place-text"
           >

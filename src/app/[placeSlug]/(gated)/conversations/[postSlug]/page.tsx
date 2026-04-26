@@ -15,6 +15,8 @@ import {
   type ReactionAggregationMap,
 } from '@/features/discussions/public'
 import type { QuoteTargetState } from '@/features/discussions/public'
+import { EventMetadataHeader } from '@/features/events/public'
+import { getEvent } from '@/features/events/public.server'
 
 type Props = { params: Promise<{ placeSlug: string; postSlug: string }> }
 
@@ -49,6 +51,19 @@ export default async function PostDetailPage({ params }: Props) {
 
   const quoteStateByCommentId = await resolveQuoteTargetStates(comments)
 
+  // F.F: el evento ES el thread. Si el Post fue auto-creado por un evento
+  // (`post.event` poblado en `findPostBySlug`), levantamos el detalle
+  // completo del evento y renderizamos `EventMetadataHeader` arriba del
+  // PostDetail. Sin event poblado, la page se comporta como antes (Post
+  // standalone).
+  const eventDetail = post.event
+    ? await getEvent({
+        eventId: post.event.id,
+        placeId: place.id,
+        viewerUserId: viewer.actorId,
+      })
+    : null
+
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-4 md:p-8">
       <DwellTracker postId={post.id} />
@@ -66,6 +81,14 @@ export default async function PostDetailPage({ params }: Props) {
         placeSlug={viewer.placeSlug}
         viewerUserId={viewer.actorId}
       />
+      {eventDetail ? (
+        <EventMetadataHeader
+          event={eventDetail}
+          placeSlug={viewer.placeSlug}
+          viewerUserId={viewer.actorId}
+          viewerIsAdmin={viewer.isAdmin}
+        />
+      ) : null}
       <PostDetail
         post={post}
         viewerUserId={viewer.actorId}
