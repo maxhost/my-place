@@ -38,13 +38,11 @@ export function CommentItem({
 
   return (
     <article
-      className="rounded-lg border border-place-divider bg-place-card p-4"
+      className="rounded-lg border border-border bg-surface p-4"
       data-comment-id={comment.id}
     >
-      <header className="flex items-center gap-2 text-xs text-place-text-soft">
-        <span className="font-medium text-place-text-medium">
-          {comment.authorSnapshot.displayName}
-        </span>
+      <header className="flex items-center gap-2 text-xs text-muted">
+        <span className="font-medium text-muted">{comment.authorSnapshot.displayName}</span>
         <span aria-hidden="true">·</span>
         <TimeAgo date={comment.createdAt} />
         {comment.editedAt ? (
@@ -56,7 +54,7 @@ export function CommentItem({
       </header>
 
       {isDeleted ? (
-        <p className="mt-2 italic text-place-text-whisper">[mensaje eliminado]</p>
+        <p className="mt-2 italic text-muted">[mensaje eliminado]</p>
       ) : (
         <>
           {comment.quotedSnapshot ? (
@@ -66,7 +64,7 @@ export function CommentItem({
             />
           ) : null}
 
-          <div className="mt-2 text-place-text">
+          <div className="mt-2 text-text">
             <RichTextRenderer
               doc={comment.body as NonNullable<typeof comment.body>}
               placeSlug={placeSlug}

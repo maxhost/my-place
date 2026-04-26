@@ -38,7 +38,7 @@ export function PostDetail({
 
       <header>
         <div className="flex items-start justify-between gap-2">
-          <h1 className="font-serif text-3xl text-place-text">{post.title}</h1>
+          <h1 className="font-serif text-3xl text-text">{post.title}</h1>
           <div className="flex items-center gap-1">
             {!isAuthor ? <FlagButton targetType="POST" targetId={post.id} /> : null}
             {viewerIsAdmin ? (
@@ -55,7 +55,7 @@ export function PostDetail({
             Oculto — sólo admins lo ven
           </p>
         ) : null}
-        <div className="mt-1 flex items-center gap-2 text-sm text-place-text-soft">
+        <div className="mt-1 flex items-center gap-2 text-sm text-muted">
           <span>{post.authorSnapshot.displayName}</span>
           <span aria-hidden="true">·</span>
           <TimeAgo date={post.createdAt} />
@@ -69,7 +69,7 @@ export function PostDetail({
       </header>
 
       {post.body ? (
-        <div className="leading-relaxed text-place-text">
+        <div className="leading-relaxed text-text">
           <RichTextRenderer doc={post.body} placeSlug={placeSlug} />
         </div>
       ) : null}

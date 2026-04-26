@@ -28,9 +28,9 @@ export function DropdownMenuContent(props: ComponentPropsWithoutRef<typeof Radix
         align={align}
         className={`data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 z-50 min-w-[10rem] overflow-hidden rounded-md border p-1 shadow-md outline-none ${className}`}
         style={{
-          backgroundColor: 'var(--place-card-bg)',
-          borderColor: 'var(--place-divider)',
-          color: 'var(--place-text)',
+          backgroundColor: 'var(--surface)',
+          borderColor: 'var(--border)',
+          color: 'var(--text)',
         }}
         {...rest}
       />
@@ -48,7 +48,7 @@ export function DropdownMenuItem(
     <RadixDropdown.Item
       className={`relative flex cursor-pointer select-none items-center rounded px-2 py-1.5 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[highlighted]:bg-[var(--place-hover,rgba(0,0,0,0.06))] data-[disabled]:opacity-50 ${className}`}
       style={{
-        color: destructive ? 'var(--place-danger, #b00020)' : 'var(--place-text)',
+        color: destructive ? 'var(--place-danger, #b00020)' : 'var(--text)',
         ...style,
       }}
       {...rest}
@@ -63,7 +63,7 @@ export function DropdownMenuSeparator(
   return (
     <RadixDropdown.Separator
       className={`my-1 h-px ${className}`}
-      style={{ backgroundColor: 'var(--place-divider)' }}
+      style={{ backgroundColor: 'var(--border)' }}
       {...rest}
     />
   )
@@ -74,7 +74,7 @@ export function DropdownMenuLabel(props: ComponentPropsWithoutRef<typeof RadixDr
   return (
     <RadixDropdown.Label
       className={`px-2 py-1.5 text-xs font-medium ${className}`}
-      style={{ color: 'var(--place-text-soft)' }}
+      style={{ color: 'var(--muted)' }}
       {...rest}
     />
   )

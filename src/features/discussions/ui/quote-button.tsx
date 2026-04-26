@@ -28,7 +28,7 @@ export function QuoteButton({
     <button
       type="button"
       onClick={onClick}
-      className="text-xs text-place-text-soft hover:text-place-text focus:outline-none focus-visible:underline"
+      className="text-xs text-muted hover:text-text focus:outline-none focus-visible:underline"
     >
       Citar
     </button>

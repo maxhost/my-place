@@ -71,7 +71,7 @@ export function CommentComposer({ postId }: { postId: string }): React.ReactNode
               type="button"
               onClick={clearQuote}
               aria-label="Quitar cita"
-              className="rounded px-1 text-place-text-soft hover:text-place-text"
+              className="rounded px-1 text-muted hover:text-text"
             >
               ×
             </button>
@@ -101,7 +101,7 @@ export function CommentComposer({ postId }: { postId: string }): React.ReactNode
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-place-mark-bg px-4 py-2 text-place-mark-fg disabled:opacity-60"
+          className="rounded-md bg-accent px-4 py-2 text-bg disabled:opacity-60"
         >
           {pending ? 'Enviando…' : quote ? 'Responder' : 'Comentar'}
         </button>

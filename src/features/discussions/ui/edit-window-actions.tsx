@@ -46,18 +46,18 @@ export function EditWindowActions({ subject }: Props): React.ReactNode {
 
   const seconds = Math.ceil(remaining / 1000)
   return (
-    <div className="mt-2 flex items-center gap-3 text-xs text-place-text-whisper">
+    <div className="mt-2 flex items-center gap-3 text-xs text-muted">
       <button
         type="button"
         onClick={() => setMode('edit')}
-        className="text-place-text-soft hover:text-place-text focus:outline-none focus-visible:underline"
+        className="text-muted hover:text-text focus:outline-none focus-visible:underline"
       >
         Editar
       </button>
       <button
         type="button"
         onClick={() => setMode('confirm-delete')}
-        className="text-place-text-soft hover:text-place-text focus:outline-none focus-visible:underline"
+        className="text-muted hover:text-text focus:outline-none focus-visible:underline"
       >
         Eliminar
       </button>

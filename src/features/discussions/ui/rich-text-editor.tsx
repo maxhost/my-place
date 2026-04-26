@@ -65,7 +65,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         'aria-label': ariaLabel,
-        class: `prose-place ${minHeightClassName} w-full max-w-none rounded border border-place-divider bg-place-card p-3 text-place-text focus:border-place-mark-fg focus:outline-none`,
+        class: `prose-place ${minHeightClassName} w-full max-w-none rounded border border-border bg-surface p-3 text-text focus:border-bg focus:outline-none`,
       },
     },
     onUpdate({ editor }) {
@@ -96,7 +96,7 @@ function EditorToolbar({ editor }: { editor: Editor }): React.ReactNode {
     <div
       role="toolbar"
       aria-label="Formato de texto"
-      className="flex flex-wrap gap-1 overflow-x-auto rounded border border-place-divider bg-place-card p-1"
+      className="flex flex-wrap gap-1 overflow-x-auto rounded border border-border bg-surface p-1"
     >
       <ToolbarButton
         label="Negrita"
@@ -207,10 +207,8 @@ function ToolbarButton({
       aria-label={label}
       aria-pressed={active}
       onClick={onClick}
-      className={`inline-flex min-h-[32px] min-w-[32px] items-center justify-center rounded px-2 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-place-mark-fg ${
-        active
-          ? 'bg-place-mark-bg text-place-mark-fg'
-          : 'hover:bg-place-mark-bg/30 text-place-text-soft'
+      className={`inline-flex min-h-[32px] min-w-[32px] items-center justify-center rounded px-2 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-bg ${
+        active ? 'bg-accent text-bg' : 'hover:bg-accent/30 text-muted'
       }`}
     >
       {children}
@@ -219,5 +217,5 @@ function ToolbarButton({
 }
 
 function Divider(): React.ReactNode {
-  return <span aria-hidden="true" className="mx-0.5 h-6 w-px bg-place-divider" />
+  return <span aria-hidden="true" className="mx-0.5 h-6 w-px bg-border" />
 }

@@ -42,9 +42,9 @@ export function DialogContent({ children, className = '', ...rest }: DialogConte
       <RadixDialog.Content
         className={`fixed left-1/2 top-1/2 z-50 w-[92vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border p-6 shadow-lg outline-none transition-opacity duration-150 data-[state=closed]:opacity-0 data-[state=open]:opacity-100 ${className}`}
         style={{
-          backgroundColor: 'var(--place-card-bg)',
-          borderColor: 'var(--place-divider)',
-          color: 'var(--place-text)',
+          backgroundColor: 'var(--surface)',
+          borderColor: 'var(--border)',
+          color: 'var(--text)',
         }}
         {...rest}
       >
@@ -59,7 +59,7 @@ export function DialogTitle(props: ComponentPropsWithoutRef<typeof RadixDialog.T
   return (
     <RadixDialog.Title
       className={`font-serif text-lg ${className}`}
-      style={{ color: 'var(--place-text)' }}
+      style={{ color: 'var(--text)' }}
       {...rest}
     />
   )
@@ -70,7 +70,7 @@ export function DialogDescription(props: ComponentPropsWithoutRef<typeof RadixDi
   return (
     <RadixDialog.Description
       className={`mt-1 text-sm ${className}`}
-      style={{ color: 'var(--place-text-soft)' }}
+      style={{ color: 'var(--muted)' }}
       {...rest}
     />
   )

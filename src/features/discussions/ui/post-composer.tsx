@@ -173,10 +173,10 @@ export function PostComposer({ mode }: Props): React.ReactNode {
       ) : null}
 
       <label className="block">
-        <span className="mb-1 block text-sm text-place-text-soft">Título</span>
+        <span className="mb-1 block text-sm text-muted">Título</span>
         <input
           type="text"
-          className="w-full rounded-md border border-place-divider bg-place-card px-3 py-2 text-place-text focus:border-place-mark-fg focus:outline-none"
+          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-bg focus:outline-none"
           maxLength={POST_TITLE_MAX_LENGTH}
           aria-invalid={fieldErrors?.title ? true : undefined}
           {...register('title', {
@@ -190,7 +190,7 @@ export function PostComposer({ mode }: Props): React.ReactNode {
       </label>
 
       <div>
-        <span className="mb-1 block text-sm text-place-text-soft">Contenido</span>
+        <span className="mb-1 block text-sm text-muted">Contenido</span>
         <RichTextEditor content={body} onChange={setBody} ariaLabel="Escribir contenido del post" />
         {fieldErrors?.body ? (
           <span className="mt-1 block text-xs text-amber-700">{fieldErrors.body}</span>
@@ -201,7 +201,7 @@ export function PostComposer({ mode }: Props): React.ReactNode {
         <button
           type="submit"
           disabled={pending || sessionBlocked}
-          className="rounded-md bg-place-mark-bg px-4 py-2 text-place-mark-fg disabled:opacity-60"
+          className="rounded-md bg-accent px-4 py-2 text-bg disabled:opacity-60"
         >
           {submitLabel}
         </button>
@@ -210,7 +210,7 @@ export function PostComposer({ mode }: Props): React.ReactNode {
             type="button"
             onClick={() => router.push(`/conversations/${mode.slug}`)}
             disabled={pending}
-            className="rounded-md px-3 py-2 text-sm text-place-text-soft hover:text-place-text"
+            className="rounded-md px-3 py-2 text-sm text-muted hover:text-text"
           >
             Cancelar
           </button>

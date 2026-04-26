@@ -90,7 +90,7 @@ export function ThreadPresence({
           </li>
         ))}
       </ul>
-      {overflow > 0 ? <span className="text-xs text-place-text-soft">+{overflow} más</span> : null}
+      {overflow > 0 ? <span className="text-xs text-muted">+{overflow} más</span> : null}
     </div>
   )
 }
@@ -104,7 +104,7 @@ function PresenceAvatar({ user }: { user: PresenceUser }): React.ReactNode {
         src={user.avatarUrl}
         alt={user.displayName}
         title={user.displayName}
-        className="h-8 w-8 rounded-full bg-place-card object-cover"
+        className="h-8 w-8 rounded-full bg-surface object-cover"
         style={ringStyle}
       />
     )
@@ -114,7 +114,7 @@ function PresenceAvatar({ user }: { user: PresenceUser }): React.ReactNode {
     <span
       title={user.displayName}
       aria-label={user.displayName}
-      className="flex h-8 w-8 items-center justify-center rounded-full bg-place-card-soft text-xs text-place-text-medium"
+      className="flex h-8 w-8 items-center justify-center rounded-full bg-soft text-xs text-muted"
       style={ringStyle}
     >
       {initial}

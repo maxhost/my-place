@@ -62,7 +62,7 @@ export function EditWindowForm({ subject, onDone }: Props): React.ReactNode {
   if (session.state === 'loading') {
     return (
       <div
-        className="mt-2 rounded border border-place-divider bg-place-card p-3 text-xs text-place-text-soft"
+        className="mt-2 rounded border border-border bg-surface p-3 text-xs text-muted"
         aria-live="polite"
       >
         Abriendo edición…
@@ -122,14 +122,14 @@ export function EditWindowForm({ subject, onDone }: Props): React.ReactNode {
   }
 
   return (
-    <div className="mt-2 space-y-2 rounded border border-place-divider bg-place-card p-3">
+    <div className="mt-2 space-y-2 rounded border border-border bg-surface p-3">
       {subject.kind === 'post' ? (
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           aria-label="Editar título"
-          className="w-full rounded border border-place-divider bg-place-card px-2 py-1 text-place-text focus:border-place-mark-fg focus:outline-none"
+          className="w-full rounded border border-border bg-surface px-2 py-1 text-text focus:border-bg focus:outline-none"
         />
       ) : null}
       <RichTextEditor content={body} onChange={setBody} />
@@ -143,14 +143,14 @@ export function EditWindowForm({ subject, onDone }: Props): React.ReactNode {
           type="button"
           disabled={pending}
           onClick={submit}
-          className="rounded-md bg-place-mark-bg px-3 py-1 text-sm text-place-mark-fg disabled:opacity-60"
+          className="rounded-md bg-accent px-3 py-1 text-sm text-bg disabled:opacity-60"
         >
           {pending ? 'Guardando…' : 'Guardar'}
         </button>
         <button
           type="button"
           onClick={onDone}
-          className="rounded-md px-3 py-1 text-sm text-place-text-soft hover:text-place-text"
+          className="rounded-md px-3 py-1 text-sm text-muted hover:text-text"
         >
           Cancelar
         </button>

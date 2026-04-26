@@ -80,7 +80,7 @@ export function PostAdminMenu({
           <button
             type="button"
             aria-label="Acciones de moderación"
-            className="rounded p-1 text-place-text-soft hover:text-place-text focus:outline-none focus-visible:ring-1 focus-visible:ring-place-mark-fg"
+            className="rounded p-1 text-muted hover:text-text focus:outline-none focus-visible:ring-1 focus-visible:ring-bg"
             disabled={pending}
           >
             <KebabIcon />
@@ -127,7 +127,7 @@ export function PostAdminMenu({
               <button
                 type="button"
                 disabled={pending}
-                className="rounded px-3 py-1 text-sm text-place-text-soft hover:text-place-text"
+                className="rounded px-3 py-1 text-sm text-muted hover:text-text"
               >
                 Cancelar
               </button>
@@ -136,7 +136,7 @@ export function PostAdminMenu({
               type="button"
               onClick={confirmDelete}
               disabled={pending}
-              className="rounded bg-place-mark-bg px-3 py-1 text-sm text-place-mark-fg disabled:opacity-60"
+              className="rounded bg-accent px-3 py-1 text-sm text-bg disabled:opacity-60"
             >
               {pending ? 'Eliminando…' : 'Sí, eliminar'}
             </button>

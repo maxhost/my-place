@@ -38,7 +38,7 @@ export function CommentThread({
 }): React.ReactNode {
   return (
     <section aria-label="Comentarios" className="mt-8 space-y-3">
-      <h2 className="font-serif text-xl text-place-text-medium">
+      <h2 className="font-serif text-xl text-muted">
         {items.length === 0 ? 'Sin comentarios' : 'Comentarios'}
       </h2>
 

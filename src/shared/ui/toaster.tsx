@@ -24,9 +24,9 @@ export function Toaster() {
       }}
       toastOptions={{
         style: {
-          background: 'var(--place-card-bg)',
-          color: 'var(--place-text)',
-          border: '1px solid var(--place-divider)',
+          background: 'var(--surface)',
+          color: 'var(--text)',
+          border: '1px solid var(--border)',
         },
       }}
     />

@@ -40,7 +40,7 @@ export function PostReadersBlock({ readers }: { readers: PostReader[] }): React.
 
   return (
     <div aria-label="Lectores de la apertura" className="flex items-center gap-2">
-      <span className="text-sm text-place-text-soft">Leyeron:</span>
+      <span className="text-sm text-muted">Leyeron:</span>
       <ul className="flex -space-x-2">
         {visible.map((reader) => (
           <li key={reader.userId} className="list-none">
@@ -50,7 +50,7 @@ export function PostReadersBlock({ readers }: { readers: PostReader[] }): React.
           </li>
         ))}
       </ul>
-      {overflow > 0 ? <span className="text-xs text-place-text-soft">+{overflow} más</span> : null}
+      {overflow > 0 ? <span className="text-xs text-muted">+{overflow} más</span> : null}
     </div>
   )
 }
@@ -63,7 +63,7 @@ function ReaderAvatar({ reader }: { reader: PostReader }): React.ReactNode {
         src={reader.avatarUrl}
         alt={reader.displayName}
         title={reader.displayName}
-        className="h-8 w-8 rounded-full bg-place-card object-cover"
+        className="h-8 w-8 rounded-full bg-surface object-cover"
       />
     )
   }
@@ -71,7 +71,7 @@ function ReaderAvatar({ reader }: { reader: PostReader }): React.ReactNode {
   return (
     <span
       title={reader.displayName}
-      className="flex h-8 w-8 items-center justify-center rounded-full bg-place-card-soft text-xs text-place-text-medium"
+      className="flex h-8 w-8 items-center justify-center rounded-full bg-soft text-xs text-muted"
     >
       {initial}
     </span>

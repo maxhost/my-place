@@ -63,7 +63,7 @@ function renderBlock(node: RichTextBlockNode, placeSlug?: string): ReactNode {
       )
     case 'blockquote':
       return (
-        <blockquote className="my-3 border-l-4 border-place-divider pl-4 text-place-text-soft">
+        <blockquote className="my-3 border-l-4 border-border pl-4 text-muted">
           {node.content.map((child, i) => (
             <Fragment key={i}>{renderBlock(child, placeSlug)}</Fragment>
           ))}
@@ -87,7 +87,7 @@ function renderListItems(items: RichTextListItem[], placeSlug?: string): ReactNo
 function renderCodeBlock(node: RichTextCodeBlock): ReactNode {
   const text = (node.content ?? []).map((t) => t.text).join('')
   return (
-    <pre className="my-3 overflow-x-auto rounded bg-place-mark-bg p-3 text-sm text-place-mark-fg">
+    <pre className="my-3 overflow-x-auto rounded bg-accent p-3 text-sm text-bg">
       <code>{text}</code>
     </pre>
   )
@@ -102,10 +102,7 @@ function renderInlineNode(node: RichTextInlineNode, placeSlug?: string): ReactNo
     const label = `@${node.attrs.label}`
     if (placeSlug) {
       return (
-        <Link
-          href={`/m/${node.attrs.userId}`}
-          className="place-mention text-place-mark-fg hover:underline"
-        >
+        <Link href={`/m/${node.attrs.userId}`} className="place-mention text-bg hover:underline">
           {label}
         </Link>
       )
@@ -128,9 +125,7 @@ function wrapMark(children: ReactNode, mark: RichTextMark): ReactNode {
       return <em>{children}</em>
     case 'code':
       return (
-        <code className="rounded bg-place-mark-bg px-1 py-[1px] text-[0.95em] text-place-mark-fg">
-          {children}
-        </code>
+        <code className="rounded bg-accent px-1 py-[1px] text-[0.95em] text-bg">{children}</code>
       )
     case 'link':
       return (
@@ -138,7 +133,7 @@ function wrapMark(children: ReactNode, mark: RichTextMark): ReactNode {
           href={mark.attrs.href}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-place-mark-fg underline underline-offset-2"
+          className="text-bg underline underline-offset-2"
         >
           {children}
         </a>

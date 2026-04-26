@@ -74,7 +74,7 @@ export function LoadMoreComments({
           type="button"
           onClick={loadMore}
           disabled={pending}
-          className="w-full rounded-md border border-place-divider bg-place-card px-4 py-2 text-sm text-place-text-soft hover:text-place-text disabled:opacity-60"
+          className="w-full rounded-md border border-border bg-surface px-4 py-2 text-sm text-muted hover:text-text disabled:opacity-60"
         >
           {pending ? 'Cargando…' : 'Ver más comentarios'}
         </button>

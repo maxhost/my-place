@@ -21,31 +21,31 @@ export function PostCard({ post }: { post: PostListView }): React.ReactNode {
 
   return (
     <article
-      className={`rounded-lg border border-place-divider bg-place-card p-4 transition ${
+      className={`rounded-lg border border-border bg-surface p-4 transition ${
         dormant ? 'opacity-75' : ''
       }`}
     >
       <Link
         href={`/conversations/${post.slug}`}
-        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-place-mark-fg"
+        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-bg"
       >
         <h3
           className={`flex items-center gap-2 font-serif text-xl ${
-            dormant ? 'text-place-text-medium' : 'text-place-text'
+            dormant ? 'text-muted' : 'text-text'
           }`}
         >
           <span>{post.title}</span>
           {hasUnread ? <PostUnreadDot /> : null}
         </h3>
       </Link>
-      <div className="mt-2 flex items-center gap-2 text-xs text-place-text-soft">
+      <div className="mt-2 flex items-center gap-2 text-xs text-muted">
         <span>{post.authorSnapshot.displayName}</span>
         <span aria-hidden="true">·</span>
         <TimeAgo date={post.lastActivityAt} />
         {post.hiddenAt ? (
           <>
             <span aria-hidden="true">·</span>
-            <span className="rounded bg-place-mark-bg px-1 text-place-mark-fg">oculto</span>
+            <span className="rounded bg-accent px-1 text-bg">oculto</span>
           </>
         ) : null}
       </div>

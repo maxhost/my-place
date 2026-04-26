@@ -86,10 +86,10 @@ export function ReactionBar({ targetType, targetId, initial }: Props): React.Rea
               aria-pressed={viewerReacted}
               aria-label={`Reaccionar con ${EMOJI_LABELS[emoji]}`}
               onClick={() => toggle(emoji)}
-              className={`inline-flex min-h-[32px] min-w-[44px] items-center gap-1 rounded-full border px-2 py-1 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-place-mark-fg ${
+              className={`inline-flex min-h-[32px] min-w-[44px] items-center gap-1 rounded-full border px-2 py-1 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-bg ${
                 viewerReacted
-                  ? 'border-place-mark-fg bg-place-mark-bg text-place-mark-fg'
-                  : 'border-place-divider bg-place-card text-place-text-soft hover:border-place-text-soft'
+                  ? 'border-bg bg-accent text-bg'
+                  : 'border-border bg-surface text-muted hover:border-muted'
               }`}
             >
               <span aria-hidden="true">{EMOJI_GLYPHS[emoji]}</span>
@@ -99,7 +99,7 @@ export function ReactionBar({ targetType, targetId, initial }: Props): React.Rea
         })}
       </div>
       {error ? (
-        <p role="alert" aria-live="polite" className="mt-1 text-xs text-place-mark-fg">
+        <p role="alert" aria-live="polite" className="mt-1 text-xs text-bg">
           {error}
         </p>
       ) : null}

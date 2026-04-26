@@ -18,7 +18,7 @@ export function PostList({
 }): React.ReactNode {
   if (items.length === 0) {
     return (
-      <div className="rounded-lg border border-place-divider bg-place-card p-6 text-center text-sm text-place-text-soft">
+      <div className="rounded-lg border border-border bg-surface p-6 text-center text-sm text-muted">
         Todavía no hay conversaciones. Arrancá vos la primera.
       </div>
     )
