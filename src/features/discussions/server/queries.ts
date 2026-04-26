@@ -4,6 +4,7 @@ import { prisma } from '@/db/client'
 import type {
   AuthorSnapshot,
   Post,
+  PostEventLink,
   PostListView,
   Comment,
   QuoteSnapshot,
@@ -36,21 +37,30 @@ type Cursor = { createdAt: Date; id: string }
 // ---------------------------------------------------------------
 
 export async function findPostById(postId: string): Promise<Post | null> {
-  const row = await prisma.post.findUnique({ where: { id: postId } })
+  const row = await prisma.post.findUnique({
+    where: { id: postId },
+    include: { event: { select: { id: true, title: true, cancelledAt: true } } },
+  })
   if (!row) return null
-  return mapPost(row)
+  return mapPostWithEvent(row, row.event)
 }
 
 /**
  * Lookup por unique `(placeId, slug)`. Retorna `null` si no existe; la page
  * de detalle lanza `notFound()` desde ahí.
+ *
+ * Incluye la relación inversa `Post.event` para que `PostDetail` pueda
+ * renderizar el header "Conversación del evento: …" + badge "Cancelado"
+ * sin round-trips adicionales (F.E Fase 6 — relación bidireccional
+ * Event↔Post). En posts standalone `event` es null.
  */
 export async function findPostBySlug(placeId: string, slug: string): Promise<Post | null> {
   const row = await prisma.post.findUnique({
     where: { placeId_slug: { placeId, slug } },
+    include: { event: { select: { id: true, title: true, cancelledAt: true } } },
   })
   if (!row) return null
-  return mapPost(row)
+  return mapPostWithEvent(row, row.event)
 }
 
 /**
@@ -291,6 +301,16 @@ type PostRow = Prisma.PostGetPayload<Record<string, never>>
 type CommentRow = Prisma.CommentGetPayload<Record<string, never>>
 
 function mapPost(row: PostRow): Post {
+  return mapPostWithEvent(row, null)
+}
+
+/**
+ * Mapper extendido que incluye la relación inversa `Post.event`. Cuando el
+ * caller hace `include: { event: ... }` y obtiene la subselección, la pasa
+ * acá. Si no se pidió la relación, `event` es null por default — la UI lo
+ * trata como Post standalone.
+ */
+function mapPostWithEvent(row: PostRow, event: PostEventLink | null): Post {
   return {
     id: row.id,
     placeId: row.placeId,
@@ -304,6 +324,7 @@ function mapPost(row: PostRow): Post {
     hiddenAt: row.hiddenAt,
     lastActivityAt: row.lastActivityAt,
     version: row.version,
+    event,
   }
 }
 

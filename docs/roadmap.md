@@ -106,7 +106,7 @@ Implementar según `docs/features/discussions/spec.md` (spec canónico) y `docs/
 
 **Fuera de esta fase** (v2 o descartado): audio, temporadas, UI dedicada de dormidos, búsqueda full-text, DMs, push/email, analytics visibles, rich text con imágenes/tablas.
 
-## Fase 6 — Eventos (en planning, F.A en progreso 2026-04-25)
+## Fase 6 — Eventos ✅ (2026-04-26, F.A → F.E completas)
 
 Implementar según `docs/ontologia/eventos.md`. Spec canónico:
 `docs/features/events/spec.md` (+ sub-specs `spec-rsvp.md`,
@@ -129,13 +129,13 @@ Implementar según `docs/ontologia/eventos.md`. Spec canónico:
 
 **Sub-milestones de Fase 6**:
 
-- **F.A** — Spec-first (este sub-milestone, en progreso 2026-04-25). Escribir `docs/features/events/spec.md` (+ `spec-rsvp.md` + `spec-integrations.md`) + ADR de excepción cap LOC (`docs/decisions/2026-04-25-events-size-exception.md`). Sin código.
-- **F.B** — Schema + 2 migrations (CREATE TABLE separada de `ALTER TYPE ContentTargetKind`) + 7 RLS policies + 9 tests RLS. ⏳
-- **F.C** — Domain + invariants + queries + 4 actions + extensiones PR-1 (`createPostFromSystemHelper` en discussions), PR-2 (`EVENT` en `ContentTargetKind` + `assertNever` en shared), PR-3 (`runErasure` extendido para Event + DELETE EventRSVP per-place). 27+ tests. ⏳
-- **F.D** — UI listado + detalle + crear + editar + RSVP button + Playwright smoke. ⏳
-- **F.E** — Auto-thread tx atómica cableada en `createEventAction` + relación bidireccional Event ↔ Post + badge cancelado en thread. ⏳
+- **F.A** — Spec-first ✅ (2026-04-25). `docs/features/events/spec.md` (+ `spec-rsvp.md` + `spec-integrations.md`) + ADR excepción cap LOC (`docs/decisions/2026-04-25-events-size-exception.md`).
+- **F.B** — Schema + 2 migrations (CREATE TABLE separada de `ALTER TYPE ContentTargetKind` por restricción Postgres) + 7 RLS policies + 9 tests RLS ✅ (2026-04-25).
+- **F.C** — Domain + invariants + state-derivation + queries + 4 actions (create con auto-thread tx, update, cancel, rsvp) + extensiones cross-slice: PR-1 `createPostFromSystemHelper` en discussions con `resolveUniqueSlug` parametrizable, PR-2 `EVENT` en `ContentTargetKind` con switch exhaustivo + `mapEventSnapshot` + `assertNever` helper genérico en shared, PR-3 `runErasure` extendido para Event + DELETE EventRSVP per-place (no global) + smoke script extendido. 53 tests nuevos ✅ (2026-04-25).
+- **F.D** — UI listado próximos/pasados + detalle + crear + editar + 4 estados RSVP texturado con textfield condicional + cancel inline + Playwright smoke. Refactor de `hours/public.ts` split client/server (mismo patrón flags/discussions) para que Client Components no arrastren `import 'server-only'` al bundle ✅ (2026-04-25).
+- **F.E** — Relación bidireccional Event↔Post: `findPostBySlug`/`findPostById` incluyen `Post.event` (subset `{id,title,cancelledAt}`); `PostDetail` renderiza banner "Conversación del evento: …" + badge "Cancelado" inline cuando aplica. ADR `docs/decisions/2026-04-26-events-discussions-cotransaction.md` documenta el patrón de tx atómica cross-slice como precedente. 6 tests integration nuevos ✅ (2026-04-26).
 
-**Entregable**: feature de eventos F1 completa — CRUD + RSVP texturado + thread auto + listado. Diferido en post-F1: recurrencia, UI 3 momentos contextual, memoria fresca, archive físico, exclusiones granulares, permisos por rol granulares, ICS export, realtime presence, notificaciones, recordatorios, cupo máximo, reacciones sobre Event, eventos all-day como tipo dedicado, cover visual, naturaleza presencial/virtual como discriminador.
+**Entregable**: feature de eventos F1 completa — CRUD + RSVP texturado + thread auto + listado + relación bidireccional. Diferido en post-F1: recurrencia, UI 3 momentos contextual, memoria fresca, archive físico, exclusiones granulares, permisos por rol granulares, ICS export, realtime presence, notificaciones, recordatorios, cupo máximo, reacciones sobre Event, eventos all-day como tipo dedicado, cover visual, naturaleza presencial/virtual como discriminador.
 
 ## Fase 7 — Portada y zonas
 

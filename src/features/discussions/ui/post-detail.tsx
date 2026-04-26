@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { Post } from '../domain/types'
 import type { AggregatedReaction } from '../server/reactions-aggregation'
 import { RichTextRenderer } from './rich-text-renderer'
@@ -30,6 +31,36 @@ export function PostDetail({
 
   return (
     <article className="space-y-4">
+      {/* Banner de "thread de evento": aparece sólo si el Post fue auto-creado
+          como conversación de un Event (relación inversa Post.event poblada).
+          Linkea al detalle del evento + muestra badge si está cancelado.
+          F.E Fase 6 — relación bidireccional Event↔Post.
+
+          El badge "Cancelado" se renderiza inline (no como `<EventCancelledBadge>`
+          del slice events) para evitar circular dep:
+          discussions/public → post-detail → events/public → events/schemas →
+          discussions/public (richTextDocumentSchema). El visual es idéntico al
+          badge en events/ui/event-cancelled-badge.tsx. */}
+      {post.event ? (
+        <div className="flex items-center gap-2 rounded-md border border-place-divider bg-place-card px-3 py-2 text-sm text-place-text-soft">
+          <span>Conversación del evento:</span>
+          <Link
+            href={`/events/${post.event.id}`}
+            className="font-medium text-place-text underline hover:text-place-mark-fg"
+          >
+            {post.event.title}
+          </Link>
+          {post.event.cancelledAt ? (
+            <span
+              className="inline-flex items-center rounded border border-place-divider bg-place-card px-2 py-0.5 text-xs italic text-place-text-soft"
+              aria-label="Evento cancelado"
+            >
+              Cancelado
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
       <header>
         <div className="flex items-start justify-between gap-2">
           <h1 className="font-serif text-3xl text-place-text">{post.title}</h1>

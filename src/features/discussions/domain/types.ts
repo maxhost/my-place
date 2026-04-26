@@ -164,6 +164,21 @@ export type PostState = 'VISIBLE' | 'HIDDEN'
  */
 export type QuoteTargetState = 'VISIBLE' | 'DELETED'
 
+/**
+ * Subset del Event asociado al Post via auto-thread (F.E Fase 6). Sólo los
+ * campos que la UI del thread necesita para renderizar header "Conversación
+ * del evento: …" + badge "Cancelado". Null cuando el Post NO es thread de
+ * evento (la mayoría de los Posts).
+ *
+ * Mantiene el slice discussions agnóstico al schema completo de Event —
+ * sólo conoce los 3 campos visibles.
+ */
+export type PostEventLink = {
+  id: string
+  title: string
+  cancelledAt: Date | null
+}
+
 export type Post = {
   id: PostId
   placeId: string
@@ -177,6 +192,10 @@ export type Post = {
   hiddenAt: Date | null
   lastActivityAt: Date
   version: number
+  /** Relación inversa al evento que generó este Post como thread. Null en
+   *  Posts standalone. Se popula sólo en queries que lo solicitan vía
+   *  `include: { event: ... }` (ver `findPostBySlug`). */
+  event: PostEventLink | null
 }
 
 /**
