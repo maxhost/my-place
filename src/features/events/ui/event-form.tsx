@@ -245,9 +245,19 @@ export function EventForm({ mode, allowedTimezones, defaultTimezone }: Props): R
         {mode.kind === 'edit' ? (
           <button
             type="button"
-            onClick={() =>
-              router.push(mode.postSlug ? `/conversations/${mode.postSlug}` : '/events')
-            }
+            onClick={() => {
+              // Smart back: si hay history (caso típico — user llegó al
+              // form via kebab desde el event-thread), `router.back()`
+              // pops el entry sin pollutar history. Si vino por deep
+              // link, fallback al postSlug del evento o al listado.
+              // Sin esto, BackButton del thread post-cancel volvía al
+              // form (router.push agregaba entry doble al history).
+              if (typeof window !== 'undefined' && window.history.length > 1) {
+                router.back()
+              } else {
+                router.push(mode.postSlug ? `/conversations/${mode.postSlug}` : '/events')
+              }
+            }}
             disabled={pending}
             className="rounded-md px-3 py-2 text-sm text-muted hover:text-text"
           >

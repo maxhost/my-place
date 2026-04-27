@@ -208,7 +208,19 @@ export function PostComposer({ mode }: Props): React.ReactNode {
         {mode.kind === 'edit' ? (
           <button
             type="button"
-            onClick={() => router.push(`/conversations/${mode.slug}`)}
+            onClick={() => {
+              // Smart back: si hay history (caso típico — user llegó al
+              // form via kebab desde el thread), `router.back()` pops el
+              // entry sin pollutar history. Si vino por deep link (history
+              // length 1), fallback a router.push del thread. Sin esto,
+              // BackButton del thread post-cancel terminaba volviendo al
+              // form (router.push agregaba entry doble al history).
+              if (typeof window !== 'undefined' && window.history.length > 1) {
+                router.back()
+              } else {
+                router.push(`/conversations/${mode.slug}`)
+              }
+            }}
             disabled={pending}
             className="rounded-md px-3 py-2 text-sm text-muted hover:text-text"
           >
