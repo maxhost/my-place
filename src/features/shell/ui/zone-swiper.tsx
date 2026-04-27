@@ -1,8 +1,7 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
-import { Component, useEffect, useRef, useTransition, type ReactNode } from 'react'
-import { TopProgressBar } from '@/shared/ui/top-progress-bar'
+import { Component, useEffect, useRef, type ReactNode } from 'react'
 import { ZONES, deriveActiveZone, type ZoneIndex } from '../domain/zones'
 import { isZoneRootPath, shouldRefreshZone } from '../domain/swiper-snap'
 import { SwiperViewport } from './swiper-viewport'
@@ -47,7 +46,6 @@ const ZONE_PATHS = ZONES.map((z) => z.path)
 function ZoneSwiperInner({ children }: { children: React.ReactNode }): React.ReactNode {
   const pathname = usePathname()
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
 
   const lastVisitedAtRef = useRef<Map<ZoneIndex, number>>(new Map())
   const scrollByZoneRef = useRef<Map<ZoneIndex, number>>(new Map())
@@ -86,12 +84,16 @@ function ZoneSwiperInner({ children }: { children: React.ReactNode }): React.Rea
     const lastVisitedAt = lastVisitedAtRef.current.get(targetIndex)
     const needsRefresh = shouldRefreshZone({ lastVisitedAt, now: Date.now() })
 
-    startTransition(() => {
-      router.push(targetPath, { scroll: false })
-      if (needsRefresh) {
-        router.refresh()
-      }
-    })
+    // Sin startTransition: queremos que `usePathname()` actualice
+    // inmediato para que el dot activo de SectionDots se sincronice
+    // con el snap, y que `loading.tsx` muestre el skeleton correcto
+    // mientras streamea el RSC. El "hold UI viejo" de transition se
+    // sintió frozen 4-12s en dev (pgbouncer high-latency); skeletons
+    // explícitos son production-honest.
+    router.push(targetPath, { scroll: false })
+    if (needsRefresh) {
+      router.refresh()
+    }
   }
 
   const handlePanStart = () => {
@@ -108,17 +110,14 @@ function ZoneSwiperInner({ children }: { children: React.ReactNode }): React.Rea
   }
 
   return (
-    <>
-      <TopProgressBar isPending={isPending} />
-      <SwiperViewport
-        activeIndex={activeZone}
-        totalZones={ZONES.length}
-        onSnap={handleSnap}
-        onPanStart={handlePanStart}
-      >
-        {children}
-      </SwiperViewport>
-    </>
+    <SwiperViewport
+      activeIndex={activeZone}
+      totalZones={ZONES.length}
+      onSnap={handleSnap}
+      onPanStart={handlePanStart}
+    >
+      {children}
+    </SwiperViewport>
   )
 }
 

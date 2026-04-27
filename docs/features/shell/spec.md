@@ -476,30 +476,49 @@ onDragEnd={...}>`.
 - PlaceClosedView: `(gated)/layout` retorna directamente
   `<PlaceClosedView>` antes de alcanzar el swiper.
 
-### 16.4 Eliminación del skeleton
+### 16.4 Estrategia de loading state (skeletons)
 
-**Problema actual**: `router.push` dispara navegación; `loading.tsx`
-de la zona destino renderiza skeleton mientras Next streamea RSC.
+**Diseño post-R.2.5.2-fix**: skeletons explícitos via `loading.tsx`
+por zona root.
 
-**Solución**:
+> **Nota de pivote (R.2.5.2-fix, 2026-04-26)**: el plan original
+> R.2.5.0 proponía eliminar `loading.tsx` y usar `startTransition` +
+> `<TopProgressBar>` para "mantener UI viejo hasta que el nuevo
+> esté listo". En la primera prueba manual con datos reales (dev
+> mode + Supabase pgbouncer high-latency) se observaron dos issues
+> coupled: (a) el dot activo de SectionDots NO actualizaba al snap
+> porque `usePathname()` queda en valor viejo durante transition;
+> (b) sin skeleton, la pantalla quedó frozen 4-12 segundos
+> esperando que el RSC completara. Ambos issues se resuelven
+> quitando `startTransition` del swiper y restaurando los
+> skeletons. Skeletons son production-honest — comunican "la app
+> está trabajando" sin mentir sobre el tiempo. Decisión 6 del ADR
+> invertida; ver `docs/decisions/2026-04-26-zone-swiper.md`.
 
-1. **Prefetch on dot focus/hover** (`section-dots.tsx` modificación):
-   `<Link onMouseEnter={() => router.prefetch(zone.path)} onFocus=...>`.
-   Idéntico para el swiper: `onPanStart` dispara
-   `router.prefetch(adjacentZonePath)` para preloadear vecinos.
-2. **`startTransition` envolviendo `router.push`** — React mantiene el
-   UI viejo hasta que el nuevo esté listo. Sin skeleton intermedio.
-3. **Eliminar `loading.tsx` de las 3 zonas root** (`/`,
-   `/conversations`, `/events`). El swiper maneja la espera con
-   `<TopProgressBar>` propio (2px del color accent, fade in/out solo
-   si `isPending` > 200ms — evita flicker en la mayoría de las nav).
+**Componentes del flow actual**:
+
+1. **Prefetch on pan start** (`zone-swiper.tsx`):
+   `onPanStart` dispara `router.prefetch(adjacentZonePath)` para
+   warmear cache de vecinos. Reduce skeleton time si el snap
+   completa.
+2. **`router.push` directo (sin `startTransition`)** — `usePathname()`
+   actualiza inmediato cuando el push se procesa, así el dot activo
+   de `<SectionDots>` se sincroniza con el snap visual del swiper.
+3. **`loading.tsx` por zona root** (`/`, `/conversations`,
+   `/events`): skeleton estructural acorde al handoff F.G,
+   bloques `bg-soft` quietos sin animaciones ruidosas. Renderiza
+   DENTRO del swiper viewport — el swiper resetea su transform a
+   `x=0` vía `useLayoutEffect` cuando `activeIndex` cambia, así el
+   skeleton aparece en posición correcta sin flash de off-screen.
 4. **Sub-pages mantienen su `loading.tsx`** intacto — el swiper no
-   actúa ahí, navegación es full-page con skeleton aceptable.
+   actúa ahí, navegación es full-page con skeleton normal
+   (precedente: thread detail R.6.4).
 
-**Resultado UX**: tap dot o swipe completa → contenido nuevo aparece
-"al instante" si el route cache está warm; si está stale (>30s) o
-nunca prefetcheado, top progress bar discreta mientras Next streamea.
-Sin skeleton de página completa.
+**Resultado UX**: drag → snap animation completa → en el instante
+del snap el dot actualiza Y el skeleton aparece DENTRO del swiper
+(sin gap visual) → contenido real reemplaza al skeleton cuando RSC
+streamea. La fluidez del gesture sigue siendo "app-like"; el
+loading state es honesto sobre el tiempo de fetch.
 
 ### 16.5 Reactividad sin desperdicio (Next 15 staleTimes)
 
@@ -603,23 +622,29 @@ Patrón estándar en SPAs (Twitter, Instagram tabs).
 - `<SwiperViewport>` en `src/features/shell/ui/swiper-viewport.tsx`
   (Client interno, framer-motion).
 - `<TopProgressBar>` en `src/shared/ui/top-progress-bar.tsx`
-  (Client, primitivo agnóstico reusable).
+  (Client, primitivo agnóstico reusable). **Deprecated para R.2.5**
+  tras pivote post-prueba (ver § 16.4); el componente persiste para
+  futuros callers.
+- `loading.tsx` skeletons:
+  - `src/app/[placeSlug]/(gated)/conversations/loading.tsx` (restaurado
+    R.2.5.2-fix tras eliminación temporal en R.2.5.2).
+  - `src/app/[placeSlug]/(gated)/events/loading.tsx` (nuevo
+    R.2.5.2-fix).
 
 **Modificados**:
 
 - `src/app/[placeSlug]/(gated)/layout.tsx`: envolver `{children}`
   con `<ZoneSwiper>`.
 - `src/features/shell/ui/section-dots.tsx`: agregar
-  `onMouseEnter`/`onFocus` con `router.prefetch`.
+  `onMouseEnter`/`onFocus` con `router.prefetch` (R.2.5.3).
 - `src/features/shell/public.ts`: export `<ZoneSwiper>`.
 - `next.config.ts`: agregar `experimental.staleTimes`.
 
-**Eliminados** (verificar cuáles existen en R.2.5.1):
+**Eliminados** (versión R.2.5.0 del plan, revertido en R.2.5.2-fix):
 
-- `src/app/[placeSlug]/(gated)/conversations/loading.tsx` — confirmado
-  desde R.6.3.
-- `src/app/[placeSlug]/(gated)/events/loading.tsx` — por verificar.
-- `src/app/[placeSlug]/(gated)/loading.tsx` — por verificar.
+- ~~`src/app/[placeSlug]/(gated)/conversations/loading.tsx`~~ —
+  restaurado.
+- ~~`src/app/[placeSlug]/(gated)/events/loading.tsx`~~ — agregado.
 
 ### 16.10 Sub-fases de implementación (R.2.5.0 → R.2.5.5)
 

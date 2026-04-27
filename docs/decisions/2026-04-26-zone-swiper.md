@@ -103,16 +103,31 @@ la modifica entre minor versions (15.6, 15.7), puede romper. Plan B:
 exportar `revalidate: 30` por cada page de zona (más opaco pero
 estable).
 
-### Decisión 6 — Eliminar `loading.tsx` de zonas root + `<TopProgressBar>`
+### Decisión 6 — `loading.tsx` por zona root + skeleton estructural
 
-**Justificación**: el skeleton crudo rompe la sensación "una sola
-app". Mejor approach: `startTransition` envuelve `router.push` →
-React mantiene UI viejo hasta que el nuevo esté listo + indicador
-top discreto si demora.
+> **Pivote R.2.5.2-fix (2026-04-26)**: la decisión original era
+> eliminar `loading.tsx` y usar `startTransition` + `<TopProgressBar>`.
+> En la primera prueba con datos reales (dev mode + Supabase pgbouncer
+> high-latency), el approach se sintió frozen 4-12s y el dot activo no
+> actualizaba al snap (porque `usePathname()` queda en valor viejo
+> durante transition). Ambos issues coupled. Pivot:
 
-`<TopProgressBar>` 2px del color accent, fade-in solo si
-`isPending` > 200ms (evita flicker en navs rápidas). Vive en
-`shared/ui/` como primitivo agnóstico reusable.
+**Justificación actual**:
+
+- **`router.push` directo** (sin envolver en `startTransition`) →
+  `usePathname()` actualiza inmediato → el dot activo de
+  `<SectionDots>` se sincroniza con el snap visual.
+- **`loading.tsx` por zona root** con skeleton estructural acorde al
+  handoff F.G — bloques `bg-soft` quietos, sin animaciones ruidosas.
+  Production-honest: comunica "la app está trabajando" sin mentir
+  sobre el tiempo. El skeleton renderiza DENTRO del swiper viewport
+  (no en el chrome del shell) gracias a que el swiper resetea su
+  transform a `x=0` con `useLayoutEffect` cuando `activeIndex`
+  cambia — sin gap visual entre snap completion y skeleton.
+- **`<TopProgressBar>` queda DEPRECATED** para R.2.5 — no se importa
+  desde el swiper. El código del componente persiste en
+  `shared/ui/top-progress-bar.tsx` por si futuro caller (otra feature)
+  lo necesita; los tests siguen verde.
 
 Sub-pages mantienen su `loading.tsx` (precedente: thread detail
 R.6.4 ya tiene su flujo de espera; el swiper no actúa ahí).

@@ -1,7 +1,7 @@
 'use client'
 
 import { motion, useAnimationControls, useReducedMotion, type PanInfo } from 'framer-motion'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { deriveSnapTarget } from '../domain/swiper-snap'
 import type { ZoneIndex } from '../domain/zones'
 
@@ -61,9 +61,14 @@ export function SwiperViewport({
     return () => window.removeEventListener('resize', measure)
   }, [])
 
-  // Cuando children cambia (router.push completó la navegación), reset
-  // visual al centro sin animar (el user ya está visualmente "ahí").
-  useEffect(() => {
+  // Cuando activeIndex cambia (router.push completó la navegación, ya
+  // sea por snap o por click en dot), reset visual al centro sin
+  // animar — el user ya está visualmente "ahí" porque el snap llevó
+  // el offset a -W o +W. Sin este reset, el children nuevo arrancaría
+  // off-screen.
+  // useLayoutEffect (no useEffect) para que el reset suceda ANTES del
+  // browser paint con el children nuevo — evita flash de off-screen.
+  useLayoutEffect(() => {
     controls.set({ x: 0 })
   }, [activeIndex, controls])
 
