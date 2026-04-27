@@ -41,7 +41,7 @@ export function EventMetadataHeader({
   const timeRange = formatEventTimeRange(event.startsAt, event.endsAt, event.timezone)
 
   return (
-    <section aria-label="Metadata del evento" className="space-y-[18px]">
+    <section aria-label="Metadata del evento" className="space-y-[18px] px-3 pt-4">
       <div>
         <OverlineTag emoji="🎉">Evento</OverlineTag>
         <h2 className="mt-1.5 font-title text-[28px] font-semibold leading-[1.15] tracking-tight text-text">

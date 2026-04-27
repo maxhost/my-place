@@ -44,7 +44,7 @@ export function CommentThread({
 }): React.ReactNode {
   return (
     <section aria-label="Comentarios" className="mt-6">
-      <div className="border-t-[0.5px] border-border px-3 py-3">
+      <div className="mx-3 border-t-[0.5px] border-border py-3">
         <span className="font-body text-[11px] font-semibold tracking-[0.06em] text-muted">
           {items.length} {items.length === 1 ? 'RESPUESTA' : 'RESPUESTAS'}
         </span>
@@ -57,7 +57,7 @@ export function CommentThread({
         viewerIsAdmin={viewerIsAdmin}
         initialItems={items}
       >
-        <div className="divide-y divide-border border-t-[0.5px] border-border">
+        <div className="mx-3 divide-y divide-border border-t-[0.5px] border-border">
           {items.map((comment) => {
             const reactions =
               reactionsByKey.get(reactionMapKey('COMMENT', comment.id)) ?? EMPTY_REACTIONS

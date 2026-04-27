@@ -44,7 +44,7 @@ export function CommentItem({
   const colorKey = comment.authorUserId ?? comment.id
 
   return (
-    <article className="flex gap-3 px-3 py-3" data-comment-id={comment.id}>
+    <article className="flex gap-3 py-3" data-comment-id={comment.id}>
       <div className="shrink-0 pt-0.5">
         <MemberAvatar
           userId={colorKey}
