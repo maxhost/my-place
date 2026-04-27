@@ -115,8 +115,7 @@ Comparación con paradigmas alternativos (descartados):
 
 ```
 <div className="mx-auto flex min-h-screen max-w-[420px] flex-col bg-bg">
-  <TopBar ... />
-  <SectionDots ... />
+  <ShellChrome ... />              ← TopBar + Dots condicional por pathname
   <main className="flex-1 overflow-x-hidden">{children}</main>
 </div>
 ```
@@ -124,6 +123,35 @@ Comparación con paradigmas alternativos (descartados):
 Mobile-first centrado: en desktop el shell queda centrado con
 máximo 420px de ancho. Bordes laterales del background quedan
 expuestos (no full-bleed) — pragmático sin breakpoints custom.
+
+### 4.1 Chrome conditional (`<ShellChrome>`)
+
+Agregado el 2026-04-27 tras feedback visual del user: el chrome del
+shell (TopBar + SectionDots) NO debe aparecer en sub-pages como el
+thread detail. Razón: la sub-page tiene su propio header
+(`<ThreadHeaderBar>`, h1 del form) y el chrome del shell suma 80px
+top de ruido visual sin valor para el contexto focal de
+"leer/responder/crear".
+
+`<ShellChrome>` (Client Component, lee `usePathname`) decide via
+`shouldShowShellChrome(pathname)` cuándo renderizar:
+
+- **SÍ**: zonas root (`/`, `/conversations`, `/events`) — chrome es la
+  navegación primaria.
+- **SÍ**: `/settings` y `/settings/*` — admin necesita el community
+  switcher para cambiar de place sin perder contexto.
+- **NO**: thread detail (`/conversations/[postSlug]`), member profile
+  (`/m/[userId]`), formularios de creación/edición
+  (`/conversations/new`, `/events/new`, `/events/[id]/edit`).
+
+Resuelve el compromise documentado en `docs/features/discussions/
+spec.md § 21.2`: el thread detail ya no acumula 136px de chrome top
+(TopBar 52 + Dots 28 + ThreadHeaderBar 56). Solo queda el
+ThreadHeaderBar, ganando densidad visual de lectura.
+
+Pure logic en `shell/domain/swiper-snap.ts` (`shouldShowShellChrome`,
+junto a las otras helpers de pathname). Tests unitarios cubren cada
+caso.
 
 ## 5. Community switcher (dropdown modal)
 

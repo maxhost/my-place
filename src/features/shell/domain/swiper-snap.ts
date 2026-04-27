@@ -104,3 +104,24 @@ export function isZoneRootPath(pathname: string, zonePaths: ReadonlyArray<string
   const normalized = pathname.replace(/\/+$/, '') || '/'
   return zonePaths.some((p) => p === normalized)
 }
+
+/**
+ * Decide si el chrome del shell (TopBar + SectionDots) debe renderizar
+ * en este pathname.
+ *
+ * - **Zonas root** (`/`, `/conversations`, `/events`): SÍ — chrome es
+ *   la navegación primaria entre zonas.
+ * - **`/settings/*`**: SÍ — admin necesita el community switcher para
+ *   cambiar de place sin perder contexto.
+ * - **Sub-pages** (thread detail, /m/, new forms): NO — la page tiene
+ *   su propio header (`<ThreadHeaderBar>`, h1 del form, etc.) y el
+ *   chrome del shell suma ruido visual sin valor. Saving 80px de
+ *   chrome top en thread detail era un compromise documentado en
+ *   discussions spec § 21.2 que ahora resolvemos.
+ */
+export function shouldShowShellChrome(pathname: string, zonePaths: ReadonlyArray<string>): boolean {
+  if (isZoneRootPath(pathname, zonePaths)) return true
+  const normalized = pathname.replace(/\/+$/, '') || '/'
+  if (normalized === '/settings' || normalized.startsWith('/settings/')) return true
+  return false
+}

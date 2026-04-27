@@ -6,6 +6,7 @@ import {
   deriveSnapTarget,
   isZoneRootPath,
   shouldRefreshZone,
+  shouldShowShellChrome,
 } from '../domain/swiper-snap'
 
 const W = 420 // viewport width estándar mobile-first del shell
@@ -226,5 +227,54 @@ describe('isZoneRootPath', () => {
     expect(isZoneRootPath('/settings', ZONE_PATHS)).toBe(false)
     expect(isZoneRootPath('/settings/hours', ZONE_PATHS)).toBe(false)
     expect(isZoneRootPath('/m/user-1', ZONE_PATHS)).toBe(false)
+  })
+})
+
+describe('shouldShowShellChrome', () => {
+  const ZONE_PATHS = ['/', '/conversations', '/events']
+
+  describe('SÍ muestra chrome', () => {
+    it('zonas root', () => {
+      expect(shouldShowShellChrome('/', ZONE_PATHS)).toBe(true)
+      expect(shouldShowShellChrome('/conversations', ZONE_PATHS)).toBe(true)
+      expect(shouldShowShellChrome('/events', ZONE_PATHS)).toBe(true)
+    })
+
+    it('zona root con trailing slash', () => {
+      expect(shouldShowShellChrome('/conversations/', ZONE_PATHS)).toBe(true)
+    })
+
+    it('settings root y sub-paths (admin necesita community switcher)', () => {
+      expect(shouldShowShellChrome('/settings', ZONE_PATHS)).toBe(true)
+      expect(shouldShowShellChrome('/settings/', ZONE_PATHS)).toBe(true)
+      expect(shouldShowShellChrome('/settings/hours', ZONE_PATHS)).toBe(true)
+      expect(shouldShowShellChrome('/settings/members', ZONE_PATHS)).toBe(true)
+      expect(shouldShowShellChrome('/settings/flags', ZONE_PATHS)).toBe(true)
+    })
+  })
+
+  describe('NO muestra chrome', () => {
+    it('thread detail (sub-page de conversations)', () => {
+      expect(shouldShowShellChrome('/conversations/abc-slug', ZONE_PATHS)).toBe(false)
+    })
+
+    it('formularios de creación', () => {
+      expect(shouldShowShellChrome('/conversations/new', ZONE_PATHS)).toBe(false)
+      expect(shouldShowShellChrome('/events/new', ZONE_PATHS)).toBe(false)
+    })
+
+    it('sub-pages de events (detail + edit)', () => {
+      expect(shouldShowShellChrome('/events/evt-1', ZONE_PATHS)).toBe(false)
+      expect(shouldShowShellChrome('/events/evt-1/edit', ZONE_PATHS)).toBe(false)
+    })
+
+    it('member profile', () => {
+      expect(shouldShowShellChrome('/m/user-1', ZONE_PATHS)).toBe(false)
+    })
+
+    it('paths que arrancan con `/settings` pero NO son settings (defensivo)', () => {
+      // Edge case: un path como `/settingsx` no debería contar como settings.
+      expect(shouldShowShellChrome('/settingsx', ZONE_PATHS)).toBe(false)
+    })
   })
 })
