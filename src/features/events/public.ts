@@ -90,5 +90,6 @@ export { EventList } from './ui/event-list'
 /** Header de metadata del evento, montado arriba del thread cuando
  *  `Post.event` está poblado. F.F: el evento ES el thread. */
 export { EventMetadataHeader } from './ui/event-metadata-header'
+export { EventActionsMenu } from './ui/event-actions-menu'
 export { EventForm } from './ui/event-form'
 export { EventCancelledBadge } from './ui/event-cancelled-badge'

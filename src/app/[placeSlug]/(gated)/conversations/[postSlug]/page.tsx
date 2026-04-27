@@ -21,7 +21,7 @@ import {
   type ReactionAggregationMap,
 } from '@/features/discussions/public'
 import type { QuoteTargetState } from '@/features/discussions/public'
-import { EventMetadataHeader } from '@/features/events/public'
+import { EventActionsMenu, EventMetadataHeader } from '@/features/events/public'
 import { getEvent } from '@/features/events/public.server'
 
 type Props = { params: Promise<{ placeSlug: string; postSlug: string }> }
@@ -103,19 +103,24 @@ export default async function PostDetailPage({ params }: Props) {
       : Promise.resolve([] as PostReader[]),
   ])
 
+  // Resolver el rightSlot del ThreadHeaderBar:
+  //  - Event-thread (post.event poblado) + author/admin del evento →
+  //    <EventActionsMenu> (Editar evento + Cancelar evento). Reemplaza
+  //    el footer de <EventMetadataHeader> que tenía estos 2 buttons.
+  //  - Post normal + admin → <PostAdminMenu> (Editar/Ocultar/Eliminar).
+  //  - Otros casos → null (sin kebab).
+  const isEventAuthor =
+    eventDetail?.authorUserId !== null && eventDetail?.authorUserId === viewer.actorId
+  const showEventMenu = eventDetail !== null && (isEventAuthor || viewer.isAdmin)
+  const headerRightSlot = showEventMenu ? (
+    <EventActionsMenu eventId={eventDetail.id} cancelled={eventDetail.state === 'cancelled'} />
+  ) : viewer.isAdmin ? (
+    <PostAdminMenu postId={post.id} hiddenAt={post.hiddenAt} expectedVersion={post.version} />
+  ) : null
+
   return (
     <div className="pb-32">
-      <ThreadHeaderBar
-        rightSlot={
-          viewer.isAdmin ? (
-            <PostAdminMenu
-              postId={post.id}
-              hiddenAt={post.hiddenAt}
-              expectedVersion={post.version}
-            />
-          ) : null
-        }
-      />
+      <ThreadHeaderBar rightSlot={headerRightSlot} />
 
       <DwellTracker postId={post.id} />
       <ThreadPresence
@@ -128,12 +133,7 @@ export default async function PostDetailPage({ params }: Props) {
       />
 
       {eventDetail ? (
-        <EventMetadataHeader
-          event={eventDetail}
-          placeSlug={viewer.placeSlug}
-          viewerUserId={viewer.actorId}
-          viewerIsAdmin={viewer.isAdmin}
-        />
+        <EventMetadataHeader event={eventDetail} placeSlug={viewer.placeSlug} />
       ) : null}
 
       <PostDetail

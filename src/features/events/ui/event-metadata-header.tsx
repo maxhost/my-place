@@ -1,10 +1,8 @@
-import Link from 'next/link'
 import { MapPin } from 'lucide-react'
 import type { EventDetailView } from '../domain/types'
 import { EventCancelledBadge } from './event-cancelled-badge'
 import { formatEventTimeRange, formatTimezoneLabel } from './format-event-time'
 import { RSVPButton } from './rsvp-button'
-import { CancelEventButton } from './cancel-event-button'
 import { EventDateTile } from './event-date-tile'
 import { AttendeeAvatars } from './attendee-avatars'
 import { OverlineTag } from '@/shared/ui/overline-tag'
@@ -19,23 +17,22 @@ import { RichTextRenderer } from '@/features/discussions/public'
  * OverlineTag "🎉 EVENTO", título serif grande, event card (calendar tile +
  * info + attendees + RSVP), descripción serif, footer admin/author.
  *
- * Server Component. Toma el `EventDetailView` completo y compone los
- * client components (`RSVPButton`, `CancelEventButton`).
+
+ * Server Component. Toma el `EventDetailView` completo y compone el
+ * client component `<RSVPButton>`. Las acciones admin/author del
+ * evento (Editar evento, Cancelar evento) viven ahora en el kebab
+ * del `<ThreadHeaderBar>` via `<EventActionsMenu>` — montado por la
+ * page composer. Footer interno removido 2026-04-27.
  *
  * Ver `docs/features/events/spec.md` § 11 (revisado en F.F + F.G).
  */
 export function EventMetadataHeader({
   event,
   placeSlug,
-  viewerUserId,
-  viewerIsAdmin,
 }: {
   event: EventDetailView
   placeSlug: string
-  viewerUserId: string
-  viewerIsAdmin: boolean
 }): React.ReactNode {
-  const isAuthor = event.authorUserId !== null && event.authorUserId === viewerUserId
   const isCancelled = event.state === 'cancelled'
   const isHappening = event.state === 'happening'
   const timeRange = formatEventTimeRange(event.startsAt, event.endsAt, event.timezone)
@@ -100,17 +97,12 @@ export function EventMetadataHeader({
         </div>
       ) : null}
 
-      {isAuthor || viewerIsAdmin ? (
-        <footer className="flex flex-wrap items-center gap-3 border-t-[0.5px] border-border pt-3 text-sm">
-          <Link
-            href={`/events/${event.id}/edit`}
-            className="rounded-[10px] border-[0.5px] border-border px-3 py-1.5 text-text hover:bg-soft motion-safe:transition-colors"
-          >
-            Editar evento
-          </Link>
-          {!isCancelled ? <CancelEventButton eventId={event.id} /> : null}
-        </footer>
-      ) : null}
+      {/* Footer con "Editar evento" + "Cancelar evento" REMOVIDO 2026-04-27 —
+          esas acciones ahora viven en el kebab del <ThreadHeaderBar> via
+          <EventActionsMenu>. La page composer del thread monta el menú
+          cuando viewer es author o admin del evento. Centralizar las
+          acciones en un solo lugar visual reduce ruido y unifica el
+          patrón con <PostAdminMenu>. */}
     </section>
   )
 }
