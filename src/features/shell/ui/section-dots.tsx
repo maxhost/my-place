@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { ZONES, deriveActiveZone } from '../domain/zones'
 
 /**
@@ -18,10 +18,17 @@ import { ZONES, deriveActiveZone } from '../domain/zones'
  * `disabled` para mostrar dots con `opacity-50 pointer-events-none` —
  * el chrome sigue visible pero las zonas no son navegables.
  *
- * Ver `docs/features/shell/spec.md` § 4 (componentes) y § 10 (mount).
+ * **R.2.5.3**: prefetch on `onMouseEnter` + `onFocus` para warmear el
+ * route cache antes del click. Desktop dispara hover; mobile no, pero
+ * el `<ZoneSwiper>` ya prefetcha vecinos en `onPanStart`. Focus (Tab)
+ * cubre keyboard nav. Idempotente — Next dedupea.
+ *
+ * Ver `docs/features/shell/spec.md` § 4 (componentes), § 10 (mount) y
+ * § 16.4 (estrategia loading).
  */
 export function SectionDots({ disabled = false }: { disabled?: boolean }): React.ReactNode {
   const pathname = usePathname()
+  const router = useRouter()
   const activeZone = deriveActiveZone(pathname)
 
   return (
@@ -36,12 +43,18 @@ export function SectionDots({ disabled = false }: { disabled?: boolean }): React
     >
       {ZONES.map((zone) => {
         const isActive = zone.index === activeZone
+        const prefetchZone = () => {
+          if (disabled || isActive) return
+          router.prefetch(zone.path)
+        }
         return (
           <Link
             key={zone.index}
             href={zone.path}
             aria-label={`Ir a ${zone.label}`}
             aria-current={isActive ? 'page' : undefined}
+            onMouseEnter={prefetchZone}
+            onFocus={prefetchZone}
             className={[
               'inline-block h-1.5 rounded-full transition-[width,background-color] duration-[220ms] ease-[cubic-bezier(.3,.7,.4,1)]',
               isActive ? 'w-[18px] bg-text' : 'w-1.5 bg-dot',

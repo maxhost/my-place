@@ -1,9 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 const usePathnameMock = vi.fn()
+const prefetchMock = vi.fn()
 vi.mock('next/navigation', () => ({
   usePathname: () => usePathnameMock(),
+  useRouter: () => ({ prefetch: prefetchMock }),
 }))
 
 vi.mock('next/link', () => ({
@@ -22,6 +24,10 @@ vi.mock('next/link', () => ({
 }))
 
 import { SectionDots } from '../ui/section-dots'
+
+beforeEach(() => {
+  prefetchMock.mockReset()
+})
 
 afterEach(() => {
   cleanup()
@@ -73,5 +79,35 @@ describe('SectionDots', () => {
     expect(screen.getByLabelText('Ir a Inicio')).toHaveAttribute('href', '/')
     expect(screen.getByLabelText('Ir a Conversaciones')).toHaveAttribute('href', '/conversations')
     expect(screen.getByLabelText('Ir a Eventos')).toHaveAttribute('href', '/events')
+  })
+
+  describe('prefetch on hover/focus (R.2.5.3)', () => {
+    it('hover sobre dot inactivo dispara router.prefetch del path destino', () => {
+      usePathnameMock.mockReturnValue('/')
+      render(<SectionDots />)
+      fireEvent.mouseEnter(screen.getByLabelText('Ir a Conversaciones'))
+      expect(prefetchMock).toHaveBeenCalledWith('/conversations')
+    })
+
+    it('focus sobre dot inactivo dispara prefetch (keyboard nav)', () => {
+      usePathnameMock.mockReturnValue('/')
+      render(<SectionDots />)
+      fireEvent.focus(screen.getByLabelText('Ir a Eventos'))
+      expect(prefetchMock).toHaveBeenCalledWith('/events')
+    })
+
+    it('hover sobre dot activo NO dispara prefetch (estamos ahí)', () => {
+      usePathnameMock.mockReturnValue('/conversations')
+      render(<SectionDots />)
+      fireEvent.mouseEnter(screen.getByLabelText('Ir a Conversaciones'))
+      expect(prefetchMock).not.toHaveBeenCalled()
+    })
+
+    it('disabled=true: hover NO dispara prefetch (place cerrado)', () => {
+      usePathnameMock.mockReturnValue('/')
+      render(<SectionDots disabled />)
+      fireEvent.mouseEnter(screen.getByLabelText('Ir a Conversaciones'))
+      expect(prefetchMock).not.toHaveBeenCalled()
+    })
   })
 })
