@@ -83,7 +83,12 @@ export async function createEventAction(
 
     const post = await createPostFromSystemHelper(tx, {
       placeId: actor.placeId,
-      title: `Conversación: ${event.title}`,
+      // F.H.1 (2026-04-27): título auto-generado pasa de "Conversación: X"
+      // a "🎉 X". Razón: el evento ES el thread (F.F); el prefijo
+      // "Conversación:" era forzado y redundante. Slug derivado se
+      // simplifica (emoji se strippea en `normalizeTitleToSlug`):
+      // "🎉 Asado" → "asado".
+      title: `🎉 ${event.title}`,
       body: buildEventThreadIntroBody({ id: event.id, title: event.title }),
       authorUserId: actor.actorId,
       authorSnapshot: authorSnapshot as Prisma.InputJsonValue,

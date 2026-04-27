@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { MapPin } from 'lucide-react'
 import type { EventDetailView } from '../domain/types'
 import { EventCancelledBadge } from './event-cancelled-badge'
@@ -7,6 +8,7 @@ import { EventDateTile } from './event-date-tile'
 import { AttendeeAvatars } from './attendee-avatars'
 import { OverlineTag } from '@/shared/ui/overline-tag'
 import { RichTextRenderer } from '@/features/discussions/public'
+import { MemberAvatar } from '@/features/members/public'
 
 /**
  * Header de metadata del evento que se renderiza arriba del thread cuando
@@ -51,7 +53,7 @@ export function EventMetadataHeader({
       </div>
 
       <div className="rounded-[14px] border-[0.5px] border-border bg-surface p-3.5">
-        {/* Row 1 — calendar tile + info */}
+        {/* Row 1 — calendar tile + info (sin "Organiza" inline desde F.H.1) */}
         <div className="flex items-center gap-3.5">
           <EventDateTile date={event.startsAt} timezone={event.timezone} />
           <div className="min-w-0 flex-1">
@@ -65,10 +67,6 @@ export function EventMetadataHeader({
                 <span className="truncate">{event.location}</span>
               </div>
             ) : null}
-            <div className="mt-1 font-body text-xs text-muted">
-              Organiza{' '}
-              <span className="font-medium text-text">{event.authorSnapshot.displayName}</span>
-            </div>
           </div>
         </div>
 
@@ -97,12 +95,42 @@ export function EventMetadataHeader({
         </div>
       ) : null}
 
-      {/* Footer con "Editar evento" + "Cancelar evento" REMOVIDO 2026-04-27 —
-          esas acciones ahora viven en el kebab del <ThreadHeaderBar> via
-          <EventActionsMenu>. La page composer del thread monta el menú
-          cuando viewer es author o admin del evento. Centralizar las
-          acciones en un solo lugar visual reduce ruido y unifica el
-          patrón con <PostAdminMenu>. */}
+      {/* Organizer row (F.H.1, 2026-04-27) — debajo de la descripción.
+          Avatar 28×28 + "Organiza X" → /m/<userId>. Defensive: ex-miembro
+          (authorUserId null tras erasure 365d) → renderiza span no-link. */}
+      <OrganizerRow event={event} />
     </section>
+  )
+}
+
+function OrganizerRow({ event }: { event: EventDetailView }): React.ReactNode {
+  const isExMember = event.authorUserId === null
+  const colorKey = event.authorUserId ?? `ex-${event.id}`
+
+  const inner = (
+    <>
+      <MemberAvatar
+        userId={colorKey}
+        displayName={event.authorSnapshot.displayName}
+        avatarUrl={event.authorSnapshot.avatarUrl}
+        size={28}
+      />
+      <span className="text-sm text-muted">
+        Organiza <span className="font-medium text-text">{event.authorSnapshot.displayName}</span>
+      </span>
+    </>
+  )
+
+  if (isExMember) {
+    return <div className="flex items-center gap-2.5">{inner}</div>
+  }
+
+  return (
+    <Link
+      href={`/m/${event.authorUserId}`}
+      className="flex items-center gap-2.5 hover:opacity-80 motion-safe:transition-opacity"
+    >
+      {inner}
+    </Link>
   )
 }

@@ -55,7 +55,7 @@ vi.mock('@/features/hours/public', () => ({
 }))
 
 vi.mock('@/features/discussions/public.server', () => ({
-  createPostFromSystemHelper: vi.fn(async () => ({ id: 'post-1', slug: 'conversacion-asado' })),
+  createPostFromSystemHelper: vi.fn(async () => ({ id: 'post-1', slug: 'asado' })),
   resolveActorForPlace: async ({ placeId }: { placeId: string }) => {
     const userResult = await getUserFn()
     const userId = userResult?.data?.user?.id ?? null
@@ -145,14 +145,14 @@ describe('createEventAction', () => {
       timezone: 'America/Argentina/Buenos_Aires',
     })
 
-    expect(result).toEqual({ ok: true, eventId: 'evt-1', postSlug: 'conversacion-asado' })
+    expect(result).toEqual({ ok: true, eventId: 'evt-1', postSlug: 'asado' })
     expect(eventCreate).toHaveBeenCalled()
     expect(eventUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: { postId: 'post-1' } }),
     )
     expect(revalidatePathFn).toHaveBeenCalledWith('/the-place/events')
     expect(revalidatePathFn).toHaveBeenCalledWith('/the-place/events/evt-1')
-    expect(revalidatePathFn).toHaveBeenCalledWith('/the-place/conversations/conversacion-asado')
+    expect(revalidatePathFn).toHaveBeenCalledWith('/the-place/conversations/asado')
   })
 
   it('timezone fuera de whitelist → ValidationError sin tocar la tx', async () => {

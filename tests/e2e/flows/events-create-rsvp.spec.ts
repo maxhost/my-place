@@ -75,14 +75,14 @@ test.describe('Events F.D — Palermo', () => {
       // El header se identifica por su aria-label "Metadata del evento".
       await expect(page.getByLabel(/Metadata del evento/i)).toBeVisible()
 
-      // El Post auto-creado también es visible — su título tiene prefix
-      // "Conversación: " (lo asigna `createEventAction`).
+      // F.H.1 (2026-04-27): el Post auto-creado YA NO se renderiza con
+      // `<PostDetail>` en event-threads (su título "🎉 X" + body
+      // genérico eran redundantes con el evento). El layout solo
+      // expone el `<h2>` del evento + ReactionBar standalone +
+      // CommentThread. Confirmamos que NO hay un h1 duplicado.
       await expect(
-        page.getByRole('heading', {
-          level: 1,
-          name: new RegExp(`Conversación: ${SPEC_EVENT_TITLE}`),
-        }),
-      ).toBeVisible()
+        page.getByRole('heading', { level: 1, name: new RegExp(SPEC_EVENT_TITLE) }),
+      ).toHaveCount(0)
     })
 
     test('RSVP: click "Voy" persiste tras refresh; "Voy si…" expone textfield', async ({

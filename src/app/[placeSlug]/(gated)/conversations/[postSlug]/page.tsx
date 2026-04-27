@@ -8,6 +8,7 @@ import {
   PostAdminMenu,
   PostDetail,
   PostReadersBlock,
+  ReactionBar,
   ThreadHeaderBar,
   ThreadPresence,
   aggregateReactions,
@@ -133,15 +134,30 @@ export default async function PostDetailPage({ params }: Props) {
       />
 
       {eventDetail ? (
-        <EventMetadataHeader event={eventDetail} placeSlug={viewer.placeSlug} />
-      ) : null}
-
-      <PostDetail
-        post={post}
-        viewerUserId={viewer.actorId}
-        placeSlug={viewer.placeSlug}
-        reactions={reactionsByKey.get(reactionMapKey('POST', post.id)) ?? []}
-      />
+        // F.H.1 (2026-04-27): event-thread renderiza
+        // EventMetadataHeader (con OrganizerRow al final) + separator
+        // + ReactionBar standalone + readers + thread. SIN PostDetail
+        // (su título auto "Conversación: X" y body genérico eran
+        // redundantes con el evento).
+        <>
+          <EventMetadataHeader event={eventDetail} placeSlug={viewer.placeSlug} />
+          <div className="mx-3 mt-6 border-t-[0.5px] border-border" />
+          <div className="px-3 pt-4">
+            <ReactionBar
+              targetType="POST"
+              targetId={post.id}
+              initial={reactionsByKey.get(reactionMapKey('POST', post.id)) ?? []}
+            />
+          </div>
+        </>
+      ) : (
+        <PostDetail
+          post={post}
+          viewerUserId={viewer.actorId}
+          placeSlug={viewer.placeSlug}
+          reactions={reactionsByKey.get(reactionMapKey('POST', post.id)) ?? []}
+        />
+      )}
 
       <div className="mt-3">
         <PostReadersBlock readers={readers} />
