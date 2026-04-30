@@ -69,12 +69,17 @@ export function parseEmbedUrl(rawUrl: string): ParsedEmbed {
   const host = url.hostname.toLowerCase()
 
   // ── YouTube ─────────────────────────────────────────────────────
+  // Usamos `youtube-nocookie.com` (privacy-enhanced mode) para que el
+  // iframe no requiera third-party cookies — Chrome/Safari las bloquean
+  // por default y la versión `youtube.com/embed/...` muestra "contenido
+  // bloqueado" en esos browsers. nocookie tiene la misma feature parity
+  // para playback.
   if (host === 'youtu.be') {
     const videoId = url.pathname.replace(/^\//, '').split('/')[0]
     if (videoId && /^[a-zA-Z0-9_-]+$/.test(videoId)) {
       return {
         provider: 'youtube',
-        canonicalUrl: `https://www.youtube.com/embed/${videoId}`,
+        canonicalUrl: `https://www.youtube-nocookie.com/embed/${videoId}`,
         metadata: { videoId },
       }
     }
@@ -84,7 +89,7 @@ export function parseEmbedUrl(rawUrl: string): ParsedEmbed {
     if (videoId && /^[a-zA-Z0-9_-]+$/.test(videoId)) {
       return {
         provider: 'youtube',
-        canonicalUrl: `https://www.youtube.com/embed/${videoId}`,
+        canonicalUrl: `https://www.youtube-nocookie.com/embed/${videoId}`,
         metadata: { videoId },
       }
     }
@@ -93,7 +98,7 @@ export function parseEmbedUrl(rawUrl: string): ParsedEmbed {
     if (shortsMatch?.[2]) {
       return {
         provider: 'youtube',
-        canonicalUrl: `https://www.youtube.com/embed/${shortsMatch[2]}`,
+        canonicalUrl: `https://www.youtube-nocookie.com/embed/${shortsMatch[2]}`,
         metadata: { videoId: shortsMatch[2] },
       }
     }

@@ -4,23 +4,25 @@ import { parseEmbedUrl } from '../domain/embed-parser'
 
 describe('parseEmbedUrl', () => {
   describe('YouTube', () => {
-    it('detecta youtu.be/<id>', () => {
+    it('detecta youtu.be/<id> → embed nocookie', () => {
       const r = parseEmbedUrl('https://youtu.be/abc123XYZ_-')
       expect(r.provider).toBe('youtube')
       expect(r.metadata.videoId).toBe('abc123XYZ_-')
-      expect(r.canonicalUrl).toBe('https://www.youtube.com/embed/abc123XYZ_-')
+      expect(r.canonicalUrl).toBe('https://www.youtube-nocookie.com/embed/abc123XYZ_-')
     })
 
-    it('detecta youtube.com/watch?v=<id>', () => {
+    it('detecta youtube.com/watch?v=<id> → embed nocookie', () => {
       const r = parseEmbedUrl('https://www.youtube.com/watch?v=abc123XYZ&t=10')
       expect(r.provider).toBe('youtube')
       expect(r.metadata.videoId).toBe('abc123XYZ')
+      expect(r.canonicalUrl).toBe('https://www.youtube-nocookie.com/embed/abc123XYZ')
     })
 
     it('detecta youtube.com/shorts/<id>', () => {
       const r = parseEmbedUrl('https://www.youtube.com/shorts/abc123XYZ')
       expect(r.provider).toBe('youtube')
       expect(r.metadata.videoId).toBe('abc123XYZ')
+      expect(r.canonicalUrl).toBe('https://www.youtube-nocookie.com/embed/abc123XYZ')
     })
 
     it('youtube.com sin v param → generic fallback', () => {
