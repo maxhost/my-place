@@ -102,7 +102,15 @@ export function EventForm({ mode, allowedTimezones, defaultTimezone }: Props): R
           location: mode.initialLocation,
         }
 
-  const { register, handleSubmit, formState } = useForm<FormValues>({ defaultValues: initial })
+  const { register, handleSubmit, formState, watch } = useForm<FormValues>({
+    defaultValues: initial,
+  })
+
+  // Watch del campo `startsAt` para alimentar el `min` del input de
+  // `endsAt`. Cuando el user fija inicio, el picker de fin solo deja
+  // seleccionar fechas/horarios posteriores (HTML5 `min` attribute).
+  // Server-side `validateEventTimes` sigue como backstop.
+  const startsAtValue = watch('startsAt')
 
   function onSubmit(values: FormValues): void {
     setFeedback(null)
@@ -193,6 +201,7 @@ export function EventForm({ mode, allowedTimezones, defaultTimezone }: Props): R
           <span className="mb-1 block text-sm text-muted">Termina (opcional)</span>
           <input
             type="datetime-local"
+            min={startsAtValue || undefined}
             className="w-full rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-bg focus:outline-none"
             {...register('endsAt')}
           />
