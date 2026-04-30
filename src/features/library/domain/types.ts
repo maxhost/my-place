@@ -1,78 +1,103 @@
 /**
- * Tipos del dominio de Library (R.5).
+ * Tipos del dominio de Library.
  *
- * UI-only v1: estos tipos definen el contrato que los componentes UI
- * esperan de los datos. Cuando se sume el backend (R.5.X follow-up),
- * Prisma `LibraryCategory` y `LibraryDoc` se mapean a estos shapes
- * desde queries. Por ahora no hay backend — las pages hardcodean
- * arrays vacíos y los componentes se ejercitan con mock data en
- * tests.
+ * R.5: tipos UI-only (componentes con mock data).
+ * R.7.2: tipos finales que matchean el schema Prisma + contribution
+ * policy + designated contributors.
  *
- * Ver `docs/features/library/spec.md`.
+ * Los tipos son puros — sin Prisma, sin Next. Las queries del slice
+ * mapean rows de Prisma a estos shapes.
+ *
+ * Ver `docs/features/library/spec.md` § 2 + § 10.
  */
 
 /**
- * Categorías visibles del MVP. El handoff define un set abierto
- * (extensible cuando admin pueda crear categorías custom). Por ahora
- * los componentes aceptan cualquier `string` para `emoji` y no
- * validan emoji literal.
+ * Política de contribución por categoría.
+ *
+ * - `ADMIN_ONLY`: solo admin/owner del place crea items (default seguro).
+ * - `DESIGNATED`: admin + miembros listados en
+ *   `LibraryCategoryContributor`.
+ * - `MEMBERS_OPEN`: cualquier miembro activo del place.
+ *
+ * Mapea 1:1 al enum Postgres `ContributionPolicy`.
  */
+export type ContributionPolicy = 'ADMIN_ONLY' | 'DESIGNATED' | 'MEMBERS_OPEN'
 
-/**
- * Tipo de documento — discrimina UI (icono, comportamiento de open).
- *
- * - `pdf`: documento PDF embeddable.
- * - `link`: URL externa (abrir en nueva tab con noopener/noreferrer).
- * - `image`: imagen (preview / sheet full-screen).
- * - `doc`: Google Doc / Word (abrir Workspace tab o descargar).
- * - `sheet`: Google Sheets / Excel.
- *
- * El handoff (PROMPT.md § Doc opening behavior) define cómo se abre
- * cada uno; eso vive en R.5.X cuando exista backend con URLs reales.
- */
-export type DocType = 'pdf' | 'link' | 'image' | 'doc' | 'sheet'
+export const CONTRIBUTION_POLICY_VALUES: ReadonlyArray<ContributionPolicy> = [
+  'ADMIN_ONLY',
+  'DESIGNATED',
+  'MEMBERS_OPEN',
+]
 
 /**
  * Categoría de la biblioteca. Aparece en el grid de la zona root y
  * como destino de `/library/[categorySlug]`.
+ *
+ * `docCount` se calcula por la query (no se persiste). En R.7.5+ pasa
+ * a contar `LibraryItem` no archivados; en R.7.2 (sin items todavía) la
+ * query devuelve 0 siempre.
  */
 export type LibraryCategory = {
   id: string
-  /** Slug único per-place. URL canónica `/library/[slug]`. Inmutable
-   *  como Place.slug y Post.slug. */
+  /** Slug único per-place. URL canónica `/library/[slug]`. Inmutable. */
   slug: string
-  /** Emoji Unicode (no clase CSS) — el admin elige al crear. */
+  /** Emoji Unicode (no clase CSS). 1..8 chars (CHECK constraint). */
   emoji: string
-  /** Nombre user-facing. Caps definidos en R.5.X cuando se sume
-   *  validación de creación. */
+  /** Nombre user-facing. 1..60 chars (CHECK + invariant). */
   title: string
-  /** Cantidad de docs activos en la categoría. Calculado por el
-   *  backend (count) — no se persiste en la categoría. */
+  /** Posición manual. NULL hasta que admin reordena. La query ordena
+   *  COALESCE(position, +Infinity) → createdAt como fallback. */
+  position: number | null
+  contributionPolicy: ContributionPolicy
+  archivedAt: Date | null
+  createdAt: Date
+  updatedAt: Date
+  /** Cantidad de items activos. Calculado por la query (sub-count).
+   *  R.7.2 retorna 0; cuando R.7.5+ sume LibraryItem, refleja el real. */
   docCount: number
 }
 
 /**
- * Documento de la biblioteca. Aparece en `<RecentsList>` (top-N
- * globales) y en `<DocList>` dentro de una categoría.
+ * Vista de un contribuidor designado para una categoría.
+ *
+ * `displayName` y `avatarUrl` se resuelven via JOIN a `User` para
+ * renderizar la lista en el admin sin queries N+1.
+ */
+export type LibraryCategoryContributor = {
+  categoryId: string
+  userId: string
+  displayName: string
+  avatarUrl: string | null
+  invitedAt: Date
+  invitedByUserId: string
+  invitedByDisplayName: string
+}
+
+// ---------------------------------------------------------------
+// Tipos R.5 retenidos para compat (se replantean en R.7.5+)
+// ---------------------------------------------------------------
+
+/**
+ * @deprecated R.7: el discriminador `pdf|link|image|doc|sheet` se
+ * reemplaza por embed providers en `Post.body` AST. Tipo conservado
+ * para que componentes UI R.5 (`<FileIcon>`, `<TypeFilterPills>`)
+ * sigan compilando hasta que R.7.5+ los renombre/elimine.
+ */
+export type DocType = 'pdf' | 'link' | 'image' | 'doc' | 'sheet'
+
+/**
+ * @deprecated R.7: reemplazado por `LibraryItem` (R.7.5+).
+ * Componentes UI R.5 (`<RecentDocRow>`, `<DocList>`) usan este shape
+ * con mock data.
  */
 export type LibraryDoc = {
   id: string
   slug: string
-  /** Slug de la categoría a la que pertenece — para `<RecentDocRow>`
-   *  poder linkear a la categoría como meta-info. */
   categorySlug: string
-  /** Nombre de la categoría — congelado en el snapshot del row para
-   *  evitar query extra al renderear. Cuando llegue backend, se
-   *  resuelve via JOIN o cache. */
   categoryTitle: string
   type: DocType
   title: string
   uploadedAt: Date
-  /** Display name del que subió. Snapshot congelado al momento de
-   *  upload — sobrevive erasure 365d (mismo patrón que post.authorSnapshot). */
   uploadedByDisplayName: string
-  /** URL externa (`type='link'`) o storage path interno (otros
-   *  types). La resolución específica vive en R.5.X cuando se sume
-   *  Supabase Storage. */
   url: string
 }

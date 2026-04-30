@@ -1,19 +1,66 @@
 /**
- * API pública del slice `library` (R.5 — UI scaffold v1).
+ * API pública del slice `library`.
  *
- * Sin queries server-side todavía (decisión user 2026-04-30: solo
- * UI; cuando exista backend, se agrega `server/queries.ts` y se
- * extiende este barrel con el split `public.server.ts` si hace
- * falta).
+ * R.5 (UI scaffold): tipos UI + componentes Server/Client.
+ * R.7 (backend): suma tipos canónicos del dominio + actions client-safe
+ * (Server Actions con `'use server'` viajan al bundle cliente como
+ * referencias serializadas — no son código). Para queries Prisma usar
+ * `public.server.ts`.
  *
- * Ver `docs/features/library/spec.md` y `docs/architecture.md`
- * § boundaries.
+ * Ver `docs/features/library/spec.md`.
  */
 
-// Domain types — contrato que la UI espera del futuro backend
-export type { DocType, LibraryCategory, LibraryDoc } from './domain/types'
+// ---------------------------------------------------------------
+// Domain types — contrato que la UI espera
+// ---------------------------------------------------------------
 
+export type {
+  ContributionPolicy,
+  DocType, // @deprecated R.7 — retenido para compat con componentes R.5
+  LibraryCategory,
+  LibraryCategoryContributor,
+  LibraryDoc, // @deprecated R.7 — retenido para compat con componentes R.5
+} from './domain/types'
+
+export { CONTRIBUTION_POLICY_VALUES } from './domain/types'
+
+// ---------------------------------------------------------------
+// Permissions — funciones puras reusables (UI + server)
+// ---------------------------------------------------------------
+
+export {
+  canArchiveItem,
+  canCreateInCategory,
+  canEditCategory,
+  canEditItem,
+  type CategoryForPermissions,
+  type LibraryViewer,
+} from './domain/permissions'
+
+// ---------------------------------------------------------------
+// Invariants / domain constants — útiles para UI hints
+// ---------------------------------------------------------------
+
+export {
+  CATEGORY_EMOJI_MAX_LENGTH,
+  CATEGORY_TITLE_MAX_LENGTH,
+  CATEGORY_TITLE_MIN_LENGTH,
+  MAX_CATEGORIES_PER_PLACE,
+} from './domain/invariants'
+
+// ---------------------------------------------------------------
+// Server actions (R.7.2) — Server Action references viajan client-safe
+// ---------------------------------------------------------------
+
+export { archiveLibraryCategoryAction } from './server/actions/archive-category'
+export { createLibraryCategoryAction } from './server/actions/create-category'
+export { reorderLibraryCategoriesAction } from './server/actions/reorder-categories'
+export { updateLibraryCategoryAction } from './server/actions/update-category'
+
+// ---------------------------------------------------------------
 // UI components — Server Components salvo `<TypeFilterPills>`
+// ---------------------------------------------------------------
+
 export { CategoryCard } from './ui/category-card'
 export { CategoryGrid } from './ui/category-grid'
 export { CategoryHeaderBar } from './ui/category-header-bar'

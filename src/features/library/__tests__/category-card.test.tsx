@@ -26,6 +26,11 @@ const baseCategory: LibraryCategory = {
   slug: 'recursos-onboarding',
   emoji: '📘',
   title: 'Onboarding',
+  position: 0,
+  contributionPolicy: 'ADMIN_ONLY',
+  archivedAt: null,
+  createdAt: new Date('2026-04-01'),
+  updatedAt: new Date('2026-04-01'),
   docCount: 5,
 }
 
