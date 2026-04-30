@@ -70,3 +70,19 @@ export const reorderCategoriesInputSchema = z.object({
   orderedCategoryIds: z.array(z.string().min(1)).min(1).max(50),
 })
 export type ReorderCategoriesInput = z.infer<typeof reorderCategoriesInputSchema>
+
+// ---------------------------------------------------------------
+// Contributors (R.7.4)
+// ---------------------------------------------------------------
+
+export const inviteContributorInputSchema = z.object({
+  categoryId: z.string().min(1),
+  userId: z.string().min(1),
+})
+export type InviteContributorInput = z.infer<typeof inviteContributorInputSchema>
+
+export const removeContributorInputSchema = z.object({
+  categoryId: z.string().min(1),
+  userId: z.string().min(1),
+})
+export type RemoveContributorInput = z.infer<typeof removeContributorInputSchema>

@@ -54,6 +54,8 @@ export {
 
 export { archiveLibraryCategoryAction } from './server/actions/archive-category'
 export { createLibraryCategoryAction } from './server/actions/create-category'
+export { inviteContributorAction } from './server/actions/invite-contributor'
+export { removeContributorAction } from './server/actions/remove-contributor'
 export { reorderLibraryCategoriesAction } from './server/actions/reorder-categories'
 export { updateLibraryCategoryAction } from './server/actions/update-category'
 
@@ -64,6 +66,7 @@ export { updateLibraryCategoryAction } from './server/actions/update-category'
 export { ArchiveCategoryButton } from './ui/admin/archive-category-button'
 export { CategoryFormDialog } from './ui/admin/category-form-dialog'
 export { CategoryListAdmin } from './ui/admin/category-list-admin'
+export { ContributorsDialog } from './ui/admin/contributors-dialog'
 export {
   contributionPolicyDescription,
   contributionPolicyLabel,

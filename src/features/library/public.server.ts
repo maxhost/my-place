@@ -16,6 +16,7 @@ export {
   findLibraryCategoryBySlug,
   listCategoryContributorUserIds,
   listCategoryContributors,
+  listContributorsByCategoryIds,
   listLibraryCategories,
   type ListLibraryCategoriesOptions,
 } from './server/queries'

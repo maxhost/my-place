@@ -206,3 +206,49 @@ export async function listCategoryContributorUserIds(categoryId: string): Promis
   })
   return rows.map((r) => r.userId)
 }
+
+/**
+ * Batch query: contributors agrupados por `categoryId`. Usada por la
+ * page admin para precargar la lista de todas las categorías
+ * `DESIGNATED` sin N+1.
+ *
+ * Devuelve un `Map<categoryId, contributors[]>`. Categorías sin
+ * contributors no aparecen en el Map (caller chequea
+ * `map.get(id) ?? []`).
+ */
+export async function listContributorsByCategoryIds(
+  categoryIds: ReadonlyArray<string>,
+): Promise<Map<string, LibraryCategoryContributor[]>> {
+  if (categoryIds.length === 0) return new Map()
+  const rows = await prisma.libraryCategoryContributor.findMany({
+    where: { categoryId: { in: [...categoryIds] } },
+    orderBy: { invitedAt: 'asc' },
+    select: {
+      categoryId: true,
+      userId: true,
+      invitedAt: true,
+      invitedByUserId: true,
+      user: {
+        select: { displayName: true, avatarUrl: true },
+      },
+      invitedBy: {
+        select: { displayName: true },
+      },
+    },
+  })
+  const map = new Map<string, LibraryCategoryContributor[]>()
+  for (const r of rows) {
+    const existing = map.get(r.categoryId) ?? []
+    existing.push({
+      categoryId: r.categoryId,
+      userId: r.userId,
+      displayName: r.user.displayName,
+      avatarUrl: r.user.avatarUrl,
+      invitedAt: r.invitedAt,
+      invitedByUserId: r.invitedByUserId,
+      invitedByDisplayName: r.invitedBy.displayName,
+    })
+    map.set(r.categoryId, existing)
+  }
+  return map
+}

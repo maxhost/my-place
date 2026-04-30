@@ -1,12 +1,16 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
+import { listActiveMembers } from '@/features/members/public.server'
 import {
   CategoryFormDialog,
   CategoryListAdmin,
   MAX_CATEGORIES_PER_PLACE,
 } from '@/features/library/public'
-import { listLibraryCategories } from '@/features/library/public.server'
+import {
+  listContributorsByCategoryIds,
+  listLibraryCategories,
+} from '@/features/library/public.server'
 
 export const metadata: Metadata = {
   title: 'Biblioteca · Settings',
@@ -17,19 +21,17 @@ type Props = {
 }
 
 /**
- * Settings de Biblioteca (R.7.3) — admin CRUD de categorías.
+ * Settings de Biblioteca (R.7.3 + R.7.4) — admin CRUD de categorías y
+ * gestión de contribuidores designated.
  *
- * Gate admin/owner heredado del layout `/settings/layout.tsx`. El page
- * lista categorías activas + ofrece "Nueva categoría" en el header.
+ * Gate admin/owner heredado del layout `/settings/layout.tsx`. Carga
+ * en paralelo: categorías activas + members activos + contributors
+ * de las categorías DESIGNATED (batch query, sin N+1).
  *
- * Editar y Archivar viven inline en cada row del `<CategoryListAdmin>`.
- * Reordering manual queda diferido a R.7.3.X (sin `@dnd-kit` todavía).
+ * Reordering manual queda diferido a R.7.3.X. Restore de archivadas
+ * a R.7.X+.
  *
- * Las archivadas NO se muestran en este listado v1 — admin que
- * quiera restaurar tiene que tocar DB. R.7.3.X+ podría sumar tab
- * "Archivadas" con botón restore.
- *
- * Ver `docs/features/library/spec.md` § 14.3.
+ * Ver `docs/features/library/spec.md` § 14.3 + § 14.4.
  */
 export default async function SettingsLibraryPage({ params }: Props) {
   const { placeSlug } = await params
@@ -39,7 +41,23 @@ export default async function SettingsLibraryPage({ params }: Props) {
     notFound()
   }
 
-  const categories = await listLibraryCategories(place.id)
+  const [categories, activeMembers] = await Promise.all([
+    listLibraryCategories(place.id),
+    listActiveMembers(place.id),
+  ])
+
+  const designatedIds = categories
+    .filter((c) => c.contributionPolicy === 'DESIGNATED')
+    .map((c) => c.id)
+  const contributorsByCategory = await listContributorsByCategoryIds(designatedIds)
+
+  const memberOptions = activeMembers.map((m) => ({
+    userId: m.userId,
+    displayName: m.user.displayName,
+    avatarUrl: m.user.avatarUrl,
+    handle: m.user.handle,
+  }))
+
   const remaining = MAX_CATEGORIES_PER_PLACE - categories.length
   const canCreateMore = remaining > 0
 
@@ -76,7 +94,11 @@ export default async function SettingsLibraryPage({ params }: Props) {
           )}
         </div>
 
-        <CategoryListAdmin categories={categories} />
+        <CategoryListAdmin
+          categories={categories}
+          members={memberOptions}
+          contributorsByCategory={contributorsByCategory}
+        />
       </section>
     </div>
   )
