@@ -33,3 +33,26 @@ export function revalidateLibraryItemPaths(
   revalidatePath(`/${placeSlug}/conversations`)
   revalidatePath(`/${placeSlug}/conversations/${postSlug}`)
 }
+
+/**
+ * Stringify defensivo para diagnóstico — captura functions, symbols,
+ * circular refs (caso edge raro de SSR action input). Trunca a `maxLen`
+ * para no inundar logs.
+ */
+export function safeStringify(value: unknown, maxLen = 4000): string {
+  try {
+    const seen = new WeakSet<object>()
+    const out = JSON.stringify(value, (_key, v) => {
+      if (typeof v === 'function') return `[Function: ${v.name || 'anonymous'}]`
+      if (typeof v === 'symbol') return `[Symbol: ${v.toString()}]`
+      if (typeof v === 'object' && v !== null) {
+        if (seen.has(v)) return '[Circular]'
+        seen.add(v)
+      }
+      return v
+    })
+    return out.length > maxLen ? out.slice(0, maxLen) + `…(truncated, total=${out.length})` : out
+  } catch (err) {
+    return `[stringify-failed: ${err instanceof Error ? err.message : String(err)}]`
+  }
+}

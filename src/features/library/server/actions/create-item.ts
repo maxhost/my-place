@@ -13,7 +13,7 @@ import {
 import { canCreateInCategory, validateItemCoverUrl } from '@/features/library/public'
 import { createItemInputSchema } from '@/features/library/schemas'
 import { listCategoryContributorUserIds } from '../queries'
-import { revalidateLibraryItemPaths } from './shared'
+import { revalidateLibraryItemPaths, safeStringify } from './shared'
 
 /**
  * Crea un item de biblioteca: thread documento (Post) + LibraryItem
@@ -43,6 +43,8 @@ export async function createLibraryItemAction(
       {
         event: 'libraryItemCreateValidationFailed',
         issues: parsed.error.issues,
+        // Body raw (truncado a 4KB) para ver el shape exacto que falló.
+        bodyRaw: safeStringify((input as { body?: unknown })?.body, 4000),
       },
       'createLibraryItemAction zod validation failed',
     )

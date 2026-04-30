@@ -58,22 +58,21 @@ export function EmbedToolbar({ editor }: Props): React.ReactNode {
     try {
       const parsed = parseEmbedUrl(trimmedUrl)
       const trimmedTitle = title.trim()
-      editor
-        .chain()
-        .focus()
-        .insertContent({
-          type: 'embed',
-          attrs: {
-            // Persistimos la URL canonical (post-parse) en el AST: para
-            // YouTube/Vimeo/Gdoc/Gsheet ya viene en formato embed.
-            // Drive/Dropbox/generic la dejan tal cual. Beneficio: el
-            // renderer SSR no necesita re-parsear por cada render.
-            url: parsed.canonicalUrl,
-            provider: parsed.provider,
-            title: trimmedTitle,
-          },
-        })
-        .run()
+      const attrs = {
+        // Persistimos la URL canonical (post-parse) en el AST: para
+        // YouTube/Vimeo/Gdoc/Gsheet ya viene en formato embed.
+        // Drive/Dropbox/generic la dejan tal cual. Beneficio: el
+        // renderer SSR no necesita re-parsear por cada render.
+        url: parsed.canonicalUrl,
+        provider: parsed.provider,
+        title: trimmedTitle,
+      }
+      console.log('[EmbedToolbar] insertContent', { type: 'embed', attrs })
+      editor.chain().focus().insertContent({ type: 'embed', attrs }).run()
+      // Inspeccionamos el AST resultante post-insert para confirmar
+      // que el nodo quedó con `attrs` plano (no function).
+      const json = editor.getJSON()
+      console.log('[EmbedToolbar] AST post-insert', json)
       setOpen(false)
       reset()
     } catch (err) {
