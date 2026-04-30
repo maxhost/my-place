@@ -16,11 +16,9 @@
 
 export type {
   ContributionPolicy,
-  DocType, // @deprecated R.7 — retenido para compat con componentes R.5
   ItemAuthorSnapshot,
   LibraryCategory,
   LibraryCategoryContributor,
-  LibraryDoc, // @deprecated R.7 — retenido para compat con componentes R.5
   LibraryItemDetailView,
   LibraryItemListView,
 } from './domain/types'
@@ -108,11 +106,9 @@ export { LibraryItemHeader } from './ui/library-item-header'
 export { CategoryCard } from './ui/category-card'
 export { CategoryGrid } from './ui/category-grid'
 export { CategoryHeaderBar } from './ui/category-header-bar'
-export { DocList } from './ui/doc-list'
-export { EmptyDocList } from './ui/empty-doc-list'
+export { EmptyItemList } from './ui/empty-item-list'
 export { EmptyLibrary } from './ui/empty-library'
-export { FileIcon } from './ui/file-icon'
+export { ItemList } from './ui/item-list'
+export { LibraryItemRow } from './ui/library-item-row'
 export { LibrarySectionHeader } from './ui/library-section-header'
-export { RecentDocRow } from './ui/recent-doc-row'
 export { RecentsList } from './ui/recents-list'
-export { TypeFilterPills } from './ui/type-filter-pills'

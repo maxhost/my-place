@@ -89,9 +89,9 @@ export type ItemAuthorSnapshot = {
 }
 
 /**
- * Vista de listado: una row del item para `<RecentDocRow>` o
- * `<DocList>`. Combina LibraryItem + Post.title + Post.lastActivityAt
- * + Post.slug + author snapshot — el thread documento ES el item.
+ * Vista de listado: una row del item para `<LibraryItemRow>` (R.7).
+ * Combina LibraryItem + Post.title + Post.lastActivityAt + Post.slug
+ * + author snapshot — el thread documento ES el item.
  */
 export type LibraryItemListView = {
   id: string
@@ -140,33 +140,4 @@ export type LibraryItemDetailView = {
   updatedAt: Date
   postCreatedAt: Date
   postLastActivityAt: Date
-}
-
-// ---------------------------------------------------------------
-// Tipos R.5 retenidos para compat (se replantean en R.7.5+)
-// ---------------------------------------------------------------
-
-/**
- * @deprecated R.7: el discriminador `pdf|link|image|doc|sheet` se
- * reemplaza por embed providers en `Post.body` AST. Tipo conservado
- * para que componentes UI R.5 (`<FileIcon>`, `<TypeFilterPills>`)
- * sigan compilando hasta que R.7.5+ los renombre/elimine.
- */
-export type DocType = 'pdf' | 'link' | 'image' | 'doc' | 'sheet'
-
-/**
- * @deprecated R.7: reemplazado por `LibraryItem` (R.7.5+).
- * Componentes UI R.5 (`<RecentDocRow>`, `<DocList>`) usan este shape
- * con mock data.
- */
-export type LibraryDoc = {
-  id: string
-  slug: string
-  categorySlug: string
-  categoryTitle: string
-  type: DocType
-  title: string
-  uploadedAt: Date
-  uploadedByDisplayName: string
-  url: string
 }

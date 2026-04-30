@@ -1,45 +1,50 @@
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
+import { resolveViewerForPlace } from '@/features/discussions/public.server'
 import {
   CategoryGrid,
   EmptyLibrary,
   LibrarySectionHeader,
   RecentsList,
-  type LibraryCategory,
-  type LibraryDoc,
 } from '@/features/library/public'
+import { listLibraryCategories, listRecentItems } from '@/features/library/public.server'
 
 type Props = { params: Promise<{ placeSlug: string }> }
 
 /**
- * Zona raíz de la Biblioteca (R.5 — UI scaffold sin backend).
+ * Zona raíz de la Biblioteca (R.7.10 — backend conectado).
  *
- * Estructura JSX completa con conditionals para que cuando exista el
- * backend (R.5.X follow-up) solo cambie la fuente de datos —
- * componentes y layout intactos:
+ * Estructura JSX intacta vs R.5: solo cambia la fuente de datos. Carga
+ * en paralelo: viewer + categorías activas + items recientes.
  *
- *   const categories = await listLibraryCategories(place.id)
- *   const recents = await listRecentDocs(place.id)
+ * Renderiza:
+ *   - LibrarySectionHeader (siempre).
+ *   - CategoryGrid si hay categorías; si no, EmptyLibrary (con CTA
+ *     condicional para admin → /settings/library).
+ *   - RecentsList si hay items recientes (top-5).
  *
- * Hoy `categories` y `recents` son arrays vacíos hardcoded → el user
- * ve `<EmptyLibrary>` en producción. Decisión user 2026-04-30 (sin
- * stubs de queries; UI pura hasta que el backend exista de verdad).
- *
- * Ver `docs/features/library/spec.md` § 4.
+ * Ver `docs/features/library/spec.md` § 4 + § 6.
  */
 export default async function LibraryPage({ params }: Props) {
   const { placeSlug } = await params
   const place = await loadPlaceBySlug(placeSlug)
   if (!place) notFound()
 
-  const categories: LibraryCategory[] = []
-  const recents: LibraryDoc[] = []
+  const [viewer, categories, recents] = await Promise.all([
+    resolveViewerForPlace({ placeSlug }),
+    listLibraryCategories(place.id),
+    listRecentItems(place.id, { limit: 5 }),
+  ])
 
   return (
     <section className="flex flex-col gap-4 px-3 py-6">
       <LibrarySectionHeader />
-      {categories.length === 0 ? <EmptyLibrary /> : <CategoryGrid categories={categories} />}
-      {recents.length > 0 ? <RecentsList docs={recents} /> : null}
+      {categories.length === 0 ? (
+        <EmptyLibrary canManageCategories={viewer.isAdmin} />
+      ) : (
+        <CategoryGrid categories={categories} />
+      )}
+      {recents.length > 0 ? <RecentsList items={recents} /> : null}
     </section>
   )
 }
