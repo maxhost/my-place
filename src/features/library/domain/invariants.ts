@@ -137,6 +137,17 @@ export function assertCategoryCapacity(currentCount: number): void {
 export const ITEM_COVER_URL_MAX_LENGTH = 2000
 
 /**
+ * Caps de título del item. El item es un Post (R.7.6+) y el server
+ * valida con POST_TITLE_* de discussions. Replicamos los valores acá
+ * para que la UI client-side no arrastre `discussions/public` (que
+ * tiene exports server-only y rompe el bundle cliente). Si el cap
+ * cambia en discussions, hay que actualizar acá también — los
+ * mantengo en sync explícitamente.
+ */
+export const ITEM_TITLE_MIN_LENGTH = 1
+export const ITEM_TITLE_MAX_LENGTH = 160
+
+/**
  * Valida que `coverUrl` sea un http(s):// válido y no exceda el cap.
  * Retorna sin error si es null (cover opcional).
  */

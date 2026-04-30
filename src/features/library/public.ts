@@ -56,6 +56,8 @@ export {
   CATEGORY_TITLE_MAX_LENGTH,
   CATEGORY_TITLE_MIN_LENGTH,
   ITEM_COVER_URL_MAX_LENGTH,
+  ITEM_TITLE_MAX_LENGTH,
+  ITEM_TITLE_MIN_LENGTH,
   MAX_CATEGORIES_PER_PLACE,
   validateItemCoverUrl,
 } from './domain/invariants'
@@ -92,10 +94,12 @@ export { friendlyLibraryErrorMessage } from './ui/admin/errors'
 // UI components — Server Components salvo `<TypeFilterPills>`
 // ---------------------------------------------------------------
 
-// Embed extension + toolbar para usar en TipTap editor (R.7.8 los consume)
+// Embed extension + toolbar + editor + form (R.7.7 + R.7.8)
 export { EmbedNodeExtension } from './ui/embed-node/extension'
 export { EmbedNodeView } from './ui/embed-node/node-view'
 export { EmbedToolbar } from './ui/embed-toolbar'
+export { LibraryItemEditor } from './ui/library-item-editor'
+export { LibraryItemForm } from './ui/library-item-form'
 
 export { CategoryCard } from './ui/category-card'
 export { CategoryGrid } from './ui/category-grid'
