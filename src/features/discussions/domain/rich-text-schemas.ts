@@ -118,6 +118,7 @@ const richTextBlockNodeSchema: RichTextBlockZ = z.lazy(() =>
     orderedListSchema,
     blockquoteSchema,
     codeBlockSchema,
+    embedNodeSchema,
   ]),
 )
 
@@ -168,6 +169,25 @@ const codeBlockSchema = z
   .object({
     type: z.literal('codeBlock'),
     content: z.array(codeBlockTextNodeSchema).max(128).optional(),
+  })
+  .strict()
+
+// Embed: block atomic genérico para insertar contenido externo (videos,
+// docs, links). Es block genérico de TipTap, no específico de un slice
+// — library lo usa hoy, pero discusiones u otros podrían sumarlo en el
+// futuro sin tocar este schema. Las reglas de provider/host viven en
+// `library/domain/embed-parser.ts`; acá solo validamos shape estructural
+// + URL https.
+const embedNodeSchema = z
+  .object({
+    type: z.literal('embed'),
+    attrs: z
+      .object({
+        url: allowedUrlSchema,
+        provider: z.enum(['youtube', 'vimeo', 'gdoc', 'gsheet', 'drive', 'dropbox', 'generic']),
+        title: z.string().max(160).optional().default(''),
+      })
+      .strict(),
   })
   .strict()
 

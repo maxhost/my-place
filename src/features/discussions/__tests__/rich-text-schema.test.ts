@@ -250,3 +250,78 @@ describe('richTextDocumentSchema — rechazos por construcción', () => {
     expect(richTextDocumentSchema.safeParse(input).success).toBe(false)
   })
 })
+
+describe('richTextDocumentSchema — embed node (R.7.7)', () => {
+  it('acepta doc con un solo embed YouTube válido', () => {
+    const input = doc([
+      {
+        type: 'embed',
+        attrs: {
+          url: 'https://www.youtube.com/embed/abc123',
+          provider: 'youtube',
+          title: 'Lección 1',
+        },
+      },
+    ])
+    expect(richTextDocumentSchema.safeParse(input).success).toBe(true)
+  })
+
+  it('acepta texto + embed intercalado (curso con lecciones)', () => {
+    const input = doc([
+      { type: 'paragraph', content: [{ type: 'text', text: 'Lección 1:' }] },
+      {
+        type: 'embed',
+        attrs: { url: 'https://www.youtube.com/embed/abc', provider: 'youtube', title: '' },
+      },
+      { type: 'paragraph', content: [{ type: 'text', text: 'Lección 2:' }] },
+      {
+        type: 'embed',
+        attrs: { url: 'https://www.youtube.com/embed/xyz', provider: 'youtube', title: 'Pasos' },
+      },
+    ])
+    expect(richTextDocumentSchema.safeParse(input).success).toBe(true)
+  })
+
+  it('rechaza embed sin attrs', () => {
+    const input = doc([{ type: 'embed' }])
+    expect(richTextDocumentSchema.safeParse(input).success).toBe(false)
+  })
+
+  it('rechaza embed con provider inventado', () => {
+    const input = doc([
+      { type: 'embed', attrs: { url: 'https://x.com', provider: 'tiktok', title: '' } },
+    ])
+    expect(richTextDocumentSchema.safeParse(input).success).toBe(false)
+  })
+
+  it('rechaza embed con URL javascript:', () => {
+    const input = doc([
+      {
+        type: 'embed',
+        attrs: { url: 'javascript:alert(1)', provider: 'generic', title: '' },
+      },
+    ])
+    expect(richTextDocumentSchema.safeParse(input).success).toBe(false)
+  })
+
+  it('acepta los 7 providers válidos', () => {
+    const providers = ['youtube', 'vimeo', 'gdoc', 'gsheet', 'drive', 'dropbox', 'generic']
+    for (const provider of providers) {
+      const input = doc([
+        {
+          type: 'embed',
+          attrs: { url: 'https://example.com/foo', provider, title: '' },
+        },
+      ])
+      expect(
+        richTextDocumentSchema.safeParse(input).success,
+        `provider ${provider} debería ser válido`,
+      ).toBe(true)
+    }
+  })
+
+  it('post sin embed sigue válido (no rompe schema base)', () => {
+    const input = doc([{ type: 'paragraph', content: [{ type: 'text', text: 'Solo texto.' }] }])
+    expect(richTextDocumentSchema.safeParse(input).success).toBe(true)
+  })
+})

@@ -28,6 +28,13 @@ export type {
 export { CONTRIBUTION_POLICY_VALUES } from './domain/types'
 
 // ---------------------------------------------------------------
+// Embed parser + provider type (R.7.7)
+// ---------------------------------------------------------------
+
+export type { EmbedProvider, ParsedEmbed } from './domain/embed-parser'
+export { EMBED_PROVIDERS, parseEmbedUrl } from './domain/embed-parser'
+
+// ---------------------------------------------------------------
 // Permissions — funciones puras reusables (UI + server)
 // ---------------------------------------------------------------
 
@@ -84,6 +91,11 @@ export { friendlyLibraryErrorMessage } from './ui/admin/errors'
 // ---------------------------------------------------------------
 // UI components — Server Components salvo `<TypeFilterPills>`
 // ---------------------------------------------------------------
+
+// Embed extension + toolbar para usar en TipTap editor (R.7.8 los consume)
+export { EmbedNodeExtension } from './ui/embed-node/extension'
+export { EmbedNodeView } from './ui/embed-node/node-view'
+export { EmbedToolbar } from './ui/embed-toolbar'
 
 export { CategoryCard } from './ui/category-card'
 export { CategoryGrid } from './ui/category-grid'
