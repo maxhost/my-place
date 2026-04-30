@@ -1119,7 +1119,7 @@ Estructura top-down:
   - 3 pills: `Todos` (default activo), `Sin respuesta`, `En los que participo`.
   - Gap 6px, padding 8/14, radius 999, `font-body text-[13px] font-medium`.
   - Active: `bg-text text-bg`. Inactive: transparent + `text-muted` + `border-[0.5px] border-border`.
-  - **Estado R.6**: solo `Todos` funcional. `Sin respuesta` y `En los que participo` con `aria-disabled="true"` + `title="Próximamente"`. Filtros reales = R.6.X follow-up.
+  - **Estado** (R.6 follow-up 2026-04-30): los 3 pills funcionales. Estado en URL `?filter=`. Ver § 21.4.
 
 - **Featured thread** (`<FeaturedThreadCard>`, primer post por `lastActivityAt`):
   - Card con `bg-surface border-[0.5px] border-border rounded-[18px] p-[18px]`, margin 14px 12px.
@@ -1186,11 +1186,54 @@ Estructura top-down (todo dentro del shell viewport):
 - **Pull-to-refresh**: SKIP (igual que el macro handoff sugiere).
 - **Overflow menu** del header detail: usa `<PostAdminMenu>` existente (admin only), no construye menu nuevo. Para non-admin queda vacío en R.6 (futuro: Reportar/Silenciar).
 
-### 21.4 Filter pills (estado de implementación R.6)
+### 21.4 Filter pills (R.6 follow-up cerrado 2026-04-30)
 
-- **`Todos`**: funcional inmediato (default, sin filter arg al query).
-- **`Sin respuesta`** + **`En los que participo`**: UI visible pero `aria-disabled="true"` + `title="Próximamente"`. NO se hace click-fetch en R.6 — los pills son solo decorativos hasta el follow-up.
-- **R.6.X follow-up**: extender `listPostsByPlace` para aceptar `filter: 'all' | 'unanswered' | 'participating'`. `Sin respuesta` = `commentCount === 0`. `En los que participo` = viewer es autor del post O viewer hizo al menos un comment activo. Tests + ADR si producto prioriza.
+**Estado actual** (commits `b619429` backend + frontend follow-up):
+
+- **`Todos`** (default): sin query param. URL limpia: `/conversations`.
+- **`Sin respuesta`** (`unanswered`): posts sin comments activos
+  (`comments: { none: { deletedAt: null } }`). URL: `/conversations?filter=unanswered`.
+- **`En los que participo`** (`participating`): viewer es autor del
+  post O hizo al menos un comment activo. URL:
+  `/conversations?filter=participating`. Requiere viewer autenticado;
+  defensive empty list si se invoca sin viewer.
+
+**Arquitectura del filter**:
+
+- URL query param `?filter=` como source of truth (no React state
+  local). Server lee con `searchParams`, SSR-renderea la lista
+  filtrada. Browser back/forward + refresh + links compartibles
+  funcionan.
+- `parsePostListFilter` en `discussions/domain/filter.ts` (Zod enum
+  `.catch('all')`) defensivo para inputs inválidos en URL.
+- `<ThreadFilterPills>` Client Component lee con `useSearchParams` y
+  actualiza con `router.replace` (no `push` — el filter cambia view de
+  la misma "página", browser back debe salir a la zona anterior).
+- `listPostsByPlace` acepta `filter?: PostListFilter`. Helper
+  `buildFilterWhere` construye el where parcial. Cursor + filter
+  coexisten — paginación preserva el filter.
+- `loadMorePostsAction` schema acepta `filter` opcional.
+  `<LoadMorePosts>` lo propaga en cada page.
+- `<EmptyThreads>` acepta `filter` prop y rota copy + CTA según el
+  filter activo. Solo `all` mantiene CTA "Nueva discusión"; los otros
+  son "estás al día" calmos.
+
+**Tests**:
+
+- Unit: `filter.test.ts` (parse defensivo) +
+  `list-posts-filter.test.ts` (3 cases del where) +
+  `thread-filter-pills.test.tsx` (URL state + click + a11y).
+- E2E: opcional, defer.
+
+**Performance**:
+
+- `unanswered` → `NOT EXISTS Comment` subquery, cubierto por índice
+  `Comment(postId)`.
+- `participating` → `OR + EXISTS` subquery con `authorUserId`. Para
+  150 members, OK con partial indices existentes en migrations.
+  Si EXPLAIN muestra seq scan en producción, agregar migration con
+  composite index `Comment(authorUserId, postId, deletedAt)` —
+  documentar en gotchas.
 
 ### 21.5 Data shape extendida (`PostListView` en `domain/types.ts`)
 
@@ -1267,9 +1310,10 @@ anotación acá no es decisión, es memoria.
   settings + no chocar con swipe). Solo zonas root vía
   `isZoneRootPath`. Specs en `docs/features/shell/spec.md` § 17 + ADR
   `docs/decisions/2026-04-26-zone-fab.md`.
-- **Filtros reales en `<ThreadFilterPills>`** — extender `listPostsByPlace`
-  para aceptar `filter: 'all' | 'unanswered' | 'mine'` y desbloquear las
-  pills hoy `aria-disabled`. Spec menor + extensión de tests del query.
+- **Filtros reales en `<ThreadFilterPills>`** ✅ (R.6 follow-up,
+  2026-04-30). Extendido `listPostsByPlace` con `filter: 'all' |
+'unanswered' | 'participating'`. Estado en URL query param.
+  Empty states contextualizados. Ver § 21.4.
 - **Featured admin pinning** — alternativa al heurístico actual (primer
   post por `lastActivityAt`). Requiere schema change (`Post.pinnedAt` o
   similar) + UI en admin overflow + ADR propio. Diferido salvo que producto

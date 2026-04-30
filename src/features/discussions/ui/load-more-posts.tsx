@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import type { PostListFilter } from '../domain/filter'
 import type { PostListView } from '../domain/types'
 import { loadMorePostsAction } from '../server/actions/load-more'
 import type { SerializedCursor } from '../server/actions/load-more'
@@ -10,9 +11,11 @@ import { friendlyErrorMessage } from './utils'
 export function LoadMorePosts({
   placeId,
   initialCursor,
+  filter = 'all',
 }: {
   placeId: string
   initialCursor: SerializedCursor
+  filter?: PostListFilter
 }): React.ReactNode {
   const [items, setItems] = useState<PostListView[]>([])
   const [cursor, setCursor] = useState<SerializedCursor | null>(initialCursor)
@@ -24,7 +27,10 @@ export function LoadMorePosts({
     setError(null)
     startTransition(async () => {
       try {
-        const res = await loadMorePostsAction({ placeId, cursor })
+        // Filter activo se propaga en cada page para que la paginación
+        // siga el mismo conjunto filtrado. Sin esto, page 2 mostraría
+        // posts que no matchean el filter de page 1.
+        const res = await loadMorePostsAction({ placeId, cursor, filter })
         setItems((prev) => [...prev, ...res.items])
         setCursor(res.nextCursor)
       } catch (err) {

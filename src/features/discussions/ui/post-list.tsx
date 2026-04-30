@@ -1,3 +1,4 @@
+import type { PostListFilter } from '../domain/filter'
 import type { PostListView } from '../domain/types'
 import { ThreadsSectionHeader } from './threads-section-header'
 import { ThreadFilterPills } from './thread-filter-pills'
@@ -30,10 +31,12 @@ export function PostList({
   placeId,
   items,
   nextCursor,
+  filter = 'all',
 }: {
   placeId: string
   items: PostListView[]
   nextCursor: { createdAt: string; id: string } | null
+  filter?: PostListFilter
 }): React.ReactNode {
   // Featured = primer post según lo marcado por listPostsByPlace
   // (heurística: idx===0 && !cursor). Después del primero, todo va como
@@ -46,7 +49,7 @@ export function PostList({
       <ThreadsSectionHeader />
       <ThreadFilterPills />
       {items.length === 0 ? (
-        <EmptyThreads />
+        <EmptyThreads filter={filter} />
       ) : (
         <>
           {featured ? <FeaturedThreadCard post={featured} /> : null}
@@ -57,7 +60,9 @@ export function PostList({
               ))}
             </div>
           ) : null}
-          {nextCursor ? <LoadMorePosts placeId={placeId} initialCursor={nextCursor} /> : null}
+          {nextCursor ? (
+            <LoadMorePosts placeId={placeId} initialCursor={nextCursor} filter={filter} />
+          ) : null}
         </>
       )}
     </section>
