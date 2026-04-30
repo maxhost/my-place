@@ -107,7 +107,10 @@ export function PostComposer({ mode }: Props): React.ReactNode {
           const result = await createPostAction(parsed.data)
           reset({ title: '' })
           setBody(null)
-          router.push(`/conversations/${result.slug}`)
+          // `replace` (no `push`): el form `/conversations/new` queda
+          // obsoleto tras el submit. Reemplazar evita que el BackButton
+          // del thread recién creado vuelva al form vacío.
+          router.replace(`/conversations/${result.slug}`)
         } catch (err) {
           setFeedback({ kind: 'err', message: friendlyErrorMessage(err) })
         }
@@ -130,7 +133,9 @@ export function PostComposer({ mode }: Props): React.ReactNode {
     startTransition(async () => {
       try {
         await editPostAction(parsed.data)
-        router.push(`/conversations/${mode.slug}`)
+        // `replace` por la misma razón que en create: el form
+        // `/conversations/new?edit=<id>` queda obsoleto tras editar.
+        router.replace(`/conversations/${mode.slug}`)
         router.refresh()
       } catch (err) {
         setFeedback({ kind: 'err', message: friendlyErrorMessage(err) })

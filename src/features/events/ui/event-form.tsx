@@ -132,7 +132,10 @@ export function EventForm({ mode, allowedTimezones, defaultTimezone }: Props): R
           })
           // F.F: el evento ES el thread; tras crear redirigimos al thread,
           // no a una page de detalle aparte.
-          router.push(`/conversations/${result.postSlug}`)
+          // `replace` (no `push`): el form `/events/new` queda obsoleto
+          // tras el submit exitoso. Reemplazar evita que el BackButton
+          // del thread vuelva al form.
+          router.replace(`/conversations/${result.postSlug}`)
         } else {
           await updateEventAction({
             eventId: mode.eventId,
@@ -145,7 +148,9 @@ export function EventForm({ mode, allowedTimezones, defaultTimezone }: Props): R
           })
           // F.F: redirect al thread del evento. Si por alguna razón defensiva
           // no hay postSlug (debería ser raro), volvemos al listado.
-          router.push(mode.postSlug ? `/conversations/${mode.postSlug}` : '/events')
+          // `replace` por la misma razón que en create: el form `/events/[id]
+          // /edit` queda obsoleto tras el submit.
+          router.replace(mode.postSlug ? `/conversations/${mode.postSlug}` : '/events')
           router.refresh()
         }
       } catch (err) {
