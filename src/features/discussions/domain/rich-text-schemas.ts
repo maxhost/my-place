@@ -97,7 +97,17 @@ const mentionNodeSchema = z
   })
   .strict()
 
-const richTextInlineNodeSchema = z.discriminatedUnion('type', [textNodeSchema, mentionNodeSchema])
+// hardBreak: salto de línea soft (Shift+Enter). TipTap lo inserta
+// automáticamente y StarterKit lo trae habilitado por default. Sin él
+// en el allowlist, cualquier post/item con un soft break falla la
+// validación Zod al guardar.
+const hardBreakNodeSchema = z.object({ type: z.literal('hardBreak') }).strict()
+
+const richTextInlineNodeSchema = z.discriminatedUnion('type', [
+  textNodeSchema,
+  mentionNodeSchema,
+  hardBreakNodeSchema,
+])
 
 // Text-only node (para codeBlock: sin marks ni mentions).
 const codeBlockTextNodeSchema = z

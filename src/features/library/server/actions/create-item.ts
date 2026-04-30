@@ -39,6 +39,13 @@ export async function createLibraryItemAction(
 ): Promise<{ ok: true; itemId: string; postSlug: string; categorySlug: string }> {
   const parsed = createItemInputSchema.safeParse(input)
   if (!parsed.success) {
+    logger.warn(
+      {
+        event: 'libraryItemCreateValidationFailed',
+        issues: parsed.error.issues,
+      },
+      'createLibraryItemAction zod validation failed',
+    )
     throw new ValidationError('Datos inválidos para crear item de biblioteca.', {
       issues: parsed.error.issues,
     })

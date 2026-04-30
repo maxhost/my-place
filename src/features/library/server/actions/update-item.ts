@@ -25,6 +25,13 @@ export async function updateLibraryItemAction(
 ): Promise<{ ok: true; itemId: string; postSlug: string; categorySlug: string }> {
   const parsed = updateItemInputSchema.safeParse(input)
   if (!parsed.success) {
+    logger.warn(
+      {
+        event: 'libraryItemUpdateValidationFailed',
+        issues: parsed.error.issues,
+      },
+      'updateLibraryItemAction zod validation failed',
+    )
     throw new ValidationError('Datos inválidos para actualizar item.', {
       issues: parsed.error.issues,
     })

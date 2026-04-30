@@ -96,7 +96,12 @@ export type RichTextEmbed = {
   }
 }
 
-export type RichTextInlineNode = RichTextText | RichTextMention
+export type RichTextInlineNode = RichTextText | RichTextMention | RichTextHardBreak
+
+/** Salto de línea soft (Shift+Enter en TipTap). Sin contenido. */
+export type RichTextHardBreak = {
+  type: 'hardBreak'
+}
 
 export type RichTextText = {
   type: 'text'

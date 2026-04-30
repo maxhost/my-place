@@ -204,6 +204,9 @@ function renderInlineNode(node: RichTextInlineNode, placeSlug?: string): ReactNo
     }
     return <span className="place-mention">{label}</span>
   }
+  if (node.type === 'hardBreak') {
+    return <br />
+  }
   return renderTextWithMarks(node)
 }
 
