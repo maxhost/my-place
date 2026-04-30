@@ -330,3 +330,61 @@ export async function insertTestRsvp(
   )
   return id
 }
+
+/* ========================================================================
+ * Helpers para slice `library` (R.7.1).
+ * ==================================================================== */
+
+export type ContributionPolicyValue = 'ADMIN_ONLY' | 'DESIGNATED' | 'MEMBERS_OPEN'
+
+export async function insertTestLibraryCategory(
+  client: PoolClient,
+  opts: {
+    placeId: string
+    slug?: string
+    title?: string
+    emoji?: string
+    contributionPolicy?: ContributionPolicyValue
+    archivedAt?: Date | null
+    position?: number | null
+    id?: string
+  },
+): Promise<string> {
+  const id = opts.id ?? rlsId('libcat_rls')
+  // Slugs deben matchear /^[a-z0-9]+(-[a-z0-9]+)*$/ — el rlsId() incluye `_`,
+  // así que normalizamos a guiones para satisfacer el CHECK constraint.
+  const slug = opts.slug ?? id.replace(/_/g, '-')
+  await client.query(
+    `INSERT INTO "LibraryCategory"
+       (id, "placeId", slug, emoji, title, "position", "contributionPolicy",
+        "archivedAt", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, $5, $6, $7::"ContributionPolicy", $8, NOW(), NOW())`,
+    [
+      id,
+      opts.placeId,
+      slug,
+      opts.emoji ?? '📚',
+      opts.title ?? 'RLS test category',
+      opts.position ?? null,
+      opts.contributionPolicy ?? 'ADMIN_ONLY',
+      opts.archivedAt ?? null,
+    ],
+  )
+  return id
+}
+
+export async function insertTestLibraryContributor(
+  client: PoolClient,
+  opts: {
+    categoryId: string
+    userId: string
+    invitedByUserId: string
+  },
+): Promise<void> {
+  await client.query(
+    `INSERT INTO "LibraryCategoryContributor"
+       ("categoryId", "userId", "invitedByUserId", "invitedAt")
+     VALUES ($1, $2, $3, NOW())`,
+    [opts.categoryId, opts.userId, opts.invitedByUserId],
+  )
+}
