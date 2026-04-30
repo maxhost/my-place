@@ -79,21 +79,31 @@ export function LibraryItemForm({ mode }: Props): React.ReactNode {
   })
 
   function onSubmit(values: FormValues): void {
+    console.log('[LibraryItemForm] onSubmit START')
     setFeedback(null)
     const trimmedTitle = values.title.trim()
     const coverUrl = values.coverUrl.trim() === '' ? null : values.coverUrl.trim()
 
-    // Logs de diagnóstico (R.7.X debugging). Visibles en DevTools
-    // Console del browser. Imprimimos el body shape exacto que se
-    // envía al server — útil para identificar nodos TipTap fuera del
-    // allowlist (hardBreak, attrs extra, etc.) si la validación Zod
-    // del server falla con "Datos inválidos".
+    // Defensa: serializar el body a JSON puro antes de mandarlo al
+    // server action. TipTap puede retornar un AST con getters/proxies
+    // (las attrs del custom node embed se persistían como function en
+    // bodyRaw del server log). JSON.parse(JSON.stringify(...)) strippea
+    // cualquier function/getter/proxy y deja un objeto plano serializable.
+    let bodyJson: RichTextDoc
+    try {
+      bodyJson = JSON.parse(JSON.stringify(body)) as RichTextDoc
+    } catch (err) {
+      console.error('[LibraryItemForm] body JSON serialize failed', err)
+      setFeedback({ kind: 'err', message: 'No pudimos serializar el contenido. Reintentá.' })
+      return
+    }
+
     console.log('[LibraryItemForm] submit', {
       mode: mode.kind,
       title: trimmedTitle,
       coverUrl,
-      bodyTypes: collectNodeTypes(body),
-      body,
+      bodyTypes: collectNodeTypes(bodyJson),
+      body: bodyJson,
     })
 
     startTransition(async () => {
@@ -103,7 +113,7 @@ export function LibraryItemForm({ mode }: Props): React.ReactNode {
             placeId: mode.placeId,
             categoryId: mode.categoryId,
             title: trimmedTitle,
-            body,
+            body: bodyJson,
             coverUrl,
           })
           console.log('[LibraryItemForm] create OK', result)
@@ -112,7 +122,7 @@ export function LibraryItemForm({ mode }: Props): React.ReactNode {
           const result = await updateLibraryItemAction({
             itemId: mode.itemId,
             title: trimmedTitle,
-            body,
+            body: bodyJson,
             coverUrl,
           })
           console.log('[LibraryItemForm] update OK', result)
