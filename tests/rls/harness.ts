@@ -388,3 +388,34 @@ export async function insertTestLibraryContributor(
     [opts.categoryId, opts.userId, opts.invitedByUserId],
   )
 }
+
+export async function insertTestLibraryItem(
+  client: PoolClient,
+  opts: {
+    placeId: string
+    categoryId: string
+    postId: string
+    authorUserId: string | null
+    coverUrl?: string | null
+    archivedAt?: Date | null
+    id?: string
+  },
+): Promise<string> {
+  const id = opts.id ?? rlsId('libitem_rls')
+  await client.query(
+    `INSERT INTO "LibraryItem"
+       (id, "placeId", "categoryId", "postId", "authorUserId", "coverUrl",
+        "archivedAt", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`,
+    [
+      id,
+      opts.placeId,
+      opts.categoryId,
+      opts.postId,
+      opts.authorUserId,
+      opts.coverUrl ?? null,
+      opts.archivedAt ?? null,
+    ],
+  )
+  return id
+}

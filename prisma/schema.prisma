@@ -32,6 +32,7 @@ model User {
 
   libraryContributions        LibraryCategoryContributor[] @relation("LibraryContributor")
   libraryContributionsInvited LibraryCategoryContributor[] @relation("LibraryContributorInvitedBy")
+  libraryItemsAuthored        LibraryItem[]                @relation("LibraryItemAuthor")
 }
 
 model Place {
@@ -64,6 +65,7 @@ model Place {
   events      Event[]
 
   libraryCategories LibraryCategory[]
+  libraryItems      LibraryItem[]
 }
 
 model Membership {
@@ -164,14 +166,19 @@ model Post {
   lastActivityAt DateTime  @default(now())
   version        Int       @default(0)
 
-  place    Place      @relation(fields: [placeId], references: [id], onDelete: Restrict)
-  author   User?      @relation("PostAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
-  comments Comment[]
-  reads    PostRead[]
+  place       Place        @relation(fields: [placeId], references: [id], onDelete: Restrict)
+  author      User?        @relation("PostAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  comments    Comment[]
+  reads       PostRead[]
   // Back-reference 1:1 al evento que generó este Post como thread asociado
   // (auto-thread, ver docs/features/events/spec-integrations.md § 1). Nullable
   // porque la mayoría de los Posts no son de evento. El @unique vive en Event.postId.
-  event    Event?
+  event       Event?
+  // Back-reference 1:1 al item de biblioteca cuando este Post es un thread
+  // documento (R.7.5+). Nullable. El @unique vive en LibraryItem.postId. La
+  // exclusividad con `event` (un Post no puede ser simultáneamente Event e
+  // Item) se valida en domain layer (createEventAction + createItemAction).
+  libraryItem LibraryItem?
   // Índice parcial en migración discussions_core (Prisma no soporta WHERE):
   //   (authorUserId) WHERE authorUserId IS NOT NULL
 
@@ -443,6 +450,7 @@ model LibraryCategory {
 
   place        Place                        @relation(fields: [placeId], references: [id], onDelete: Cascade)
   contributors LibraryCategoryContributor[]
+  items        LibraryItem[]
 
   @@unique([placeId, slug])
   @@index([placeId, archivedAt])
@@ -461,4 +469,36 @@ model LibraryCategoryContributor {
 
   @@id([categoryId, userId])
   @@index([userId])
+}
+
+// LibraryItem (R.7.5): el thread documento. 1:1 con Post.
+//
+// `placeId` denormalizado para que la RLS no haga JOIN en cada SELECT.
+// La app garantiza que coincide con Post.placeId (insert atómico en
+// R.7.6). `categoryId` ON DELETE Restrict — categorías solo se archivan
+// (soft), nunca se DELETE físicamente. `postId` ON DELETE Cascade —
+// si el Post desaparece, el item se va con él.
+model LibraryItem {
+  id           String    @id @default(cuid())
+  placeId      String
+  categoryId   String
+  postId       String    @unique
+  // Author denormalizado para que la RLS de UPDATE sea sin sub-query
+  // (mismo precedente que Event.authorUserId). Nullable: ON DELETE
+  // SET NULL del User → erasure 365d compatible. La app garantiza que
+  // LibraryItem.authorUserId === Post.authorUserId al crear.
+  authorUserId String?
+  // Cover opcional. Mobile no renderiza; reservado para layout desktop.
+  coverUrl     String?
+  archivedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  place    Place           @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  category LibraryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  post     Post            @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author   User?           @relation("LibraryItemAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([placeId, archivedAt])
+  @@index([categoryId, archivedAt])
 }

@@ -525,23 +525,41 @@ model LibraryItem {
 }
 ```
 
-### 10.2 Extensión a tabla existente
+### 10.2 Relación bidireccional Post ↔ LibraryItem (sin XOR SQL)
+
+**Decisión refinada en R.7.5** (2026-04-30): el modelo `Post` NO
+gana columnas `eventId` ni `libraryItemId`. La relación bidireccional
+Post↔Event ya es **back-pointer Prisma sin FK columna**: `Event` tiene
+`postId UNIQUE` como FK, Prisma infiere `Post.event: Event?`.
+
+Aplicamos el mismo pattern a `LibraryItem`:
 
 ```prisma
+model LibraryItem {
+  postId String @unique  // FK a Post
+  // ...
+}
+
 model Post {
-  // ... campos existentes
-  libraryItemId  String?       @unique
-  libraryItem    LibraryItem?  @relation("PostLibraryItem")
+  // ...campos existentes
+  event       Event?        // back-pointer (sin FK column)
+  libraryItem LibraryItem?  // back-pointer (sin FK column)
 }
 ```
 
-`Post.libraryItemId` es **opcional** y mutuamente exclusivo con
-`Post.eventId`: un Post no puede ser simultáneamente un evento y
-un item de biblioteca. Constraint a nivel domain (`invariants.ts`)
+**XOR validado en domain layer, NO en SQL.** Postgres no tiene un
+CHECK natural para "no hay simultáneamente un Event Y un LibraryItem
+apuntando a este Post", y agregar columnas `Post.eventId` /
+`Post.libraryItemId` solo para soportar el CHECK rompe el patrón
+bidireccional ya establecido en F.B. La validación vive en
+`createEventAction` y `createItemAction` — antes de hacer INSERT,
+chequean que el `Post` no tenga ya el otro tipo asociado.
 
-- test integración. Postgres no tiene un native XOR check pero
-  podemos sumar un `CHECK (NOT (eventId IS NOT NULL AND libraryItemId
-IS NOT NULL))` en la migration.
+Trade-off aceptado: si un bug crea ambos vínculos, Postgres lo
+permite. Test de integración cross-slice cubre el invariant. La
+matriz de RLS de `LibraryItem.INSERT` ya exige
+`Post.authorUserId = auth.uid()` — un member común no puede
+"secuestrar" un Post de otro tipo.
 
 ### 10.3 Snapshots y erasure 365d
 
