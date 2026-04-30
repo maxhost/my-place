@@ -41,19 +41,19 @@ describe('CategoryCard', () => {
     expect(screen.getByRole('heading', { name: 'Onboarding' })).toBeInTheDocument()
   })
 
-  it('count plural "5 documentos" cuando docCount > 1', () => {
+  it('count plural "5 recursos" (plural) cuando docCount > 1', () => {
     render(<CategoryCard category={baseCategory} />)
-    expect(screen.getByText('5 documentos')).toBeInTheDocument()
+    expect(screen.getByText('5 recursos')).toBeInTheDocument()
   })
 
-  it('count singular "1 documento" cuando docCount === 1', () => {
+  it('count singular "1 recurso" cuando docCount === 1', () => {
     render(<CategoryCard category={{ ...baseCategory, docCount: 1 }} />)
-    expect(screen.getByText('1 documento')).toBeInTheDocument()
+    expect(screen.getByText('1 recurso')).toBeInTheDocument()
   })
 
-  it('count "0 documentos" cuando docCount === 0', () => {
+  it('count plural "0 recursos" cuando docCount === 0', () => {
     render(<CategoryCard category={{ ...baseCategory, docCount: 0 }} />)
-    expect(screen.getByText('0 documentos')).toBeInTheDocument()
+    expect(screen.getByText('0 recursos')).toBeInTheDocument()
   })
 
   it('link apunta a /library/<slug>', () => {
