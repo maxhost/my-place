@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
 import type { Editor } from '@tiptap/react'
 import {
   Dialog,
@@ -17,35 +16,48 @@ type Props = {
   editor: Editor | null
 }
 
-type FormValues = {
-  url: string
-  title: string
-}
-
 /**
  * Botón "Insertar contenido" + Dialog con form (URL + título
  * opcional). Se usa dentro del `<LibraryItemForm>` (R.7.8) en el
  * compositor de items.
  *
- * Submit:
+ * **No usamos `<form>` interno**: aunque Radix Dialog mounts su
+ * contenido en un Portal (document.body), los eventos de React
+ * bubblean por el árbol de componentes — un submit del form interno
+ * propagaría al `<LibraryItemForm>` padre y dispararía
+ * `createLibraryItemAction` en lugar de solo insertar el embed.
+ * Por eso este modal usa state local + `onClick` directo.
+ *
+ * Flujo de inserción:
  *   1. Valida URL via `parseEmbedUrl` (rechaza javascript:/data:).
  *   2. Inserta el embed en la posición actual del editor con
  *      `editor.commands.insertContent({...})`.
- *   3. Cierra el modal.
+ *   3. Cierra el modal y resetea inputs.
+ *
+ * Enter en el input URL invoca el mismo handler manualmente.
  *
  * Toast de error si la URL es inválida.
  */
 export function EmbedToolbar({ editor }: Props): React.ReactNode {
   const [open, setOpen] = useState(false)
-  const { register, handleSubmit, reset } = useForm<FormValues>({
-    defaultValues: { url: '', title: '' },
-  })
+  const [url, setUrl] = useState('')
+  const [title, setTitle] = useState('')
 
-  function onSubmit(values: FormValues): void {
+  function reset(): void {
+    setUrl('')
+    setTitle('')
+  }
+
+  function handleInsert(): void {
     if (!editor) return
+    const trimmedUrl = url.trim()
+    if (trimmedUrl.length === 0) {
+      toast.error('Pegá una URL válida.')
+      return
+    }
     try {
-      const parsed = parseEmbedUrl(values.url)
-      const title = values.title.trim()
+      const parsed = parseEmbedUrl(trimmedUrl)
+      const trimmedTitle = title.trim()
       editor
         .chain()
         .focus()
@@ -58,7 +70,7 @@ export function EmbedToolbar({ editor }: Props): React.ReactNode {
             // renderer SSR no necesita re-parsear por cada render.
             url: parsed.canonicalUrl,
             provider: parsed.provider,
-            title,
+            title: trimmedTitle,
           },
         })
         .run()
@@ -72,7 +84,13 @@ export function EmbedToolbar({ editor }: Props): React.ReactNode {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) reset()
+      }}
+    >
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -88,15 +106,28 @@ export function EmbedToolbar({ editor }: Props): React.ReactNode {
           público. Aparece intercalado en el lugar donde estás escribiendo.
         </DialogDescription>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-3" noValidate>
+        <div className="mt-4 space-y-3">
           <label className="block">
             <span className="mb-1 block text-sm text-muted">URL</span>
             <input
               type="url"
+              autoFocus
               required
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  // Prevenimos que el Enter del input dispare el submit
+                  // del `<LibraryItemForm>` padre (no estamos en form
+                  // interno, pero el browser busca el form ancestor del
+                  // input para Enter — en React tree puede subir).
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleInsert()
+                }
+              }}
               placeholder="https://youtube.com/watch?v=… o https://docs.google.com/…"
               className="w-full rounded-md border border-border bg-bg px-3 py-2 text-text focus:border-text focus:outline-none"
-              {...register('url', { required: true })}
             />
           </label>
 
@@ -104,9 +135,17 @@ export function EmbedToolbar({ editor }: Props): React.ReactNode {
             <span className="mb-1 block text-sm text-muted">Título (opcional)</span>
             <input
               type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleInsert()
+                }
+              }}
               placeholder="Lección 1, Receta de galletas, Manual…"
               className="w-full rounded-md border border-border bg-bg px-3 py-2 text-text focus:border-text focus:outline-none"
-              {...register('title')}
             />
             <span className="mt-1 block text-xs text-muted">
               Aparece encima del embed y se indexa para búsquedas futuras.
@@ -122,11 +161,15 @@ export function EmbedToolbar({ editor }: Props): React.ReactNode {
                 Cancelar
               </button>
             </DialogClose>
-            <button type="submit" className="rounded-md bg-accent px-4 py-2 text-sm text-bg">
+            <button
+              type="button"
+              onClick={handleInsert}
+              className="rounded-md bg-accent px-4 py-2 text-sm text-bg"
+            >
               Insertar
             </button>
           </div>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   )
