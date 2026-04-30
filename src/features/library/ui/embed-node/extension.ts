@@ -3,7 +3,6 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { EmbedNodeView } from './node-view'
-import type { EmbedProvider } from '@/features/library/domain/embed-parser'
 
 /**
  * Custom Node de TipTap para embeds intercalados en el body.
@@ -18,58 +17,58 @@ import type { EmbedProvider } from '@/features/library/domain/embed-parser'
  * { type: 'embed', attrs: { url, provider, title } }
  * ```
  *
- * Validado por `richTextDocumentSchema` (extensión sumada en
- * 2026-04-30 — discussions/domain/rich-text-schemas.ts).
+ * **Sintaxis defensiva**: cada attr declara `parseHTML` + `renderHTML`
+ * explícitos. Sin esto, TipTap (v3 con duplicación de @tiptap/core en
+ * el entorno dev) puede no resolver `addAttributes` correctamente y
+ * persistir `attrs` como la function literal en lugar de su valor —
+ * confirmado empíricamente con bodyRaw del server log.
+ *
+ * Validado por `richTextDocumentSchema` (extensión sumada en R.7.7 —
+ * discussions/domain/rich-text-schemas.ts).
  *
  * Ver `docs/features/library/spec.md` § 12.
  */
-export const EmbedNodeExtension = Node.create<{
-  HTMLAttributes: Record<string, string>
-}>({
+export const EmbedNodeExtension = Node.create({
   name: 'embed',
   group: 'block',
   atom: true,
   selectable: true,
   draggable: true,
-
-  addOptions() {
-    return { HTMLAttributes: {} }
-  },
+  inline: false,
 
   addAttributes() {
     return {
-      url: { default: '' },
-      provider: { default: 'generic' as EmbedProvider },
-      title: { default: '' },
+      url: {
+        default: '',
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-embed-url') ?? '',
+        renderHTML: (attributes: { url?: string }) => ({
+          'data-embed-url': attributes.url ?? '',
+        }),
+      },
+      provider: {
+        default: 'generic',
+        parseHTML: (element: HTMLElement) =>
+          element.getAttribute('data-embed-provider') ?? 'generic',
+        renderHTML: (attributes: { provider?: string }) => ({
+          'data-embed-provider': attributes.provider ?? 'generic',
+        }),
+      },
+      title: {
+        default: '',
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-embed-title') ?? '',
+        renderHTML: (attributes: { title?: string }) => ({
+          'data-embed-title': attributes.title ?? '',
+        }),
+      },
     }
   },
 
   parseHTML() {
-    return [
-      {
-        tag: 'div[data-embed]',
-        getAttrs: (el) => {
-          if (!(el instanceof HTMLElement)) return false
-          return {
-            url: el.getAttribute('data-embed-url') ?? '',
-            provider: (el.getAttribute('data-embed-provider') ?? 'generic') as EmbedProvider,
-            title: el.getAttribute('data-embed-title') ?? '',
-          }
-        },
-      },
-    ]
+    return [{ tag: 'div[data-embed]' }]
   },
 
-  renderHTML({ node, HTMLAttributes }) {
-    return [
-      'div',
-      mergeAttributes(HTMLAttributes, {
-        'data-embed': 'true',
-        'data-embed-url': node.attrs.url as string,
-        'data-embed-provider': node.attrs.provider as string,
-        'data-embed-title': node.attrs.title as string,
-      }),
-    ]
+  renderHTML({ HTMLAttributes }) {
+    return ['div', mergeAttributes({ 'data-embed': 'true' }, HTMLAttributes)]
   },
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
