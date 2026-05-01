@@ -8,7 +8,7 @@ import { resolveActorForPlace } from '@/features/discussions/public.server'
 import { assertRichTextSize } from '@/features/discussions/public'
 import { canEditItem, validateItemCoverUrl } from '@/features/library/public'
 import { updateItemInputSchema } from '@/features/library/schemas'
-import { revalidateLibraryItemPaths, safeStringify } from './shared'
+import { revalidateLibraryItemPaths } from './shared'
 
 /**
  * Actualiza el body + título + cover de un item.
@@ -29,7 +29,6 @@ export async function updateLibraryItemAction(
       {
         event: 'libraryItemUpdateValidationFailed',
         issues: parsed.error.issues,
-        bodyRaw: safeStringify((input as { body?: unknown })?.body, 4000),
       },
       'updateLibraryItemAction zod validation failed',
     )

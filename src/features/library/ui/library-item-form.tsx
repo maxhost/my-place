@@ -79,32 +79,23 @@ export function LibraryItemForm({ mode }: Props): React.ReactNode {
   })
 
   function onSubmit(values: FormValues): void {
-    console.log('[LibraryItemForm] onSubmit START')
     setFeedback(null)
     const trimmedTitle = values.title.trim()
     const coverUrl = values.coverUrl.trim() === '' ? null : values.coverUrl.trim()
 
-    // Defensa: serializar el body a JSON puro antes de mandarlo al
-    // server action. TipTap puede retornar un AST con getters/proxies
-    // (las attrs del custom node embed se persistían como function en
-    // bodyRaw del server log). JSON.parse(JSON.stringify(...)) strippea
-    // cualquier function/getter/proxy y deja un objeto plano serializable.
+    // Pre-serializar el body a JSON puro: TipTap puede retornar un AST
+    // donde algunos attrs son getters/proxies (las attrs del embed
+    // custom node se persistían como function en bodyRaw del server
+    // log antes de este fix — confirmado empíricamente). El roundtrip
+    // JSON.parse(JSON.stringify(...)) strippea cualquier function /
+    // getter / proxy y deja un objeto plano serializable.
     let bodyJson: RichTextDoc
     try {
       bodyJson = JSON.parse(JSON.stringify(body)) as RichTextDoc
-    } catch (err) {
-      console.error('[LibraryItemForm] body JSON serialize failed', err)
+    } catch {
       setFeedback({ kind: 'err', message: 'No pudimos serializar el contenido. Reintentá.' })
       return
     }
-
-    console.log('[LibraryItemForm] submit', {
-      mode: mode.kind,
-      title: trimmedTitle,
-      coverUrl,
-      bodyTypes: collectNodeTypes(bodyJson),
-      body: bodyJson,
-    })
 
     startTransition(async () => {
       try {
@@ -116,7 +107,6 @@ export function LibraryItemForm({ mode }: Props): React.ReactNode {
             body: bodyJson,
             coverUrl,
           })
-          console.log('[LibraryItemForm] create OK', result)
           router.replace(`/library/${result.categorySlug}/${result.postSlug}`)
         } else {
           const result = await updateLibraryItemAction({
@@ -125,16 +115,10 @@ export function LibraryItemForm({ mode }: Props): React.ReactNode {
             body: bodyJson,
             coverUrl,
           })
-          console.log('[LibraryItemForm] update OK', result)
           router.replace(`/library/${result.categorySlug}/${result.postSlug}`)
           router.refresh()
         }
       } catch (err) {
-        console.error('[LibraryItemForm] submit failed', {
-          name: err instanceof Error ? err.name : typeof err,
-          message: err instanceof Error ? err.message : String(err),
-          err,
-        })
         setFeedback({ kind: 'err', message: friendlyLibraryErrorMessage(err) })
       }
     })
@@ -219,22 +203,4 @@ export function LibraryItemForm({ mode }: Props): React.ReactNode {
       </div>
     </form>
   )
-}
-
-/**
- * Recorre el AST del body y devuelve el set de tipos de nodos
- * presentes — útil para diagnosticar rápidamente si hay un nodo
- * TipTap fuera del allowlist del schema Zod del server.
- */
-function collectNodeTypes(node: unknown): string[] {
-  const types = new Set<string>()
-  function walk(n: unknown): void {
-    if (!n || typeof n !== 'object') return
-    const obj = n as { type?: unknown; content?: unknown; marks?: unknown }
-    if (typeof obj.type === 'string') types.add(obj.type)
-    if (Array.isArray(obj.content)) obj.content.forEach(walk)
-    if (Array.isArray(obj.marks)) obj.marks.forEach(walk)
-  }
-  walk(node)
-  return [...types].sort()
 }
