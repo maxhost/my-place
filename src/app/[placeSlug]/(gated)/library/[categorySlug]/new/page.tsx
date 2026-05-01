@@ -68,8 +68,9 @@ export default async function NewLibraryItemPage({ params }: Props) {
         mode={{
           kind: 'create',
           placeId: place.id,
-          categoryId: category.id,
-          categorySlug: category.slug,
+          fixedCategory: { id: category.id, slug: category.slug },
+          availableCategories: [],
+          cancelCategorySlug: category.slug,
         }}
       />
     </div>

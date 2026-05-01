@@ -15,12 +15,29 @@ import { LibraryItemEditor } from './library-item-editor'
 
 type RichTextDoc = { type: 'doc'; content?: unknown[] }
 
+export type CategoryOption = {
+  id: string
+  slug: string
+  emoji: string
+  title: string
+}
+
 type CreateMode = {
   kind: 'create'
   placeId: string
-  categoryId: string
-  /** Slug de la categoría para construir el redirect canónico. */
-  categorySlug: string
+  /**
+   * Si está fijo (entrando via /library/[cat]/new), no se renderiza
+   * selector. Si es null (entrando via /library/new), se muestra
+   * selector con `availableCategories`.
+   */
+  fixedCategory: { id: string; slug: string } | null
+  /** Categorías donde el viewer tiene permiso de crear. Solo se usa
+   *  cuando `fixedCategory === null`. Si está vacío en ese modo, el
+   *  form muestra mensaje "no hay categorías disponibles". */
+  availableCategories: ReadonlyArray<CategoryOption>
+  /** Slug de la categoría para fallback de "Cancelar" cuando hay
+   *  fixedCategory; sin él, cancelar va a `/library`. */
+  cancelCategorySlug?: string
 }
 
 type EditMode = {
@@ -39,6 +56,7 @@ type Props = {
 type FormValues = {
   title: string
   coverUrl: string
+  categoryId: string
 }
 
 type Feedback = { kind: 'err'; message: string } | null
@@ -68,10 +86,15 @@ export function LibraryItemForm({ mode }: Props): React.ReactNode {
 
   const initial: FormValues =
     mode.kind === 'create'
-      ? { title: '', coverUrl: '' }
+      ? {
+          title: '',
+          coverUrl: '',
+          categoryId: mode.fixedCategory?.id ?? mode.availableCategories[0]?.id ?? '',
+        }
       : {
           title: mode.initialTitle,
           coverUrl: mode.initialCoverUrl ?? '',
+          categoryId: '',
         }
 
   const { register, handleSubmit, formState } = useForm<FormValues>({
@@ -108,9 +131,14 @@ export function LibraryItemForm({ mode }: Props): React.ReactNode {
     startTransition(async () => {
       try {
         if (mode.kind === 'create') {
+          const targetCategoryId = mode.fixedCategory?.id ?? values.categoryId
+          if (!targetCategoryId) {
+            setFeedback({ kind: 'err', message: 'Elegí una categoría para el recurso.' })
+            return
+          }
           const result = await createLibraryItemAction({
             placeId: mode.placeId,
-            categoryId: mode.categoryId,
+            categoryId: targetCategoryId,
             title: trimmedTitle,
             body: bodyJson,
             coverUrl,
@@ -149,6 +177,35 @@ export function LibraryItemForm({ mode }: Props): React.ReactNode {
         >
           {feedback.message}
         </div>
+      ) : null}
+
+      {mode.kind === 'create' && mode.fixedCategory === null ? (
+        mode.availableCategories.length === 0 ? (
+          <div
+            role="status"
+            className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+          >
+            No hay categorías donde puedas crear recursos. Pedile a un admin que te dé acceso o que
+            cree una categoría con permisos abiertos.
+          </div>
+        ) : (
+          <label className="block">
+            <span className="mb-1 block text-sm text-muted">Categoría</span>
+            <select
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-bg focus:outline-none"
+              {...register('categoryId', { required: true })}
+            >
+              {mode.availableCategories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.emoji} {c.title}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs text-muted">
+              El recurso queda agrupado dentro de la categoría que elijas.
+            </span>
+          </label>
+        )
       ) : null}
 
       <label className="block">
@@ -204,10 +261,11 @@ export function LibraryItemForm({ mode }: Props): React.ReactNode {
         <button
           type="button"
           onClick={() => {
+            const fallback = computeCancelHref(mode)
             if (typeof window !== 'undefined' && window.history.length > 1) {
               router.back()
             } else {
-              router.push(`/library/${mode.categorySlug}`)
+              router.push(fallback)
             }
           }}
           disabled={pending}
@@ -218,4 +276,19 @@ export function LibraryItemForm({ mode }: Props): React.ReactNode {
       </div>
     </form>
   )
+}
+
+/**
+ * Resuelve a dónde mandar al user al cancelar:
+ *  - edit → la categoría del item.
+ *  - create con fixedCategory → esa categoría (vienes de
+ *    /library/[cat]/new).
+ *  - create con cancelCategorySlug explícito → ese slug.
+ *  - create sin categoría (vienes de /library/new) → /library.
+ */
+function computeCancelHref(mode: CreateMode | EditMode): string {
+  if (mode.kind === 'edit') return `/library/${mode.categorySlug}`
+  if (mode.cancelCategorySlug) return `/library/${mode.cancelCategorySlug}`
+  if (mode.fixedCategory) return `/library/${mode.fixedCategory.slug}`
+  return '/library'
 }

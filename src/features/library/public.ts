@@ -97,7 +97,7 @@ export { EmbedNodeExtension } from './ui/embed-node/extension'
 export { EmbedNodeView } from './ui/embed-node/node-view'
 export { EmbedToolbar } from './ui/embed-toolbar'
 export { LibraryItemEditor } from './ui/library-item-editor'
-export { LibraryItemForm } from './ui/library-item-form'
+export { LibraryItemForm, type CategoryOption } from './ui/library-item-form'
 
 // Item detail UI (R.7.9)
 export { ItemAdminMenu } from './ui/item-admin-menu'

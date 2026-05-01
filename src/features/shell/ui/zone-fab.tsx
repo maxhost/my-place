@@ -46,7 +46,18 @@ const ZONE_PATHS = ZONES.map((z) => z.path)
 
 export function ZoneFab(): React.ReactNode {
   const pathname = usePathname()
-  if (!isZoneRootPath(pathname, ZONE_PATHS)) return null
+  // El FAB se muestra en zonas root + sub-page de categoría library.
+  // En `/library/[cat]` el item "Nuevo recurso" linkea directo a
+  // `/library/[cat]/new` (sin selector de categoría). En zonas root
+  // linkea a `/library/new` (con selector). Excepción a la regla
+  // "solo zonas root" de R.2.6 — necesaria para que el flow "estoy
+  // adentro de Recetas y quiero subir algo nuevo a Recetas" sea 1
+  // tap sin volver a /library.
+  if (!isZoneRootPath(pathname, ZONE_PATHS) && !isLibraryCategorySubpage(pathname)) {
+    return null
+  }
+
+  const newResourceHref = computeNewResourceHref(pathname)
 
   return (
     <FAB icon={<Sparkles size={20} aria-hidden="true" />} triggerLabel="Acciones">
@@ -57,8 +68,31 @@ export function ZoneFab(): React.ReactNode {
         <Link href="/events/new">Proponer evento</Link>
       </DropdownMenuItem>
       <DropdownMenuItem asChild>
-        <Link href="/library">Nuevo recurso</Link>
+        <Link href={newResourceHref}>Nuevo recurso</Link>
       </DropdownMenuItem>
     </FAB>
   )
+}
+
+/**
+ * `/library/<slug>` (sub-page de categoría) — pero NO sub-paths más
+ * profundos (`/library/<slug>/<item>` o `/library/<slug>/new`).
+ */
+function isLibraryCategorySubpage(pathname: string): boolean {
+  const normalized = pathname.replace(/\/+$/, '') || '/'
+  return /^\/library\/[^/]+$/.test(normalized)
+}
+
+/**
+ * Resuelve la URL del item "Nuevo recurso" del FAB según el
+ * pathname actual:
+ *  - `/library/[categorySlug]` → `/library/[categorySlug]/new`
+ *    (form con categoría fija).
+ *  - cualquier otro path → `/library/new` (form con selector).
+ */
+function computeNewResourceHref(pathname: string): string {
+  const normalized = pathname.replace(/\/+$/, '') || '/'
+  const match = normalized.match(/^\/library\/([^/]+)$/)
+  if (match) return `/library/${match[1]}/new`
+  return '/library/new'
 }
