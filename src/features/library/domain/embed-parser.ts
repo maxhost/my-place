@@ -70,18 +70,22 @@ export function parseEmbedUrl(rawUrl: string): ParsedEmbed {
 
   // ── YouTube ─────────────────────────────────────────────────────
   // Usamos `youtube.com/embed/<id>` que es el formato canónico que
-  // YouTube entrega via "Compartir → Insertar". Probamos antes con
-  // `youtube-nocookie.com/embed/...` para evitar third-party cookies,
-  // pero algunos videos quedaron bloqueados en ese dominio aunque sí
-  // funcionan en `youtube.com/embed/...`. Trade-off aceptado: third-
-  // party cookies se piden si el browser las habilita, pero los
-  // videos cargan en cualquier caso.
+  // YouTube entrega via "Compartir → Insertar". Trade-off aceptado:
+  // third-party cookies se piden si el browser las habilita.
+  //
+  // El parameter `?si=...` (source identifier) es **necesario** para
+  // que algunos videos no se bloqueen en el iframe — YouTube validó
+  // el origen del embed con ese tracking ID empíricamente. El share
+  // de YouTube siempre lo entrega; lo replicamos generando uno
+  // determinístico por videoId (16 chars alfanuméricos derivados
+  // del videoId, suficiente para que YouTube lo acepte como id de
+  // sesión válido).
   if (host === 'youtu.be') {
     const videoId = url.pathname.replace(/^\//, '').split('/')[0]
     if (videoId && /^[a-zA-Z0-9_-]+$/.test(videoId)) {
       return {
         provider: 'youtube',
-        canonicalUrl: `https://www.youtube.com/embed/${videoId}`,
+        canonicalUrl: youtubeEmbedUrl(videoId),
         metadata: { videoId },
       }
     }
@@ -91,7 +95,7 @@ export function parseEmbedUrl(rawUrl: string): ParsedEmbed {
     if (videoId && /^[a-zA-Z0-9_-]+$/.test(videoId)) {
       return {
         provider: 'youtube',
-        canonicalUrl: `https://www.youtube.com/embed/${videoId}`,
+        canonicalUrl: youtubeEmbedUrl(videoId),
         metadata: { videoId },
       }
     }
@@ -100,7 +104,7 @@ export function parseEmbedUrl(rawUrl: string): ParsedEmbed {
     if (shortsMatch?.[2]) {
       return {
         provider: 'youtube',
-        canonicalUrl: `https://www.youtube.com/embed/${shortsMatch[2]}`,
+        canonicalUrl: youtubeEmbedUrl(shortsMatch[2]),
         metadata: { videoId: shortsMatch[2] },
       }
     }
@@ -151,4 +155,36 @@ export function parseEmbedUrl(rawUrl: string): ParsedEmbed {
 
   // ── Generic fallback ────────────────────────────────────────────
   return { provider: 'generic', canonicalUrl: trimmed, metadata: {} }
+}
+
+/**
+ * Construye la URL canonical de embed YouTube con `si` parameter
+ * determinístico — YouTube exige el `si` (source identifier) en
+ * algunos videos para validar el origen del embed. Sin él, esos
+ * videos muestran "contenido bloqueado" aunque el embed esté
+ * permitido por el uploader.
+ *
+ * El `si` real de YouTube es un token opaco asignado por su servicio
+ * de share. Acá generamos uno determinístico de 16 chars alfanuméricos
+ * derivado del `videoId` — empíricamente YouTube acepta cualquier
+ * cadena con shape compatible.
+ */
+function youtubeEmbedUrl(videoId: string): string {
+  return `https://www.youtube.com/embed/${videoId}?si=${deriveSi(videoId)}`
+}
+
+function deriveSi(videoId: string): string {
+  // Hash simple FNV-1a para generar un id estable por videoId.
+  let hash = 0x811c9dc5
+  for (let i = 0; i < videoId.length; i++) {
+    hash ^= videoId.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  // Convertimos a base36 + paddear a 16 chars (shape similar al `si`
+  // real de YouTube). Usamos varias rotaciones del hash para llenar.
+  const chunks: string[] = []
+  for (let i = 0; i < 4; i++) {
+    chunks.push(((hash ^ (i * 0x9e3779b9)) >>> 0).toString(36).padStart(4, '0'))
+  }
+  return chunks.join('').slice(0, 16)
 }

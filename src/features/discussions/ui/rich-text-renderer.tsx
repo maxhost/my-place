@@ -99,6 +99,9 @@ function renderEmbed(node: RichTextEmbed): ReactNode {
             <iframe
               src={url}
               title={safeTitle || url}
+              width={560}
+              height={315}
+              frameBorder={0}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
               referrerPolicy="strict-origin-when-cross-origin"

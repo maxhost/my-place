@@ -4,25 +4,37 @@ import { parseEmbedUrl } from '../domain/embed-parser'
 
 describe('parseEmbedUrl', () => {
   describe('YouTube', () => {
-    it('detecta youtu.be/<id> → embed canonical', () => {
+    it('detecta youtu.be/<id> → embed canonical con si param', () => {
       const r = parseEmbedUrl('https://youtu.be/abc123XYZ_-')
       expect(r.provider).toBe('youtube')
       expect(r.metadata.videoId).toBe('abc123XYZ_-')
-      expect(r.canonicalUrl).toBe('https://www.youtube.com/embed/abc123XYZ_-')
+      expect(r.canonicalUrl).toMatch(
+        /^https:\/\/www\.youtube\.com\/embed\/abc123XYZ_-\?si=[a-z0-9]{16}$/,
+      )
     })
 
-    it('detecta youtube.com/watch?v=<id> → embed canonical', () => {
+    it('detecta youtube.com/watch?v=<id> → embed canonical con si param', () => {
       const r = parseEmbedUrl('https://www.youtube.com/watch?v=abc123XYZ&t=10')
       expect(r.provider).toBe('youtube')
       expect(r.metadata.videoId).toBe('abc123XYZ')
-      expect(r.canonicalUrl).toBe('https://www.youtube.com/embed/abc123XYZ')
+      expect(r.canonicalUrl).toMatch(
+        /^https:\/\/www\.youtube\.com\/embed\/abc123XYZ\?si=[a-z0-9]{16}$/,
+      )
     })
 
     it('detecta youtube.com/shorts/<id>', () => {
       const r = parseEmbedUrl('https://www.youtube.com/shorts/abc123XYZ')
       expect(r.provider).toBe('youtube')
       expect(r.metadata.videoId).toBe('abc123XYZ')
-      expect(r.canonicalUrl).toBe('https://www.youtube.com/embed/abc123XYZ')
+      expect(r.canonicalUrl).toMatch(
+        /^https:\/\/www\.youtube\.com\/embed\/abc123XYZ\?si=[a-z0-9]{16}$/,
+      )
+    })
+
+    it('si param es determinístico para el mismo videoId', () => {
+      const a = parseEmbedUrl('https://youtu.be/abc123XYZ')
+      const b = parseEmbedUrl('https://www.youtube.com/watch?v=abc123XYZ')
+      expect(a.canonicalUrl).toBe(b.canonicalUrl)
     })
 
     it('youtube.com sin v param → generic fallback', () => {
