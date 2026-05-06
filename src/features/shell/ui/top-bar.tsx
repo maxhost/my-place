@@ -23,10 +23,9 @@ type Props = {
   places: ReadonlyArray<MyPlace>
   currentSlug: string
   apexUrl: string // ej: "http://lvh.me:3000" o "https://place.app"
-  apexDomain: string // ej: "lvh.me:3000" o "place.app"
 }
 
-export function TopBar({ places, currentSlug, apexUrl, apexDomain }: Props): React.ReactNode {
+export function TopBar({ places, currentSlug, apexUrl }: Props): React.ReactNode {
   return (
     <header className="flex h-[52px] items-center gap-2 border-b-[0.5px] border-border bg-bg px-3">
       <a
@@ -36,7 +35,7 @@ export function TopBar({ places, currentSlug, apexUrl, apexDomain }: Props): Rea
       >
         P
       </a>
-      <CommunitySwitcher places={places} currentSlug={currentSlug} apexDomain={apexDomain} />
+      <CommunitySwitcher places={places} currentSlug={currentSlug} />
       <SearchTrigger />
     </header>
   )

@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServer } from '@/shared/lib/supabase/server'
-import { clientEnv } from '@/shared/config/env'
 import { PlacesList } from '@/features/places/public'
 import { listMyPlaces } from '@/features/places/public.server'
 
@@ -21,7 +20,7 @@ export default async function InboxPage() {
       <header className="mb-6">
         <h1 className="font-serif text-3xl italic">Inbox</h1>
       </header>
-      <PlacesList places={places} appDomain={clientEnv.NEXT_PUBLIC_APP_DOMAIN} />
+      <PlacesList places={places} />
       {places.length > 0 ? (
         // Pattern canónico "Add another to the list" (docs/ux-patterns.md):
         // dashed-border full-width neutral, después de la lista. Nunca top-right filled.

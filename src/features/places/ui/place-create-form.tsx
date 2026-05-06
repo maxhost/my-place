@@ -7,7 +7,8 @@ import { BillingMode } from '@prisma/client'
 import { createPlaceSchema } from '../schemas'
 import { createPlaceAction } from '../server/actions'
 import { isDomainError } from '@/shared/errors/domain-error'
-import { protocolFor } from '@/shared/lib/app-url'
+import { placeUrl } from '@/shared/lib/app-url'
+import { clientEnv } from '@/shared/config/env'
 
 /**
  * Form de creación de place. Renderizado en `app.place.app/places/new`.
@@ -21,7 +22,8 @@ type FormValues = {
   billingMode: BillingMode
 }
 
-export function PlaceCreateForm({ appDomain }: { appDomain: string }) {
+export function PlaceCreateForm() {
+  const appDomain = clientEnv.NEXT_PUBLIC_APP_DOMAIN
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [serverError, setServerError] = useState<string | null>(null)
@@ -60,7 +62,7 @@ export function PlaceCreateForm({ appDomain }: { appDomain: string }) {
     startTransition(async () => {
       try {
         const res = await createPlaceAction(parsed.data)
-        router.push(`${protocolFor(appDomain)}://${res.place.slug}.${appDomain}/`)
+        router.push(placeUrl(res.place.slug).toString())
       } catch (err) {
         setServerError(friendlyMessage(err))
       }

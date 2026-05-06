@@ -30,23 +30,16 @@ type Props = {
   places: ReadonlyArray<MyPlace>
   currentSlug: string
   apexUrl: string
-  apexDomain: string
   placeClosed: boolean
 }
 
-export function ShellChrome({
-  places,
-  currentSlug,
-  apexUrl,
-  apexDomain,
-  placeClosed,
-}: Props): React.ReactNode {
+export function ShellChrome({ places, currentSlug, apexUrl, placeClosed }: Props): React.ReactNode {
   const pathname = usePathname()
   if (!shouldShowShellChrome(pathname, ZONE_PATHS)) return null
 
   return (
     <>
-      <TopBar places={places} currentSlug={currentSlug} apexUrl={apexUrl} apexDomain={apexDomain} />
+      <TopBar places={places} currentSlug={currentSlug} apexUrl={apexUrl} />
       <SectionDots disabled={placeClosed} />
     </>
   )

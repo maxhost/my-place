@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import type { MyPlace } from '@/features/places/public'
+import { placeUrl } from '@/shared/lib/app-url'
 import { hashToIndex } from '@/shared/ui/avatar'
 import { CommunityRow } from './community-row'
 
@@ -22,7 +23,6 @@ import { CommunityRow } from './community-row'
 type Props = {
   places: ReadonlyArray<MyPlace>
   currentSlug: string
-  apexDomain: string
 }
 
 const COMMUNITY_PALETTE: ReadonlyArray<string> = [
@@ -34,7 +34,7 @@ const COMMUNITY_PALETTE: ReadonlyArray<string> = [
   '#5e7d6f',
 ] as const
 
-export function CommunitySwitcher({ places, currentSlug, apexDomain }: Props): React.ReactNode {
+export function CommunitySwitcher({ places, currentSlug }: Props): React.ReactNode {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
@@ -59,8 +59,7 @@ export function CommunitySwitcher({ places, currentSlug, apexDomain }: Props): R
     // Cross-subdomain navigation. Cookie de sesión cross-subdomain ya
     // está validada (apex domain). Va al "/" del nuevo place, no
     // replica el path actual.
-    const protocol = window.location.protocol
-    window.location.assign(`${protocol}//${slug}.${apexDomain}/`)
+    window.location.assign(placeUrl(slug).href)
   }
 
   return (

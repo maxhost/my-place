@@ -5,7 +5,6 @@ import { z } from 'zod'
 import { prisma } from '@/db/client'
 import { createSupabaseAdmin } from '@/shared/lib/supabase/admin'
 import { createSupabaseServer } from '@/shared/lib/supabase/server'
-import { clientEnv } from '@/shared/config/env'
 import { buildInboxUrl, deriveDisplayName, resolveSafeNext } from '@/app/auth/callback/helpers'
 
 const schema = z.object({
@@ -72,10 +71,6 @@ export async function devSignIn(input: unknown): Promise<DevSignInResult | never
     return { ok: false, error: 'failed' }
   }
 
-  const target = resolveSafeNext(
-    next ?? null,
-    clientEnv.NEXT_PUBLIC_APP_URL,
-    clientEnv.NEXT_PUBLIC_APP_DOMAIN,
-  )
-  redirect(target || buildInboxUrl(clientEnv.NEXT_PUBLIC_APP_DOMAIN))
+  const target = resolveSafeNext(next ?? null, buildInboxUrl())
+  redirect(target.toString())
 }

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Settings } from 'lucide-react'
-import { protocolFor } from '@/shared/lib/app-url'
+import { placeUrl } from '@/shared/lib/app-url'
 import type { MyPlace } from '../domain/types'
 
 /**
@@ -10,7 +10,7 @@ import type { MyPlace } from '../domain/types'
  * del place — R.S, "punto de entrada" desde fuera del place.
  * Principio "nada grita": sin colores saturados ni métricas vanidosas.
  */
-export function PlacesList({ places, appDomain }: { places: MyPlace[]; appDomain: string }) {
+export function PlacesList({ places }: { places: MyPlace[] }) {
   if (places.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-neutral-300 p-6 text-sm text-neutral-600">
@@ -25,8 +25,6 @@ export function PlacesList({ places, appDomain }: { places: MyPlace[]; appDomain
     )
   }
 
-  const proto = protocolFor(appDomain)
-
   return (
     <ul className="space-y-2">
       {places.map((place) => (
@@ -40,7 +38,7 @@ export function PlacesList({ places, appDomain }: { places: MyPlace[]; appDomain
           className="flex items-stretch gap-2 rounded-md border border-neutral-200 pr-2 transition-colors hover:border-neutral-400"
         >
           <a
-            href={`${proto}://${place.slug}.${appDomain}/`}
+            href={placeUrl(place.slug).toString()}
             className="flex min-w-0 flex-1 items-baseline justify-between gap-4 p-4"
           >
             <div className="min-w-0">
@@ -58,7 +56,7 @@ export function PlacesList({ places, appDomain }: { places: MyPlace[]; appDomain
           </a>
           {place.isAdmin ? (
             <a
-              href={`${proto}://${place.slug}.${appDomain}/settings`}
+              href={placeUrl(place.slug, '/settings').toString()}
               aria-label={`Configuración de ${place.name}`}
               className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
             >

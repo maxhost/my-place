@@ -5,7 +5,7 @@ import { clientEnv } from '@/shared/config/env'
 import { createRequestLogger, REQUEST_ID_HEADER } from '@/shared/lib/request-id'
 import { InvalidMagicLinkError, UserSyncError } from '@/shared/errors/auth'
 import { cookieDomain } from '@/shared/lib/supabase/cookie-domain'
-import { deriveDisplayName, resolveSafeNext } from './helpers'
+import { buildInboxUrl, deriveDisplayName, resolveSafeNext } from './helpers'
 
 /**
  * GET /auth/callback?code=...&next=...
@@ -31,11 +31,7 @@ export async function GET(req: NextRequest) {
     return redirectTo('/login?error=invalid_link')
   }
 
-  const redirectTarget = resolveSafeNext(
-    rawNext,
-    clientEnv.NEXT_PUBLIC_APP_URL,
-    clientEnv.NEXT_PUBLIC_APP_DOMAIN,
-  )
+  const redirectTarget = resolveSafeNext(rawNext, buildInboxUrl())
   let response = NextResponse.redirect(redirectTarget)
   const domain = cookieDomain(clientEnv.NEXT_PUBLIC_APP_DOMAIN)
 

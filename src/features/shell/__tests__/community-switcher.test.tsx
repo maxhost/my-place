@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
+// `community-switcher.tsx` importa `placeUrl` desde `@/shared/lib/app-url`,
+// que lee `clientEnv.NEXT_PUBLIC_APP_DOMAIN`. Mockeamos para evitar el parse
+// eager del env real (Zod tiraría sin `NEXT_PUBLIC_*`).
+vi.mock('@/shared/config/env', () => ({
+  clientEnv: { NEXT_PUBLIC_APP_DOMAIN: 'lvh.me:3000' },
+}))
+
 import { CommunitySwitcher } from '../ui/community-switcher'
 
 const places = [
@@ -49,19 +56,19 @@ afterEach(() => {
 
 describe('CommunitySwitcher', () => {
   it('cerrado por default: dropdown no visible', () => {
-    render(<CommunitySwitcher places={places} currentSlug="the-company" apexDomain="lvh.me:3000" />)
+    render(<CommunitySwitcher places={places} currentSlug="the-company" />)
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
   it('click en pill abre el dropdown con header + lista', () => {
-    render(<CommunitySwitcher places={places} currentSlug="the-company" apexDomain="lvh.me:3000" />)
+    render(<CommunitySwitcher places={places} currentSlug="the-company" />)
     fireEvent.click(screen.getByRole('button', { name: /the company/i }))
     expect(screen.getByRole('menu')).toBeInTheDocument()
     expect(screen.getByText('Tus comunidades')).toBeInTheDocument()
   })
 
   it('aria-expanded refleja el estado', () => {
-    render(<CommunitySwitcher places={places} currentSlug="the-company" apexDomain="lvh.me:3000" />)
+    render(<CommunitySwitcher places={places} currentSlug="the-company" />)
     const trigger = screen.getByRole('button', { name: /the company/i })
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(trigger)
@@ -69,7 +76,7 @@ describe('CommunitySwitcher', () => {
   })
 
   it('selección de current place es no-op (cierra sin navegar)', () => {
-    render(<CommunitySwitcher places={places} currentSlug="the-company" apexDomain="lvh.me:3000" />)
+    render(<CommunitySwitcher places={places} currentSlug="the-company" />)
     fireEvent.click(screen.getByRole('button', { name: /the company/i }))
     fireEvent.click(screen.getByRole('menuitem', { name: /the company/i }))
     expect(assignSpy).not.toHaveBeenCalled()
@@ -77,14 +84,14 @@ describe('CommunitySwitcher', () => {
   })
 
   it('selección de otro place dispara cross-subdomain navigation', () => {
-    render(<CommunitySwitcher places={places} currentSlug="the-company" apexDomain="lvh.me:3000" />)
+    render(<CommunitySwitcher places={places} currentSlug="the-company" />)
     fireEvent.click(screen.getByRole('button', { name: /the company/i }))
     fireEvent.click(screen.getByRole('menuitem', { name: /palermo cowork/i }))
     expect(assignSpy).toHaveBeenCalledWith('http://palermo-cowork.lvh.me:3000/')
   })
 
   it('ESC cierra el dropdown', () => {
-    render(<CommunitySwitcher places={places} currentSlug="the-company" apexDomain="lvh.me:3000" />)
+    render(<CommunitySwitcher places={places} currentSlug="the-company" />)
     fireEvent.click(screen.getByRole('button', { name: /the company/i }))
     expect(screen.getByRole('menu')).toBeInTheDocument()
     fireEvent.keyDown(document, { key: 'Escape' })
@@ -92,21 +99,21 @@ describe('CommunitySwitcher', () => {
   })
 
   it('click en backdrop cierra el dropdown', () => {
-    render(<CommunitySwitcher places={places} currentSlug="the-company" apexDomain="lvh.me:3000" />)
+    render(<CommunitySwitcher places={places} currentSlug="the-company" />)
     fireEvent.click(screen.getByRole('button', { name: /the company/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar' }))
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
   it('lista vacía muestra empty state', () => {
-    render(<CommunitySwitcher places={[]} currentSlug="the-company" apexDomain="lvh.me:3000" />)
+    render(<CommunitySwitcher places={[]} currentSlug="the-company" />)
     // currentSlug se renderiza tal cual cuando current no está en la lista.
     fireEvent.click(screen.getByRole('button', { name: /the-company/i }))
     expect(screen.getByText('No tenés comunidades activas.')).toBeInTheDocument()
   })
 
   it('current place se renderiza en el pill aunque no esté en la lista (defensa)', () => {
-    render(<CommunitySwitcher places={[]} currentSlug="orphan-slug" apexDomain="lvh.me:3000" />)
+    render(<CommunitySwitcher places={[]} currentSlug="orphan-slug" />)
     expect(screen.getByRole('button', { name: /orphan-slug/i })).toBeInTheDocument()
   })
 })

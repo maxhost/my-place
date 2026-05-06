@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { createSupabaseServer } from '@/shared/lib/supabase/server'
-import { clientEnv } from '@/shared/config/env'
 import { buildInboxUrl } from '@/app/auth/callback/helpers'
 
 /**
@@ -11,7 +10,7 @@ export default async function MarketingHomePage() {
   const supabase = await createSupabaseServer()
   const { data } = await supabase.auth.getUser()
 
-  const ctaHref = data.user ? buildInboxUrl(clientEnv.NEXT_PUBLIC_APP_DOMAIN) : '/login'
+  const ctaHref = data.user ? buildInboxUrl().toString() : '/login'
   const ctaLabel = data.user ? 'Ir a tu inbox' : 'Entrar'
 
   return (

@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 
+// `community-switcher.tsx` (mounted by AppShell) lee `clientEnv` via `placeUrl`.
+// Mockeamos para evitar el parse eager del env real durante los tests.
+vi.mock('@/shared/config/env', () => ({
+  clientEnv: { NEXT_PUBLIC_APP_DOMAIN: 'lvh.me:3000' },
+}))
+
 const usePathnameMock = vi.fn()
 vi.mock('next/navigation', () => ({
   usePathname: () => usePathnameMock(),
@@ -48,12 +54,7 @@ describe('AppShell', () => {
   it('renderiza TopBar + SectionDots + children', () => {
     usePathnameMock.mockReturnValue('/')
     render(
-      <AppShell
-        places={places}
-        currentSlug="the-company"
-        apexUrl="http://lvh.me:3000"
-        apexDomain="lvh.me:3000"
-      >
+      <AppShell places={places} currentSlug="the-company" apexUrl="http://lvh.me:3000">
         <p>contenido de la zona</p>
       </AppShell>,
     )
@@ -72,12 +73,7 @@ describe('AppShell', () => {
   it('logo apunta al apexUrl (cross-subdomain via <a>)', () => {
     usePathnameMock.mockReturnValue('/')
     render(
-      <AppShell
-        places={places}
-        currentSlug="the-company"
-        apexUrl="http://lvh.me:3000"
-        apexDomain="lvh.me:3000"
-      >
+      <AppShell places={places} currentSlug="the-company" apexUrl="http://lvh.me:3000">
         <p>x</p>
       </AppShell>,
     )
@@ -90,13 +86,7 @@ describe('AppShell', () => {
   it('placeClosed=true deshabilita los dots (sin afectar el switcher)', () => {
     usePathnameMock.mockReturnValue('/')
     render(
-      <AppShell
-        places={places}
-        currentSlug="the-company"
-        apexUrl="http://lvh.me:3000"
-        apexDomain="lvh.me:3000"
-        placeClosed
-      >
+      <AppShell places={places} currentSlug="the-company" apexUrl="http://lvh.me:3000" placeClosed>
         <p>x</p>
       </AppShell>,
     )
@@ -110,12 +100,7 @@ describe('AppShell', () => {
   it('search trigger está siempre presente con aria-disabled (stub R.2)', () => {
     usePathnameMock.mockReturnValue('/conversations')
     render(
-      <AppShell
-        places={places}
-        currentSlug="the-company"
-        apexUrl="http://lvh.me:3000"
-        apexDomain="lvh.me:3000"
-      >
+      <AppShell places={places} currentSlug="the-company" apexUrl="http://lvh.me:3000">
         <p>x</p>
       </AppShell>,
     )
@@ -127,12 +112,7 @@ describe('AppShell', () => {
   it('layout root tiene max-w-[420px] mx-auto (mobile-first centrado)', () => {
     usePathnameMock.mockReturnValue('/')
     const { container } = render(
-      <AppShell
-        places={places}
-        currentSlug="the-company"
-        apexUrl="http://lvh.me:3000"
-        apexDomain="lvh.me:3000"
-      >
+      <AppShell places={places} currentSlug="the-company" apexUrl="http://lvh.me:3000">
         <p>x</p>
       </AppShell>,
     )

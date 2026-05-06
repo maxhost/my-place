@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServer } from '@/shared/lib/supabase/server'
-import { clientEnv } from '@/shared/config/env'
 import { AcceptInvitationView } from '@/features/members/public'
 import { findInvitationByToken } from '@/features/members/public.server'
 
@@ -52,7 +51,6 @@ export default async function AcceptInvitationPage({
       placeName={invitation.place.name}
       placeSlug={invitation.place.slug}
       asAdmin={invitation.asAdmin}
-      appDomain={clientEnv.NEXT_PUBLIC_APP_DOMAIN}
     />
   )
 }

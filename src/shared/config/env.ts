@@ -71,12 +71,31 @@ const serverSchema = z.object({
   CRON_SECRET: z.string().min(32).optional(),
 })
 
-const clientSchema = z.object({
+// Regex defensivos para vars que se interpolan en URLs/cookies.
+// Motivación: en producción un trailing space en `NEXT_PUBLIC_APP_DOMAIN`
+// (ej: `'place.community '`) pasaba `.string().min(1)` intacto, se
+// interpolaba en URLs, el browser encodeaba el espacio a `%20`, DNS
+// fallaba. Endurecemos con `.trim()`, `.toLowerCase()` (donde aplica) y
+// regex que rechaza whitespace/protocolo/path embedded.
+const HOSTNAME_RE = /^[a-z0-9.-]+(:\d+)?$/ // hostname o hostname:port
+const URL_RE = /^https?:\/\/[a-z0-9.-]+(:\d+)?(\/.*)?$/i
+
+export const clientSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().optional(),
-  NEXT_PUBLIC_APP_URL: z.string().url(),
-  NEXT_PUBLIC_APP_DOMAIN: z.string().min(1),
+  NEXT_PUBLIC_APP_URL: z
+    .string()
+    .trim()
+    .min(1)
+    .url()
+    .refine((v) => URL_RE.test(v), 'must match http(s)://host[:port][/path]'),
+  NEXT_PUBLIC_APP_DOMAIN: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(1)
+    .refine((v) => HOSTNAME_RE.test(v), 'must be a hostname (no whitespace, no protocol, no path)'),
 })
 
 function parseOrThrow<T extends z.ZodTypeAny>(

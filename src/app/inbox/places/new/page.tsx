@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { PlaceCreateForm } from '@/features/places/public'
-import { clientEnv } from '@/shared/config/env'
 
 /**
  * Ruta "crear nuevo place" bajo `app.place.app/places/new`.
@@ -18,7 +17,7 @@ export default function NewPlacePage() {
       <p className="mb-6 text-sm text-neutral-600">
         Un lugar digital para hasta 150 personas. Vas a ser el owner y primer admin.
       </p>
-      <PlaceCreateForm appDomain={clientEnv.NEXT_PUBLIC_APP_DOMAIN} />
+      <PlaceCreateForm />
     </main>
   )
 }

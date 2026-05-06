@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createSupabaseServer } from '@/shared/lib/supabase/server'
-import { clientEnv } from '@/shared/config/env'
 import { buildInboxUrl } from '@/app/auth/callback/helpers'
 import { LoginForm } from './login-form'
 
@@ -17,7 +16,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
   const params = await searchParams
 
   if (data.user) {
-    redirect(params.next ?? buildInboxUrl(clientEnv.NEXT_PUBLIC_APP_DOMAIN))
+    redirect(params.next ?? buildInboxUrl().toString())
   }
 
   return (

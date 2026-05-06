@@ -3,13 +3,13 @@
 import { useState, useTransition } from 'react'
 import { acceptInvitationAction } from '../server/actions/accept'
 import { isDomainError } from '@/shared/errors/domain-error'
-import { protocolFor } from '@/shared/lib/app-url'
+import { placeUrl } from '@/shared/lib/app-url'
 
 /**
  * Vista de confirmación para aceptar una invitación. Renderizada por
  * `src/app/invite/accept/[token]/page.tsx` tras validar el token server-side.
  *
- * En success redirige al subdomain del place (`{slug}.{appDomain}`).
+ * En success redirige al subdomain del place del slug retornado por el server.
  */
 
 export function AcceptInvitationView({
@@ -17,13 +17,11 @@ export function AcceptInvitationView({
   placeName,
   placeSlug,
   asAdmin,
-  appDomain,
 }: {
   token: string
   placeName: string
   placeSlug: string
   asAdmin: boolean
-  appDomain: string
 }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +31,7 @@ export function AcceptInvitationView({
     startTransition(async () => {
       try {
         const res = await acceptInvitationAction(token)
-        window.location.href = `${protocolFor(appDomain)}://${res.placeSlug}.${appDomain}/`
+        window.location.href = placeUrl(res.placeSlug).href
       } catch (err) {
         setError(friendlyMessage(err))
       }

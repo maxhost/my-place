@@ -13,9 +13,10 @@ import { ShellChrome } from './shell-chrome'
  * (de `params.placeSlug`) como props del layout que lo monta. NO hace
  * data fetching propio.
  *
- * `apexUrl` y `apexDomain` vienen de `clientEnv.NEXT_PUBLIC_APP_URL` y
- * `NEXT_PUBLIC_APP_DOMAIN` respectivamente. El layout caller los pasa
- * para evitar acoplar el shell al `clientEnv` global (testabilidad).
+ * `apexUrl` viene de `clientEnv.NEXT_PUBLIC_APP_URL`. El layout caller
+ * lo pasa para evitar acoplar el shell al `clientEnv` global
+ * (testabilidad). El subdomain de cada place lo construye internamente
+ * `<CommunitySwitcher>` via `placeUrl()` (lee `NEXT_PUBLIC_APP_DOMAIN`).
  *
  * `placeClosed` opcional: si el place está cerrado (PlaceClosedView),
  * los dots se renderizan pero `disabled` (opacity 50, no clickeables).
@@ -33,7 +34,6 @@ type Props = {
   places: ReadonlyArray<MyPlace>
   currentSlug: string
   apexUrl: string
-  apexDomain: string
   placeClosed?: boolean
   children: React.ReactNode
 }
@@ -42,7 +42,6 @@ export function AppShell({
   places,
   currentSlug,
   apexUrl,
-  apexDomain,
   placeClosed = false,
   children,
 }: Props): React.ReactNode {
@@ -52,7 +51,6 @@ export function AppShell({
         places={places}
         currentSlug={currentSlug}
         apexUrl={apexUrl}
-        apexDomain={apexDomain}
         placeClosed={placeClosed}
       />
       <main className="flex-1 overflow-x-hidden">{children}</main>

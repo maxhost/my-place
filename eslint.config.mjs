@@ -57,6 +57,37 @@ export default tseslint.config(
           message:
             'Los imports relativos con más de un `../` suelen romper el aislamiento. Usar alias (@/features, @/shared, @/db).',
         },
+        // Prohíbe construir URLs cross-subdomain ad-hoc. Detecta el patrón
+        // `${proto}://${slug}.${appDomain}/...`: un TemplateLiteral con 2+
+        // expressions interpoladas que contiene un quasi con `://` y otro
+        // quasi que empieza con `.` (la separación slug.appDomain). La
+        // fuente única para construir estos URLs vive en
+        // `@/shared/lib/app-url` (placeUrl/inboxUrl/apexUrl) — centralizar
+        // evita drift de protocolo, dominio dev vs prod y trailing slashes.
+        {
+          selector:
+            'TemplateLiteral[expressions.length>=2]:has(TemplateElement[value.raw=/:\\/\\//]):has(TemplateElement[value.raw=/^\\.[a-z0-9._/-]*$/i])',
+          message:
+            'No construyas URLs cross-subdomain ad-hoc (`${proto}://${slug}.${appDomain}/...`). Usá los helpers de `@/shared/lib/app-url` (placeUrl/inboxUrl/apexUrl).',
+        },
+      ],
+    },
+  },
+  {
+    // `app-url.ts` ES la fuente única que construye URLs cross-subdomain;
+    // por diseño usa el patrón `${proto}://${slug}.${appDomain}/...` que
+    // la regla `no-restricted-syntax` de arriba prohíbe en el resto del repo.
+    // Re-declaramos la regla acá conservando sólo el selector de imports
+    // relativos profundos (sigue aplicando) y omitimos el de URLs.
+    files: ['src/shared/lib/app-url.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ImportDeclaration[source.value=/^\\.\\.\\/\\.\\.\\//]',
+          message:
+            'Los imports relativos con más de un `../` suelen romper el aislamiento. Usar alias (@/features, @/shared, @/db).',
+        },
       ],
     },
   },

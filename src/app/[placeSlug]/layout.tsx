@@ -66,7 +66,6 @@ export default async function PlaceLayout({ children, params }: Props) {
         places={places}
         currentSlug={placeSlug}
         apexUrl={clientEnv.NEXT_PUBLIC_APP_URL}
-        apexDomain={clientEnv.NEXT_PUBLIC_APP_DOMAIN}
         placeClosed={placeClosed}
       >
         {children}
