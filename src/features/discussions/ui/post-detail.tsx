@@ -6,6 +6,7 @@ import { ReactionBar } from './reaction-bar'
 import { TimeAgo } from '@/shared/ui/time-ago'
 import { FlagButton } from '@/features/flags/public'
 import { EditWindowActions } from './edit-window-actions'
+import { RichTextRenderer, type MentionResolvers } from '@/features/rich-text/public.server'
 
 /**
  * Header + body del post (R.6.4 layout, ajustado 2026-04-27).
@@ -29,11 +30,18 @@ export function PostDetail({
   viewerUserId,
   placeSlug,
   reactions,
+  mentionResolvers,
 }: {
   post: Post
   viewerUserId: string
   placeSlug: string
   reactions: AggregatedReaction[]
+  /**
+   * Resolvers inyectados por la page consumer — el slice `rich-text` no
+   * importa de `members/`, `events/` ni `library/`; la page que sí
+   * puede los construye.
+   */
+  mentionResolvers: MentionResolvers
 }): React.ReactNode {
   const isAuthor = post.authorUserId !== null && post.authorUserId === viewerUserId
 
@@ -48,14 +56,9 @@ export function PostDetail({
         ) : null}
       </header>
 
-      {/* stub F.1: el RichTextRenderer (TipTap) se reemplaza en F.4 por el
-          renderer SSR de Lexical. */}
       {post.body ? (
         <div className="font-body text-[15.5px] leading-[1.65] text-text">
-          <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-            Contenido temporalmente deshabilitado durante migración a Lexical (F.1). Se restaura en
-            F.4.
-          </div>
+          <RichTextRenderer document={post.body} resolvers={mentionResolvers} />
         </div>
       ) : null}
 

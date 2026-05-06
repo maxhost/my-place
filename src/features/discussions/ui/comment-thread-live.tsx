@@ -31,8 +31,6 @@ export function CommentThreadLive({
   viewerUserId: string
   viewerIsAdmin: boolean
   initialItems: CommentView[]
-  /** mentionResolvers no se pasa al cliente: el client renderer pinta mention.label snapshot. */
-  mentionResolvers?: unknown
   children: ReactNode
 }): React.ReactNode {
   const { appendedComments } = useCommentRealtime({ postId, initialItems })

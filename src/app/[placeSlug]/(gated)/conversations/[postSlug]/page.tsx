@@ -21,6 +21,7 @@ import {
 import { EventActionsMenu, EventMetadataHeader } from '@/features/events/public'
 import { getEvent } from '@/features/events/public.server'
 import { CommentsSection, CommentsSkeleton } from './_comments-section'
+import { buildMentionResolvers } from './_mention-resolvers'
 
 type Props = { params: Promise<{ placeSlug: string; postSlug: string }> }
 
@@ -154,6 +155,7 @@ export default async function PostDetailPage({ params }: Props) {
           viewerUserId={viewer.actorId}
           placeSlug={viewer.placeSlug}
           reactions={postReactions.get(reactionMapKey('POST', post.id)) ?? []}
+          mentionResolvers={buildMentionResolvers({ placeId: place.id })}
         />
       )}
 

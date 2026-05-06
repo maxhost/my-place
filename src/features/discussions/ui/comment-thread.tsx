@@ -65,7 +65,6 @@ export function CommentThread({
         viewerUserId={viewerUserId}
         viewerIsAdmin={viewerIsAdmin}
         initialItems={items}
-        mentionResolvers={mentionResolvers}
       >
         <div className="mx-3 divide-y divide-border border-t-[0.5px] border-border">
           {items.map((comment) => {
