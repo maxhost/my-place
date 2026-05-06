@@ -90,4 +90,23 @@ export {
 } from './ui/mentions/mention-node'
 export type { MentionKind, MentionPayload } from './ui/mentions/mention-node'
 
-export type { MentionResolversForEditor, MentionUserResult } from './ui/mentions/mention-plugin'
+export type {
+  ComposerMentionResolvers,
+  MentionEventResult,
+  MentionLibraryCategoryResult,
+  MentionLibraryItemResult,
+  MentionResolversForEditor,
+  MentionUserResult,
+} from './ui/mentions/mention-plugin'
+
+// F.4: surface composers
+export { PostComposer } from './ui/post-composer'
+export type { PostComposerProps } from './ui/post-composer'
+
+export { EventComposer } from './ui/event-composer'
+export type { EventComposerProps } from './ui/event-composer'
+
+export { LibraryItemComposer } from './ui/library-item-composer'
+export type { LibraryItemComposerProps } from './ui/library-item-composer'
+
+export type { EnabledEmbeds } from './ui/base-composer'

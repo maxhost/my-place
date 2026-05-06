@@ -60,3 +60,7 @@ export { PendingInvitationsList } from './ui/pending-invitations-list'
 // Background jobs (cron, etc.)
 export { runErasure } from './server/erasure/run-erasure'
 export type { ErasureRunResult } from './server/erasure/types'
+
+// F.4 (rich-text): autocomplete `@user` para composers (Post / Library /
+// Event / Comment). Cacheado con `unstable_cache` + tag.
+export { searchMembersByPlace, type MentionMember } from './server/mention-search'

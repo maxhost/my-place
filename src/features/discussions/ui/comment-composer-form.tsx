@@ -6,18 +6,14 @@ import {
   type LexicalDocument,
   type MentionUserResult,
 } from '@/features/rich-text/public'
+import { searchMembersByPlaceAction } from '@/features/members/public'
 import { createCommentAction } from '../server/actions/comments'
 
 /**
  * Wrapper client del `<CommentComposer>` adaptado al server action de
- * `createCommentAction` del slice `discussions`. El composer mantiene su
- * propio editor + estado; este wrapper solo:
- *  1. Inyecta `placeId` y la search-function de mentions.
- *  2. Adapta el `(body) => Promise<void>` del composer al shape
- *     `{ postId, body, quotedCommentId? }` que pide el action.
- *
- * F.4 sumará triggers `/event` y `/library` — la prop `searchUsers` se
- * extiende ahí a `searchMentions(query, kind)` con un dispatch interno.
+ * `createCommentAction`. F.4: typeahead `@` real via
+ * `searchMembersByPlaceAction` (Server Action wrapper de la query
+ * cacheada del slice `members`).
  */
 export function CommentComposerForm({
   placeId,
@@ -26,14 +22,17 @@ export function CommentComposerForm({
   placeId: string
   postId: string
 }): React.JSX.Element {
-  // F.3: stub vacío. F.4 conectará `searchMembersByPlace(placeId, q)` (slice
-  // `members`) a través de un Server Action que se invoca desde el cliente.
-  // Sin búsqueda de usuarios el typeahead no abre — el `@` queda
-  // textual hasta F.4. La estructura del shape `MentionResolversForEditor`
-  // ya está lista para acelerar.
-  const searchUsers = useCallback(async (_q: string): Promise<MentionUserResult[]> => {
-    return []
-  }, [])
+  const searchUsers = useCallback(
+    async (q: string): Promise<MentionUserResult[]> => {
+      const rows = await searchMembersByPlaceAction(placeId, q)
+      return rows.map((r) => ({
+        userId: r.userId,
+        displayName: r.displayName,
+        handle: r.handle,
+      }))
+    },
+    [placeId],
+  )
 
   const onSubmit = useCallback(
     async (body: LexicalDocument) => {

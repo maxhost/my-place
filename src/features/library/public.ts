@@ -83,6 +83,12 @@ export { setLibraryCategoryGroupScopeAction } from './contributors/server/action
 export { updateLibraryCategoryAction } from './server/actions/update-category'
 export { updateLibraryItemAction } from './items/server/actions/update-item'
 
+// F.4 (rich-text): Server Action wrappers para autocomplete `/library`.
+export {
+  listLibraryCategoriesForMentionAction,
+  searchLibraryItemsForMentionAction,
+} from './server/actions/mention-search'
+
 // ---------------------------------------------------------------
 // Zod schemas + inferred types — input shapes para server actions
 // ---------------------------------------------------------------

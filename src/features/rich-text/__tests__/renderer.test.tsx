@@ -288,14 +288,54 @@ describe('RichTextRenderer', () => {
     expect(container.querySelector('u')?.textContent).toBe('c')
   })
 
-  it('renderiza embed nodes como placeholder en F.3 (F.4 entrega iframes)', async () => {
+  it('renderiza embed nodes como iframes con sandbox + lazy (F.4)', async () => {
     const yt: EmbedNode = { type: 'youtube', version: 1, videoId: 'abc' }
     const doc = docWith(yt)
     const node = await RichTextRenderer({ document: doc, resolvers: noopResolvers })
     const { container } = render(<>{node}</>)
-    const placeholder = container.querySelector('.rich-text-embed-placeholder')
-    expect(placeholder).not.toBeNull()
-    expect(placeholder?.getAttribute('data-embed-type')).toBe('youtube')
+    const wrap = container.querySelector('[data-embed-type="youtube"]')
+    expect(wrap).not.toBeNull()
+    const iframe = container.querySelector('iframe')
+    expect(iframe?.getAttribute('src')).toBe('https://www.youtube-nocookie.com/embed/abc')
+    expect(iframe?.getAttribute('sandbox')).toContain('allow-scripts')
+    expect(iframe?.getAttribute('loading')).toBe('lazy')
+  })
+
+  it('renderiza embed Spotify con player oficial', async () => {
+    const sp: EmbedNode = { type: 'spotify', version: 1, kind: 'track', externalId: 'abc123' }
+    const doc = docWith(sp)
+    const node = await RichTextRenderer({ document: doc, resolvers: noopResolvers })
+    const { container } = render(<>{node}</>)
+    const iframe = container.querySelector('iframe')
+    expect(iframe?.getAttribute('src')).toBe('https://open.spotify.com/embed/track/abc123')
+  })
+
+  it('renderiza embed Apple con episode si está presente', async () => {
+    const ap: EmbedNode = {
+      type: 'apple-podcast',
+      version: 1,
+      region: 'us',
+      showSlug: 'the-daily',
+      showId: '1200361736',
+      episodeId: '777',
+    }
+    const doc = docWith(ap)
+    const node = await RichTextRenderer({ document: doc, resolvers: noopResolvers })
+    const { container } = render(<>{node}</>)
+    const iframe = container.querySelector('iframe')
+    expect(iframe?.getAttribute('src')).toBe(
+      'https://embed.podcasts.apple.com/us/podcast/the-daily/id1200361736?i=777',
+    )
+    expect(iframe?.getAttribute('height')).toBe('175')
+  })
+
+  it('renderiza embed Ivoox con player_ej', async () => {
+    const iv: EmbedNode = { type: 'ivoox', version: 1, externalId: '42' }
+    const doc = docWith(iv)
+    const node = await RichTextRenderer({ document: doc, resolvers: noopResolvers })
+    const { container } = render(<>{node}</>)
+    const iframe = container.querySelector('iframe')
+    expect(iframe?.getAttribute('src')).toBe('https://www.ivoox.com/player_ej_42_4_1.html')
   })
 
   it('respeta el className extra del consumer', async () => {

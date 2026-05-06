@@ -82,6 +82,9 @@ export { updateEventAction } from './server/actions/update'
 export { cancelEventAction } from './server/actions/cancel'
 export { rsvpEventAction } from './server/actions/rsvp'
 
+// F.4 (rich-text): Server Action wrapper para autocomplete `/event`.
+export { searchEventsByPlaceAction } from './server/actions/mention-search'
+
 // ---------------------------------------------------------------
 // UI components (Server + Client)
 // ---------------------------------------------------------------

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
+import { resolveViewerForPlace } from '@/features/discussions/public.server'
+import { PostComposerWrapper } from '@/features/discussions/public'
 
 export const metadata: Metadata = {
   title: 'Nueva conversación',
@@ -11,13 +13,22 @@ type Props = {
 }
 
 /**
- * stub F.1: el composer Lexical de posts se reintroduce en F.4. Mientras tanto
- * la página muestra un placeholder y queda navegable.
+ * F.4 — Página de crear conversación. Reusa `<PostComposerWrapper>` (slice
+ * `discussions`, Client Component) que internamente envuelve `<PostComposer>`
+ * del slice `rich-text` con `createPostAction` + resolvers de mention
+ * importados de `members/events/library`.
+ *
+ * `enabledEmbeds`: por ahora todos true; F.5 lo lee de
+ * `Place.editorPluginsConfig`.
  */
-export default async function NewOrEditPostPage({ params }: Props) {
+export default async function NewPostPage({ params }: Props) {
   const { placeSlug } = await params
   const place = await loadPlaceBySlug(placeSlug)
   if (!place || place.archivedAt) notFound()
+
+  // Defensa en profundidad: el (gated) layout ya bloquea no-miembros, pero
+  // re-validamos para evitar render inútil del composer si timing raro.
+  await resolveViewerForPlace({ placeSlug })
 
   return (
     <div className="space-y-6 p-4 md:p-8">
@@ -27,9 +38,15 @@ export default async function NewOrEditPostPage({ params }: Props) {
           Sin apuro. Escribí y publicá cuando tenga sentido.
         </p>
       </header>
-      <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-        Editor temporalmente deshabilitado durante migración a Lexical (F.1). Se restaura en F.4.
-      </div>
+      <PostComposerWrapper
+        placeId={place.id}
+        enabledEmbeds={{
+          youtube: true,
+          spotify: true,
+          applePodcasts: true,
+          ivoox: true,
+        }}
+      />
     </div>
   )
 }

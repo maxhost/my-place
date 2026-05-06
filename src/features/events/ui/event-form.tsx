@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { useRouter } from 'next/navigation'
+import { EventComposerWrapper } from '@/features/discussions/public'
+import type { LexicalDocument } from '@/features/rich-text/public'
 import {
   EVENT_LOCATION_MAX_LENGTH,
   EVENT_TITLE_MAX_LENGTH,
@@ -21,7 +23,9 @@ type EditMode = {
   kind: 'edit'
   eventId: string
   initialTitle: string
-  initialDescription: string
+  /** F.4: descripción ahora es Lexical AST (no plain text). Null si el
+   *  evento no tiene descripción. */
+  initialDescription: LexicalDocument | null
   initialStartsAt: string // ISO 8601 (datetime-local format)
   initialEndsAt: string
   initialTimezone: string
@@ -43,11 +47,13 @@ type Props = {
   /** Default timezone para el form en modo create (típico: timezone del place
    *  o del browser). En edit viene del evento. */
   defaultTimezone?: string
+  /** F.4: placeId requerido para construir los resolvers de mention en el
+   *  composer de descripción. */
+  placeId: string
 }
 
 type FormValues = {
   title: string
-  description: string
   startsAt: string // <input type="datetime-local"> string
   endsAt: string
   timezone: string
@@ -78,16 +84,23 @@ type Feedback = { kind: 'err'; message: string } | null
  * propiamente hace falta un picker que opere en el TZ del evento. Out of
  * scope F1; documentado.
  */
-export function EventForm({ mode, allowedTimezones, defaultTimezone }: Props): React.ReactNode {
+export function EventForm({
+  mode,
+  allowedTimezones,
+  defaultTimezone,
+  placeId,
+}: Props): React.ReactNode {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<Feedback>(null)
+  const [description, setDescription] = useState<LexicalDocument | null>(
+    mode.kind === 'edit' ? mode.initialDescription : null,
+  )
 
   const initial: FormValues =
     mode.kind === 'create'
       ? {
           title: '',
-          description: '',
           startsAt: '',
           endsAt: '',
           timezone: defaultTimezone ?? 'America/Argentina/Buenos_Aires',
@@ -95,7 +108,6 @@ export function EventForm({ mode, allowedTimezones, defaultTimezone }: Props): R
         }
       : {
           title: mode.initialTitle,
-          description: mode.initialDescription,
           startsAt: mode.initialStartsAt,
           endsAt: mode.initialEndsAt,
           timezone: mode.initialTimezone,
@@ -116,7 +128,6 @@ export function EventForm({ mode, allowedTimezones, defaultTimezone }: Props): R
     setFeedback(null)
     const startsAt = new Date(values.startsAt)
     const endsAt = values.endsAt ? new Date(values.endsAt) : null
-    const description = buildDescription(values.description)
 
     startTransition(async () => {
       try {
@@ -182,15 +193,15 @@ export function EventForm({ mode, allowedTimezones, defaultTimezone }: Props): R
         />
       </label>
 
-      <label className="block">
+      <div>
         <span className="mb-1 block text-sm text-muted">Descripción (opcional)</span>
-        <textarea
-          rows={4}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-bg focus:outline-none"
+        <EventComposerWrapper
+          placeId={placeId}
+          {...(description ? { initialDocument: description } : {})}
+          onChange={setDescription}
           placeholder="Qué traer, cómo llegar, intenciones, links útiles…"
-          {...register('description')}
         />
-      </label>
+      </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="block">
@@ -281,22 +292,4 @@ export function EventForm({ mode, allowedTimezones, defaultTimezone }: Props): R
       </div>
     </form>
   )
-}
-
-/**
- * Convierte el textarea plano en un mini AST TipTap (paragraph único).
- * F.E o post-F1 puede upgradear el form a TipTap editor completo.
- */
-function buildDescription(text: string): null | { type: 'doc'; content: unknown[] } {
-  const trimmed = text.trim()
-  if (trimmed.length === 0) return null
-  return {
-    type: 'doc',
-    content: [
-      {
-        type: 'paragraph',
-        content: [{ type: 'text', text: trimmed }],
-      },
-    ],
-  }
 }

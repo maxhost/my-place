@@ -38,3 +38,12 @@ export {
 // Components y server actions cross-slice (ej: features/shell/).
 export { revalidateLibraryCategoryPaths, revalidateLibraryItemPaths } from './server/actions/shared'
 export { resolveLibraryViewer, type LibraryViewerContext } from './server/viewer'
+
+// F.4 (rich-text): autocomplete `/library/<cat>/<item>` two-step para
+// composers (Post / Library / Event). Cacheado.
+export {
+  listCategoriesForMention,
+  searchLibraryItems,
+  type MentionLibraryCategory,
+  type MentionLibraryItem,
+} from './server/mention-search'

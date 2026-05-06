@@ -233,6 +233,17 @@ Estimación inicial (target ≤1500 LOC para no requerir excepción):
 
 Total: ~1620 LOC. Si supera el cap, evaluar split del slice (`rich-text/embeds/` como sub-slice como hace `discussions/flags`). Por ahora cabe en un solo slice.
 
+### Conteo real post-F.4 (2026-05-06)
+
+- Slice principal `src/features/rich-text/` (excluye `embeds/`, sin tests): **~2581 LOC**
+- Sub-slice `src/features/rich-text/embeds/` (sin tests): **~906 LOC**
+- Combined sin tests: **~3487 LOC**
+
+Sub-slice ya creado (`embeds/`) absorbe los 4 plugins de embed (~906 LOC). Aún así el slice principal supera el cap 1500. F.6 evaluará:
+
+- Split de `ui/mentions/` (~600 LOC con plugin polimórfico extendido) en sub-slice propio.
+- ADR de excepción análogo a `2026-04-20-discussions-size-exception.md` documentando que el slice rich-text es densidad inherente del dominio (4 surfaces + AST polimórfico + 4 embeds + 3 triggers de mention + renderer SSR sin Lexical runtime).
+
 ## Boundary
 
 `rich-text` exporta vía `public.ts`:

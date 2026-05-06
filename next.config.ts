@@ -44,7 +44,19 @@ const cspDirectives = [
   // renderizamos como card link (NO iframe), no necesitan acá.
   // El nocookie también lo permitimos por backward-compat con items
   // que se persistieron antes del revert.
-  'frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://docs.google.com',
+  // F.4 (rich-text): nuevos hosts para embeds del Lexical composer —
+  // Spotify (`open.spotify.com`), Apple Podcasts
+  // (`embed.podcasts.apple.com`), Ivoox (`www.ivoox.com`).
+  [
+    'frame-src',
+    'https://www.youtube.com',
+    'https://www.youtube-nocookie.com',
+    'https://player.vimeo.com',
+    'https://docs.google.com',
+    'https://open.spotify.com',
+    'https://embed.podcasts.apple.com',
+    'https://www.ivoox.com',
+  ].join(' '),
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

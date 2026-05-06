@@ -37,6 +37,7 @@ export default async function NewEventPage({ params }: Props) {
       </header>
       <EventForm
         mode={{ kind: 'create', placeId: place.id }}
+        placeId={place.id}
         allowedTimezones={ALLOWED_TIMEZONES}
       />
     </div>

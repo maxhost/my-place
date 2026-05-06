@@ -1,11 +1,12 @@
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
-import { canCreateInCategory } from '@/features/library/public'
+import { canCreateInCategory, createLibraryItemAction } from '@/features/library/public'
 import {
   findLibraryCategoryBySlug,
   listCategoryContributorUserIds,
   resolveLibraryViewer,
 } from '@/features/library/public.server'
+import { LibraryItemComposerForm } from '@/features/discussions/public'
 
 type Props = {
   params: Promise<{ placeSlug: string; categorySlug: string }>
@@ -20,10 +21,10 @@ type Props = {
  *  3. Viewer es member activo del place.
  *  4. `canCreateInCategory` (admin | designated en su cat | members_open).
  *
- * Si alguno falla → `notFound()`. Si pasa todo, renderiza
- * `<LibraryItemForm mode="create">`.
+ * Si alguno falla → `notFound()`. Si pasa todo, renderiza el composer
+ * de Lexical (F.4).
  *
- * Ver `docs/features/library/spec.md` § 14.8.
+ * Ver `docs/features/library/spec.md` § 14.8 + `docs/features/rich-text/spec.md`.
  */
 export default async function NewLibraryItemPage({ params }: Props) {
   const { placeSlug, categorySlug } = await params
@@ -64,10 +65,21 @@ export default async function NewLibraryItemPage({ params }: Props) {
         </div>
       </header>
 
-      {/* stub F.1: el LibraryItemForm (TipTap) se reintroduce en F.4. */}
-      <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-        Editor temporalmente deshabilitado durante migración a Lexical (F.1). Se restaura en F.4.
-      </div>
+      <LibraryItemComposerForm
+        mode={{
+          kind: 'create',
+          placeId: place.id,
+          categoryId: category.id,
+          categorySlug: category.slug,
+          onCreate: createLibraryItemAction,
+        }}
+        enabledEmbeds={{
+          youtube: true,
+          spotify: true,
+          applePodcasts: true,
+          ivoox: true,
+        }}
+      />
     </div>
   )
 }

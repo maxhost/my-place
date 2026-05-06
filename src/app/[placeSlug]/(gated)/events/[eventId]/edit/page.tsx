@@ -50,7 +50,8 @@ export default async function EditEventPage({ params }: Props) {
   // huso del browser (limitación de `<input type="datetime-local">`). Si
   // editor y evento están en distintos husos, el editor ve la hora local
   // del browser. Documentado.
-  const initialDescription = extractPlainTextDescription(event.description)
+  // F.4: el body ya es Lexical AST (no plain text); pasamos directo.
+  const initialDescription = extractLexicalDescription(event.description)
 
   return (
     <div className="space-y-6 p-4 md:p-8">
@@ -72,6 +73,7 @@ export default async function EditEventPage({ params }: Props) {
           initialLocation: event.location ?? '',
           postSlug: event.postSlug,
         }}
+        placeId={place.id}
         allowedTimezones={ALLOWED_TIMEZONES}
       />
     </div>
@@ -88,12 +90,14 @@ function toDatetimeLocal(d: Date): string {
   )}:${pad(d.getUTCMinutes())}`
 }
 
-function extractPlainTextDescription(desc: unknown): string {
-  if (!desc || typeof desc !== 'object') return ''
-  const doc = desc as { content?: Array<{ content?: Array<{ text?: string }> }> }
-  if (!Array.isArray(doc.content)) return ''
-  return doc.content
-    .map((p) => (p.content ?? []).map((t) => t.text ?? '').join(''))
-    .join('\n\n')
-    .trim()
+/**
+ * El `Event.description` es `Json?` en Prisma. Si está poblado, es un
+ * `LexicalDocument`. Devolvemos `null` si no, o el cast directo si está.
+ * El schema Zod del action lo re-valida estructuralmente al guardar.
+ */
+function extractLexicalDescription(
+  desc: unknown,
+): import('@/features/rich-text/public').LexicalDocument | null {
+  if (!desc || typeof desc !== 'object') return null
+  return desc as import('@/features/rich-text/public').LexicalDocument
 }

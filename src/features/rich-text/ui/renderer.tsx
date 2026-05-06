@@ -237,26 +237,72 @@ async function renderMention(
 }
 
 function renderEmbed(node: EmbedNode, key: number): ReactNode {
-  // Los embeds se renderizan como placeholder en F.3. F.4 entrega los
-  // iframes reales con sandbox + lazy loading per-host. Mantenemos el
-  // espacio reservado para no romper la altura visual del documento.
-  const label = embedLabel(node)
-  return (
-    <div key={key} className="rich-text-embed-placeholder" data-embed-type={node.type}>
-      <span>{label}</span>
-    </div>
-  )
-}
-
-function embedLabel(node: EmbedNode): string {
+  // F.4: render real con iframes sandbox + lazy. CSP debe whitelistar los
+  // hosts (`next.config.ts` § frame-src). El renderer NO chequea feature
+  // flags del place — eso es F.5; acá renderiza todo embed que aparezca
+  // en el AST (Opción A: sin censura post-hoc).
   switch (node.type) {
     case 'youtube':
-      return `[YouTube · ${node.videoId}]`
+      return (
+        <div key={key} className="rich-text-embed-youtube" data-embed-type="youtube">
+          <iframe
+            className="aspect-video w-full"
+            src={`https://www.youtube-nocookie.com/embed/${node.videoId}`}
+            sandbox="allow-scripts allow-same-origin allow-presentation"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            allowFullScreen
+            title={`YouTube video ${node.videoId}`}
+          />
+        </div>
+      )
     case 'spotify':
-      return `[Spotify · ${node.kind} · ${node.externalId}]`
-    case 'apple-podcast':
-      return `[Apple Podcasts · ${node.showId}${node.episodeId ? ` · ${node.episodeId}` : ''}]`
+      return (
+        <div key={key} className="rich-text-embed-spotify" data-embed-type="spotify">
+          <iframe
+            src={`https://open.spotify.com/embed/${node.kind}/${node.externalId}`}
+            width="100%"
+            height={352}
+            sandbox="allow-scripts allow-same-origin allow-presentation"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            title={`Spotify ${node.kind} ${node.externalId}`}
+          />
+        </div>
+      )
+    case 'apple-podcast': {
+      const isEpisode = !!node.episodeId
+      const src = `https://embed.podcasts.apple.com/${node.region}/podcast/${node.showSlug}/id${node.showId}${
+        isEpisode ? `?i=${node.episodeId}` : ''
+      }`
+      return (
+        <div key={key} className="rich-text-embed-apple-podcast" data-embed-type="apple-podcast">
+          <iframe
+            src={src}
+            width="100%"
+            height={isEpisode ? 175 : 450}
+            sandbox="allow-scripts allow-same-origin allow-presentation"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            allow="autoplay *; encrypted-media *; clipboard-write"
+            title={`Apple Podcasts ${node.showSlug}`}
+          />
+        </div>
+      )
+    }
     case 'ivoox':
-      return `[Ivoox · ${node.externalId}]`
+      return (
+        <div key={key} className="rich-text-embed-ivoox" data-embed-type="ivoox">
+          <iframe
+            src={`https://www.ivoox.com/player_ej_${node.externalId}_4_1.html`}
+            width="100%"
+            height={200}
+            sandbox="allow-scripts allow-same-origin allow-presentation"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            title={`Ivoox podcast ${node.externalId}`}
+          />
+        </div>
+      )
   }
 }

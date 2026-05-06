@@ -58,7 +58,22 @@ export {
 // minimizar churn en consumers que importaban del barrel `discussions`. F.6
 // audita si siguen siendo necesarios o se inlinean los imports al
 // `rich-text/public(.server)?` directo.
-export { CommentComposer, RichTextRendererClient } from '@/features/rich-text/public'
+export {
+  CommentComposer,
+  EventComposer,
+  LibraryItemComposer,
+  PostComposer,
+  RichTextRendererClient,
+} from '@/features/rich-text/public'
+
+// F.4: orchestrators client para componer cada surface con sus actions
+// + resolvers cross-slice. Vive en `discussions/` por ser el barrel
+// orchestrator del producto.
+export { CommentComposerForm } from './ui/comment-composer-form'
+export { PostComposerWrapper } from './ui/post-composer-form'
+export { EventComposerWrapper } from './ui/event-composer-form'
+export { LibraryItemComposerForm } from './ui/library-item-composer-form'
+export type { LibraryItemComposerFormProps } from './ui/library-item-composer-form'
 
 export {
   CommentDeletedError,

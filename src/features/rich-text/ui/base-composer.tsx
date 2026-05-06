@@ -16,7 +16,21 @@ import { ListItemNode, ListNode } from '@lexical/list'
 import { LinkNode } from '@lexical/link'
 import type { LexicalDocument } from '../domain/types'
 import { MentionNode } from './mentions/mention-node'
-import { MentionPlugin, type MentionResolversForEditor } from './mentions/mention-plugin'
+import {
+  MentionPlugin,
+  type ComposerMentionResolvers,
+  type MentionResolversForEditor,
+} from './mentions/mention-plugin'
+import {
+  ApplePodcastNode,
+  ApplePodcastPlugin,
+  IvooxNode,
+  IvooxPlugin,
+  SpotifyNode,
+  SpotifyPlugin,
+  YouTubeNode,
+  YouTubePlugin,
+} from '../embeds/public'
 
 export type ComposerSurface = 'comment' | 'post' | 'event' | 'library-item'
 
@@ -41,11 +55,32 @@ const SURFACE_NODES: Record<ComposerSurface, ReadonlyArray<LexicalNodeKlass>> = 
   'library-item': [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, MentionNode],
 }
 
-type EnabledPlugins = {
+export type EnabledEmbeds = {
   youtube?: boolean
   spotify?: boolean
   applePodcasts?: boolean
   ivoox?: boolean
+}
+
+/**
+ * Surfaces que admiten embeds. `comment` y `event` no — son superficies
+ * conversacionales/breves. Spec § "Modelo del documento".
+ */
+function surfaceAllowsEmbeds(surface: ComposerSurface): boolean {
+  return surface === 'post' || surface === 'library-item'
+}
+
+function buildNodes(
+  surface: ComposerSurface,
+  enabledEmbeds?: EnabledEmbeds,
+): ReadonlyArray<LexicalNodeKlass> {
+  const base = [...SURFACE_NODES[surface]]
+  if (!surfaceAllowsEmbeds(surface) || !enabledEmbeds) return base
+  if (enabledEmbeds.youtube) base.push(YouTubeNode)
+  if (enabledEmbeds.spotify) base.push(SpotifyNode)
+  if (enabledEmbeds.applePodcasts) base.push(ApplePodcastNode)
+  if (enabledEmbeds.ivoox) base.push(IvooxNode)
+  return base
 }
 
 export type BaseComposerProps = {
@@ -54,13 +89,15 @@ export type BaseComposerProps = {
   onChange: (document: LexicalDocument) => void
   placeholder?: string
   /**
-   * Sólo requerido si la surface incluye mentions (todas en MVP). El callsite
-   * lo construye con `searchUsers` (importado de `members/public.server` por
-   * la page que sí puede tocar ese slice) y el `placeId` de contexto.
+   * Resolvers para mentions. Forma legacy (`{ placeId, searchUsers }`) o
+   * nueva (con triggers `/event` + `/library`). El plugin acepta ambas.
    */
-  resolvers?: MentionResolversForEditor
-  /** Para F.4 — embeds toggleables por place. Hoy ignorado. */
-  enabledPlugins?: EnabledPlugins
+  resolvers?: MentionResolversForEditor | ComposerMentionResolvers
+  /**
+   * Embeds toggleables por place (F.5: leer de `Place.editorPluginsConfig`).
+   * Solo aplica a surfaces que admiten embeds (post / library-item).
+   */
+  enabledEmbeds?: EnabledEmbeds
   className?: string
   ariaLabel?: string
 }
@@ -102,14 +139,16 @@ export function BaseComposer({
   onChange,
   placeholder,
   resolvers,
+  enabledEmbeds,
   className,
   ariaLabel,
 }: BaseComposerProps): React.JSX.Element {
   const placeholderId = useId()
+  const embedsAllowed = surfaceAllowsEmbeds(surface)
 
   const initialConfig: InitialConfigType = {
     namespace: `place-${surface}`,
-    nodes: SURFACE_NODES[surface],
+    nodes: buildNodes(surface, enabledEmbeds),
     onError: (error: Error) => {
       // El editor nunca debería propagar errores al render tree principal —
       // los logueamos en consola para diagnóstico y dejamos que LexicalErrorBoundary
@@ -152,6 +191,10 @@ export function BaseComposer({
         <LinkPlugin />
         {(surface === 'post' || surface === 'library-item') && <ListPlugin />}
         {resolvers ? <MentionPlugin resolvers={resolvers} /> : null}
+        {embedsAllowed && enabledEmbeds?.youtube ? <YouTubePlugin /> : null}
+        {embedsAllowed && enabledEmbeds?.spotify ? <SpotifyPlugin /> : null}
+        {embedsAllowed && enabledEmbeds?.applePodcasts ? <ApplePodcastPlugin /> : null}
+        {embedsAllowed && enabledEmbeds?.ivoox ? <IvooxPlugin /> : null}
         <OnChangePlugin
           onChange={(editorState) => {
             // `toJSON()` produce el shape canónico `LexicalDocument` que validan

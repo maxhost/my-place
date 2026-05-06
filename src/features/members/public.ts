@@ -61,6 +61,10 @@ export {
   resendInvitationAction,
 } from './server/actions'
 
+// F.4 (rich-text): autocomplete `@user` para composers — Server Action
+// wrapper de la query cacheada `searchMembersByPlace`.
+export { searchMembersByPlaceAction } from './server/actions/mention-search'
+
 // ---------------------------------------------------------------
 // UI client-safe (no consumen server-only)
 // ---------------------------------------------------------------
