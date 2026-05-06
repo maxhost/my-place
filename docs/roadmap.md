@@ -66,7 +66,7 @@ Implementar según `docs/features/hours/spec.md`:
 Implementar según `docs/features/discussions/spec.md` (spec canónico) y `docs/ontologia/conversaciones.md` (ontología).
 
 - Vocabulario **Post** (título + body rich text opcional) y **Comment** (body obligatorio, con cita opcional).
-- Editor **TipTap + JSON AST** en `body jsonb`. Renderer SSR con `@tiptap/html`. Allowlist estricta de extensions (paragraph, headings h2/h3, lists, blockquote, code, link, mention). Reutilizable en docs internos y descripción de eventos (Fase 6).
+- Editor **Lexical + JSON AST** en `body jsonb`. Renderer SSR con visitor pattern AST → JSX (sin runtime de Lexical en server). Allowlist estricta por surface (per-instance via `initialConfig.nodes`). Embeds (YouTube/Spotify/Apple Podcasts/Ivoox) toggleables por place vía `Place.editorPluginsConfig`. Migración desde TipTap registrada en `docs/decisions/2026-05-06-tiptap-to-lexical.md` y `docs/plans/2026-05-06-tiptap-to-lexical-migration.md`. Modelo canónico en `docs/features/rich-text/spec.md`.
 - **Citas tipo WhatsApp** con snapshot congelado al momento de responder (borde ámbar). Profundidad máx 1.
 - **Reacciones**: set cerrado de 6 emojis (👍❤️😂🙏🤔😢). UNIQUE `(target, user, emoji)`.
 - **Ventana de edición autor 60s**; tras 60s solo admin (delete para Comment; edit O delete para Post — admin no reescribe contenido ajeno, solo hide/delete).

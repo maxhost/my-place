@@ -3,18 +3,19 @@
  * Vive como archivo separado para romper ciclos (el root importa los
  * sub-components, y éstos necesitan los tipos).
  *
- * stub F.1: el editor inline (`EditWindowForm`) se eliminó durante la
- * migración a Lexical; F.3 (comments) y F.4 (posts) reintroducen el flujo
- * completo de edición 60s con el composer Lexical.
+ * El editor inline 60s se restaura post-MVP — hoy solo el flujo "delete"
+ * está cableado. El campo `body` se preserva en el tipo para que el
+ * delete confirm pueda mostrar excerpt si el producto lo decide en el
+ * futuro.
  */
 
-// stub F.1: body retipado de RichTextDocument a unknown durante migración a Lexical (F.2).
+import type { LexicalDocument } from '@/features/rich-text/public'
 
 export type PostSubject = {
   kind: 'post'
   postId: string
   title: string
-  body: unknown
+  body: LexicalDocument | null
   createdAt: Date
   version: number
   placeSlug: string
@@ -22,7 +23,7 @@ export type PostSubject = {
 
 export type CommentSubject = {
   kind: 'comment'
-  body: unknown
+  body: LexicalDocument | null
   commentId: string
   createdAt: Date
   version: number

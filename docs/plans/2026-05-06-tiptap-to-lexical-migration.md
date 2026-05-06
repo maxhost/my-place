@@ -1,5 +1,7 @@
 # Plan — Migración TipTap → Lexical
 
+**Estado: ✅ ejecutado 2026-05-06.** Todas las sub-fases F.0–F.6 cerradas en una sola sesión secuencial. Suite verde: 1942 tests / 202 files. Cero residuos TipTap. Excepción al cap del slice rich-text registrada en `docs/decisions/2026-05-06-rich-text-size-exception.md`.
+
 ## Contexto
 
 Reemplazo completo del editor de rich-text del producto. Decisión arquitectónica + tradeoffs en `docs/decisions/2026-05-06-tiptap-to-lexical.md`. Modelo del nuevo sistema en `docs/features/rich-text/spec.md`.

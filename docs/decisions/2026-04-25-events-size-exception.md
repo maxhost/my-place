@@ -4,6 +4,8 @@
 **Milestone:** Fase 6 / F.A (spec-first del slice events)
 **Autor:** Max
 
+> **Update 2026-05-06:** Tras la migración TipTap → Lexical (`docs/decisions/2026-05-06-tiptap-to-lexical.md`), `Event.description` persiste un `LexicalDocument` (mismo shape de columna `Json?`). El cap 20 KB se mantiene; los schemas Zod ahora viven en `src/features/rich-text/`. Esta excepción de tamaño sigue vigente para la densidad propia de events.
+
 ## Contexto
 
 `CLAUDE.md` fija tres límites no cosméticos:

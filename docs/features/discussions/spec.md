@@ -557,108 +557,59 @@ Cada hide/unhide/delete/flag-review loguea pino con: `action`, `placeId`, `actor
 - **`quotedCommentId` nullable con `ON DELETE SET NULL`.** Preserva citas si un DBA hard-deletea el Comment target, o si el Post padre se hard-deletea (caso común post-C.G.1) — cascade se dispara y el quotedCommentId queda null, render muestra placeholder.
 - **Borde ámbar izquierdo** en UI (clase Tailwind `border-l-2 border-l-amber-500` compatible con CSS vars del place).
 
-## 12. Rich text — TipTap + JSON AST
+## 12. Rich text — Lexical + JSON AST
+
+> **Migrado a Lexical 2026-05-06.** Esta sección queda como contexto histórico del slice `discussions/`. El modelo canónico vive en `docs/features/rich-text/spec.md`. ADR de la migración: `docs/decisions/2026-05-06-tiptap-to-lexical.md`.
 
 ### Decisión
 
-Editor: **TipTap** (wrapper de ProseMirror). Storage: **JSON AST** en columna `jsonb`. Render SSR: `@tiptap/html`.
+Editor: **Lexical** (Meta). Storage: **JSON AST** en columna `jsonb` (mismo tipo de columna que TipTap; el shape interno cambió). Render SSR: visitor pattern AST → JSX (sin Lexical runtime en server).
 
-Rationale:
+Rationale (post-migración):
 
-- Más extensions listas que Lexical (headings, lists, blockquote, codeBlock, mentions); reutilizables para docs internos (v2) y descripción de eventos (Fase 6).
-- JSON AST es safe-by-construction: nunca inyecta HTML arbitrario. No requiere sanitización en read.
-- `@tiptap/html` es stateless: renderiza en server sin cliente.
+- Schema **per-instance** vía `initialConfig.nodes`: cada surface (comment / post / event / library-item) declara su propio set, evitando que comments paguen el costo de heading + lists + embeds que sólo usa post/library.
+- Plugins son React Components lazy-loadables con `next/dynamic` — habilitamos/deshabilitamos embeds (YouTube, Spotify, Apple Podcasts, Ivoox) por place vía `Place.editorPluginsConfig` sin cambiar el editor.
+- JSON AST sigue siendo safe-by-construction: el renderer SSR sólo emite JSX desde shapes validados por Zod (`richTextDocumentSchema` y subsets per-surface en `rich-text/domain/schemas.ts`).
 
-### Extensions permitidas (allowlist)
+### Detalle del modelo
 
-Archivo canónico: `src/features/discussions/ui/tiptap/extensions.ts`. Compartido por editor client y renderer SSR.
+El AST, schemas Zod, caps de tamaño, mention polimórfico y los plugins de embed (YouTube/Spotify/Apple Podcasts/Ivoox) viven en `docs/features/rich-text/spec.md`. Este spec ya no duplica la información — sólo lista cómo `discussions` consume el slice `rich-text/`.
 
-```
-paragraph, text, bold, italic, link, heading (levels: [2, 3]),
-bulletList, orderedList, listItem, blockquote, code (inline),
-codeBlock, mention
-```
+### Cómo consume `discussions/`
 
-**Explícitamente excluidos:** image, video, embed, iframe, table, horizontalRule, strike, underline, highlight, taskList, subscript, superscript. Cada uno rechazado por el schema Zod.
+- `Post.body` y `Comment.body` persisten un `LexicalDocument` (column `Json` / `Json`-NOT NULL respectivamente).
+- Server actions de posts/comments validan con `richTextDocumentSchema` (importado de `@/features/rich-text/public`) y aplican `assertRichTextSize(body)` (cap 20 KB, depth 5).
+- `quotedSnapshot` se construye con `buildQuoteSnapshot` (versión específica de `discussions/domain/invariants.ts` que retorna shape `{ commentId, authorLabel, bodyExcerpt, createdAt }` y delega excerpt a `richTextExcerpt` del slice rich-text).
+- Renderer del thread y comments usa `<RichTextRenderer>` (Server Component) y `<RichTextRendererClient>` (para appended-comments del realtime — sin lookup async de mentions hasta el siguiente `revalidatePath`).
+- Composers del post nuevo y comment se importan desde `discussions/ui/{post,comment}-composer-form.tsx` (wrappers slice-local que cablean el server action). Internamente delegan a `<PostComposer>` / `<CommentComposer>` del slice rich-text.
 
-### Schema Zod restrictivo
+### Allowlist por surface (informativo)
 
-`discussions/schemas.ts` define un schema recursivo con discriminador por `type`:
+| Surface en `discussions` | Nodos                                                                                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Post (thread)            | text, mention (`@user` `/event` `/library/<cat>/<item>`), heading h1-h3, bold, ordered list, bullet list, link, embeds (toggleables por place vía `Place.editorPluginsConfig`) |
+| Comment / respuesta      | text, link, mention                                                                                                                                                            |
 
-```ts
-const textNode = z
-  .object({
-    type: z.literal('text'),
-    text: z.string().min(1),
-    marks: z.array(markSchema).optional(),
-  })
-  .strict()
+Italic se aplica en CSS al contenido de los `LinkNode` (no es toggle del usuario). Heading h4-h6 explicitamente excluidos en el schema Zod del subset.
 
-const paragraphNode = z
-  .object({
-    type: z.literal('paragraph'),
-    content: z.array(inlineNode).optional(),
-  })
-  .strict()
+### Schema Zod, validación de mentions y caps
 
-// ... (resto de nodos)
-
-const richTextSchema = z
-  .object({
-    type: z.literal('doc'),
-    content: z.array(blockNode),
-  })
-  .strict()
-  .superRefine((doc, ctx) => {
-    const serialized = JSON.stringify(doc)
-    if (new Blob([serialized]).size > 20_000) {
-      ctx.addIssue({ code: 'custom', message: 'RICH_TEXT_TOO_LARGE' })
-    }
-    if (listDepth(doc) > 5) {
-      ctx.addIssue({ code: 'custom', message: 'LIST_DEPTH_EXCEEDED' })
-    }
-  })
-```
-
-**Link mark:** `href` validado con `z.string().url().refine(u => /^(https|mailto):/.test(u))`. Atributos de render fijos: `target="_blank"`, `rel="noopener noreferrer"`.
-
-**Mention node:**
-
-```ts
-{ type: 'mention', attrs: { userId: z.string().cuid(), label: z.string().min(1).max(80) } }
-```
-
-Action valida server-side que `userId` sea miembro activo del place (query `members/public.ts#findMembership`). Si no ⇒ `InvalidMention`. El `label` se re-resuelve server-side al `displayName` actual del user antes de persistir, evitando confianza ciega en el cliente.
-
-**CodeBlock:** `attrs.language` restringido a allowlist `['ts','js','python','go','rust','bash','json','sql','html','css','markdown','plaintext']`.
+Detalles en `docs/features/rich-text/spec.md` (sección "Modelo del documento" + "Mention polimórfico"). La validación de mentions a usuarios sigue corriendo server-side en las server actions de `discussions/`: el `targetId` se chequea contra `findMembership` del slice members; si no es miembro activo del place ⇒ `InvalidMention`. El `label` snapshot se respeta tal como llega del cliente (cap 80 chars en el schema Zod).
 
 ### Render SSR
 
-`src/features/discussions/server/tiptap-render.ts`:
-
-```ts
-import { generateHTML } from '@tiptap/html'
-import { richTextExtensions } from '@/features/discussions/ui/tiptap/extensions'
-
-export function renderRichText(ast: unknown): string {
-  const parsed = richTextSchema.parse(ast) // nunca renderizar sin validar
-  return generateHTML(parsed, richTextExtensions)
-}
-```
-
-El componente `<PostBody>` llama `renderRichText` y usa `dangerouslySetInnerHTML` con el output — safe porque `generateHTML` solo emite tags que están en las extensions (sin `<script>`, sin inline handlers). Atributos de `link` se fijan vía `HTMLAttributes` en la extension config.
+`<RichTextRenderer>` (importado desde `@/features/rich-text/public.server`) recibe el `LexicalDocument` + un `MentionResolvers` con tres callbacks (user / event / library-item). Visitor pattern AST → JSX, sin runtime de Lexical en server. Detalles en el spec del slice rich-text.
 
 ### Editor client
 
-`src/features/discussions/ui/tiptap/editor-client.tsx` — wrapper `@tiptap/react` con `StarterKit` deshabilitado y extensions individuales de la allowlist. Ctrl+B/I/K soportado por default. `aria-label` en el editable area. Soporte `<Tab>` en listas, atajos estándar.
+`<PostComposer>`, `<CommentComposer>` y los wrappers slice-local de `discussions/ui/{post,comment}-composer-form.tsx` cubren la creación/edición. Internamente el `<BaseComposer>` de rich-text monta `<LexicalComposer>` con el set de nodos del surface y los plugins enabled (mention + link + history + embeds según `Place.editorPluginsConfig`).
 
 ### Accesibilidad
 
-- TipTap default aria-labels + roving tabindex + screen reader support.
-- Composer: `aria-label="Escribir comentario"` o `"Escribir post"`.
-- Toolbar: botones con `aria-label` y `aria-pressed`.
-- Mention autocomplete: `role="listbox"`, navegación con flechas, `Enter` selecciona, `Escape` cierra.
-- Alt text de avatars en mention labels.
+- Lexical aporta keyboard handling estándar (atajos Ctrl+B en post/library, Tab en listas, Enter para nueva línea).
+- Composer: `aria-label="Escribir comentario"` / `"Escribir post"` en el `ContentEditable`.
+- Mention autocomplete (`LexicalTypeaheadMenuPlugin`): `role="listbox"`, flechas, Enter selecciona, Escape cierra — accesibilidad heredada del primitive oficial.
+- Avatares en suggestions de mention: `alt={displayName}`.
 
 ## 13. Realtime y presencia
 

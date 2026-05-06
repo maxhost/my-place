@@ -1,5 +1,7 @@
 # 2026-05-06 — Migración del editor: TipTap → Lexical
 
+**Estado: ✅ ejecutado 2026-05-06.** Plan operacional cerrado en `docs/plans/2026-05-06-tiptap-to-lexical-migration.md`. ADR de excepción al cap del slice `rich-text` en `docs/decisions/2026-05-06-rich-text-size-exception.md`.
+
 ## Contexto
 
 El slice `discussions` (y por reuso `events` + `library`) usa TipTap como editor de rich-text. TipTap está construido sobre ProseMirror y obliga a registrar el schema completo al boot del editor: las extensiones del `StarterKit` cargan paragraph + heading + listas + code + blockquote + link + mention + history + dropcursor + gapCursor en bloque, aún cuando el surface concreto sólo necesita un subset.

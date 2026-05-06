@@ -4,6 +4,8 @@
 **Milestone:** Fase 5 / C.E (UI de conversations)
 **Autor:** Max
 
+> **Update 2026-05-06:** Tras la migración TipTap → Lexical (`docs/decisions/2026-05-06-tiptap-to-lexical.md`), el AST y schemas Zod del rich-text viven ahora en `src/features/rich-text/` (slice nuevo). El cap 20 KB del documento se mantiene; el shape del AST cambió. Esta excepción de tamaño sigue vigente para la densidad propia de discussions (posts + comments + threads + reads + presence + citas), independiente del rich-text.
+
 ## Contexto
 
 `CLAUDE.md` fija tres límites no cosméticos:
