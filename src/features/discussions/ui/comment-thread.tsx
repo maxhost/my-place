@@ -2,8 +2,10 @@ import type { QuoteTargetState } from '../domain/types'
 import type { CommentView } from '../server/queries'
 import type { AggregatedReaction, ReactionAggregationMap } from '../server/reactions-aggregation'
 import { reactionMapKey } from '../server/reactions-aggregation'
+import type { MentionResolvers } from '@/features/rich-text/public.server'
 import { CommentItem } from './comment-item'
 import { CommentThreadLive } from './comment-thread-live'
+import { CommentComposerForm } from './comment-composer-form'
 import { LoadMoreComments } from './load-more-comments'
 
 /**
@@ -29,6 +31,7 @@ import { LoadMoreComments } from './load-more-comments'
  */
 export function CommentThread({
   postId,
+  placeId,
   placeSlug,
   viewerUserId,
   viewerIsAdmin,
@@ -36,8 +39,10 @@ export function CommentThread({
   nextCursor,
   reactionsByKey,
   quoteStateByCommentId,
+  mentionResolvers,
 }: {
   postId: string
+  placeId: string
   placeSlug: string
   viewerUserId: string
   viewerIsAdmin: boolean
@@ -45,6 +50,12 @@ export function CommentThread({
   nextCursor: { createdAt: string; id: string } | null
   reactionsByKey: ReactionAggregationMap
   quoteStateByCommentId: Map<string, QuoteTargetState>
+  /**
+   * Resolvers inyectados por la page consumer — resuelven mentions a su
+   * href canónico. La page los construye con `findMember` (slice members)
+   * y stubs `null` para event/libraryItem hasta que F.4 los llene.
+   */
+  mentionResolvers: MentionResolvers
 }): React.ReactNode {
   return (
     <section aria-label="Comentarios" className="mt-6">
@@ -54,6 +65,7 @@ export function CommentThread({
         viewerUserId={viewerUserId}
         viewerIsAdmin={viewerIsAdmin}
         initialItems={items}
+        mentionResolvers={mentionResolvers}
       >
         <div className="mx-3 divide-y divide-border border-t-[0.5px] border-border">
           {items.map((comment) => {
@@ -71,6 +83,7 @@ export function CommentThread({
                 viewerIsAdmin={viewerIsAdmin}
                 reactions={reactions}
                 quoteTargetState={quoteTargetState}
+                mentionResolvers={mentionResolvers}
               />
             )
           })}
@@ -87,11 +100,9 @@ export function CommentThread({
         />
       ) : null}
 
-      <div data-role="comment-composer">
-        {/* stub F.1: el composer Lexical se reintroduce en F.3. */}
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-          Editor temporalmente deshabilitado durante migración a Lexical (F.1). Se restaura en F.3.
-        </div>
+      <div data-role="comment-composer" className="mx-3 mt-4">
+        {/* F.3: composer Lexical (CommentComposer del slice rich-text). */}
+        <CommentComposerForm placeId={placeId} postId={postId} />
       </div>
     </section>
   )

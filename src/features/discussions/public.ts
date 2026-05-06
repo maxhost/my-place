@@ -54,8 +54,11 @@ export {
   isDormant,
 } from './domain/invariants'
 
-// stub F.1: helpers de tamaño/excerpt rich-text (TipTap) eliminados.
-// F.2 reintroduce las versiones Lexical desde el slice `rich-text/`.
+// F.3: re-exports temporales de los composers/renderers Lexical para
+// minimizar churn en consumers que importaban del barrel `discussions`. F.6
+// audita si siguen siendo necesarios o se inlinean los imports al
+// `rich-text/public(.server)?` directo.
+export { CommentComposer, RichTextRendererClient } from '@/features/rich-text/public'
 
 export {
   CommentDeletedError,

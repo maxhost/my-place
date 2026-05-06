@@ -70,3 +70,24 @@ export { richTextExcerpt } from './domain/excerpt'
 
 export { buildQuoteSnapshot } from './domain/snapshot'
 export type { BuildQuoteSnapshotInput } from './domain/snapshot'
+
+// ---------------------------------------------------------------
+// UI client-safe (Client Components con `'use client'` o tipos puros)
+// ---------------------------------------------------------------
+
+export { RichTextRendererClient } from './ui/renderer-client'
+
+export { BaseComposer } from './ui/base-composer'
+export type { BaseComposerProps, ComposerSurface } from './ui/base-composer'
+
+export { CommentComposer } from './ui/comment-composer'
+export type { CommentComposerProps } from './ui/comment-composer'
+
+export {
+  MentionNode as MentionLexicalNode,
+  $createMentionNode,
+  $isMentionNode,
+} from './ui/mentions/mention-node'
+export type { MentionKind, MentionPayload } from './ui/mentions/mention-node'
+
+export type { MentionResolversForEditor, MentionUserResult } from './ui/mentions/mention-plugin'

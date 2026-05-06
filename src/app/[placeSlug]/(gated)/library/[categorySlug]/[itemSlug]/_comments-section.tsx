@@ -10,6 +10,8 @@ import {
   type PostReader,
   type ReactionAggregationMap,
 } from '@/features/discussions/public.server'
+import { findMemberProfile } from '@/features/members/public.server'
+import type { MentionResolvers } from '@/features/rich-text/public.server'
 
 type CommentsSectionProps = {
   postId: string
@@ -76,6 +78,8 @@ export async function CommentsSection({
     resolveQuoteTargetStates(comments),
   ])
 
+  const mentionResolvers = buildMentionResolvers({ placeId })
+
   return (
     <>
       <div className="mt-3">
@@ -84,6 +88,7 @@ export async function CommentsSection({
 
       <CommentThread
         postId={postId}
+        placeId={placeId}
         placeSlug={placeSlug}
         viewerUserId={viewerUserId}
         viewerIsAdmin={viewerIsAdmin}
@@ -93,9 +98,27 @@ export async function CommentsSection({
         }
         reactionsByKey={reactionsByKey}
         quoteStateByCommentId={quoteStateByCommentId}
+        mentionResolvers={mentionResolvers}
       />
     </>
   )
+}
+
+/**
+ * Resolvers de mention para el `RichTextRenderer` SSR. F.3 cubre `user`;
+ * `event` / `libraryItem` retornan `null` (el renderer pinta los placeholders
+ * `[EVENTO NO DISPONIBLE]` / `[RECURSO NO DISPONIBLE]`) hasta F.4.
+ */
+function buildMentionResolvers({ placeId }: { placeId: string }): MentionResolvers {
+  return {
+    user: async (userId) => {
+      const profile = await findMemberProfile(placeId, userId)
+      if (!profile) return null
+      return { label: profile.user.displayName, href: `/m/${userId}` }
+    },
+    event: async () => null,
+    libraryItem: async () => null,
+  }
 }
 
 /**

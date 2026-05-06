@@ -2,6 +2,8 @@ import type { QuoteTargetState } from '../domain/types'
 import type { CommentView } from '../server/queries'
 import type { AggregatedReaction } from '../server/reactions-aggregation'
 import { MemberAvatar } from '@/features/members/public'
+import { richTextExcerpt, type LexicalDocument } from '@/features/rich-text/public'
+import { RichTextRenderer, type MentionResolvers } from '@/features/rich-text/public.server'
 import { ReactionBar } from './reaction-bar'
 import { QuoteButton } from './quote-button'
 import { QuotePreview } from './quote-preview'
@@ -22,13 +24,12 @@ import { CommentAdminMenu } from './comment-admin-menu'
  */
 export function CommentItem({
   comment,
-  // stub F.1: placeSlug no se usa mientras el RichTextRenderer está deshabilitado;
-  // F.3 lo reintegra cuando se renderice el body Lexical.
   placeSlug: _placeSlug,
   viewerUserId,
   viewerIsAdmin,
   reactions,
   quoteTargetState,
+  mentionResolvers,
 }: {
   comment: CommentView
   placeSlug: string
@@ -36,6 +37,12 @@ export function CommentItem({
   viewerIsAdmin: boolean
   reactions: AggregatedReaction[]
   quoteTargetState: QuoteTargetState | null
+  /**
+   * Inyectado por el caller — resuelve mentions a su href canónico. F.3
+   * sólo poblará `user` real (via `findMember`); `event` y `libraryItem`
+   * pueden retornar null (placeholders del renderer cubren el fallback).
+   */
+  mentionResolvers: MentionResolvers
 }): React.ReactNode {
   const isDeleted = comment.body === null
   const isAuthor = comment.authorUserId !== null && comment.authorUserId === viewerUserId
@@ -78,13 +85,9 @@ export function CommentItem({
               />
             ) : null}
 
-            {/* stub F.1: el RichTextRenderer (TipTap) se reemplaza en F.3
-                por el renderer SSR de Lexical. */}
+            {/* F.3: renderer SSR del slice rich-text (visitor pattern AST → JSX). */}
             <div className="mt-1.5 font-body text-[14.5px] leading-[1.55] text-text">
-              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-                Contenido temporalmente deshabilitado durante migración a Lexical (F.1). Se restaura
-                en F.3.
-              </div>
+              <RichTextRenderer document={comment.body} resolvers={mentionResolvers} />
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -124,10 +127,11 @@ export function CommentItem({
 }
 
 /**
- * stub F.1: excerpt textual derivado del rich-text se reintroduce en F.3
- * (Lexical AST). Por ahora devuelve null — el QuoteSnapshot armado al
- * vuelo viaja sin excerpt y la cita se reconstruye en F.3.
+ * Excerpt textual del body Lexical para construir el snapshot de cita al
+ * vuelo (sin re-fetch). Si el comment está deletado el body es `null` y
+ * no hay excerpt para mostrar.
  */
-function excerptFromBody(_body: CommentView['body']): string | null {
-  return null
+function excerptFromBody(body: CommentView['body']): string | null {
+  if (!body) return null
+  return richTextExcerpt(body as LexicalDocument)
 }

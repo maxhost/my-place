@@ -1,10 +1,9 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import type { QuoteTargetState } from '../domain/types'
 import type { CommentView } from '../server/queries'
 import type { AggregatedReaction } from '../server/reactions-aggregation'
-import { CommentItem } from './comment-item'
+import { CommentItemClient } from './comment-item-client'
 import { useCommentRealtime } from './use-comment-realtime'
 
 /**
@@ -23,17 +22,17 @@ import { useCommentRealtime } from './use-comment-realtime'
  */
 export function CommentThreadLive({
   postId,
-  placeSlug,
-  viewerUserId,
-  viewerIsAdmin,
   initialItems,
   children,
 }: {
   postId: string
+  /** Mantenidos en la firma por compat con el call site; usados por el hook. */
   placeSlug: string
   viewerUserId: string
   viewerIsAdmin: boolean
   initialItems: CommentView[]
+  /** mentionResolvers no se pasa al cliente: el client renderer pinta mention.label snapshot. */
+  mentionResolvers?: unknown
   children: ReactNode
 }): React.ReactNode {
   const { appendedComments } = useCommentRealtime({ postId, initialItems })
@@ -42,19 +41,10 @@ export function CommentThreadLive({
     <>
       {children}
       {appendedComments.map((comment) => (
-        <CommentItem
-          key={comment.id}
-          comment={comment}
-          placeSlug={placeSlug}
-          viewerUserId={viewerUserId}
-          viewerIsAdmin={viewerIsAdmin}
-          reactions={EMPTY_REACTIONS}
-          quoteTargetState={comment.quotedCommentId ? DEFAULT_QUOTE_STATE : null}
-        />
+        <CommentItemClient key={comment.id} comment={comment} reactions={EMPTY_REACTIONS} />
       ))}
     </>
   )
 }
 
 const EMPTY_REACTIONS: AggregatedReaction[] = []
-const DEFAULT_QUOTE_STATE: QuoteTargetState = 'VISIBLE'

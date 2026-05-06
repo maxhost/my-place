@@ -109,3 +109,85 @@ h3,
 .font-title {
   font-family: var(--title-font);
 }
+
+/*
+ * Rich-text rendering (slice `rich-text`).
+ *
+ * El renderer SSR pinta JSX semántico (p, h1-h3, ul/ol, a, span/strong/em).
+ * Estas reglas le dan estilos de prosa coherentes con el resto del producto
+ * y aplican el "italic en links" estipulado en
+ * docs/features/rich-text/spec.md § "Estilo de links". Sólo afectan el
+ * renderer (no el contenedor del editor — ese vive en .rich-text-editor-*).
+ */
+.rich-text {
+  @apply text-base leading-relaxed;
+}
+.rich-text p {
+  @apply mb-3;
+}
+.rich-text h1 {
+  @apply mb-4 font-serif text-3xl;
+}
+.rich-text h2 {
+  @apply mb-3 font-serif text-2xl;
+}
+.rich-text h3 {
+  @apply mb-2 font-serif text-xl;
+}
+.rich-text ul {
+  @apply mb-3 list-inside list-disc;
+}
+.rich-text ol {
+  @apply mb-3 list-inside list-decimal;
+}
+.rich-text a {
+  font-style: italic;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.rich-text-mention {
+  @apply font-medium;
+}
+.rich-text-mention-fallback {
+  @apply italic text-neutral-400;
+}
+.rich-text-embed-placeholder {
+  @apply my-3 rounded-md border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-500;
+}
+
+/* Editor (composer) — estilos del ContentEditable visible. */
+.rich-text-editor-paragraph {
+  @apply mb-2;
+}
+.rich-text-editor-h1 {
+  @apply mb-2 font-serif text-2xl;
+}
+.rich-text-editor-h2 {
+  @apply mb-2 font-serif text-xl;
+}
+.rich-text-editor-h3 {
+  @apply mb-2 font-serif text-lg;
+}
+.rich-text-editor-ul {
+  @apply mb-2 list-inside list-disc;
+}
+.rich-text-editor-ol {
+  @apply mb-2 list-inside list-decimal;
+}
+.rich-text-editor-link {
+  font-style: italic;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.rich-text-editor-bold {
+  @apply font-semibold;
+}
+.rich-text-editor-italic {
+  @apply italic;
+}
+.rich-text-editor-underline {
+  @apply underline underline-offset-[3px];
+}
+.rich-text-mention-token {
+  @apply font-medium text-neutral-900;
+}

@@ -1,12 +1,11 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import type { QuoteTargetState } from '../domain/types'
 import type { CommentView } from '../server/queries'
 import type { AggregatedReaction } from '../server/reactions-aggregation'
 import { loadMoreCommentsAction } from '../server/actions/load-more'
 import type { SerializedCursor } from '../server/actions/load-more'
-import { CommentItem } from './comment-item'
+import { CommentItemClient } from './comment-item-client'
 import { friendlyErrorMessage } from './utils'
 
 /**
@@ -20,15 +19,13 @@ import { friendlyErrorMessage } from './utils'
  */
 export function LoadMoreComments({
   postId,
-  placeSlug,
-  viewerUserId,
-  viewerIsAdmin,
   initialCursor,
 }: {
   postId: string
-  placeSlug: string
-  viewerUserId: string
-  viewerIsAdmin: boolean
+  /** Mantenidos por compat con el call site; el client renderea sin ellos. */
+  placeSlug?: string
+  viewerUserId?: string
+  viewerIsAdmin?: boolean
   initialCursor: SerializedCursor
 }): React.ReactNode {
   const [items, setItems] = useState<CommentView[]>([])
@@ -54,15 +51,7 @@ export function LoadMoreComments({
   return (
     <div className="space-y-3">
       {items.map((comment) => (
-        <CommentItem
-          key={comment.id}
-          comment={comment}
-          placeSlug={placeSlug}
-          viewerUserId={viewerUserId}
-          viewerIsAdmin={viewerIsAdmin}
-          reactions={EMPTY_REACTIONS}
-          quoteTargetState={comment.quotedCommentId ? DEFAULT_QUOTE_STATE : null}
-        />
+        <CommentItemClient key={comment.id} comment={comment} reactions={EMPTY_REACTIONS} />
       ))}
       {error ? (
         <p role="alert" aria-live="polite" className="text-sm text-amber-700">
@@ -84,7 +73,6 @@ export function LoadMoreComments({
 }
 
 const EMPTY_REACTIONS: AggregatedReaction[] = []
-const DEFAULT_QUOTE_STATE: QuoteTargetState = 'VISIBLE'
 
 /**
  * Next serializa las Date a strings al cruzar el server-client boundary. Las
