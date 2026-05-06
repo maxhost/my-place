@@ -160,21 +160,45 @@ export function parseTargetUrl(raw: string): { baseUrl: string; baseHost: string
  * está bien seteado; en path mode dejamos que Next sirva /inbox como ruta
  * literal del app router, que existe).
  */
+/**
+ * Extrae el "apex" del host del target. Si el primer label es exactamente
+ * `app` (convención `app.place.community`), el apex es el resto. Sino el
+ * apex coincide con el host (caso `place.community` directo o
+ * `place-xxx.vercel.app` para preview path-based).
+ *
+ * Evita generar `app.app.place.community` cuando el user pasó
+ * `--target-url=https://app.place.community`.
+ */
+function extractApex(baseHost: string): string {
+  const labels = baseHost.split('.')
+  if (labels[0] === 'app' && labels.length >= 3) {
+    return labels.slice(1).join('.')
+  }
+  return baseHost
+}
+
 export function buildRouteUrl(
   spec: RemoteRouteSpec,
   ctx: RemoteContext,
   placeSlug: string,
 ): string {
+  const apex = extractApex(ctx.baseHost)
+  const protocol = ctx.baseUrl.startsWith('https:') ? 'https:' : 'http:'
+
   if (spec.absolutePath !== null) {
     if (ctx.accessMode === 'subdomain') {
-      return `${ctx.baseUrl.replace(ctx.baseHost, `app.${ctx.baseHost}`)}${spec.absolutePath}`
+      // En subdomain mode el middleware del repo trata `app.{apex}` como
+      // inbox y hace rewrite `/` → `/inbox` server-side. Si pedimos `/inbox`
+      // literal, el rewrite lo convierte en `/inbox/inbox` → 404.
+      const path = spec.absolutePath === '/inbox' ? '/' : spec.absolutePath
+      return `${protocol}//app.${apex}${path}`
     }
     return `${ctx.baseUrl}${spec.absolutePath}`
   }
   // Place-scoped path
   const path = spec.placePath ?? ''
   if (ctx.accessMode === 'subdomain') {
-    return `${ctx.baseUrl.replace(ctx.baseHost, `${placeSlug}.${ctx.baseHost}`)}${path}`
+    return `${protocol}//${placeSlug}.${apex}${path}`
   }
   return `${ctx.baseUrl}/${placeSlug}${path}`
 }
@@ -199,48 +223,17 @@ function getSupabaseAdmin(): SupabaseClient {
 }
 
 /**
- * Genera magiclink para `email` con `redirectTo` apuntando al callback del
- * target. Devuelve la URL del verify endpoint de Supabase — al visitarla,
- * Supabase 302 a `<target>/auth/callback?code=...&next=...`, el callback
- * del target hace exchange y termina seteando cookies del dominio del
- * target en el browser.
+ * Bypass del flow magiclink HTTP: en lugar de seguir el `action_link` de
+ * Supabase verify (que requiere PKCE state que `admin.generateLink` no
+ * mantiene → cae a implicit flow con tokens en `#fragment` que el callback
+ * PKCE de la app NO procesa), construimos directamente la session vía
+ * `verifyOtp` server-side y inyectamos la cookie de Supabase en el
+ * Playwright context.
  *
- * El `next` que pasamos es `<baseUrl>/inbox` — una página gated cualquiera,
- * sólo importa que sea válida para que el callback no rebote a /login.
- */
-async function generateMagicLinkActionUrl(ctx: RemoteContext, email: string): Promise<string> {
-  const supabaseAdmin = getSupabaseAdmin()
-
-  // Vercel preview: el callback debe vivir en el `baseUrl`. En subdomain mode
-  // intentamos `app.{host}` para que el cookie domain post-callback abarque
-  // todos los subdominios; en path mode usamos directo el `baseHost`.
-  const callbackHost = ctx.accessMode === 'subdomain' ? `app.${ctx.baseHost}` : ctx.baseHost
-  const protocol = ctx.baseUrl.startsWith('https:') ? 'https:' : 'http:'
-  const redirectTo = `${protocol}//${callbackHost}/auth/callback?next=${encodeURIComponent(`${ctx.baseUrl}/inbox`)}`
-
-  const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-    type: 'magiclink',
-    email,
-    options: { redirectTo },
-  })
-  if (error || !data?.properties?.action_link) {
-    throw new Error(
-      `[perf:remote] generateLink falló para ${email}: ${error?.message ?? 'sin action_link'}.\n` +
-        '       Verificá que el user E2E exista (`pnpm test:e2e:seed`) y que SUPABASE_SERVICE_ROLE_KEY sea válida.',
-    )
-  }
-  return data.properties.action_link
-}
-
-/**
- * Crea un browser context, visita el `action_link`, espera al landing
- * post-callback, y persiste el storageState con cookies del dominio target.
- *
- * Caveat: el callback del target hace 1 query Prisma (upsert User). Si la
- * DB del target NO tiene los users E2E sembrados (ej: branch nueva), el
- * upsert los crea automáticamente — pero las membresías de places no, así
- * que las gated routes pueden retornar 403/redirect. En ese caso hay que
- * correr el seed contra el DB del target ANTES de medir.
+ * Mismo principio que `/api/test/sign-in`: admin.generateLink → hashed_token
+ * → verifyOtp → session. La diferencia es que acá no setea cookies del
+ * server (no hay route handler nuestro intermediario) — las creamos a mano
+ * en el formato que `@supabase/ssr` espera leer desde `cookies()`.
  */
 export async function authenticateAgainstRemote(
   browser: Browser,
@@ -248,33 +241,78 @@ export async function authenticateAgainstRemote(
   email: string,
   storageStatePath: string,
 ): Promise<void> {
-  const actionUrl = await generateMagicLinkActionUrl(ctx, email)
+  const supabaseAdmin = getSupabaseAdmin()
+
+  // Step 1: generar magiclink y obtener el hashed_token (no usamos action_link).
+  const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
+    type: 'magiclink',
+    email,
+  })
+  if (linkErr || !linkData?.properties?.hashed_token) {
+    throw new Error(
+      `[perf:remote] generateLink falló para ${email}: ${linkErr?.message ?? 'sin hashed_token'}.`,
+    )
+  }
+  const hashedToken = linkData.properties.hashed_token
+
+  // Step 2: verifyOtp con anon key (es endpoint público, no admin).
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!anonKey || !supabaseUrl) {
+    throw new Error(
+      '[perf:remote] Falta NEXT_PUBLIC_SUPABASE_ANON_KEY o NEXT_PUBLIC_SUPABASE_URL en el env.',
+    )
+  }
+  const supabaseAnon = createClient(supabaseUrl, anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  const { data: verifyData, error: verifyErr } = await supabaseAnon.auth.verifyOtp({
+    type: 'magiclink',
+    token_hash: hashedToken,
+  })
+  if (verifyErr || !verifyData?.session) {
+    throw new Error(
+      `[perf:remote] verifyOtp falló para ${email}: ${verifyErr?.message ?? 'sin session'}.`,
+    )
+  }
+  const session = verifyData.session
+
+  // Step 3: construir cookie en el formato que `@supabase/ssr` lee server-side.
+  // Format: `base64-` + base64-utf8(JSON.stringify(session)).
+  const projectRef = new URL(supabaseUrl).hostname.split('.')[0]
+  const cookieName = `sb-${projectRef}-auth-token`
+  const sessionPayload = {
+    access_token: session.access_token,
+    token_type: session.token_type,
+    expires_at: session.expires_at,
+    expires_in: session.expires_in,
+    refresh_token: session.refresh_token,
+    user: session.user,
+  }
+  const cookieValue =
+    'base64-' + Buffer.from(JSON.stringify(sessionPayload), 'utf-8').toString('base64')
+
+  // Step 4: extraer apex del baseHost. Para `app.place.community` el apex es
+  // `place.community` (cookie con dot leading abarca subdominios). Si el host
+  // es 2 labels (apex puro) usamos directo. Si el primer label es `app`
+  // (convención del repo) lo dropeamos.
+  const labels = ctx.baseHost.split('.')
+  const apex = labels[0] === 'app' && labels.length >= 3 ? labels.slice(1).join('.') : ctx.baseHost
+  const cookieDomain = ctx.accessMode === 'subdomain' ? `.${apex}` : ctx.baseHost
   const context = await browser.newContext({ ignoreHTTPSErrors: false })
-  const page = await context.newPage()
-  // Visita: Supabase verify → 302 callback → 302 inbox. waitUntil 'load'
-  // para asegurar que las cookies del callback ya viajaron al browser.
-  const res = await page.goto(actionUrl, { waitUntil: 'load', timeout: 30_000 })
-  const finalStatus = res?.status() ?? 0
-  const finalUrl = page.url()
-  if (finalStatus >= 400) {
-    await context.close()
-    throw new Error(
-      `[perf:remote] auth flow terminó en status ${finalStatus} (url=${finalUrl}).\n` +
-        '       Causa probable: redirectTo no permitido en Supabase Auth → URL Configuration,\n' +
-        '       o el callback del target retornó error. Agregá el host a "Redirect URLs" en\n' +
-        '       Dashboard → Authentication → URL Configuration.',
-    )
-  }
-  // Si terminamos en /login → el callback rechazó (link inválido o sync falló).
-  if (/\/login(\?|$)/.test(finalUrl)) {
-    await context.close()
-    throw new Error(
-      `[perf:remote] auth flow terminó en /login (url=${finalUrl}).\n` +
-        '       Causa probable: el callback del target NO ejecutó exchangeCodeForSession\n' +
-        '       (revisá Vercel Function Logs de /auth/callback) o el redirectTo no está\n' +
-        '       en la allowlist de Supabase Auth.',
-    )
-  }
+  await context.addCookies([
+    {
+      name: cookieName,
+      value: cookieValue,
+      domain: cookieDomain,
+      path: '/',
+      httpOnly: false,
+      secure: ctx.baseUrl.startsWith('https:'),
+      sameSite: 'Lax',
+      expires: session.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
+    },
+  ])
+
   await context.storageState({ path: storageStatePath })
   await context.close()
 }
