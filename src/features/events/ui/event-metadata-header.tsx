@@ -7,7 +7,6 @@ import { RSVPButton } from './rsvp-button'
 import { EventDateTile } from './event-date-tile'
 import { AttendeeAvatars } from './attendee-avatars'
 import { OverlineTag } from '@/shared/ui/overline-tag'
-import { RichTextRenderer } from '@/features/discussions/public'
 import { MemberAvatar } from '@/features/members/public'
 
 /**
@@ -30,7 +29,9 @@ import { MemberAvatar } from '@/features/members/public'
  */
 export function EventMetadataHeader({
   event,
-  placeSlug,
+  // stub F.1: placeSlug no se usa mientras el RichTextRenderer está deshabilitado;
+  // F.4 lo reintegra cuando se renderice la descripción Lexical.
+  placeSlug: _placeSlug,
 }: {
   event: EventDetailView
   placeSlug: string
@@ -89,9 +90,12 @@ export function EventMetadataHeader({
         </div>
       </div>
 
+      {/* stub F.1: el RichTextRenderer (TipTap) se reemplaza en F.4 por el
+          renderer SSR de Lexical. Mientras tanto, mostramos un placeholder. */}
       {event.description ? (
-        <div className="font-title text-[17px] leading-[1.55] tracking-tight text-text">
-          <RichTextRenderer doc={event.description as never} placeSlug={placeSlug} />
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          Descripción temporalmente deshabilitada durante migración a Lexical (F.1). Se restaura en
+          F.4.
         </div>
       ) : null}
 

@@ -2,13 +2,7 @@ import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
 import { logger } from '@/shared/lib/logger'
-import {
-  DwellTracker,
-  ReactionBar,
-  RichTextRenderer,
-  ThreadPresence,
-  type RichTextDocument,
-} from '@/features/discussions/public'
+import { DwellTracker, ReactionBar, ThreadPresence } from '@/features/discussions/public'
 import {
   aggregateReactions,
   findOrCreateCurrentOpening,
@@ -120,8 +114,12 @@ export default async function LibraryItemDetailPage({ params }: Props) {
       <LibraryItemHeader item={item} />
 
       <article className="prose-place mx-3 mt-3 max-w-none text-text">
+        {/* stub F.1: el RichTextRenderer (TipTap) se reemplaza en F.4. */}
         {item.body ? (
-          <RichTextRenderer doc={item.body as RichTextDocument} placeSlug={viewer.placeSlug} />
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            Contenido temporalmente deshabilitado durante migración a Lexical (F.1). Se restaura en
+            F.4.
+          </div>
         ) : null}
       </article>
 

@@ -9,7 +9,6 @@ import {
   ValidationError,
 } from '@/shared/errors/domain-error'
 import { logger } from '@/shared/lib/logger'
-import { assertRichTextSize } from '@/features/discussions/public'
 import { canEditItem, validateItemCoverUrl } from '@/features/library/public'
 import { updateItemInputSchema } from '@/features/library/schemas'
 import { resolveLibraryViewer, revalidateLibraryItemPaths } from '@/features/library/public.server'
@@ -73,7 +72,7 @@ export async function updateLibraryItemAction(input: unknown): Promise<{
   }
 
   validateItemCoverUrl(data.coverUrl ?? null)
-  assertRichTextSize(data.body)
+  // stub F.1: validación de tamaño rich-text se reintroduce en F.2 con Lexical AST.
   const trimmedTitle = data.title.trim()
   const now = new Date()
   const nextVersion = data.expectedVersion + 1

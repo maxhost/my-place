@@ -1,9 +1,9 @@
 /**
  * Zod schemas de input de server actions del slice `discussions`.
  *
- * Los schemas del TipTap AST viven en `domain/rich-text-schemas.ts` (tipo puro
- * del dominio). Los consumidores siguen importando `richTextDocumentSchema`
- * desde acá por compat — este archivo lo re-exporta.
+ * stub F.1: el schema `richTextDocumentSchema` (TipTap AST) se eliminó. Los
+ * campos `body` quedan tipados como `z.unknown()` durante la migración a
+ * Lexical; F.2 reintroduce un schema apretado contra el AST de Lexical.
  *
  * Ver `docs/features/discussions/spec.md` § 4 (shape).
  */
@@ -14,11 +14,6 @@ import {
   POST_TITLE_MIN_LENGTH,
   REACTION_EMOJI_DISPLAY,
 } from './domain/invariants'
-import { richTextDocumentSchema } from './domain/rich-text-schemas'
-
-// Re-export del schema del AST + su tipo inferido.
-export { richTextDocumentSchema } from './domain/rich-text-schemas'
-export type { RichTextDocumentParsed } from './domain/rich-text-schemas'
 
 // ---------------------------------------------------------------
 // Inputs de server actions
@@ -35,14 +30,16 @@ const postTitleSchema = z
 export const createPostInputSchema = z.object({
   placeId: z.string().min(1),
   title: postTitleSchema,
-  body: richTextDocumentSchema.nullable().optional(),
+  // stub F.1, re-apretar a richTextDocumentSchema en F.2
+  body: z.unknown().nullable().optional(),
 })
 
 export type CreatePostInput = z.infer<typeof createPostInputSchema>
 
 export const createCommentInputSchema = z.object({
   postId: z.string().min(1),
-  body: richTextDocumentSchema,
+  // stub F.1, re-apretar a richTextDocumentSchema en F.2
+  body: z.unknown(),
   quotedCommentId: z.string().min(1).nullable().optional(),
 })
 
@@ -61,7 +58,8 @@ const editSessionSchema = z.object({
 export const editPostInputSchema = z.object({
   postId: z.string().min(1),
   title: postTitleSchema,
-  body: richTextDocumentSchema.nullable().optional(),
+  // stub F.1, re-apretar a richTextDocumentSchema en F.2
+  body: z.unknown().nullable().optional(),
   expectedVersion: z.number().int().nonnegative(),
   session: editSessionSchema.optional(),
 })
@@ -70,7 +68,8 @@ export type EditPostInput = z.infer<typeof editPostInputSchema>
 
 export const editCommentInputSchema = z.object({
   commentId: z.string().min(1),
-  body: richTextDocumentSchema,
+  // stub F.1, re-apretar a richTextDocumentSchema en F.2
+  body: z.unknown(),
   expectedVersion: z.number().int().nonnegative(),
   session: editSessionSchema.optional(),
 })

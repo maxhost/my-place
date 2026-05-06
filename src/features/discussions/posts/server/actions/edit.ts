@@ -17,7 +17,6 @@ import {
 } from '@/features/discussions/schemas'
 import { editWindowOpen } from '@/features/discussions/domain/invariants'
 import { EditWindowExpired } from '@/features/discussions/domain/errors'
-import { assertRichTextSize } from '@/features/discussions/rich-text/public'
 import {
   EDIT_SESSION_GRACE_MS,
   assertEditSessionToken,
@@ -63,7 +62,7 @@ export async function editPostAction(input: unknown): Promise<{ ok: true; versio
     }
   }
 
-  if (data.body) assertRichTextSize(data.body)
+  // stub F.1: validación de tamaño rich-text se reintroduce en F.2 con Lexical AST.
 
   const nextVersion = await applyEdit(post, data, now)
   logPostEdited(actor, post, isOwner)

@@ -55,15 +55,7 @@ export class InvalidQuoteTarget extends ValidationError {
   }
 }
 
-/**
- * El body (TipTap JSON AST) serializado excede el límite (20 KB).
- * Se valida en el schema Zod con `.superRefine`.
- */
-export class RichTextTooLarge extends ValidationError {
-  constructor(context: { bytes: number; maxBytes: number }) {
-    super('El contenido es demasiado extenso.', context)
-  }
-}
+// stub F.1: `RichTextTooLarge` se reintroduce en F.2 con el límite de Lexical AST.
 
 /**
  * Una mention `{type: 'mention', attrs: { userId, label }}` apunta a un

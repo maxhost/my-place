@@ -17,11 +17,11 @@
 // UI components
 // ---------------------------------------------------------------
 
+// stub F.1: LibraryItemEditor + LibraryItemForm eliminados. F.4 reintroduce
+// el composer Lexical de items desde el slice `rich-text/`.
 export { EmptyItemList } from './ui/empty-item-list'
 export { ItemAdminMenu } from './ui/item-admin-menu'
 export { ItemList } from './ui/item-list'
-export { LibraryItemEditor } from './ui/library-item-editor'
-export { LibraryItemForm, type CategoryOption } from './ui/library-item-form'
 export { LibraryItemHeader } from './ui/library-item-header'
 export { LibraryItemHeaderBar } from './ui/library-item-header-bar'
 

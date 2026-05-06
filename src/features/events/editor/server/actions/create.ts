@@ -14,7 +14,6 @@ import {
   validateEventTimezone,
   validateEventTitle,
 } from '@/features/events/domain/invariants'
-import { assertRichTextSize } from '@/features/discussions/public'
 import { createEventInputSchema } from '@/features/events/schemas'
 import { buildEventThreadIntroBody } from '@/features/events/server/thread-intro'
 import { revalidateEventPaths } from '@/features/events/server/actions/shared'
@@ -58,7 +57,7 @@ export async function createEventAction(
   })
   validateEventTimezone(data.timezone)
   validateEventLocation(data.location ?? null)
-  if (data.description) assertRichTextSize(data.description)
+  // stub F.1: validación de tamaño rich-text se reintroduce en F.2 con Lexical AST.
 
   const trimmedTitle = data.title.trim()
   const authorSnapshot = buildEventAuthorSnapshot(actor.user)

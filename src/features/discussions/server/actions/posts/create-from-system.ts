@@ -2,7 +2,6 @@ import 'server-only'
 import { Prisma } from '@prisma/client'
 import { ConflictError } from '@/shared/errors/domain-error'
 import { logger } from '@/shared/lib/logger'
-import { assertRichTextSize } from '@/features/discussions/domain/rich-text'
 import { resolveUniqueSlug } from './shared'
 
 /**
@@ -47,7 +46,7 @@ export async function createPostFromSystemHelper(
   tx: Prisma.TransactionClient,
   input: CreatePostFromSystemInput,
 ): Promise<{ id: string; slug: string }> {
-  assertRichTextSize(input.body)
+  // stub F.1: validación de tamaño rich-text se reintroduce en F.2 con Lexical AST.
 
   const trimmedTitle = input.title.trim()
   const now = new Date()

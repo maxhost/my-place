@@ -11,9 +11,7 @@ import {
   assertQuotedCommentAlive,
   assertQuotedCommentBelongsToPost,
   buildAuthorSnapshot,
-  buildQuoteSnapshot,
 } from '@/features/discussions/domain/invariants'
-import { assertRichTextSize } from '@/features/discussions/domain/rich-text'
 import type { QuoteSnapshot } from '@/features/discussions/domain/types'
 import { resolveActorForPlace, type DiscussionActor } from '@/features/discussions/server/actor'
 import { findCommentById, findQuoteSource } from '@/features/discussions/server/queries'
@@ -44,7 +42,7 @@ export async function createCommentAction(
 
   const actor = await resolveActorForPlace({ placeId: post.placeId })
   await assertPlaceOpenOrThrow(actor.placeId)
-  assertRichTextSize(data.body)
+  // stub F.1: validación de tamaño rich-text se reintroduce en F.2 con Lexical AST.
 
   const quotedSnapshot = await resolveQuoteSnapshot(data, post.id)
   const now = new Date()
@@ -99,7 +97,8 @@ async function resolveQuoteSnapshot(
   }
   assertQuotedCommentBelongsToPost(source, postId)
   assertQuotedCommentAlive(source)
-  return buildQuoteSnapshot(source, null)
+  // stub F.1: quoteSnapshot se re-construye en F.2 sobre Lexical AST
+  return null
 }
 
 async function insertCommentTx(

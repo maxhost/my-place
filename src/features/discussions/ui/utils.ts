@@ -12,7 +12,6 @@ import {
   InvalidMention,
   InvalidQuoteTarget,
   PostHiddenError,
-  RichTextTooLarge,
   SlugCollisionExhausted,
 } from '../domain/errors'
 
@@ -25,7 +24,7 @@ import {
 export function friendlyErrorMessage(err: unknown): string {
   if (err instanceof EditWindowExpired) return 'Ya pasó el minuto para editar.'
   if (err instanceof InvalidQuoteTarget) return 'No podés citar ese comentario.'
-  if (err instanceof RichTextTooLarge) return 'El texto es muy largo. Acortá y volvé a intentar.'
+  // stub F.1: RichTextTooLarge se reintroduce en F.2 con Lexical.
   if (err instanceof InvalidMention) return 'Las menciones deben ser miembros activos del place.'
   if (err instanceof PostHiddenError || err instanceof CommentDeletedError) {
     return 'Este contenido ya no está disponible.'

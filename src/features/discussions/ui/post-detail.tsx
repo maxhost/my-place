@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { MemberAvatar } from '@/features/members/public'
 import type { Post } from '../domain/types'
 import type { AggregatedReaction } from '../server/reactions-aggregation'
-import { RichTextRenderer } from './rich-text-renderer'
 import { ReactionBar } from './reaction-bar'
 import { TimeAgo } from '@/shared/ui/time-ago'
 import { FlagButton } from '@/features/flags/public'
@@ -49,9 +48,14 @@ export function PostDetail({
         ) : null}
       </header>
 
+      {/* stub F.1: el RichTextRenderer (TipTap) se reemplaza en F.4 por el
+          renderer SSR de Lexical. */}
       {post.body ? (
         <div className="font-body text-[15.5px] leading-[1.65] text-text">
-          <RichTextRenderer doc={post.body} placeSlug={placeSlug} />
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            Contenido temporalmente deshabilitado durante migración a Lexical (F.1). Se restaura en
+            F.4.
+          </div>
         </div>
       ) : null}
 

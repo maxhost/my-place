@@ -2,20 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { EDIT_WINDOW_MS } from '../domain/invariants'
-import { EditWindowForm } from './edit-window-form'
 import { EditWindowConfirmDelete } from './edit-window-confirm-delete'
 import type { EditWindowSubject } from './edit-window-types'
 
 /**
  * Acciones editar/eliminar para el autor dentro de los 60s. Tras expirar la
- * ventana, el componente deja de renderizar. Admin tiene flujos separados
- * (no aplica acá — lo cubre C.G).
+ * ventana, el componente deja de renderizar.
  *
- * Composición:
- *  - Root (este archivo): gestiona el countdown + modo (`idle`/`edit`/`confirm-delete`).
- *  - `EditWindowForm`: formulario inline de edición con session token.
- *  - `EditWindowConfirmDelete`: confirmación + delete action.
- *  - `edit-window-types.ts`: tipos compartidos.
+ * stub F.1: el modo "edit" está deshabilitado durante la migración a Lexical;
+ * sólo queda el branch de delete. Se restaura el flujo completo en F.3 (comments)
+ * y F.4 (posts) con el composer Lexical.
  */
 
 export type { EditWindowSubject, PostSubject, CommentSubject } from './edit-window-types'
@@ -24,7 +20,7 @@ type Props = { subject: EditWindowSubject }
 
 export function EditWindowActions({ subject }: Props): React.ReactNode {
   const [remaining, setRemaining] = useState(() => remainingMs(subject.createdAt, new Date()))
-  const [mode, setMode] = useState<'idle' | 'edit' | 'confirm-delete'>('idle')
+  const [mode, setMode] = useState<'idle' | 'confirm-delete'>('idle')
 
   useEffect(() => {
     if (remaining <= 0) return
@@ -33,10 +29,6 @@ export function EditWindowActions({ subject }: Props): React.ReactNode {
     }, 2_000)
     return () => clearInterval(id)
   }, [subject.createdAt, remaining])
-
-  if (mode === 'edit') {
-    return <EditWindowForm subject={subject} onDone={() => setMode('idle')} />
-  }
 
   if (mode === 'confirm-delete') {
     return <EditWindowConfirmDelete subject={subject} onCancel={() => setMode('idle')} />
@@ -47,13 +39,6 @@ export function EditWindowActions({ subject }: Props): React.ReactNode {
   const seconds = Math.ceil(remaining / 1000)
   return (
     <div className="mt-2 flex items-center gap-3 text-xs text-muted">
-      <button
-        type="button"
-        onClick={() => setMode('edit')}
-        className="text-muted hover:text-text focus:outline-none focus-visible:underline"
-      >
-        Editar
-      </button>
       <button
         type="button"
         onClick={() => setMode('confirm-delete')}

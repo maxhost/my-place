@@ -22,7 +22,6 @@ import {
   assertEditSessionToken,
   signEditSessionToken,
 } from '@/shared/lib/edit-session-token'
-import { assertRichTextSize } from '@/features/discussions/domain/rich-text'
 import { resolveActorForPlace, type DiscussionActor } from '@/features/discussions/server/actor'
 import { revalidateCommentPaths } from './shared'
 
@@ -57,7 +56,7 @@ export async function editCommentAction(input: unknown): Promise<{ ok: true; ver
     authorizeEditClassic(comment, now)
   }
 
-  assertRichTextSize(data.body)
+  // stub F.1: validación de tamaño rich-text se reintroduce en F.2 con Lexical AST.
   const nextVersion = await applyEdit(comment, data, now)
   logCommentEdited(actor, comment)
   revalidateCommentPaths(actor.placeSlug, comment.post.slug)

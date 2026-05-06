@@ -25,107 +25,11 @@ export {
 } from '@prisma/client'
 
 // ---------------------------------------------------------------
-// Rich text (TipTap JSON AST)
+// Rich text (stub F.1: tipos eliminados durante migración a Lexical)
 // ---------------------------------------------------------------
-
-/**
- * AST permitido por `richTextDocumentSchema`. Forma canónica de cualquier body
- * de Post o Comment. Cualquier nodo fuera de esta union se rechaza al parsear.
- *
- * La forma es recursiva: `Block.content` incluye otros bloques o inline nodes.
- * La profundidad máxima de listas se enforza en `invariants.assertListDepth`.
- */
-export type RichTextDocument = {
-  type: 'doc'
-  content: RichTextBlockNode[]
-}
-
-export type RichTextBlockNode =
-  | RichTextParagraph
-  | RichTextHeading
-  | RichTextBulletList
-  | RichTextOrderedList
-  | RichTextBlockquote
-  | RichTextCodeBlock
-  | RichTextEmbed
-
-export type RichTextParagraph = {
-  type: 'paragraph'
-  content?: RichTextInlineNode[]
-}
-
-export type RichTextHeading = {
-  type: 'heading'
-  attrs: { level: 2 | 3 }
-  content?: RichTextInlineNode[]
-}
-
-export type RichTextBulletList = {
-  type: 'bulletList'
-  content: RichTextListItem[]
-}
-
-export type RichTextOrderedList = {
-  type: 'orderedList'
-  content: RichTextListItem[]
-}
-
-export type RichTextListItem = {
-  type: 'listItem'
-  content: RichTextBlockNode[]
-}
-
-export type RichTextBlockquote = {
-  type: 'blockquote'
-  content: RichTextBlockNode[]
-}
-
-export type RichTextCodeBlock = {
-  type: 'codeBlock'
-  content?: Array<{ type: 'text'; text: string }>
-}
-
-/** Embed: block atomic genérico de TipTap (R.7.7+). El render real
- *  vive en el slice library (`<EmbedNodeView>` para edit + read mode). */
-export type RichTextEmbed = {
-  type: 'embed'
-  attrs: {
-    url: string
-    provider: 'youtube' | 'vimeo' | 'gdoc' | 'gsheet' | 'drive' | 'dropbox' | 'generic'
-    title?: string
-  }
-}
-
-export type RichTextInlineNode = RichTextText | RichTextMention | RichTextHardBreak
-
-/** Salto de línea soft (Shift+Enter en TipTap). Sin contenido. */
-export type RichTextHardBreak = {
-  type: 'hardBreak'
-}
-
-export type RichTextText = {
-  type: 'text'
-  text: string
-  marks?: RichTextMark[]
-}
-
-export type RichTextMention = {
-  type: 'mention'
-  attrs: { userId: string; label: string }
-}
-
-export type RichTextMark =
-  | { type: 'bold' }
-  | { type: 'italic' }
-  | { type: 'code' }
-  | {
-      type: 'link'
-      attrs: {
-        href: string
-        target: '_blank'
-        rel: 'noopener noreferrer'
-      }
-    }
+// Los tipos `RichText*` (TipTap AST) se eliminaron en F.1. Las columnas
+// que persisten rich-text quedan tipadas como `unknown` hasta F.2,
+// que reintroduce `LexicalDocument` desde el slice `rich-text/`.
 
 // ---------------------------------------------------------------
 // Snapshots (congelados al momento de crear)
@@ -203,7 +107,8 @@ export type Post = {
   authorSnapshot: AuthorSnapshot
   title: string
   slug: string
-  body: RichTextDocument | null
+  // stub F.1, retipado en F.2 a LexicalDocument
+  body: unknown
   createdAt: Date
   editedAt: Date | null
   hiddenAt: Date | null
@@ -269,7 +174,8 @@ export type Comment = {
   placeId: string
   authorUserId: string | null
   authorSnapshot: AuthorSnapshot
-  body: RichTextDocument
+  // stub F.1, retipado en F.2 a LexicalDocument
+  body: unknown
   quotedCommentId: CommentId | null
   quotedSnapshot: QuoteSnapshot | null
   createdAt: Date
@@ -310,7 +216,8 @@ export type PostRead = {
 export type QuoteSourceComment = {
   id: CommentId
   authorSnapshot: AuthorSnapshot
-  body: RichTextDocument
+  // stub F.1, retipado en F.2 a LexicalDocument
+  body: unknown
   createdAt: Date
   deletedAt: Date | null
 }

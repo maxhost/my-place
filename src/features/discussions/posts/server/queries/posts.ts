@@ -6,9 +6,7 @@ import type {
   Post,
   PostEventLink,
   PostListView,
-  RichTextDocument,
 } from '@/features/discussions/domain/types'
-import { richTextExcerpt } from '@/features/discussions/rich-text/public'
 import type { PostListFilter } from '@/features/discussions/domain/filter'
 import type { Cursor } from '@/features/discussions/server/queries/_shared'
 import {
@@ -156,7 +154,8 @@ export async function listPostsByPlace(params: {
   const items: PostListView[] = pageRows.map((row, idx) => ({
     ...mapPost(row),
     lastReadAt: lastReadByPostId.get(row.id) ?? null,
-    snippet: row.body ? richTextExcerpt(row.body as RichTextDocument, 140) : '',
+    // stub F.1: snippet derivado del rich-text se reintroduce en F.2 con Lexical AST.
+    snippet: '',
     commentCount: commentCountByPostId.get(row.id) ?? 0,
     readerSample: readersByPostId.get(row.id) ?? [],
     // Featured solo el primer post de la primera página (sin cursor).
@@ -243,7 +242,8 @@ function mapPostWithEvent(
     authorSnapshot: row.authorSnapshot as unknown as AuthorSnapshot,
     title: row.title,
     slug: row.slug,
-    body: (row.body as unknown as RichTextDocument | null) ?? null,
+    // stub F.1, retipado en F.2 a LexicalDocument
+    body: row.body ?? null,
     createdAt: row.createdAt,
     editedAt: row.editedAt,
     hiddenAt: row.hiddenAt,

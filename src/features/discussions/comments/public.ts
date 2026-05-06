@@ -6,8 +6,9 @@
  * cross-sub-slice via public).
  */
 
+// stub F.1: CommentComposer eliminado. F.3 reintroduce el composer Lexical
+// desde el slice `rich-text/`.
 export { CommentAdminMenu } from './ui/comment-admin-menu'
-export { CommentComposer } from './ui/comment-composer'
 export { CommentItem } from './ui/comment-item'
 export { CommentThread } from './ui/comment-thread'
 export { CommentThreadLive } from './ui/comment-thread-live'

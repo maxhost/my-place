@@ -21,7 +21,6 @@ import {
   assertEditSessionToken,
   signEditSessionToken,
 } from '@/shared/lib/edit-session-token'
-import { assertRichTextSize } from '@/features/discussions/rich-text/public'
 import { resolveActorForPlace } from '@/features/discussions/server/actor'
 import { revalidateCommentPaths } from './shared'
 
@@ -81,7 +80,7 @@ export async function editCommentAction(input: unknown): Promise<{ ok: true; ver
     })
   }
 
-  assertRichTextSize(data.body)
+  // stub F.1: validación de tamaño rich-text se reintroduce en F.2 con Lexical AST.
 
   const nextVersion = data.expectedVersion + 1
   const updated = await prisma.comment.updateMany({

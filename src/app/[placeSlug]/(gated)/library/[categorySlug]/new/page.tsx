@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
-import { LibraryItemForm, canCreateInCategory } from '@/features/library/public'
+import { canCreateInCategory } from '@/features/library/public'
 import {
   findLibraryCategoryBySlug,
   listCategoryContributorUserIds,
@@ -64,15 +64,10 @@ export default async function NewLibraryItemPage({ params }: Props) {
         </div>
       </header>
 
-      <LibraryItemForm
-        mode={{
-          kind: 'create',
-          placeId: place.id,
-          fixedCategory: { id: category.id, slug: category.slug },
-          availableCategories: [],
-          cancelCategorySlug: category.slug,
-        }}
-      />
+      {/* stub F.1: el LibraryItemForm (TipTap) se reintroduce en F.4. */}
+      <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        Editor temporalmente deshabilitado durante migración a Lexical (F.1). Se restaura en F.4.
+      </div>
     </div>
   )
 }

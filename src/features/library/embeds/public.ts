@@ -24,9 +24,7 @@ export {
 } from './domain/embed-parser'
 
 // ---------------------------------------------------------------
-// UI — TipTap extension + node-view + toolbar
+// UI — stub F.1: TipTap extension + node-view + toolbar eliminados.
+// F.4 reintroduce embeds como `DecoratorNode` Lexical desde el slice
+// `rich-text/` (4 providers: YouTube, Spotify, Apple Podcasts, Ivoox).
 // ---------------------------------------------------------------
-
-export { EmbedNodeExtension } from './ui/embed-node/extension'
-export { EmbedNodeView } from './ui/embed-node/node-view'
-export { EmbedToolbar } from './ui/embed-toolbar'

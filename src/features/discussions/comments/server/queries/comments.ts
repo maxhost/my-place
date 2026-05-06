@@ -6,7 +6,6 @@ import type {
   Comment,
   QuoteSnapshot,
   QuoteTargetState,
-  RichTextDocument,
 } from '@/features/discussions/domain/types'
 import type { Cursor } from '@/features/discussions/server/queries/_shared'
 
@@ -17,8 +16,9 @@ export const COMMENT_PAGE_SIZE = 50
 /** `body=null` cuando el comment está deletado y el actor no es admin →
  *  UI renderiza `[mensaje eliminado]`. `quoteState` derivado server-side
  *  via JOIN con `quotedComment` (1 RTT). */
+// stub F.1: body retipado a unknown durante migración a Lexical (F.2).
 export type CommentView = Omit<Comment, 'body'> & {
-  body: RichTextDocument | null
+  body: unknown
   quoteState: QuoteTargetState | null
 }
 
@@ -42,7 +42,8 @@ export type QuoteSource = {
   id: string
   postId: string
   authorSnapshot: AuthorSnapshot
-  body: RichTextDocument
+  // stub F.1, retipado en F.2 a LexicalDocument
+  body: unknown
   createdAt: Date
   deletedAt: Date | null
 }
@@ -64,7 +65,8 @@ export async function findQuoteSource(commentId: string): Promise<QuoteSource | 
     id: row.id,
     postId: row.postId,
     authorSnapshot: row.authorSnapshot as unknown as AuthorSnapshot,
-    body: row.body as unknown as RichTextDocument,
+    // stub F.1, retipado en F.2 a LexicalDocument
+    body: row.body,
     createdAt: row.createdAt,
     deletedAt: row.deletedAt,
   }
@@ -122,7 +124,8 @@ function mapComment(row: CommentRow, includeDeletedBody = false): CommentView {
     placeId: row.placeId,
     authorUserId: row.authorUserId,
     authorSnapshot: row.authorSnapshot as unknown as AuthorSnapshot,
-    body: isDeleted && !includeDeletedBody ? null : (row.body as unknown as RichTextDocument),
+    // stub F.1, retipado en F.2 a LexicalDocument
+    body: isDeleted && !includeDeletedBody ? null : row.body,
     quotedCommentId: row.quotedCommentId,
     quotedSnapshot: (row.quotedSnapshot as unknown as QuoteSnapshot | null) ?? null,
     quoteState,

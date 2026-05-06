@@ -138,12 +138,14 @@ describe('listPostsByPlace + R.6 shape (snippet, commentCount, readerSample, isF
     expect(items[0]?.snippet).toBe('')
   })
 
-  it('snippet derivado de richTextExcerpt(body, 140) cuando body presente', async () => {
+  // stub F.1: snippet derivado del rich-text se reintroduce en F.2 con Lexical AST.
+  // Mientras tanto el queries devuelve siempre '' independientemente del body.
+  it('snippet vacío también cuando body presente (stub F.1)', async () => {
     postFindMany.mockResolvedValue([row('a', new Date('2026-04-19T10:00:00Z'), docHello)])
 
     const { items } = await listPostsByPlace({ placeId: 'place-1' })
 
-    expect(items[0]?.snippet).toBe('Hola mundo')
+    expect(items[0]?.snippet).toBe('')
   })
 
   it('commentCount = 0 cuando comment.groupBy devuelve vacío', async () => {

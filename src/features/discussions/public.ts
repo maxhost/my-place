@@ -29,12 +29,6 @@ export type {
   Reaction,
   ReactionEmoji,
   ReactionId,
-  RichTextBlockNode,
-  RichTextDocument,
-  RichTextInlineNode,
-  RichTextMark,
-  RichTextMention,
-  RichTextText,
 } from './domain/types'
 
 export {
@@ -51,7 +45,6 @@ export {
   assertQuotedCommentAlive,
   assertQuotedCommentBelongsToPost,
   buildAuthorSnapshot,
-  buildQuoteSnapshot,
   canAdminHide,
   canDeleteContent,
   canEditAuthorContent,
@@ -61,14 +54,8 @@ export {
   isDormant,
 } from './domain/invariants'
 
-export {
-  RICH_TEXT_MAX_BYTES,
-  RICH_TEXT_MAX_LIST_DEPTH,
-  assertRichTextSize,
-  richTextByteSize,
-  richTextExcerpt,
-  richTextMaxListDepth,
-} from './domain/rich-text'
+// stub F.1: helpers de tamaño/excerpt rich-text (TipTap) eliminados.
+// F.2 reintroduce las versiones Lexical desde el slice `rich-text/`.
 
 export {
   CommentDeletedError,
@@ -76,7 +63,6 @@ export {
   InvalidMention,
   InvalidQuoteTarget,
   PostHiddenError,
-  RichTextTooLarge,
 } from './domain/errors'
 
 // Server Action references viajan client-safe (Next las serializa como
@@ -118,12 +104,13 @@ export {
 // UI client-safe (Client Components con `'use client'` o Server Components
 // puros sin imports server-only). Los componentes Server que importan
 // queries/aggregations server-only viajan via `public.server.ts`.
+//
+// stub F.1: PostComposer + RichTextRenderer eliminados. F.3-F.4 reintroducen
+// los composers/renderers Lexical desde el slice `rich-text/`.
 export { DwellTracker } from './ui/dwell-tracker'
-export { PostComposer } from './ui/post-composer'
 export { PostUnreadDot } from './ui/post-unread-dot'
 export { PostAdminMenu } from './ui/post-admin-menu'
 export { ReactionBar } from './ui/reaction-bar'
-export { RichTextRenderer } from './ui/rich-text-renderer'
 export { ThreadHeaderBar } from './ui/thread-header-bar'
 export { ThreadPresence } from './ui/thread-presence'
 
@@ -137,7 +124,6 @@ export {
   hidePostInputSchema,
   markPostReadInputSchema,
   reactInputSchema,
-  richTextDocumentSchema,
   unhidePostInputSchema,
   unreactInputSchema,
   type CreateCommentInput,
@@ -149,7 +135,6 @@ export {
   type HidePostInput,
   type MarkPostReadInput,
   type ReactInput,
-  type RichTextDocumentParsed,
   type UnhidePostInput,
   type UnreactInput,
 } from './schemas'

@@ -1,16 +1,20 @@
 /**
- * Tipos compartidos entre `EditWindowActions`, `EditWindowForm` y
- * `EditWindowConfirmDelete`. Vive como archivo separado para romper ciclos
- * (el root importa los sub-components, y éstos necesitan los tipos).
+ * Tipos compartidos entre `EditWindowActions` y `EditWindowConfirmDelete`.
+ * Vive como archivo separado para romper ciclos (el root importa los
+ * sub-components, y éstos necesitan los tipos).
+ *
+ * stub F.1: el editor inline (`EditWindowForm`) se eliminó durante la
+ * migración a Lexical; F.3 (comments) y F.4 (posts) reintroducen el flujo
+ * completo de edición 60s con el composer Lexical.
  */
 
-import type { RichTextDocument } from '../domain/types'
+// stub F.1: body retipado de RichTextDocument a unknown durante migración a Lexical (F.2).
 
 export type PostSubject = {
   kind: 'post'
   postId: string
   title: string
-  body: RichTextDocument | null
+  body: unknown
   createdAt: Date
   version: number
   placeSlug: string
@@ -18,8 +22,8 @@ export type PostSubject = {
 
 export type CommentSubject = {
   kind: 'comment'
+  body: unknown
   commentId: string
-  body: RichTextDocument
   createdAt: Date
   version: number
 }

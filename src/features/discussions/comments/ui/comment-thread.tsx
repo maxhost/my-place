@@ -5,7 +5,6 @@ import type {
 } from '@/features/discussions/reactions/public'
 import { reactionMapKey } from '@/features/discussions/reactions/public'
 import { CommentItem } from './comment-item'
-import { CommentComposer } from './comment-composer'
 import { CommentThreadLive } from './comment-thread-live'
 import { LoadMoreComments } from './load-more-comments'
 
@@ -85,7 +84,10 @@ export function CommentThread({
       ) : null}
 
       <div data-role="comment-composer">
-        <CommentComposer postId={postId} />
+        {/* stub F.1: el composer Lexical se reintroduce en F.3. */}
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          Editor temporalmente deshabilitado durante migración a Lexical (F.1). Se restaura en F.3.
+        </div>
       </div>
     </section>
   )

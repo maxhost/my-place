@@ -9,9 +9,7 @@ import type {
   ReaderForStack,
   Comment,
   QuoteSnapshot,
-  RichTextDocument,
 } from '../domain/types'
-import { richTextExcerpt } from '../domain/rich-text'
 import type { PostListFilter } from '../domain/filter'
 import { findOrCreateCurrentOpening } from './place-opening'
 
@@ -21,7 +19,8 @@ import { findOrCreateCurrentOpening } from './place-opening'
  * El tipo `Comment` del dominio mantiene `body` obligatorio — los comments persistidos
  * siempre tienen body, pero la proyección para render puede omitirlo.
  */
-export type CommentView = Omit<Comment, 'body'> & { body: RichTextDocument | null }
+// stub F.1: body retipado a unknown durante migración a Lexical (F.2).
+export type CommentView = Omit<Comment, 'body'> & { body: unknown }
 
 /**
  * Queries del slice `discussions`. Sólo este archivo + `actions/*` tocan Prisma.
@@ -168,7 +167,8 @@ export async function listPostsByPlace(params: {
   const items: PostListView[] = pageRows.map((row, idx) => ({
     ...mapPost(row),
     lastReadAt: lastReadByPostId.get(row.id) ?? null,
-    snippet: row.body ? richTextExcerpt(row.body as RichTextDocument, 140) : '',
+    // stub F.1: snippet derivado del rich-text se reintroduce en F.2 con Lexical AST.
+    snippet: '',
     commentCount: commentCountByPostId.get(row.id) ?? 0,
     readerSample: readersByPostId.get(row.id) ?? [],
     // Featured solo el primer post de la primera página (sin cursor).
@@ -402,7 +402,8 @@ export type QuoteSource = {
   id: string
   postId: string
   authorSnapshot: AuthorSnapshot
-  body: RichTextDocument
+  // stub F.1, retipado en F.2 a LexicalDocument
+  body: unknown
   createdAt: Date
   deletedAt: Date | null
 }
@@ -424,7 +425,8 @@ export async function findQuoteSource(commentId: string): Promise<QuoteSource | 
     id: row.id,
     postId: row.postId,
     authorSnapshot: row.authorSnapshot as unknown as AuthorSnapshot,
-    body: row.body as unknown as RichTextDocument,
+    // stub F.1, retipado en F.2 a LexicalDocument
+    body: row.body,
     createdAt: row.createdAt,
     deletedAt: row.deletedAt,
   }
@@ -506,7 +508,8 @@ function mapPostWithEvent(
     authorSnapshot: row.authorSnapshot as unknown as AuthorSnapshot,
     title: row.title,
     slug: row.slug,
-    body: (row.body as unknown as RichTextDocument | null) ?? null,
+    // stub F.1, retipado en F.2 a LexicalDocument
+    body: row.body ?? null,
     createdAt: row.createdAt,
     editedAt: row.editedAt,
     hiddenAt: row.hiddenAt,
@@ -531,7 +534,8 @@ function mapComment(row: CommentRow, includeDeletedBody = false): CommentView {
     placeId: row.placeId,
     authorUserId: row.authorUserId,
     authorSnapshot: row.authorSnapshot as unknown as AuthorSnapshot,
-    body: isDeleted && !includeDeletedBody ? null : (row.body as unknown as RichTextDocument),
+    // stub F.1, retipado en F.2 a LexicalDocument
+    body: isDeleted && !includeDeletedBody ? null : row.body,
     quotedCommentId: row.quotedCommentId,
     quotedSnapshot: (row.quotedSnapshot as unknown as QuoteSnapshot | null) ?? null,
     createdAt: row.createdAt,

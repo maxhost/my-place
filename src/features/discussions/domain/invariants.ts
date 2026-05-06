@@ -8,14 +8,13 @@
  * Ver `docs/features/discussions/spec.md` § 8 (invariantes).
  */
 
-import type { AuthorSnapshot, Post, QuoteSnapshot, QuoteSourceComment } from './types'
+import type { AuthorSnapshot, Post, QuoteSourceComment } from './types'
 import {
   CommentDeletedError,
   EditWindowExpired,
   InvalidQuoteTarget,
   PostHiddenError,
 } from './errors'
-import { richTextExcerpt } from './rich-text'
 
 // ---------------------------------------------------------------
 // Constantes del dominio
@@ -172,25 +171,7 @@ export function buildAuthorSnapshot(input: {
   }
 }
 
-/**
- * Construye el QuoteSnapshot congelado al momento de responder. Usa el
- * `authorSnapshot` del target — no se resuelve el User en vivo para
- * preservar el invariante de snapshot inmutable.
- */
-export function buildQuoteSnapshot(
-  quotedComment: QuoteSourceComment,
-  newCommentId: string | null,
-): QuoteSnapshot {
-  if (newCommentId !== null && quotedComment.id === newCommentId) {
-    throw new InvalidQuoteTarget('self', { commentId: quotedComment.id })
-  }
-  return {
-    commentId: quotedComment.id,
-    authorLabel: quotedComment.authorSnapshot.displayName,
-    bodyExcerpt: richTextExcerpt(quotedComment.body, QUOTE_EXCERPT_MAX_CHARS),
-    createdAt: quotedComment.createdAt,
-  }
-}
+// stub F.1: `buildQuoteSnapshot` se reconstruye en F.2 sobre el AST de Lexical.
 
 /**
  * Valida que el comment target pertenece al mismo Post. El trigger

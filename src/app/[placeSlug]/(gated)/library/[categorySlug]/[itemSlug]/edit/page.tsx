@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
-import { LibraryItemForm, canEditItem } from '@/features/library/public'
+import { canEditItem } from '@/features/library/public'
 import { findItemBySlug, resolveLibraryViewer } from '@/features/library/public.server'
 
 type Props = {
@@ -43,16 +43,10 @@ export default async function EditLibraryItemPage({ params }: Props) {
         </div>
       </header>
 
-      <LibraryItemForm
-        mode={{
-          kind: 'edit',
-          itemId: item.id,
-          categorySlug: item.categorySlug,
-          initialTitle: item.title,
-          initialBody: item.body as { type: 'doc'; content?: unknown[] } | null,
-          initialCoverUrl: item.coverUrl,
-        }}
-      />
+      {/* stub F.1: el LibraryItemForm (TipTap) se reintroduce en F.4. */}
+      <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        Editor temporalmente deshabilitado durante migración a Lexical (F.1). Se restaura en F.4.
+      </div>
     </div>
   )
 }

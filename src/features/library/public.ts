@@ -114,12 +114,8 @@ export { friendlyLibraryErrorMessage } from './ui/admin/errors'
 // UI components — Server Components salvo `<TypeFilterPills>`
 // ---------------------------------------------------------------
 
-// Embed extension + toolbar + editor + form (R.7.7 + R.7.8)
-export { EmbedNodeExtension } from './ui/embed-node/extension'
-export { EmbedNodeView } from './ui/embed-node/node-view'
-export { EmbedToolbar } from './ui/embed-toolbar'
-export { LibraryItemEditor } from './ui/library-item-editor'
-export { LibraryItemForm, type CategoryOption } from './ui/library-item-form'
+// stub F.1: EmbedNodeExtension/View/Toolbar + LibraryItemEditor/Form eliminados.
+// F.4 reintroduce el composer Lexical de items con embeds desde el slice `rich-text/`.
 
 // Item detail UI (R.7.9)
 export { ItemAdminMenu } from './ui/item-admin-menu'
