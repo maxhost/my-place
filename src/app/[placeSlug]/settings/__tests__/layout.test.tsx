@@ -70,14 +70,17 @@ afterEach(() => cleanup())
 describe('SettingsLayout (gate admin/owner + montaje del FAB)', () => {
   it('redirect a /login?next=/settings cuando no hay sesión', async () => {
     getCurrentAuthUserMock.mockResolvedValue(null)
+    // Perf #2.1: con kickoff paralelo, `loadPlaceBySlug` se dispara junto
+    // con `getCurrentAuthUser`. El stub debe responder igual aunque el
+    // resultado se descarte por el redirect. La regresión que importa es
+    // que `findMemberPermissions` (dependiente de auth + place) NO se llame.
+    loadPlaceBySlugMock.mockResolvedValue(null)
 
     await expect(
       SettingsLayout({ children: makeChildren(), params: makeParams() }),
     ).rejects.toThrow('NEXT_REDIRECT')
 
     expect(redirectMock).toHaveBeenCalledWith('/login?next=/settings')
-    // Si redirige, no debió tocar place-loader ni permisos.
-    expect(loadPlaceBySlugMock).not.toHaveBeenCalled()
     expect(findMemberPermissionsMock).not.toHaveBeenCalled()
   })
 
@@ -180,5 +183,50 @@ describe('SettingsLayout (gate admin/owner + montaje del FAB)', () => {
     render(ui)
 
     expect(screen.getByTestId('settings-nav-fab')).toHaveAttribute('data-is-owner', 'false')
+  })
+
+  // Regresión de perf #2.1: `getCurrentAuthUser()` y `loadPlaceBySlug()` son
+  // independientes (auth lee de cookies/headers; place lee de Postgres por
+  // slug — no necesita auth.id). Antes corrían serial (RTT 1 → RTT 2). Este
+  // test asegura que el layout dispara ambos antes de awaitear el primero,
+  // i.e. kickoff paralelo. El criterio: ambos mocks fueron invocados antes
+  // de que CUALQUIERA resuelva.
+  it('paraleliza getCurrentAuthUser y loadPlaceBySlug (kickoff antes del primer await)', async () => {
+    let authResolve: (v: { id: string; email: string } | null) => void = () => {}
+    let placeResolve: (v: unknown) => void = () => {}
+    const authPromise = new Promise<{ id: string; email: string } | null>((r) => {
+      authResolve = r
+    })
+    const placePromise = new Promise<unknown>((r) => {
+      placeResolve = r
+    })
+
+    getCurrentAuthUserMock.mockReturnValue(authPromise)
+    loadPlaceBySlugMock.mockReturnValue(placePromise)
+    findMemberPermissionsMock.mockResolvedValue({
+      isMember: true,
+      isOwner: true,
+      isAdmin: true,
+    })
+
+    const layoutPromise = SettingsLayout({
+      children: makeChildren(),
+      params: makeParams(),
+    })
+
+    // Microtask flush: con kickoff paralelo, ambos mocks ya fueron llamados
+    // sin que ninguna promise haya resuelto. Con el patrón serial viejo,
+    // `loadPlaceBySlugMock` no se llamaría hasta que `authResolve` se ejecute.
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(getCurrentAuthUserMock).toHaveBeenCalledTimes(1)
+    expect(loadPlaceBySlugMock).toHaveBeenCalledTimes(1)
+    expect(loadPlaceBySlugMock).toHaveBeenCalledWith(PLACE_SLUG)
+
+    // Resolvemos para que el layout no quede pendiente y rompa el runner.
+    authResolve({ id: 'usr_1', email: 'a@b.c' })
+    placeResolve({ id: 'place_1', slug: PLACE_SLUG, archivedAt: null })
+    await layoutPromise
   })
 })

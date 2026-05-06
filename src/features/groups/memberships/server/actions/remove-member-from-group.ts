@@ -9,6 +9,7 @@ import { loadPlaceById } from '@/shared/lib/place-loader'
 import { logger } from '@/shared/lib/logger'
 import { AuthorizationError, NotFoundError, ValidationError } from '@/shared/errors/domain-error'
 import { removeMemberFromGroupInputSchema } from '@/features/groups/schemas'
+import { revalidateMemberPermissions } from '@/features/members/public.server'
 
 /**
  * Resultado de `removeMemberFromGroupAction` — discriminated union.
@@ -90,5 +91,8 @@ export async function removeMemberFromGroupAction(
   revalidatePath(`/${place.slug}/settings/groups`)
   revalidatePath(`/${place.slug}/settings/groups/${group.id}`)
   revalidatePath(`/${place.slug}/settings/members/${data.userId}`)
+  // Plan #2.3: si el grupo era el preset, isAdmin del target cambia.
+  // Por simetría/seguridad invalidamos siempre — costo nulo.
+  revalidateMemberPermissions(data.userId, place.id)
   return { ok: true }
 }

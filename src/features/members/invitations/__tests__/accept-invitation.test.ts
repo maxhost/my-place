@@ -44,6 +44,11 @@ vi.mock('@/shared/lib/supabase/admin', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: (...a: unknown[]) => revalidatePathFn(...a),
+  // Plan #2.3: `findInviterPermissions` ahora envuelve con `unstable_cache`
+  // y los actions invalidan via `revalidateTag`. Los tests sólo verifican
+  // que se llamen — passthrough en cache, no-op en tag.
+  unstable_cache: <T extends (...args: never[]) => Promise<unknown>>(fn: T): T => fn,
+  revalidateTag: vi.fn(),
 }))
 
 vi.mock('server-only', () => ({}))

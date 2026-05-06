@@ -7,6 +7,7 @@ import { InvariantViolation, NotFoundError, ValidationError } from '@/shared/err
 import { requireAuthUserId } from '@/shared/lib/auth-user'
 import { assertPlaceActive } from '@/features/members/domain/invariants'
 import { findActiveMembership, findPlaceStateBySlug } from '@/features/members/server/queries'
+import { revalidateMemberPermissions } from '@/features/members/public.server'
 
 /**
  * Sale del place: setea `Membership.leftAt = now()`. Si el actor era owner, también
@@ -42,6 +43,8 @@ export async function leaveMembershipAction(
   logger.info({ event: 'memberLeft', placeId: place.id, actorId }, 'member left place')
   revalidatePath('/inbox')
   revalidatePath(`/${place.slug}`)
+  // Plan #2.3: invalidar el cache cross-request de findMemberPermissions.
+  revalidateMemberPermissions(actorId, place.id)
   return { ok: true, placeSlug: place.slug }
 }
 

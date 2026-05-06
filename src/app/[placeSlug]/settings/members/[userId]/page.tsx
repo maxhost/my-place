@@ -1,23 +1,16 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getCurrentAuthUser } from '@/shared/lib/auth-user'
 import { findPlaceOwnership } from '@/shared/lib/identity-cache'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
-import {
-  findMemberBlockInfo,
-  findMemberDetailForOwner,
-  hasPermission,
-} from '@/features/members/public.server'
-import { listTiersByPlace } from '@/features/tiers/public.server'
-import { listAssignmentsByMember } from '@/features/tier-memberships/public.server'
-import { listGroupsByPlace, listGroupsForUser } from '@/features/groups/public.server'
-import type { GroupSummary } from '@/features/groups/public'
+import { findMemberDetailForOwner, hasPermission } from '@/features/members/public.server'
 import { BackButton } from '@/shared/ui/back-button'
 import { MemberDetailHeader } from './components/member-detail-header'
-import { TiersSection } from './components/tiers-section'
-import { GroupsSection } from './components/groups-section'
-import { BlockSection } from './components/block-section'
 import { ExpelSection } from './components/expel-section'
+import { TiersSectionStreamed, TiersSectionSkeleton } from './_tiers-section'
+import { GroupsSectionStreamed, GroupsSectionSkeleton } from './_groups-section'
+import { BlockSectionStreamed, BlockSectionSkeleton } from './_block-section'
 
 type Props = {
   params: Promise<{ placeSlug: string; userId: string }>
@@ -49,13 +42,18 @@ type Props = {
  * `is_place_admin` (SQL helper) o el preset group resuelto vía
  * `features/groups`.
  *
- * **Connection-limit gotcha (CLAUDE.md)**: todas las queries del page se
- * disparan en `Promise.all` para no perder paralelización en dev con
- * `connection_limit=1` (relevante sólo si el usuario expone
- * `DEV_DATABASE_URL` con un cap más alto).
+ * **Streaming RSC por sección**: la page resuelve sólo el gate (auth +
+ * place + permisos) y `findMemberDetailForOwner` antes del primer paint
+ * — eso permite evaluar el `notFound()` y pintar el header enseguida.
+ * Las secciones pesadas (Tiers, Groups, Block) viven cada una en su
+ * propio `_*-section.tsx` Server Component, envuelto en `<Suspense>`,
+ * y se desbloquean independientemente cuando su query resuelve.
+ * Reduce TTFB cross-region (Vercel us-east-1 ↔ Supabase us-west-2)
+ * vs. el `Promise.all` previo que serializaba el primer paint detrás
+ * de la query más lenta. La sección "Expel" no tiene queries y queda
+ * inline. Spec: docs/features/groups/spec.md § 5.
  *
- * Spec: docs/features/groups/spec.md § 5.
- * ADR:  docs/decisions/2026-05-02-permission-groups-model.md.
+ * ADR: docs/decisions/2026-05-02-permission-groups-model.md.
  */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { placeSlug, userId } = await params
@@ -89,28 +87,13 @@ export default async function SettingsMemberDetailPage({ params }: Props) {
     notFound()
   }
 
-  // Carga de detalle + datos de las secciones (Promise.all para paralelismo).
-  // `listGroupsByPlace` + `listGroupsForUser` se podrían fusionar si la
-  // página crece, pero hoy es legible así y son indexadas.
-  const [member, allTiers, assignments, allGroups, memberGroups, blockInfo] = await Promise.all([
-    findMemberDetailForOwner(userId, place.id),
-    listTiersByPlace(place.id, true),
-    listAssignmentsByMember(userId, place.id),
-    listGroupsByPlace(place.id),
-    listGroupsForUser(userId, place.id),
-    findMemberBlockInfo(userId, place.id),
-  ])
+  // El detalle del miembro se carga antes del primer paint: lo necesita el
+  // header (above-the-fold) y el `notFound()` de target inexistente debe
+  // resolverse antes de strimear nada.
+  const member = await findMemberDetailForOwner(userId, place.id)
   if (!member) {
     notFound()
   }
-
-  const publishedTiers = allTiers.filter((t) => t.visibility === 'PUBLISHED')
-
-  // Grupos disponibles: los del place a los que el miembro NO pertenece.
-  const memberGroupIds = new Set(memberGroups.map((g) => g.id))
-  const availableGroups: GroupSummary[] = allGroups
-    .filter((g) => !memberGroupIds.has(g.id))
-    .map((g) => ({ id: g.id, name: g.name, isPreset: g.isPreset }))
 
   const isSelf = member.userId === auth.id
   const targetIsOwner = member.isOwner
@@ -128,29 +111,28 @@ export default async function SettingsMemberDetailPage({ params }: Props) {
 
       {viewerIsOwner ? (
         <>
-          <TiersSection
-            placeSlug={place.slug}
-            memberUserId={member.userId}
-            assignments={assignments}
-            publishedTiers={publishedTiers}
-          />
-          <GroupsSection
-            placeId={place.id}
-            memberUserId={member.userId}
-            currentGroups={memberGroups}
-            availableGroups={availableGroups}
-          />
+          <Suspense fallback={<TiersSectionSkeleton />}>
+            <TiersSectionStreamed
+              placeSlug={place.slug}
+              placeId={place.id}
+              memberUserId={member.userId}
+            />
+          </Suspense>
+          <Suspense fallback={<GroupsSectionSkeleton />}>
+            <GroupsSectionStreamed placeId={place.id} memberUserId={member.userId} />
+          </Suspense>
         </>
       ) : null}
 
       {showBlockSection ? (
-        <BlockSection
-          placeId={place.id}
-          memberUserId={member.userId}
-          memberDisplayName={member.user.displayName}
-          actorEmail={actorEmail}
-          blockInfo={blockInfo}
-        />
+        <Suspense fallback={<BlockSectionSkeleton />}>
+          <BlockSectionStreamed
+            placeId={place.id}
+            memberUserId={member.userId}
+            memberDisplayName={member.user.displayName}
+            actorEmail={actorEmail}
+          />
+        </Suspense>
       ) : null}
 
       {showExpelSection ? (

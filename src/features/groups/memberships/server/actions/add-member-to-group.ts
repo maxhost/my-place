@@ -9,6 +9,7 @@ import { loadPlaceById } from '@/shared/lib/place-loader'
 import { logger } from '@/shared/lib/logger'
 import { AuthorizationError, NotFoundError, ValidationError } from '@/shared/errors/domain-error'
 import { addMemberToGroupInputSchema } from '@/features/groups/schemas'
+import { revalidateMemberPermissions } from '@/features/members/public.server'
 
 /**
  * Resultado de `addMemberToGroupAction` — discriminated union.
@@ -111,6 +112,11 @@ export async function addMemberToGroupAction(input: unknown): Promise<AddMemberT
     revalidatePath(`/${place.slug}/settings/groups`)
     revalidatePath(`/${place.slug}/settings/groups/${group.id}`)
     revalidatePath(`/${place.slug}/settings/members/${data.userId}`)
+    // Plan #2.3: agregar al preset cambia `isAdmin` del target. Para grupos
+    // custom el findIsPlaceAdmin (preset-only) no cambia, pero por seguridad
+    // y simetría con remove invalidamos siempre — el costo es nulo y el
+    // riesgo de divergencia entre paths preset/custom desaparece.
+    revalidateMemberPermissions(data.userId, place.id)
     return { ok: true }
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {

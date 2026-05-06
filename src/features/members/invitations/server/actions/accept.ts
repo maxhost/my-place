@@ -9,6 +9,7 @@ import { requireAuthUserId } from '@/shared/lib/auth-user'
 import { assertPlaceActive, assertPlaceHasCapacity } from '@/features/members/domain/invariants'
 import { acceptInvitationTokenSchema } from '@/features/members/schemas'
 import { findActiveMembership, findInvitationByToken } from '@/features/members/server/queries'
+import { revalidateMemberPermissions } from '@/features/members/public.server'
 import { ADMIN_PRESET_NAME } from '@/features/groups/public'
 
 /**
@@ -64,6 +65,9 @@ export async function acceptInvitationAction(
   // Tras un accept, los perms del actor cambian (nuevo MEMBER/ADMIN) — invalidamos
   // el subtree completo del layout para refrescar TopBar trigger, settings nav, etc.
   revalidatePath(`/${invitation.place.slug}`, 'layout')
+  // Invalida el cache cross-request de findMemberPermissions (plan #2.3).
+  // Sin esto, el actor vería los perms previos por hasta 60s tras el accept.
+  revalidateMemberPermissions(actorId, invitation.placeId)
 
   return { ok: true, placeSlug: invitation.place.slug, alreadyMember }
 }

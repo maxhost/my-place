@@ -38,9 +38,30 @@ vi.mock('@/shared/lib/place-loader', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: (...a: unknown[]) => revalidatePathFn(...a),
+  // Plan #2.3: add/removeMemberFromGroup invalidan findMemberPermissions
+  // del target via revalidateTag.
+  unstable_cache: <T extends (...args: never[]) => Promise<unknown>>(fn: T): T => fn,
+  revalidateTag: vi.fn(),
 }))
 
 vi.mock('server-only', () => ({}))
+
+// Plan #2.3: importar `revalidateMemberPermissions` desde `members/public.server.ts`
+// trae transitivamente la cadena de re-exports del barrel (incluye UI components
+// que importan actions legacy con `clientEnv` eager). Mockear env evita que el
+// schema Zod parsee variables ausentes en el entorno de tests.
+vi.mock('@/shared/config/env', () => ({
+  clientEnv: {
+    NEXT_PUBLIC_APP_URL: 'http://lvh.me:3000',
+    NEXT_PUBLIC_APP_DOMAIN: 'lvh.me:3000',
+    NEXT_PUBLIC_SUPABASE_URL: 'http://localhost:54321',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: 'anon',
+  },
+  serverEnv: {
+    SUPABASE_SERVICE_ROLE_KEY: 'service',
+    NODE_ENV: 'test',
+  },
+}))
 
 import { addMemberToGroupAction } from '@/features/groups/memberships/server/actions/add-member-to-group'
 import { removeMemberFromGroupAction } from '@/features/groups/memberships/server/actions/remove-member-from-group'

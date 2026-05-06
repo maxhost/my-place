@@ -8,6 +8,7 @@ import { loadPlaceById } from '@/shared/lib/place-loader'
 import { logger } from '@/shared/lib/logger'
 import { AuthorizationError, NotFoundError, ValidationError } from '@/shared/errors/domain-error'
 import { expelMemberInputSchema } from '@/features/members/schemas'
+import { revalidateMemberPermissions } from '@/features/members/public.server'
 import { sendExpelEmail } from '../mailer/expel-email'
 
 /**
@@ -124,5 +125,9 @@ export async function expelMemberAction(input: unknown): Promise<ExpelMemberResu
   revalidatePath(`/${place.slug}/settings/members`)
   revalidatePath(`/${place.slug}/settings/members/${memberUserId}`)
   revalidatePath('/inbox')
+  // Plan #2.3: el ex-miembro ya no tiene perms — invalidar su tag cross-request.
+  // Sin esto, si el expulsado entra al place dentro de los 60s siguientes vería
+  // el cache previo (isMember=true) hasta que expirara el `revalidate` floor.
+  revalidateMemberPermissions(memberUserId, place.id)
   return { ok: true }
 }

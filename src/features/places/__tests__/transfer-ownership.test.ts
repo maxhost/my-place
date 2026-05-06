@@ -37,6 +37,10 @@ vi.mock('@/shared/lib/supabase/server', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: (...a: unknown[]) => revalidatePathFn(...a),
+  // Plan #2.3: transferOwnershipAction invalida findMemberPermissions de
+  // ambos lados (actor y target).
+  unstable_cache: <T extends (...args: never[]) => Promise<unknown>>(fn: T): T => fn,
+  revalidateTag: vi.fn(),
 }))
 
 vi.mock('server-only', () => ({}))

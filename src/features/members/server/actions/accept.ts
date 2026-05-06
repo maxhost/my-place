@@ -8,6 +8,7 @@ import { ConflictError, NotFoundError, ValidationError } from '@/shared/errors/d
 import { requireAuthUserId } from '@/shared/lib/auth-user'
 import { assertPlaceActive, assertPlaceHasCapacity } from '@/features/members/domain/invariants'
 import { findActiveMembership, findInvitationByToken } from '@/features/members/server/queries'
+import { revalidateMemberPermissions } from '@/features/members/public.server'
 
 /**
  * Canjea un token de invitación por una `Membership` activa en el place.
@@ -55,6 +56,8 @@ export async function acceptInvitationAction(
 
   revalidatePath('/inbox')
   revalidatePath(`/${invitation.place.slug}`)
+  // Plan #2.3: invalidar el cache cross-request de findMemberPermissions.
+  revalidateMemberPermissions(actorId, invitation.placeId)
 
   return { ok: true, placeSlug: invitation.place.slug, alreadyMember }
 }

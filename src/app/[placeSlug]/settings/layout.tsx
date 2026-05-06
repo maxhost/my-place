@@ -21,12 +21,17 @@ type Props = {
 export default async function SettingsLayout({ children, params }: Props) {
   const { placeSlug } = await params
 
-  const auth = await getCurrentAuthUser()
+  // Perf #2.1: `getCurrentAuthUser()` y `loadPlaceBySlug()` son independientes
+  // (auth lee cookies/headers; place lee Postgres por slug — no requiere
+  // auth.id). Lanzarlos en paralelo elimina un RTT del critical path antes
+  // del primer JSX. `findMemberPermissions(auth.id, place.id)` SÍ depende de
+  // ambos, así que queda serial. React.cache memoiza los queries internos
+  // de `findMemberPermissions` por request: si el outer `[placeSlug]/layout`
+  // ya las disparó, esto es cache hit.
+  const [auth, place] = await Promise.all([getCurrentAuthUser(), loadPlaceBySlug(placeSlug)])
   if (!auth) {
     redirect(`/login?next=/settings`)
   }
-
-  const place = await loadPlaceBySlug(placeSlug)
   if (!place || place.archivedAt) {
     notFound()
   }

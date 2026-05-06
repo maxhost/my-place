@@ -1,5 +1,6 @@
 import 'server-only'
 import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/db/client'
 import {
   findActiveMembership as cachedFindActiveMembership,
@@ -16,10 +17,12 @@ import type {
 /**
  * Queries del slice `members`. Solo este archivo + `actions.ts` tocan Prisma.
  *
- * `findInviterPermissions` compone primitives cached de `shared/lib/identity-cache`
- * para que el árbol layout → gated layout → page → action reuse los mismos
- * round-trips dentro de un request. El wrapping propio de `cache()` acá dedupea
- * la llamada compuesta cuando dos callsites piden los mismos args.
+ * `findInviterPermissions` compone primitives cached de `identity-cache`.
+ * Tiene dos capas de cache: `React.cache` per-request (dedupea callsites del
+ * mismo render) y `unstable_cache` cross-request (plan #2.3) taggeado por
+ * `(userId, placeId)`. Las server actions que muten
+ * Membership/PlaceOwnership/GroupMembership invalidan el tag via
+ * `revalidateMemberPermissions` (ver `public.server.ts`).
  *
  * Ver `docs/decisions/2026-04-20-request-scoped-identity-cache.md`.
  */
@@ -30,18 +33,42 @@ export async function countActiveMemberships(placeId: string): Promise<number> {
   })
 }
 
+/**
+ * Helper interno sin caching externo — el wrapper `unstable_cache` lo envuelve
+ * por (userId, placeId). Compone los 3 primitives de identity-cache.
+ */
+async function findInviterPermissionsRaw(
+  userId: string,
+  placeId: string,
+): Promise<InviterPermissions> {
+  const [membership, isOwner, isAdminPreset] = await Promise.all([
+    cachedFindActiveMembership(userId, placeId),
+    findPlaceOwnership(userId, placeId),
+    findIsPlaceAdmin(userId, placeId),
+  ])
+  return {
+    isMember: membership !== null,
+    isOwner,
+    isAdmin: isOwner || isAdminPreset,
+  }
+}
+
+/**
+ * Cache cross-request via `unstable_cache`. Key: `(userId, placeId)`. Tag
+ * `perms:${userId}:${placeId}` invalidado desde actions que muten membership.
+ * `revalidate: 60` es floor de safety si el tag se pierde (ej. deploy reset).
+ * `React.cache` envuelve por encima para deduplicar dentro del render tree.
+ */
 export const findInviterPermissions = cache(
   async (userId: string, placeId: string): Promise<InviterPermissions> => {
-    const [membership, isOwner, isAdminPreset] = await Promise.all([
-      cachedFindActiveMembership(userId, placeId),
-      findPlaceOwnership(userId, placeId),
-      findIsPlaceAdmin(userId, placeId),
-    ])
-    return {
-      isMember: membership !== null,
-      isOwner,
-      isAdmin: isOwner || isAdminPreset,
-    }
+    return unstable_cache(
+      () => findInviterPermissionsRaw(userId, placeId),
+      ['perms', userId, placeId],
+      {
+        tags: [`perms:${userId}:${placeId}`],
+        revalidate: 60,
+      },
+    )()
   },
 )
 

@@ -8,6 +8,7 @@ import { requireAuthUserId } from '@/shared/lib/auth-user'
 import { assertPlaceActive } from '@/features/members/domain/invariants'
 import { leaveMembershipPlaceSlugSchema } from '@/features/members/schemas'
 import { findActiveMembership, findPlaceStateBySlug } from '@/features/members/server/queries'
+import { revalidateMemberPermissions } from '@/features/members/public.server'
 
 /**
  * Sale del place: setea `Membership.leftAt = now()`. Si el actor era owner, también
@@ -49,6 +50,8 @@ export async function leaveMembershipAction(
   // Al salir, los perms del actor desaparecen — invalidamos el subtree del layout
   // para que TopBar trigger / settings nav dejen de aparecer en tabs cacheados.
   revalidatePath(`/${place.slug}`, 'layout')
+  // Plan #2.3: invalidar el cache cross-request de findMemberPermissions.
+  revalidateMemberPermissions(actorId, place.id)
   return { ok: true, placeSlug: place.slug }
 }
 

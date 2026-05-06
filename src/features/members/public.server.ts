@@ -1,4 +1,5 @@
 import 'server-only'
+import { revalidateTag } from 'next/cache'
 
 /**
  * API server-only del slice `members`. Queries Prisma + componentes
@@ -10,6 +11,21 @@ import 'server-only'
  * estos exports importan desde `@/features/members/public.server`;
  * todo lo client-safe vive en `public.ts`.
  */
+
+/**
+ * Invalida el cache cross-request de `findMemberPermissions` para un viewer
+ * en un place específico. Llamar desde server actions que muten
+ * `Membership` / `PlaceOwnership` / `GroupMembership` (todo lo que afecta
+ * `isMember`, `isOwner` o `isAdmin`).
+ *
+ * Implementado en plan #2.3: `findInviterPermissions` se cachea con
+ * `unstable_cache` taggeado `perms:${userId}:${placeId}`. Sin esta
+ * invalidación, un user que recién acepta una invitación o sale del place
+ * vería el resultado cacheado por 60s.
+ */
+export function revalidateMemberPermissions(userId: string, placeId: string): void {
+  revalidateTag(`perms:${userId}:${placeId}`)
+}
 
 // Queries (server-only)
 export {

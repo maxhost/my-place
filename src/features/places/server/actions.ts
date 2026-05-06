@@ -12,6 +12,7 @@ import {
   ValidationError,
 } from '@/shared/errors/domain-error'
 import { ADMIN_PRESET_NAME, presetPermissions } from '@/features/groups/public'
+import { revalidateMemberPermissions } from '@/features/members/public.server'
 import {
   createPlaceSchema,
   transferOwnershipSchema,
@@ -49,6 +50,11 @@ export async function createPlaceAction(
       'place created',
     )
     revalidatePath('/inbox')
+    // Plan #2.3: el creator queda como owner+admin+member en el place recién
+    // creado. Inicializamos el tag por las dudas (no debería haber cache
+    // previo, pero garantiza limpieza si el tag quedó de un place homónimo
+    // pasado por algún edge case).
+    revalidateMemberPermissions(actorId, place.id)
     return { ok: true, place }
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -202,6 +208,12 @@ export async function transferOwnershipAction(
 
   revalidatePath(`/${place.slug}/settings/members`)
   revalidatePath('/inbox')
+
+  // Plan #2.3: la transferencia muta `PlaceOwnership` para AMBOS lados
+  // (actor pierde owner si removeActor=true; target gana owner). Los perms
+  // cambian para los dos — invalidar tags de ambos.
+  revalidateMemberPermissions(actorId, place.id)
+  revalidateMemberPermissions(data.toUserId, place.id)
 
   return { ok: true, placeSlug: place.slug, actorRemoved: data.removeActor }
 }

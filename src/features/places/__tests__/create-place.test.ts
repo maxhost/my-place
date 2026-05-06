@@ -42,6 +42,9 @@ vi.mock('@/shared/lib/supabase/server', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => revalidatePathFn(...args),
+  // Plan #2.3: createPlaceAction invalida findMemberPermissions del creator.
+  unstable_cache: <T extends (...args: never[]) => Promise<unknown>>(fn: T): T => fn,
+  revalidateTag: vi.fn(),
 }))
 
 vi.mock('server-only', () => ({}))

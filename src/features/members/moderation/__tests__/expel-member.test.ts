@@ -39,6 +39,13 @@ vi.mock('@/shared/lib/auth-user', () => ({
 
 vi.mock('@/shared/lib/identity-cache', () => ({
   findPlaceOwnership: (...a: unknown[]) => findPlaceOwnershipFn(...a),
+  // Plan #2.3: el action ahora importa transitivamente
+  // `members/public.server.ts` (para `revalidateMemberPermissions`), que
+  // re-exporta queries que usan `findActiveMembership` + `findIsPlaceAdmin`.
+  // Aunque este test no las invoca, los mocks deben proveer la superficie
+  // completa porque vi.mock reemplaza el módulo entero.
+  findActiveMembership: vi.fn(),
+  findIsPlaceAdmin: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/place-loader', () => ({
@@ -51,9 +58,29 @@ vi.mock('@/features/members/moderation/server/mailer/expel-email', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: (...a: unknown[]) => revalidatePathFn(...a),
+  // Plan #2.3: el action invalida findMemberPermissions del expulsado
+  // via revalidateTag.
+  unstable_cache: <T extends (...args: never[]) => Promise<unknown>>(fn: T): T => fn,
+  revalidateTag: vi.fn(),
 }))
 
 vi.mock('server-only', () => ({}))
+
+// Plan #2.3: importar `revalidateMemberPermissions` desde `public.server.ts`
+// del slice `members` arrastra UI components que importan actions legacy con
+// `clientEnv` eager. Mockear env evita el parse Zod en tests.
+vi.mock('@/shared/config/env', () => ({
+  clientEnv: {
+    NEXT_PUBLIC_APP_URL: 'http://lvh.me:3000',
+    NEXT_PUBLIC_APP_DOMAIN: 'lvh.me:3000',
+    NEXT_PUBLIC_SUPABASE_URL: 'http://localhost:54321',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: 'anon',
+  },
+  serverEnv: {
+    SUPABASE_SERVICE_ROLE_KEY: 'service',
+    NODE_ENV: 'test',
+  },
+}))
 
 import { expelMemberAction } from '@/features/members/moderation/server/actions/expel-member'
 
