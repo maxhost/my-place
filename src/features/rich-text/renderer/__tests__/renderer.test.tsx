@@ -288,7 +288,7 @@ describe('RichTextRenderer', () => {
     expect(container.querySelector('u')?.textContent).toBe('c')
   })
 
-  it('renderiza embed nodes como iframes con sandbox + lazy (F.4)', async () => {
+  it('renderiza embed nodes como iframes con allow + lazy (F.4)', async () => {
     const yt: EmbedNode = { type: 'youtube', version: 1, videoId: 'abc' }
     const doc = docWith(yt)
     const node = await RichTextRenderer({ document: doc, resolvers: noopResolvers })
@@ -297,7 +297,7 @@ describe('RichTextRenderer', () => {
     expect(wrap).not.toBeNull()
     const iframe = container.querySelector('iframe')
     expect(iframe?.getAttribute('src')).toBe('https://www.youtube-nocookie.com/embed/abc')
-    expect(iframe?.getAttribute('sandbox')).toContain('allow-scripts')
+    expect(iframe?.getAttribute('allow')).toContain('encrypted-media')
     expect(iframe?.getAttribute('loading')).toBe('lazy')
   })
 

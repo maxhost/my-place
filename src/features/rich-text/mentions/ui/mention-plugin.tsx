@@ -334,18 +334,22 @@ type Match = {
   query: string
 }
 
-const EVENT_RE = /(^|[\s\n])(\/event[ ]([\w-]*))$/
+// `/event` dispara el typeahead apenas se completa el trigger, igual que `@`
+// y `/library` — el espacio + query son opcionales. `/eventually` no matchea
+// porque el grupo opcional sólo acepta `[ ]` después de `event`.
+const EVENT_RE = /(^|[\s\n])(\/event(?:[ ]([\w-]*))?)$/
 const LIBRARY_BARE_RE = /(^|[\s\n])(\/library)$/
 const LIBRARY_CAT_RE = /(^|[\s\n])(\/library\/([\w-]+)([ ]([\w-]*))?)$/
 
 function matchEvent(text: string): Match | null {
   const m = text.match(EVENT_RE)
-  if (!m || m[3] === undefined) return null
+  if (!m) return null
+  const query = m[3] ?? ''
   const replaceable = m[2] ?? ''
   const leadOffset = (m.index ?? 0) + (m[1]?.length ?? 0)
   return {
-    match: { leadOffset, matchingString: m[3], replaceableString: replaceable },
-    query: m[3],
+    match: { leadOffset, matchingString: query, replaceableString: replaceable },
+    query,
   }
 }
 

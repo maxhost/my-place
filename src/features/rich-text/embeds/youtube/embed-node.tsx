@@ -68,9 +68,9 @@ export class YouTubeNode extends DecoratorNode<React.JSX.Element> {
         <iframe
           className="aspect-video w-full"
           src={`https://www.youtube-nocookie.com/embed/${this.__videoId}`}
-          sandbox="allow-scripts allow-same-origin allow-presentation"
           loading="lazy"
-          referrerPolicy="no-referrer"
+          referrerPolicy="strict-origin-when-cross-origin"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
           title={`YouTube video ${this.__videoId}`}
         />
