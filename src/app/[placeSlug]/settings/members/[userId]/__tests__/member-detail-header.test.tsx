@@ -30,7 +30,6 @@ const baseMember: MemberDetail = {
     handle: 'ana',
     avatarUrl: null,
   },
-  tierMemberships: [],
 }
 
 describe('MemberDetailHeader', () => {

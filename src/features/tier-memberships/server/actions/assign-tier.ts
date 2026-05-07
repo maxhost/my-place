@@ -16,6 +16,7 @@ import { computeExpiresAt } from '@/features/tier-memberships/domain/expiration'
 import { isActiveMembership, isTierAssignable } from '@/features/tier-memberships/domain/invariants'
 import { buildAssignedBySnapshot } from '@/features/tier-memberships/domain/snapshot'
 import { assignTierInputSchema } from '@/features/tier-memberships/schemas'
+import { revalidateTierAssignmentsCache } from '@/features/tier-memberships/server/cache'
 
 /**
  * Resultado de `assignTierToMemberAction` — discriminated union.
@@ -153,6 +154,7 @@ export async function assignTierToMemberAction(input: unknown): Promise<AssignTi
     )
 
     revalidatePath(`/${place.slug}/settings/members/${data.memberUserId}`)
+    revalidateTierAssignmentsCache(place.id, data.memberUserId)
     return { ok: true, tierMembershipId: created.id }
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {

@@ -8,6 +8,7 @@ import { loadPlaceById } from '@/shared/lib/place-loader'
 import { logger } from '@/shared/lib/logger'
 import { AuthorizationError, NotFoundError, ValidationError } from '@/shared/errors/domain-error'
 import { removeTierAssignmentInputSchema } from '@/features/tier-memberships/schemas'
+import { revalidateTierAssignmentsCache } from '@/features/tier-memberships/server/cache'
 
 /**
  * Resultado de `removeTierAssignmentAction` — discriminated union.
@@ -95,5 +96,6 @@ export async function removeTierAssignmentAction(
   )
 
   revalidatePath(`/${place.slug}/settings/members/${tierMembership.userId}`)
+  revalidateTierAssignmentsCache(place.id, tierMembership.userId)
   return { ok: true }
 }

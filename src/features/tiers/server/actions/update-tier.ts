@@ -13,6 +13,7 @@ import {
   validateTierPriceCents,
 } from '@/features/tiers/domain/invariants'
 import { updateTierInputSchema } from '@/features/tiers/schemas'
+import { revalidateTiersCache } from '../cache'
 import { revalidateTiersPaths } from './shared'
 
 /** `name_already_published`: colisión con otro tier PUBLISHED (case-insensitive)
@@ -138,5 +139,6 @@ export async function updateTierAction(input: unknown): Promise<UpdateTierResult
   )
 
   revalidateTiersPaths(place.slug)
+  revalidateTiersCache(place.id)
   return { ok: true }
 }

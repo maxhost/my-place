@@ -1,4 +1,6 @@
 import 'server-only'
+import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/db/client'
 import type {
   Tier,
@@ -6,6 +8,7 @@ import type {
   TierDuration,
   TierVisibility,
 } from '@/features/tiers/domain/types'
+import { tiersByPlaceTag } from './cache'
 
 /**
  * Queries del slice `tiers` (T.2).
@@ -69,7 +72,7 @@ function mapTierRow(row: TierRow): Tier {
  * Ordenado por `createdAt DESC` — los nuevos arriba. Index
  * `(placeId, createdAt)` cubre el sort.
  */
-export async function listTiersByPlace(placeId: string, viewerIsOwner: boolean): Promise<Tier[]> {
+async function listTiersByPlaceRaw(placeId: string, viewerIsOwner: boolean): Promise<Tier[]> {
   const rows = await prisma.tier.findMany({
     where: {
       placeId,
@@ -91,6 +94,27 @@ export async function listTiersByPlace(placeId: string, viewerIsOwner: boolean):
   })
   return rows.map(mapTierRow)
 }
+
+/**
+ * Cache cross-request via `unstable_cache`. Key: `(placeId, viewerIsOwner)`
+ * — el shape cambia por viewer (todos vs sólo PUBLISHED), así que es parte
+ * de la key. Tag `tiers:${placeId}` invalidado desde actions que muten
+ * `Tier`. `revalidate: 60` es floor de safety si el tag se pierde (ej:
+ * deploy reset). `React.cache` envuelve por encima para deduplicar dentro
+ * del render tree.
+ */
+export const listTiersByPlace = cache(
+  async (placeId: string, viewerIsOwner: boolean): Promise<Tier[]> => {
+    return unstable_cache(
+      () => listTiersByPlaceRaw(placeId, viewerIsOwner),
+      ['tiers-by-place', placeId, String(viewerIsOwner)],
+      {
+        tags: [tiersByPlaceTag(placeId)],
+        revalidate: 60,
+      },
+    )()
+  },
+)
 
 /**
  * Resuelve un tier por id.

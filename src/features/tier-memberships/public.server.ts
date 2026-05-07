@@ -15,3 +15,5 @@ export {
   listAssignmentsByMember,
   listAssignmentsByPlace,
 } from './server/queries'
+
+export { revalidateTierAssignmentsCache, tierAssignmentsTag } from './server/cache'

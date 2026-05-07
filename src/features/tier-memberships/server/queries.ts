@@ -1,4 +1,6 @@
 import 'server-only'
+import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/db/client'
 import type { TierCurrency, TierDuration, TierVisibility } from '@/features/tiers/public'
 import type {
@@ -6,6 +8,7 @@ import type {
   TierMembership,
   TierMembershipDetail,
 } from '@/features/tier-memberships/domain/types'
+import { tierAssignmentsTag } from './cache'
 
 /**
  * Queries del slice `tier-memberships` (M.2).
@@ -150,14 +153,10 @@ export async function listAssignmentsByPlace(placeId: string): Promise<TierMembe
 }
 
 /**
- * Lista las asignaciones de un miembro en un place — incluye el `Tier`
- * joined en una sola query (`include`). NO N+1.
- *
- * Alimenta el detalle del miembro (`/settings/members/[userId]`).
- *
- * Ordenado por `assignedAt DESC` — la asignación más reciente arriba.
+ * Helper interno sin caching externo — el wrapper `unstable_cache` lo envuelve
+ * por (userId, placeId).
  */
-export async function listAssignmentsByMember(
+async function listAssignmentsByMemberRaw(
   userId: string,
   placeId: string,
 ): Promise<TierMembershipDetail[]> {
@@ -168,6 +167,33 @@ export async function listAssignmentsByMember(
   })
   return rows.map((row) => mapTierMembershipRowWithTier(row as TierMembershipRowWithTier))
 }
+
+/**
+ * Lista las asignaciones de un miembro en un place — incluye el `Tier`
+ * joined en una sola query (`include`). NO N+1.
+ *
+ * Alimenta el detalle del miembro (`/settings/members/[userId]`).
+ *
+ * Ordenado por `assignedAt DESC` — la asignación más reciente arriba.
+ *
+ * Cache cross-request via `unstable_cache`. Key: `(userId, placeId)`. Tag
+ * `tier-assignments:${placeId}:${userId}` invalidado desde
+ * `assignTierToMemberAction` / `removeTierAssignmentAction`.
+ * `revalidate: 60` es floor de safety si el tag se pierde (ej: deploy reset).
+ * `React.cache` envuelve por encima para deduplicar dentro del render tree.
+ */
+export const listAssignmentsByMember = cache(
+  async (userId: string, placeId: string): Promise<TierMembershipDetail[]> => {
+    return unstable_cache(
+      () => listAssignmentsByMemberRaw(userId, placeId),
+      ['tier-assignments', userId, placeId],
+      {
+        tags: [tierAssignmentsTag(placeId, userId)],
+        revalidate: 60,
+      },
+    )()
+  },
+)
 
 /**
  * Alias semántico de `listAssignmentsByMember`. v1 NO distingue activo vs

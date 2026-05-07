@@ -9,6 +9,7 @@ import { logger } from '@/shared/lib/logger'
 import { AuthorizationError, NotFoundError, ValidationError } from '@/shared/errors/domain-error'
 import { setTierVisibilityInputSchema } from '@/features/tiers/schemas'
 import type { TierVisibility } from '@/features/tiers/domain/types'
+import { revalidateTiersCache } from '../cache'
 import { revalidateTiersPaths } from './shared'
 
 /** `name_already_published`: target=PUBLISHED + colisión con otro
@@ -125,5 +126,6 @@ export async function setTierVisibilityAction(input: unknown): Promise<SetTierVi
   )
 
   revalidateTiersPaths(place.slug)
+  revalidateTiersCache(place.id)
   return { ok: true, visibility: targetVisibility, changed: true }
 }

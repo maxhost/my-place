@@ -12,6 +12,7 @@ import {
   validateTierPriceCents,
 } from '@/features/tiers/domain/invariants'
 import { createTierInputSchema } from '@/features/tiers/schemas'
+import { revalidateTiersCache } from '../cache'
 import { revalidateTiersPaths } from './shared'
 
 /**
@@ -102,5 +103,6 @@ export async function createTierAction(input: unknown): Promise<{ ok: true; tier
   )
 
   revalidateTiersPaths(place.slug)
+  revalidateTiersCache(place.id)
   return { ok: true, tierId: created.id }
 }

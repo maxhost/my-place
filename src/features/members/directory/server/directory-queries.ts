@@ -31,14 +31,6 @@ export type MemberSearchParams = {
   joinedSince?: '7d' | '30d' | '90d' | '1y'
 }
 
-export type AssignedTierSummary = {
-  tierMembershipId: string
-  tierId: string
-  tierName: string
-  tierVisibility: 'PUBLISHED' | 'HIDDEN'
-  expiresAt: Date | null
-}
-
 export type MemberSummary = {
   userId: string
   membershipId: string
@@ -58,7 +50,6 @@ export type MemberDetail = {
   /** Membership al grupo preset "Administradores" del place. Owner ⇒ true. */
   isAdmin: boolean
   user: { displayName: string; handle: string | null; avatarUrl: string | null }
-  tierMemberships: AssignedTierSummary[]
 }
 
 const JOINED_SINCE_DAYS: Record<NonNullable<MemberSearchParams['joinedSince']>, number> = {
@@ -228,18 +219,6 @@ export async function findMemberDetailForOwner(
             displayName: true,
             handle: true,
             avatarUrl: true,
-            // Tier-memberships del user filtradas al placeId. El include
-            // anidado del tier viene en el mismo round-trip — sin N+1.
-            tierMemberships: {
-              where: { placeId },
-              select: {
-                id: true,
-                tierId: true,
-                expiresAt: true,
-                tier: { select: { name: true, visibility: true } },
-              },
-              orderBy: { assignedAt: 'asc' },
-            },
           },
         },
       },
@@ -266,13 +245,6 @@ export async function findMemberDetailForOwner(
       handle: membership.user.handle,
       avatarUrl: membership.user.avatarUrl,
     },
-    tierMemberships: membership.user.tierMemberships.map((tm) => ({
-      tierMembershipId: tm.id,
-      tierId: tm.tierId,
-      tierName: tm.tier.name,
-      tierVisibility: tm.tier.visibility,
-      expiresAt: tm.expiresAt,
-    })),
   }
 }
 

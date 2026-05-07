@@ -11,3 +11,4 @@ import 'server-only'
  */
 
 export { findTierById, listTiersByPlace } from './server/queries'
+export { revalidateTiersCache, tiersByPlaceTag } from './server/cache'

@@ -80,7 +80,7 @@ describe('findMemberDetailForOwner', () => {
     expect(call.where).toEqual({ userId: USER_ID, placeId: PLACE_ID, leftAt: null })
   })
 
-  it('happy path miembro simple sin tiers ni ownership', async () => {
+  it('happy path miembro simple sin ownership', async () => {
     membershipFindFirst.mockResolvedValue({
       id: 'mem-1',
       joinedAt: new Date('2026-01-01T00:00:00Z'),
@@ -88,7 +88,6 @@ describe('findMemberDetailForOwner', () => {
         displayName: 'Ana',
         handle: 'ana',
         avatarUrl: null,
-        tierMemberships: [],
       },
     })
     ownershipFindUnique.mockResolvedValue(null)
@@ -102,54 +101,7 @@ describe('findMemberDetailForOwner', () => {
       isOwner: false,
       isAdmin: false,
       user: { displayName: 'Ana', handle: 'ana', avatarUrl: null },
-      tierMemberships: [],
     })
-  })
-
-  it('happy path con tiers asignados — mapping correcto del shape AssignedTierSummary', async () => {
-    membershipFindFirst.mockResolvedValue({
-      id: 'mem-1',
-      joinedAt: new Date('2026-01-01T00:00:00Z'),
-      user: {
-        displayName: 'Maxi',
-        handle: 'max',
-        avatarUrl: 'https://x/y.jpg',
-        tierMemberships: [
-          {
-            id: 'tm-1',
-            tierId: 'tier-free',
-            expiresAt: null,
-            tier: { name: 'Colaboradores', visibility: 'PUBLISHED' },
-          },
-          {
-            id: 'tm-2',
-            tierId: 'tier-prem',
-            expiresAt: new Date('2027-01-01T00:00:00Z'),
-            tier: { name: 'Premium', visibility: 'HIDDEN' },
-          },
-        ],
-      },
-    })
-    ownershipFindUnique.mockResolvedValue(null)
-
-    const result = await findMemberDetailForOwner(USER_ID, PLACE_ID)
-
-    expect(result?.tierMemberships).toEqual([
-      {
-        tierMembershipId: 'tm-1',
-        tierId: 'tier-free',
-        tierName: 'Colaboradores',
-        tierVisibility: 'PUBLISHED',
-        expiresAt: null,
-      },
-      {
-        tierMembershipId: 'tm-2',
-        tierId: 'tier-prem',
-        tierName: 'Premium',
-        tierVisibility: 'HIDDEN',
-        expiresAt: new Date('2027-01-01T00:00:00Z'),
-      },
-    ])
   })
 
   it('isOwner=true cuando hay PlaceOwnership', async () => {
@@ -160,7 +112,6 @@ describe('findMemberDetailForOwner', () => {
         displayName: 'Owner',
         handle: null,
         avatarUrl: null,
-        tierMemberships: [],
       },
     })
     ownershipFindUnique.mockResolvedValue({ userId: USER_ID })
@@ -169,11 +120,12 @@ describe('findMemberDetailForOwner', () => {
     expect(result?.isOwner).toBe(true)
   })
 
-  it('CRITICAL — exactamente 3 queries Prisma (sin N+1 sobre tiers)', async () => {
-    // Aunque el miembro tenga 5 tiers, el include anidado los trae todos en
-    // 1 round-trip (parte del findFirst). Las otras 2 queries son ownership
-    // y groupMembership (preset, post-C.1 para `isAdmin`).
-    // Total: 3 queries, sin importar cuántos tiers tiene.
+  it('CRITICAL — exactamente 3 queries Prisma para el shell del miembro', async () => {
+    // Sesión 4 (perf): el shell ya no carga tierMemberships — esos viven
+    // en la sub-section streameada (`_tiers-section.tsx`) que hace su
+    // propia query. El shell sólo necesita: membership (con user inline),
+    // ownership, groupMembership preset (para `isAdmin`).
+    // Total: 3 queries, sin importar la cantidad de tiers asignados.
     membershipFindFirst.mockResolvedValue({
       id: 'mem-1',
       joinedAt: new Date(),
@@ -181,12 +133,6 @@ describe('findMemberDetailForOwner', () => {
         displayName: 'X',
         handle: null,
         avatarUrl: null,
-        tierMemberships: Array.from({ length: 5 }).map((_, i) => ({
-          id: `tm-${i}`,
-          tierId: `tier-${i}`,
-          expiresAt: null,
-          tier: { name: `Tier ${i}`, visibility: 'PUBLISHED' as const },
-        })),
       },
     })
     ownershipFindUnique.mockResolvedValue(null)
@@ -212,7 +158,11 @@ describe('findMemberDetailForOwner', () => {
     expect(userSelect.avatarUrl).toBe(true)
   })
 
-  it('include de user.tierMemberships filtra por placeId — no leak de tiers de otros places', async () => {
+  it('select del user NO incluye tierMemberships — esos viven en sub-section streameada', async () => {
+    // Sesión 4 (perf): el shell ya no carga el resumen de tiers (era data
+    // muerta — ningún componente del header lo leía). La sub-section
+    // `<TiersSectionStreamed>` hace su propia query con el shape rico
+    // necesario para gestión.
     membershipFindFirst.mockResolvedValue(null)
     ownershipFindUnique.mockResolvedValue(null)
 
@@ -220,8 +170,7 @@ describe('findMemberDetailForOwner', () => {
 
     const call = membershipFindFirst.mock.calls[0]?.[0] as { select: Record<string, unknown> }
     const userSelect = (call.select.user as { select: Record<string, unknown> }).select
-    const tmSelect = userSelect.tierMemberships as { where: Record<string, unknown> }
-    expect(tmSelect.where).toEqual({ placeId: PLACE_ID })
+    expect(userSelect.tierMemberships).toBeUndefined()
   })
 
   it('ownership lookup usa la unique (userId, placeId)', async () => {
