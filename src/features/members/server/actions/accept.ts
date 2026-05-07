@@ -9,6 +9,7 @@ import { requireAuthUserId } from '@/shared/lib/auth-user'
 import { assertPlaceActive, assertPlaceHasCapacity } from '@/features/members/domain/invariants'
 import { findActiveMembership, findInvitationByToken } from '@/features/members/server/queries'
 import { revalidateMemberPermissions } from '@/features/members/public.server'
+import { revalidateMyPlacesCache } from '@/features/places/public.server'
 
 /**
  * Canjea un token de invitación por una `Membership` activa en el place.
@@ -58,6 +59,10 @@ export async function acceptInvitationAction(
   revalidatePath(`/${invitation.place.slug}`)
   // Plan #2.3: invalidar el cache cross-request de findMemberPermissions.
   revalidateMemberPermissions(actorId, invitation.placeId)
+  // Sesión 5.2: el accept agrega un place a la lista del usuario —
+  // invalidar `listMyPlaces(actorId)` para que la próxima carga del
+  // inbox / shell lo refleje sin esperar 60s.
+  revalidateMyPlacesCache(actorId)
 
   return { ok: true, placeSlug: invitation.place.slug, alreadyMember }
 }

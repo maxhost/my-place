@@ -1,5 +1,6 @@
 import 'server-only'
 import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/db/client'
 
 /**
@@ -30,6 +31,23 @@ const PLACE_SELECT = {
   themeConfig: true,
   openingHours: true,
 } as const
+
+/**
+ * Tag builders del cache cross-request. Definidos acá (donde el cache vive)
+ * para no violar la regla "shared no importa de features"; el slice `places`
+ * los re-exporta via `features/places/public.server.ts` junto con sus helpers
+ * de invalidación. Mutations llaman `revalidatePlaceCache(slug, id)` desde
+ * `places/server/cache.ts`.
+ */
+export function placeBySlugTag(slug: string): string {
+  return `place:slug:${slug}`
+}
+
+export function placeByIdTag(id: string): string {
+  return `place:id:${id}`
+}
+
+const PLACE_CACHE_REVALIDATE_SECONDS = 60
 
 export type LoadedPlace = NonNullable<Awaited<ReturnType<typeof findByIdRaw>>>
 
@@ -103,16 +121,37 @@ export async function loadPlaceById(id: string): Promise<LoadedPlace | null> {
   return loadPlaceByIdWithCache(getPlaceCache(), id)
 }
 
+/**
+ * Capa cross-request: `unstable_cache` con tag granular + `revalidate: 60`
+ * (safety net si el invalidate se pierde, ej: deploy reset). Las mutations
+ * sobre Place llaman `revalidatePlaceCache(slug, id)` desde
+ * `features/places/server/cache.ts` para forzar refresh inmediato.
+ *
+ * `getPlaceCache()` (capa per-request) se mantiene encima de esta capa:
+ * dentro del mismo render, el unified map sigue dedupeando lookups por
+ * slug ↔ id; entre requests, `unstable_cache` ahorra el round-trip al
+ * pooler para el mismo place.
+ */
 function findBySlugRaw(slug: string) {
-  return prisma.place.findUnique({
-    where: { slug },
-    select: PLACE_SELECT,
-  })
+  return unstable_cache(
+    () =>
+      prisma.place.findUnique({
+        where: { slug },
+        select: PLACE_SELECT,
+      }),
+    ['place-by-slug', slug],
+    { tags: [placeBySlugTag(slug)], revalidate: PLACE_CACHE_REVALIDATE_SECONDS },
+  )()
 }
 
 function findByIdRaw(id: string) {
-  return prisma.place.findUnique({
-    where: { id },
-    select: PLACE_SELECT,
-  })
+  return unstable_cache(
+    () =>
+      prisma.place.findUnique({
+        where: { id },
+        select: PLACE_SELECT,
+      }),
+    ['place-by-id', id],
+    { tags: [placeByIdTag(id)], revalidate: PLACE_CACHE_REVALIDATE_SECONDS },
+  )()
 }

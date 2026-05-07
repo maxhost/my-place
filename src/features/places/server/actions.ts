@@ -13,6 +13,7 @@ import {
 } from '@/shared/errors/domain-error'
 import { ADMIN_PRESET_NAME, presetPermissions } from '@/features/groups/public'
 import { revalidateMemberPermissions } from '@/features/members/public.server'
+import { revalidateMyPlacesCache, revalidatePlaceCache } from './cache'
 import {
   createPlaceSchema,
   transferOwnershipSchema,
@@ -55,6 +56,10 @@ export async function createPlaceAction(
     // previo, pero garantiza limpieza si el tag quedó de un place homónimo
     // pasado por algún edge case).
     revalidateMemberPermissions(actorId, place.id)
+    // Sesión 5.2: el creator suma este place a su lista — invalidar
+    // `listMyPlaces(actorId)` para que la próxima carga del inbox lo
+    // refleje sin esperar al floor de 60s.
+    revalidateMyPlacesCache(actorId)
     return { ok: true, place }
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -131,7 +136,7 @@ export async function archivePlaceAction(
 
   const place = await prisma.place.findUnique({
     where: { id: placeId },
-    select: { id: true, archivedAt: true },
+    select: { id: true, slug: true, archivedAt: true },
   })
   if (!place) {
     throw new NotFoundError('Place no encontrado.', { placeId })
@@ -153,6 +158,18 @@ export async function archivePlaceAction(
 
   logger.info({ event: 'placeArchived', placeId, actorId }, 'place archived')
   revalidatePath('/inbox')
+  // Sesión 5.1: el archive cambia el shape del place cacheado
+  // (`archivedAt`); invalidar el cache cross-request para que loaders
+  // posteriores lo vean archivado sin esperar 60s.
+  revalidatePlaceCache(place.slug, place.id)
+  // Sesión 5.2: cuando `listMyPlaces(userId)` se invoca con
+  // `includeArchived: false` (default), el place desaparece de la lista
+  // de cada miembro. Cap dominio = 150; loop barato.
+  const activeMembers = await prisma.membership.findMany({
+    where: { placeId: place.id, leftAt: null },
+    select: { userId: true },
+  })
+  for (const m of activeMembers) revalidateMyPlacesCache(m.userId)
   return { ok: true, alreadyArchived: false }
 }
 
@@ -214,6 +231,12 @@ export async function transferOwnershipAction(
   // cambian para los dos — invalidar tags de ambos.
   revalidateMemberPermissions(actorId, place.id)
   revalidateMemberPermissions(data.toUserId, place.id)
+  // Sesión 5.2: el campo `isOwner` de `listMyPlaces` cambia para ambos
+  // (target pasa a true; actor a false si removeActor=true). Si
+  // removeActor=true, además su membership se setea `leftAt` y el place
+  // desaparece de su listing.
+  revalidateMyPlacesCache(actorId)
+  revalidateMyPlacesCache(data.toUserId)
 
   return { ok: true, placeSlug: place.slug, actorRemoved: data.removeActor }
 }

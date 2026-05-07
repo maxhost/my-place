@@ -10,6 +10,16 @@ vi.mock('@/db/client', () => ({
   },
 }))
 
+// Pass-through de `unstable_cache` siguiendo el patrón canónico
+// (find-inviter-permissions.test.ts, create-place.test.ts, etc.).
+// El test verifica el comportamiento del unified per-request cache —
+// el cross-request `unstable_cache` se prueba implícitamente via el tag
+// que se le pasa, no via TTL.
+vi.mock('next/cache', () => ({
+  unstable_cache: <T extends (...args: unknown[]) => unknown>(fn: T): T => fn,
+  revalidateTag: vi.fn(),
+}))
+
 import { createPlaceCache, loadPlaceByIdWithCache, loadPlaceBySlugWithCache } from '../place-loader'
 
 const PLACE = {

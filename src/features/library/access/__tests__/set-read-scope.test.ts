@@ -49,7 +49,10 @@ vi.mock('@/shared/lib/supabase/server', () => ({
   createSupabaseServer: async () => ({ auth: { getUser: getUserFn } }),
 }))
 
-vi.mock('next/cache', () => ({ revalidatePath: (...a: unknown[]) => revalidatePathFn(...a) }))
+vi.mock('next/cache', () => ({
+  unstable_cache: <T extends (...args: unknown[]) => unknown>(fn: T): T => fn,
+  revalidatePath: (...a: unknown[]) => revalidatePathFn(...a),
+}))
 vi.mock('server-only', () => ({}))
 
 vi.mock('@/shared/config/env', () => ({

@@ -19,3 +19,16 @@ import 'server-only'
  */
 
 export { listMyPlaces } from './server/queries'
+
+// Helpers de invalidación tag-based para los caches `unstable_cache` que
+// envuelven `loadPlaceBySlug`/`loadPlaceById` y `listMyPlaces`. Llamados
+// desde mutations propias del slice (`actions.ts`) y de slices vecinos
+// (`members/server/actions/*`, `hours/server/actions.ts`,
+// `editor-config/server/actions.ts`).
+export {
+  revalidatePlaceCache,
+  revalidateMyPlacesCache,
+  placeBySlugTag,
+  placeByIdTag,
+  myPlacesTag,
+} from './server/cache'

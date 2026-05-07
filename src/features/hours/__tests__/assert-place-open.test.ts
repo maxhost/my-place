@@ -9,6 +9,14 @@ vi.mock('@/db/client', () => ({
   },
 }))
 
+// Sesión 5.1: `loadPlaceById` (consumido por `assertPlaceOpenOrThrow`)
+// envuelve `prisma.place.findUnique` con `unstable_cache`. Pass-through
+// patrón canónico (find-inviter-permissions.test.ts).
+vi.mock('next/cache', () => ({
+  unstable_cache: <T extends (...args: unknown[]) => unknown>(fn: T): T => fn,
+  revalidateTag: vi.fn(),
+}))
+
 vi.mock('server-only', () => ({}))
 
 // React.cache memoiza por identidad de argumentos entre tests — invalidamos

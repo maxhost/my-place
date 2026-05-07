@@ -9,6 +9,7 @@ import { assertPlaceActive } from '@/features/members/domain/invariants'
 import { leaveMembershipPlaceSlugSchema } from '@/features/members/schemas'
 import { findActiveMembership, findPlaceStateBySlug } from '@/features/members/server/queries'
 import { revalidateMemberPermissions } from '@/features/members/public.server'
+import { revalidateMyPlacesCache } from '@/features/places/public.server'
 
 /**
  * Sale del place: setea `Membership.leftAt = now()`. Si el actor era owner, también
@@ -52,6 +53,8 @@ export async function leaveMembershipAction(
   revalidatePath(`/${place.slug}`, 'layout')
   // Plan #2.3: invalidar el cache cross-request de findMemberPermissions.
   revalidateMemberPermissions(actorId, place.id)
+  // Sesión 5.2: salir remueve este place de la lista del usuario.
+  revalidateMyPlacesCache(actorId)
   return { ok: true, placeSlug: place.slug }
 }
 

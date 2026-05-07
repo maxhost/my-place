@@ -4,8 +4,10 @@ import { AuthorizationError, NotFoundError } from '@/shared/errors/domain-error'
 const ownershipFindUnique = vi.fn()
 const placeFindUnique = vi.fn()
 const placeUpdate = vi.fn()
+const membershipFindMany = vi.fn()
 const getUserFn = vi.fn()
 const revalidatePathFn = vi.fn()
+const revalidateTagFn = vi.fn()
 
 vi.mock('@/db/client', () => ({
   prisma: {
@@ -14,6 +16,7 @@ vi.mock('@/db/client', () => ({
       update: (...args: unknown[]) => placeUpdate(...args),
     },
     placeOwnership: { findUnique: (...args: unknown[]) => ownershipFindUnique(...args) },
+    membership: { findMany: (...args: unknown[]) => membershipFindMany(...args) },
   },
 }))
 
@@ -22,7 +25,9 @@ vi.mock('@/shared/lib/supabase/server', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  unstable_cache: <T extends (...args: unknown[]) => unknown>(fn: T): T => fn,
   revalidatePath: (...args: unknown[]) => revalidatePathFn(...args),
+  revalidateTag: (...args: unknown[]) => revalidateTagFn(...args),
 }))
 
 vi.mock('server-only', () => ({}))
@@ -46,8 +51,11 @@ beforeEach(() => {
   ownershipFindUnique.mockReset()
   placeFindUnique.mockReset()
   placeUpdate.mockReset()
+  membershipFindMany.mockReset()
+  membershipFindMany.mockResolvedValue([])
   getUserFn.mockReset()
   revalidatePathFn.mockReset()
+  revalidateTagFn.mockReset()
 })
 
 describe('archivePlaceAction', () => {
@@ -64,7 +72,7 @@ describe('archivePlaceAction', () => {
 
   it('rechaza si el actor NO es owner (ADMIN sin ownership falla)', async () => {
     getUserFn.mockResolvedValue(AUTH_OK)
-    placeFindUnique.mockResolvedValue({ id: 'p1', archivedAt: null })
+    placeFindUnique.mockResolvedValue({ id: 'p1', slug: 'p1-slug', archivedAt: null })
     ownershipFindUnique.mockResolvedValue(null)
 
     await expect(archivePlaceAction('p1')).rejects.toBeInstanceOf(AuthorizationError)
@@ -73,7 +81,7 @@ describe('archivePlaceAction', () => {
 
   it('happy path: owner archiva → update y revalidate', async () => {
     getUserFn.mockResolvedValue(AUTH_OK)
-    placeFindUnique.mockResolvedValue({ id: 'p1', archivedAt: null })
+    placeFindUnique.mockResolvedValue({ id: 'p1', slug: 'p1-slug', archivedAt: null })
     ownershipFindUnique.mockResolvedValue({ userId: 'user-1', placeId: 'p1' })
     placeUpdate.mockResolvedValue({ id: 'p1' })
 
@@ -89,7 +97,11 @@ describe('archivePlaceAction', () => {
 
   it('idempotente: si ya estaba archivado, no vuelve a actualizar', async () => {
     getUserFn.mockResolvedValue(AUTH_OK)
-    placeFindUnique.mockResolvedValue({ id: 'p1', archivedAt: new Date('2026-02-01') })
+    placeFindUnique.mockResolvedValue({
+      id: 'p1',
+      slug: 'p1-slug',
+      archivedAt: new Date('2026-02-01'),
+    })
     ownershipFindUnique.mockResolvedValue({ userId: 'user-1', placeId: 'p1' })
 
     const res = await archivePlaceAction('p1')

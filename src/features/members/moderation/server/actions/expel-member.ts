@@ -9,6 +9,7 @@ import { logger } from '@/shared/lib/logger'
 import { AuthorizationError, NotFoundError, ValidationError } from '@/shared/errors/domain-error'
 import { expelMemberInputSchema } from '@/features/members/schemas'
 import { revalidateMemberPermissions } from '@/features/members/public.server'
+import { revalidateMyPlacesCache } from '@/features/places/public.server'
 import { sendExpelEmail } from '../mailer/expel-email'
 
 /**
@@ -129,5 +130,8 @@ export async function expelMemberAction(input: unknown): Promise<ExpelMemberResu
   // Sin esto, si el expulsado entra al place dentro de los 60s siguientes vería
   // el cache previo (isMember=true) hasta que expirara el `revalidate` floor.
   revalidateMemberPermissions(memberUserId, place.id)
+  // Sesión 5.2: la expulsión setea `leftAt` — el place desaparece de
+  // `listMyPlaces(memberUserId)`.
+  revalidateMyPlacesCache(memberUserId)
   return { ok: true }
 }

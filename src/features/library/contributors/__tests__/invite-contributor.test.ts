@@ -65,6 +65,7 @@ vi.mock('@/shared/lib/supabase/server', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  unstable_cache: <T extends (...args: unknown[]) => unknown>(fn: T): T => fn,
   revalidatePath: (...a: unknown[]) => revalidatePathFn(...a),
 }))
 

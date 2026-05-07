@@ -170,7 +170,9 @@ describe('updatePlaceHoursAction', () => {
         },
       },
     })
-    expect(revalidateTagFn).toHaveBeenCalledWith('place:the-company')
+    // Sesión 5.1: tags granulares slug+id de loadPlaceBySlug/loadPlaceById.
+    expect(revalidateTagFn).toHaveBeenCalledWith('place:slug:the-company')
+    expect(revalidateTagFn).toHaveBeenCalledWith('place:id:place-1')
     expect(revalidatePathFn).toHaveBeenCalledWith('/the-company/settings/hours')
     // Antes invalidaba 'layout' completo (~25 routes); ya no debería pasar.
     expect(revalidatePathFn).not.toHaveBeenCalledWith('/the-company', 'layout')
