@@ -1,125 +1,69 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
-import { logger } from '@/shared/lib/logger'
-import { DwellTracker, ThreadPresence } from '@/features/discussions/public'
-import { findOrCreateCurrentOpening } from '@/features/discussions/public.server'
-import {
-  ItemAdminMenu,
-  LibraryItemHeader,
-  LibraryItemHeaderBar,
-  canArchiveItem,
-  canEditItem,
-} from '@/features/library/public'
-import { findItemBySlug, resolveLibraryViewer } from '@/features/library/public.server'
-import type { LexicalDocument } from '@/features/rich-text/public'
-import { RichTextRenderer } from '@/features/rich-text/public.server'
+import { LibraryItemHeaderBar } from '@/features/library/public'
+import { findItemBySlug } from '@/features/library/public.server'
 import { CommentsSection, CommentsSkeleton } from './_comments-section'
-import { buildMentionResolvers } from '@/app/[placeSlug]/(gated)/_mention-resolvers'
+import { LibraryItemContent } from './_library-item-content'
+import { LibraryItemHeaderActions } from './_library-item-header-actions'
+import { LibraryItemContentSkeleton } from './_skeletons'
 
 type Props = {
   params: Promise<{ placeSlug: string; categorySlug: string; itemSlug: string }>
 }
 
 /**
- * Detalle del item de biblioteca (R.7.9). URL canónica:
- * `/library/[categorySlug]/[itemSlug]`. El `itemSlug` URL coincide
- * con `Post.slug` — el item ES el thread documento.
+ * Detalle del item de biblioteca (R.7.9 layout). URL canónica:
+ * `/library/[categorySlug]/[itemSlug]` — el item ES el thread documento
+ * (vive en Post; LibraryItem no tiene slug propio).
  *
- * Render:
- *   - LibraryItemHeaderBar sticky (con kebab admin/author si corresponde).
- *     Específico de library (no reusa ThreadHeaderBar de discussions)
- *     porque el back button siempre debe ir a la categoría — usar
- *     router.back() rompería en items accedidos via redirect 308 desde
- *     /conversations/[slug] (loop infinito) y deep-links.
- *   - LibraryItemHeader (chip categoría + título + author + meta).
- *   - RichTextRenderer del Post.body (con embed nodes intercalados).
- *   - ReactionBar standalone sobre el Post.
- *   - PostReadersBlock + DwellTracker + ThreadPresence (reuse).
- *   - CommentThread + composer (reuse).
+ * **Patrón canónico de streaming agresivo del shell** — top-level await
+ * SÓLO para el check de existencia (loadPlace + findItemBySlug cacheados).
+ * Todo el resto streama:
  *
- * Streaming: el shell (header + body + ReactionBar del POST) pinta
- * primero. Comments + readers + quoteState viven bajo `<Suspense>` en
- * `<CommentsSection>` (sibling `_comments-section.tsx`).
+ *  - `<LibraryItemHeaderBar>` pinta inmediato con back button a la categoría.
+ *  - `<LibraryItemContent>` (Suspense) → fetch viewer + archived check +
+ *    body TipTap. Resuelve en ~700ms cold; mientras tanto el skeleton del
+ *    body matched-dimension.
+ *  - `<CommentsSection>` (Suspense) → fetch comments + reactions + readers.
+ *    Resuelve en ~1s cold; skeleton aparte.
+ *  - `<LibraryItemHeaderActions>` (Suspense, fallback null) → admin/author
+ *    kebab, aparece in-place cuando viewer + permisos resuelven.
  *
- * Archivado: solo admin/author lo ven (RLS lo enforce + acá filtramos
- * con `canArchiveItem` para el "Archivado" badge en el header).
+ * Cada Suspense child fetchea sus dependencies independientemente.
+ * `React.cache` per-request dedupea queries compartidas (viewer) entre
+ * los 3 children — 1 query física por request aunque la pidan todos.
  *
- * Ver `docs/features/library/spec.md` § 14.9 + § 13 (cross-zona).
+ * Archivado (R.7.9): items archivados sólo son visibles para admin/author.
+ * El check vive en `<LibraryItemContent>` (Suspense child) — caso raro de
+ * moderación, flicker post-skeleton aceptable.
+ *
+ * Ver `docs/architecture.md` § "Streaming agresivo del shell" y
+ * `docs/features/library/spec.md` § 14.9.
  */
 export default async function LibraryItemDetailPage({ params }: Props) {
   const { placeSlug, categorySlug, itemSlug } = await params
-
   const place = await loadPlaceBySlug(placeSlug)
   if (!place) notFound()
 
-  const [item, vctx, opening] = await Promise.all([
-    findItemBySlug(place.id, categorySlug, itemSlug, { includeArchived: true }),
-    resolveLibraryViewer({ placeSlug }),
-    findOrCreateCurrentOpening(place.id).catch((err: unknown) => {
-      logger.error({ err, placeId: place.id }, 'failed to materialize opening')
-      return null
-    }),
-  ])
+  const item = await findItemBySlug(place.id, categorySlug, itemSlug, { includeArchived: true })
   if (!item) notFound()
-
-  const { viewer: libraryViewer, actor: viewer } = vctx
-  // Si está archivado: solo admin o author lo ven.
-  const itemCtx = { authorUserId: item.authorUserId }
-  if (item.archivedAt && !canArchiveItem(itemCtx, libraryViewer)) notFound()
-
-  const canEdit = canEditItem(itemCtx, libraryViewer)
-  const canArchive = canArchiveItem(itemCtx, libraryViewer)
 
   return (
     <div className="pb-32">
       <LibraryItemHeaderBar
         categorySlug={item.categorySlug}
         rightSlot={
-          canEdit || canArchive ? (
-            <ItemAdminMenu
-              itemId={item.id}
-              categorySlug={item.categorySlug}
-              postSlug={item.postSlug}
-              canEdit={canEdit}
-              canArchive={canArchive}
-            />
-          ) : null
+          <Suspense fallback={null}>
+            <LibraryItemHeaderActions item={item} placeSlug={placeSlug} />
+          </Suspense>
         }
       />
-
-      <DwellTracker postId={item.postId} />
-      <ThreadPresence
-        postId={item.postId}
-        viewer={{
-          userId: viewer.actorId,
-          displayName: viewer.user.displayName,
-          avatarUrl: viewer.user.avatarUrl,
-        }}
-      />
-
-      <LibraryItemHeader item={item} />
-
-      <article className="prose-place mx-3 mt-3 max-w-none text-text">
-        {item.body ? (
-          <RichTextRenderer
-            document={item.body as LexicalDocument}
-            resolvers={buildMentionResolvers({ placeId: place.id })}
-          />
-        ) : null}
-      </article>
-
-      <div className="mx-3 mt-6 border-t-[0.5px] border-border" />
-
+      <Suspense fallback={<LibraryItemContentSkeleton />}>
+        <LibraryItemContent item={item} placeId={place.id} placeSlug={placeSlug} />
+      </Suspense>
       <Suspense fallback={<CommentsSkeleton />}>
-        <CommentsSection
-          postId={item.postId}
-          placeId={place.id}
-          placeSlug={viewer.placeSlug}
-          viewerUserId={viewer.actorId}
-          viewerIsAdmin={viewer.isAdmin}
-          placeOpeningId={opening?.id ?? null}
-        />
+        <CommentsSection placeId={place.id} placeSlug={placeSlug} postId={item.postId} />
       </Suspense>
     </div>
   )
