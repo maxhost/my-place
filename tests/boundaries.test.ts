@@ -55,12 +55,20 @@ describe('boundaries entre capas (docs/architecture.md)', () => {
         const m = imp.match(/^@\/features\/([^/]+)\/(.+)$/)
         if (!m) continue
         const [, feature, rest] = m
+        if (feature === undefined || rest === undefined) continue
         if (feature === ownFeature) continue
+        // Allowed cross-slice entries:
+        //  - barrel raíz: `public` | `public.server` (regla original)
+        //  - sub-slice public: `<sub>/public` | `<sub>/public.server`
+        //    (sólo un nivel de anidación — evita anidar arbitrariamente).
+        // Ver `docs/decisions/2026-05-08-sub-slice-cross-public.md`.
         if (
           rest === 'public' ||
           rest === 'public.ts' ||
           rest === 'public.server' ||
-          rest === 'public.server.ts'
+          rest === 'public.server.ts' ||
+          /^[a-z0-9-]+\/public(\.ts)?$/.test(rest) ||
+          /^[a-z0-9-]+\/public\.server(\.ts)?$/.test(rest)
         ) {
           continue
         }

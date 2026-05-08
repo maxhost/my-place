@@ -1,29 +1,41 @@
 /**
- * Superficie pública del slice `rich-text`.
+ * Superficie pública del slice `rich-text` — barrel **lite** (sin Composers).
  *
- * Barrel general: agrega los `public.ts` de los sub-slices internos
- * (`mentions/`, `composers/`, `renderer/`, `embeds/` se importa directo
- * por consumers que activan embeds — no se re-exporta acá) más los
- * primitivos del dominio (`domain/`).
+ * Sólo exports client-safe livianos: tipos del documento Lexical,
+ * schemas Zod, helpers puros (`richTextExcerpt`, `assertRichTextSize`),
+ * `RichTextRendererClient` (renderer cliente sin Lexical core), y
+ * mention nodes para serialización.
  *
- * Sólo exports client-safe + tipos. Server-only (renderer SSR async,
- * resolvers de mention con queries Prisma) viven en `public.server.ts`.
- * Ver gotcha sobre split público en CLAUDE.md.
+ * Los **Composers** (BaseComposer + CommentComposer + PostComposer +
+ * EventComposer + LibraryItemComposer) viven en
+ * `@/features/rich-text/composers/public` — sub-slice public dedicado.
+ * Importarlos arrastra Lexical entero (~126 kB gzip), por eso se
+ * separó: pages que sólo renderizan rich-text (listas, detalles)
+ * importan de este barrel y NO traen Lexical al bundle eager. Pages
+ * de creación/edición importan del sub-slice composers (eager) o
+ * via `next/dynamic` (lazy on-focus, patrón Reddit).
+ *
+ * Server-only (renderer SSR async, resolvers de mention con queries
+ * Prisma) viven en `public.server.ts`. Ver gotcha sobre split público
+ * en CLAUDE.md.
  *
  * Cada sub-slice tiene su propio cap 1500 LOC; el split honesto reemplaza
  * la excepción provisoria que existió post-migración TipTap → Lexical.
+ *
+ * Ver `docs/decisions/2026-05-08-sub-slice-cross-public.md`.
  */
 
 // ---------------------------------------------------------------
-// Sub-slices del slice `rich-text`
+// Sub-slices client-safe del slice `rich-text`
 // ---------------------------------------------------------------
 
-// Mentions: `MentionNode` + plugin polimórfico (`@`, `/event`, `/library`).
-export {
-  MentionNode as MentionLexicalNode,
-  $createMentionNode,
-  $isMentionNode,
-} from './mentions/public'
+// Mentions: sólo **types** acá. `MentionNode` (DecoratorNode Lexical),
+// `$createMentionNode`, `$isMentionNode` y `MentionPlugin` viven en
+// `@/features/rich-text/mentions/public` — son value-side y arrastran
+// Lexical core. Re-exportarlos desde acá rompía el split del barrel
+// (cualquier import de helper puro como `richTextExcerpt` traía Lexical
+// por side-effect del re-export). Ver ADR
+// `2026-05-08-sub-slice-cross-public.md`.
 export type {
   ComposerMentionResolvers,
   MentionEventResult,
@@ -35,25 +47,8 @@ export type {
   MentionUserResult,
 } from './mentions/public'
 
-// Composers: 4 surfaces + base.
-export {
-  BaseComposer,
-  CommentComposer,
-  EventComposer,
-  LibraryItemComposer,
-  PostComposer,
-} from './composers/public'
-export type {
-  BaseComposerProps,
-  CommentComposerProps,
-  ComposerSurface,
-  EnabledEmbeds,
-  EventComposerProps,
-  LibraryItemComposerProps,
-  PostComposerProps,
-} from './composers/public'
-
-// Renderer client-safe (el SSR vive en `public.server.ts`).
+// Renderer client-safe (el SSR vive en `public.server.ts`). NO arrastra
+// Composers — sólo el árbol de render para el AST Lexical ya parseado.
 export { RichTextRendererClient } from './renderer/public'
 
 // ---------------------------------------------------------------

@@ -1,11 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import {
-  EventComposer,
-  type ComposerMentionResolvers,
-  type LexicalDocument,
-} from '@/features/rich-text/public'
+import { EventComposer } from '@/features/rich-text/composers/public'
+import type { ComposerMentionResolvers, LexicalDocument } from '@/features/rich-text/public'
 import { searchMembersByPlaceAction } from '@/features/members/public'
 import { searchEventsByPlaceAction } from '@/features/events/public'
 import {

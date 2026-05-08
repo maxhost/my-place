@@ -5,7 +5,7 @@ import { reactionMapKey } from '../server/reactions-aggregation'
 import type { MentionResolvers } from '@/features/rich-text/public.server'
 import { CommentItem } from './comment-item'
 import { CommentThreadLive } from './comment-thread-live'
-import { CommentComposerForm } from './comment-composer-form'
+import { CommentComposerLazy } from './comment-composer-lazy'
 import { LoadMoreComments } from './load-more-comments'
 
 /**
@@ -100,8 +100,10 @@ export function CommentThread({
       ) : null}
 
       <div data-role="comment-composer" className="mx-3 mt-4">
-        {/* F.3: composer Lexical (CommentComposer del slice rich-text). */}
-        <CommentComposerForm placeId={placeId} postId={postId} />
+        {/* Reddit pattern: input plano placeholder; al tap se dynamic-importa
+            el composer Lexical real. ~126 kB Lexical no viajan en el primer
+            paint del thread. Ver comment-composer-lazy.tsx. */}
+        <CommentComposerLazy placeId={placeId} postId={postId} />
       </div>
     </section>
   )

@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
 import { resolveViewerForPlace } from '@/features/discussions/public.server'
 import { ALLOWED_TIMEZONES } from '@/features/hours/public'
-import { EventForm } from '@/features/events/public'
+import { EventForm } from '@/features/events/forms/public'
 import { getEvent } from '@/features/events/public.server'
 
 export const metadata: Metadata = {

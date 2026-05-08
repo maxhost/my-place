@@ -3,12 +3,8 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import {
-  LibraryItemComposer,
-  type ComposerMentionResolvers,
-  type EnabledEmbeds,
-  type LexicalDocument,
-} from '@/features/rich-text/public'
+import { LibraryItemComposer, type EnabledEmbeds } from '@/features/rich-text/composers/public'
+import type { ComposerMentionResolvers, LexicalDocument } from '@/features/rich-text/public'
 import { searchMembersByPlaceAction } from '@/features/members/public'
 import { searchEventsByPlaceAction } from '@/features/events/public'
 import {

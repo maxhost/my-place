@@ -1,11 +1,8 @@
 'use client'
 
 import { useCallback } from 'react'
-import {
-  CommentComposer,
-  type LexicalDocument,
-  type MentionUserResult,
-} from '@/features/rich-text/public'
+import { CommentComposer } from '@/features/rich-text/composers/public'
+import type { LexicalDocument, MentionUserResult } from '@/features/rich-text/public'
 import { searchMembersByPlaceAction } from '@/features/members/public'
 import { createCommentAction } from '../server/actions/comments'
 

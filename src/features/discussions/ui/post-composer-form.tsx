@@ -2,12 +2,8 @@
 
 import { useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  PostComposer,
-  type ComposerMentionResolvers,
-  type EnabledEmbeds,
-  type LexicalDocument,
-} from '@/features/rich-text/public'
+import { PostComposer, type EnabledEmbeds } from '@/features/rich-text/composers/public'
+import type { ComposerMentionResolvers, LexicalDocument } from '@/features/rich-text/public'
 import { searchMembersByPlaceAction } from '@/features/members/public'
 import { searchEventsByPlaceAction } from '@/features/events/public'
 import {

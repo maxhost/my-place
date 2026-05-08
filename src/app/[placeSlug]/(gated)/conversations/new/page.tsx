@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
 import { resolveViewerForPlace } from '@/features/discussions/public.server'
-import { PostComposerWrapper } from '@/features/discussions/public'
+import { PostComposerWrapper } from '@/features/discussions/composers/public'
 import { getEditorConfigForPlace } from '@/features/editor-config/public.server'
 
 export const metadata: Metadata = {

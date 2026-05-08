@@ -6,7 +6,7 @@ import {
   listCategoryContributorUserIds,
   resolveLibraryViewer,
 } from '@/features/library/public.server'
-import { LibraryItemComposerForm } from '@/features/discussions/public'
+import { LibraryItemComposerForm } from '@/features/discussions/composers/public'
 import { getEditorConfigForPlace } from '@/features/editor-config/public.server'
 
 type Props = {

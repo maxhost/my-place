@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
 import { resolveViewerForPlace } from '@/features/discussions/public.server'
 import { ALLOWED_TIMEZONES } from '@/features/hours/public'
-import { EventForm } from '@/features/events/public'
+import { EventForm } from '@/features/events/forms/public'
 
 export const metadata: Metadata = {
   title: 'Proponer evento',

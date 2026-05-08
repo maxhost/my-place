@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
 import { canEditItem, updateLibraryItemAction } from '@/features/library/public'
 import { findItemBySlug, resolveLibraryViewer } from '@/features/library/public.server'
-import { LibraryItemComposerForm } from '@/features/discussions/public'
+import { LibraryItemComposerForm } from '@/features/discussions/composers/public'
 import type { LexicalDocument } from '@/features/rich-text/public'
 import { getEditorConfigForPlace } from '@/features/editor-config/public.server'
 

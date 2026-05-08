@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { useRouter } from 'next/navigation'
-import { EventComposerWrapper } from '@/features/discussions/public'
+import { EventComposerWrapper } from '@/features/discussions/composers/public'
 import type { LexicalDocument } from '@/features/rich-text/public'
 import {
   EVENT_LOCATION_MAX_LENGTH,
