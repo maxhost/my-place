@@ -60,16 +60,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verificar secrets presentes
+      # Skip gracioso si los secrets no están seteados en el repo. Permite
+      # al repo correr sin Supabase Management API token (forks, repos
+      # personales sin presupuesto para branches efímeras). Si querés
+      # habilitar el e2e completo, configurá los 3 secrets en
+      # Settings → Secrets and variables → Actions.
+      - name: Check required secrets
+        id: secrets
         run: |
-          set -e
+          missing=()
           for var in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF E2E_TEST_SECRET; do
             if [[ -z "${!var:-}" ]]; then
-              echo "::error::Falta secret $var en GitHub Actions" && exit 1
+              missing+=("$var")
             fi
           done
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::warning::Skipping e2e — falta(n) secret(s) en GitHub Actions: ${missing[*]}. Configurar en Settings → Secrets para habilitar."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Crear branch Supabase efímera
+        if: steps.secrets.outputs.skip != 'true'
         id: create_branch
         run: |
           branch_name="ci-${{ github.run_id }}-${{ github.job }}-$(date +%s)"
@@ -78,35 +91,46 @@ jobs:
           echo "branch_name=$branch_name" >> "$GITHUB_OUTPUT"
 
       - name: Esperar branch ACTIVE
+        if: steps.secrets.outputs.skip != 'true'
         run: bash scripts/ci/branch-helpers.sh poll_until_active "${{ steps.create_branch.outputs.branch_id }}"
 
       - name: Resolver env de la branch
+        if: steps.secrets.outputs.skip != 'true'
         run: |
           bash scripts/ci/branch-helpers.sh fetch_branch_env \
             "${{ steps.create_branch.outputs.branch_id }}" >> "$GITHUB_ENV"
 
       - uses: pnpm/action-setup@v4
+        if: steps.secrets.outputs.skip != 'true'
       - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.skip != 'true'
         with:
           node-version: 20
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - if: steps.secrets.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
 
-      - run: pnpm prisma generate
+      - if: steps.secrets.outputs.skip != 'true'
+        run: pnpm prisma generate
 
       - name: Aplicar migraciones sobre la branch
+        if: steps.secrets.outputs.skip != 'true'
         run: pnpm prisma migrate deploy
 
       - name: Sembrar fixtures E2E
+        if: steps.secrets.outputs.skip != 'true'
         run: pnpm tsx tests/fixtures/e2e-seed.ts
 
       - name: RLS tests directos (vitest + pg + SET LOCAL)
+        if: steps.secrets.outputs.skip != 'true'
         run: pnpm vitest run --config vitest.rls.config.ts
 
-      - run: pnpm exec playwright install --with-deps chromium webkit
+      - if: steps.secrets.outputs.skip != 'true'
+        run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: E2E Playwright (globalSetup + smoke + flows)
+        if: steps.secrets.outputs.skip != 'true'
         run: pnpm exec playwright test
 
       - name: Cleanup — borrar branch Supabase
@@ -114,7 +138,7 @@ jobs:
         run: bash scripts/ci/branch-helpers.sh delete_branch "${{ steps.create_branch.outputs.branch_id }}"
 
       - name: Upload Playwright report
-        if: failure()
+        if: failure() && steps.secrets.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ github.run_id }}

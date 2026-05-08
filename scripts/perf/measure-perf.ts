@@ -176,21 +176,7 @@ type RouteMetrics = {
 // Capa 1 — bundle sizes desde build manifest
 // ---------------------------------------------------------------
 
-type BuildManifest = {
-  pages: Record<string, string[]>
-  rootMainFiles?: string[]
-}
-
-async function loadBuildManifest(): Promise<BuildManifest> {
-  const manifestPath = path.join(REPO_ROOT, '.next', 'build-manifest.json')
-  if (!existsSync(manifestPath)) {
-    throw new Error(`[perf] no existe ${manifestPath} — corré 'pnpm build' antes de medir.`)
-  }
-  const raw = await readFile(manifestPath, 'utf-8')
-  return JSON.parse(raw) as BuildManifest
-}
-
-async function getRouteSizeKB(buildKey: string, _manifest: BuildManifest): Promise<number | null> {
+async function getRouteSizeKB(buildKey: string): Promise<number | null> {
   // El build-manifest.json del app router NO tiene entries por page exactas;
   // expone main chunks. Para una medición útil leemos el output ya parseado por
   // Next que vive en `.next/app-build-manifest.json`. Si no existe, fallback a
@@ -299,7 +285,6 @@ const OWNER_STORAGE_STATE = storageStateFor('owner')
 async function measureRoute(
   browser: Browser,
   route: Route,
-  manifest: BuildManifest,
   serverLogTail: () => string,
 ): Promise<RouteMetrics> {
   const ctx = await browser.newContext(route.needsAuth ? { storageState: OWNER_STORAGE_STATE } : {})
@@ -379,7 +364,7 @@ async function measureRoute(
   const prismaTotalMs = queries.reduce((sum, q) => sum + q.durationMs, 0)
   const prismaSlowestMs = queries.length > 0 ? Math.max(...queries.map((q) => q.durationMs)) : 0
 
-  const bundleKB = await getRouteSizeKB(route.buildKey, manifest)
+  const bundleKB = await getRouteSizeKB(route.buildKey)
 
   return {
     key: route.key,
@@ -683,8 +668,6 @@ async function main(): Promise<void> {
         '       borrá el cache + corré una spec mínima del E2E suite.',
     )
   }
-  const manifest = await loadBuildManifest()
-
   console.log('[perf] arrancando server prod local en :' + PORT + ' (PERF_LOG=1)...')
   const { proc, tail } = await startServer()
 
@@ -722,7 +705,7 @@ async function main(): Promise<void> {
         console.warn(`[perf] warm-up falló para ${route.label}: ${(err as Error).message}`)
       }
 
-      const m = await measureRoute(browser, route, manifest, tail)
+      const m = await measureRoute(browser, route, tail)
       rows.push(m)
     }
 
