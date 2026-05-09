@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchSlashCommand } from '../ui/mention-plugin'
+import { matchSlashCommand } from '../ui/trigger-detection'
 
 /**
  * Audit #10. Tests baseline del matcher de slash commands. Fijan el behavior

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
-import { MentionFeedbackMenu } from '../ui/mention-plugin'
+import { MentionFeedbackMenu } from '../ui/mention-feedback-menu'
 
 // Trigger type es interno al plugin; el test arma valores compatibles
 // con la unión `Trigger` mediante casts. El componente sólo lee `kind`.

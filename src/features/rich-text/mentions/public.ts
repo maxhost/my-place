@@ -20,7 +20,7 @@ export type {
   MentionLibraryItemResult,
   MentionResolversForEditor,
   MentionUserResult,
-} from './ui/mention-plugin'
+} from './ui/mention-types'
 
 // Prefetch background del typeahead. El Context vive acá (sub-slice del
 // consumer); el Provider vive en `discussions/composers/`. Ver

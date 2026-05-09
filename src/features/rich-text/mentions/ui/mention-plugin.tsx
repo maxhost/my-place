@@ -24,23 +24,6 @@ import type {
   Trigger,
 } from './mention-types'
 
-// Re-exports de compat: durante el split, public.ts y mention-prefetch-context
-// importan tipos desde este archivo. Mantenemos los re-exports para no
-// romper en pasos intermedios. El Step 4 del plan retira lo que ya no
-// agregue valor (cuando consumers actualicen sus paths).
-export type {
-  MentionUserResult,
-  MentionEventResult,
-  MentionLibraryCategoryResult,
-  MentionLibraryItemResult,
-  MentionResolversForEditor,
-  ComposerMentionResolvers,
-} from './mention-types'
-// Re-exports SÓLO para tests del slice (mention-feedback-menu.test.tsx +
-// match-slash-command.test.ts importan desde acá hasta el Step 4).
-export { matchSlashCommand, type SlashMatch } from './trigger-detection'
-export { MentionFeedbackMenu } from './mention-feedback-menu'
-
 /**
  * Umbral después del cual un fetch live "se siente lento". El spinner
  * cambia su label ("Sigue cargando…") para confirmar al viewer que el
