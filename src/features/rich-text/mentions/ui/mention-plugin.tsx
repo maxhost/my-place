@@ -120,6 +120,14 @@ export function MentionPlugin({
   const [editor] = useLexicalComposerContext()
   const [trigger, setTrigger] = useState<Trigger | null>(null)
   const [options, setOptions] = useState<GenericMenuOption[]>([])
+  /**
+   * Indica fetch live in-flight con cache miss. Cuando es `true` y
+   * `options` aún está vacío, renderizamos un placeholder "Cargando…"
+   * en el menú para que el viewer vea respuesta inmediata al teclado
+   * (defensa UX cold start). Cache hit → loading queda `false` y se
+   * muestran items directo, sin placeholder visible.
+   */
+  const [loading, setLoading] = useState(false)
 
   // Cache prefetcheado externo (Provider en `discussions/composers/` que vive
   // en el shell `(gated)/layout.tsx`). Si el viewer entró al shell hace ≥100ms,
@@ -257,6 +265,7 @@ export function MentionPlugin({
   useEffect(() => {
     if (trigger === null) {
       setOptions([])
+      setLoading(false)
       return
     }
     // Cache-first para query vacía: armamos opciones desde el state
@@ -269,9 +278,11 @@ export function MentionPlugin({
     })
     if (sync !== null) {
       setOptions(sync.slice(0, MAX_RESULTS))
+      setLoading(false)
       return
     }
     let active = true
+    setLoading(true)
     void (async () => {
       // Usa composerRef en lugar de `composer` directo: el composer object
       // cambia identidad por render del wrapper. Si lo metiéramos en deps,
@@ -280,6 +291,7 @@ export function MentionPlugin({
       const results = await fetchOptionsForTrigger(trigger, composerRef.current)
       if (!active) return
       setOptions(results.slice(0, MAX_RESULTS))
+      setLoading(false)
     })()
     return () => {
       active = false
@@ -339,7 +351,13 @@ export function MentionPlugin({
         anchorElementRef,
         { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex },
       ) => {
-        if (anchorElementRef.current === null || options.length === 0) return null
+        if (anchorElementRef.current === null) return null
+        // Loading placeholder: trigger activo + cache miss + fetch in-flight.
+        // Mostramos respuesta inmediata al teclado aunque la red tarde.
+        if (options.length === 0) {
+          if (!loading || trigger === null) return null
+          return createPortal(<MentionLoadingMenu trigger={trigger} />, anchorElementRef.current)
+        }
         return createPortal(
           <MentionMenu
             options={options}
@@ -393,6 +411,38 @@ function MentionMenu({
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+/**
+ * Placeholder visual mientras el `fetchOptionsForTrigger` resuelve.
+ * Aparece sólo en cache miss + fetch in-flight; cache hit muestra los
+ * items directo. Texto contextual al trigger para que el viewer sepa
+ * qué está cargando. Spinner simple (CSS animation, sin dep externa).
+ */
+function MentionLoadingMenu({ trigger }: { trigger: Trigger }): React.JSX.Element {
+  const label =
+    trigger.kind === 'user'
+      ? 'Buscando miembros…'
+      : trigger.kind === 'event'
+        ? 'Buscando eventos…'
+        : trigger.kind === 'library-category'
+          ? 'Cargando categorías…'
+          : 'Cargando recursos…'
+  return (
+    <div className="rich-text-mention-menu min-w-[260px] overflow-hidden rounded-md border border-neutral-200 bg-white shadow-lg">
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex items-center gap-2 px-3 py-2 text-sm text-neutral-500"
+      >
+        <span
+          aria-hidden
+          className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-600"
+        />
+        <span className="truncate">{label}</span>
+      </div>
     </div>
   )
 }
