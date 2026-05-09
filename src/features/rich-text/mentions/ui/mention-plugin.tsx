@@ -586,13 +586,14 @@ function MentionRow({ payload }: { payload: MenuPayload }): React.JSX.Element {
 // Helpers — match patterns por trigger
 // ---------------------------------------------------------------
 
-type SlashMatch = {
+/** Exportado SÓLO para tests del slice — no consumir desde fuera. */
+export type SlashMatch = {
+  trigger:
+    | { kind: 'event'; query: string }
+    | { kind: 'library-category'; query: string }
+    | { kind: 'library-item'; categorySlug: string; query: string }
   match: { leadOffset: number; matchingString: string; replaceableString: string }
-} & (
-  | { trigger: { kind: 'event'; query: string } }
-  | { trigger: { kind: 'library-category'; query: string } }
-  | { trigger: { kind: 'library-item'; categorySlug: string; query: string } }
-)
+}
 
 /**
  * Regex unificada para slash commands. Capturas:
@@ -612,7 +613,45 @@ type SlashMatch = {
  */
 const SLASH_RE = /(^|[\s\n])(\/([a-z]+)(?:\/([\w-]+))?\/?(?:[ ]([\w-]*))?)$/
 
-function matchSlashCommand(text: string): SlashMatch | null {
+/**
+ * Audit #10: registry de slash commands. Antes los nombres ("event",
+ * "library") + su comportamiento estaban hardcoded en 4 branches del matcher.
+ * Sumar `/poll`, `/file` o cualquier comando nuevo requería tocar 4 lugares
+ * + capability flags. Con el registry: 1 entrada nueva en `SLASH_COMMANDS`
+ * + 1 capability flag en `MentionPlugin`. El matcher itera y ya.
+ *
+ * Cada entrada describe:
+ *   - `name`: nombre completo (`'event'`, `'library'`).
+ *   - `acceptsSubSegment`: si `/<name>/<sub>` tiene semántica (library sí; event no).
+ *   - `buildTrigger(sub, after)`: arma el `Trigger` correcto del comando.
+ *
+ * El behavior runtime es **idéntico** al matcher previo — los 18 tests
+ * baseline en `match-slash-command.test.ts` lo garantizan.
+ */
+type SlashCommand = {
+  name: string
+  acceptsSubSegment: boolean
+  buildTrigger: (sub: string, after: string) => SlashMatch['trigger']
+}
+
+const SLASH_COMMANDS: ReadonlyArray<SlashCommand> = [
+  {
+    name: 'event',
+    acceptsSubSegment: false,
+    buildTrigger: (_sub, after) => ({ kind: 'event', query: after }),
+  },
+  {
+    name: 'library',
+    acceptsSubSegment: true,
+    buildTrigger: (sub, after) =>
+      sub.length > 0
+        ? { kind: 'library-item', categorySlug: sub, query: after }
+        : { kind: 'library-category', query: '' },
+  },
+]
+
+/** Exportado SÓLO para tests del slice — no consumir desde fuera. */
+export function matchSlashCommand(text: string): SlashMatch | null {
   const m = SLASH_RE.exec(text)
   if (!m) return null
   const cmd = m[3] ?? ''
@@ -620,35 +659,29 @@ function matchSlashCommand(text: string): SlashMatch | null {
   const after = m[5] ?? ''
   const replaceable = m[2] ?? ''
   const leadOffset = (m.index ?? 0) + (m[1]?.length ?? 0)
-  const matchObj = { leadOffset, matchingString: '', replaceableString: replaceable }
+  const baseMatch = { leadOffset, matchingString: '', replaceableString: replaceable }
 
-  // /library/<cat>[ <q>]: paso 2 del flujo de biblioteca.
-  if (cmd === 'library' && sub.length > 0) {
-    return {
-      trigger: { kind: 'library-item', categorySlug: sub, query: after },
-      match: { ...matchObj, matchingString: after },
+  // 1. Match exacto: cmd === nombre del comando registrado.
+  for (const command of SLASH_COMMANDS) {
+    if (cmd !== command.name) continue
+    if (sub.length > 0 && !command.acceptsSubSegment) continue
+    const trigger = command.buildTrigger(sub, after)
+    // matchingString = la query que el typeahead usa para filtrar; relevante
+    // sólo cuando el trigger tiene query (event/library-item). Para
+    // library-category sin query, queda ''.
+    const matchingString = 'query' in trigger ? trigger.query : ''
+    return { trigger, match: { ...baseMatch, matchingString } }
+  }
+
+  // 2. Prefix match: el user está typeando el comando (ej: '/eve' → 'event').
+  // Sólo aplica si NO hay sub ni after — typeando todavía el nombre.
+  if (cmd.length > 0 && sub === '' && after === '') {
+    for (const command of SLASH_COMMANDS) {
+      if (!command.name.startsWith(cmd)) continue
+      return { trigger: command.buildTrigger('', ''), match: baseMatch }
     }
   }
-  // /event exacto + query opcional.
-  if (cmd === 'event') {
-    return {
-      trigger: { kind: 'event', query: after },
-      match: { ...matchObj, matchingString: after },
-    }
-  }
-  // /library exacto sin sub.
-  if (cmd === 'library' && sub === '') {
-    return { trigger: { kind: 'library-category', query: '' }, match: matchObj }
-  }
-  // Prefijo de /event (ej: /e, /ev, /eve). Sólo si no hay sub ni query —
-  // un usuario escribiendo no llegó todavía al comando completo.
-  if (cmd.length > 0 && sub === '' && after === '' && 'event'.startsWith(cmd)) {
-    return { trigger: { kind: 'event', query: '' }, match: matchObj }
-  }
-  // Prefijo de /library.
-  if (cmd.length > 0 && sub === '' && after === '' && 'library'.startsWith(cmd)) {
-    return { trigger: { kind: 'library-category', query: '' }, match: matchObj }
-  }
+
   return null
 }
 
