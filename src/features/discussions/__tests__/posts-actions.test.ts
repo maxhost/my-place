@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { Prisma } from '@prisma/client'
 import {
   AuthorizationError,
@@ -69,6 +69,8 @@ vi.mock('../server/hard-delete', () => ({
   hardDeletePost: (...a: unknown[]) => hardDeletePostFn(...a),
 }))
 
+import { FakeBroadcastSender } from '@/shared/lib/realtime/server'
+import { resetBroadcastSender, setBroadcastSender } from '@/shared/lib/realtime/sender-provider'
 import {
   createPostAction,
   deletePostAction,
@@ -120,8 +122,20 @@ function mockActiveMember(opts: { asAdmin?: boolean } = {}): void {
   assertPlaceOpenFn.mockResolvedValue(undefined)
 }
 
+// Audit #3: hidePostAction ahora dispara `broadcastPostHidden`. Sin un
+// FakeBroadcastSender registrado, el sender default construye SupabaseBroadcastSender
+// que necesita env real. Ponemos el fake global para que cualquier test que
+// dispare un broadcast (presente o futuro) no rompa.
+let fakeBroadcastSender: FakeBroadcastSender
+
 beforeEach(() => {
   vi.resetAllMocks()
+  fakeBroadcastSender = new FakeBroadcastSender()
+  setBroadcastSender(fakeBroadcastSender)
+})
+
+afterEach(() => {
+  resetBroadcastSender()
 })
 
 describe('createPostAction', () => {
@@ -574,6 +588,23 @@ describe('hidePostAction', () => {
     postUpdateMany.mockResolvedValue({ count: 1 })
     const result = await hidePostAction({ postId: 'po-1', expectedVersion: 0 })
     expect(result).toEqual({ ok: true, version: 1 })
+  })
+
+  // Audit #3: el hide dispara broadcast `post_hidden` para que viewers activos
+  // sean redirigidos. Verificamos shape del payload contra el FakeSender.
+  it('ADMIN hide emite broadcast `post_hidden` sobre topic `post:<id>`', async () => {
+    mockActiveMember({ asAdmin: true })
+    postFindUnique.mockResolvedValue({ id: 'po-1', placeId: 'place-1', slug: 's' })
+    postUpdateMany.mockResolvedValue({ count: 1 })
+
+    await hidePostAction({ postId: 'po-1', expectedVersion: 0 })
+
+    expect(fakeBroadcastSender.captures).toHaveLength(1)
+    expect(fakeBroadcastSender.lastCapture).toMatchObject({
+      topic: 'post:po-1',
+      event: 'post_hidden',
+      payload: { postId: 'po-1' },
+    })
   })
 })
 

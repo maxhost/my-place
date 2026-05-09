@@ -11,6 +11,7 @@ import {
 import { hidePostInputSchema, unhidePostInputSchema } from '@/features/discussions/schemas'
 import { canAdminHide } from '@/features/discussions/domain/invariants'
 import { resolveActorForPlace } from '@/features/discussions/server/actor'
+import { broadcastPostHidden } from '@/features/discussions/server/realtime'
 import { revalidatePostPaths } from './shared'
 
 /**
@@ -73,6 +74,15 @@ async function togglePostHidden(
     },
     mode === 'hide' ? 'post hidden' : 'post unhidden',
   )
+
+  // Audit #3: si el modo es 'hide', notificar a los viewers activos del
+  // post vía broadcast Realtime — sin esto siguen viendo contenido + comments
+  // hasta el próximo refresh. En 'unhide' no hace falta: el revalidatePath
+  // es suficiente porque el post vuelve a estar visible (no es info que
+  // alguien no debería ver).
+  if (mode === 'hide') {
+    await broadcastPostHidden(post.id)
+  }
 
   revalidatePostPaths(actor.placeSlug, post.slug)
   return { ok: true, version: nextVersion }

@@ -25,7 +25,8 @@ export type NewCommentBroadcastPayload = {
   comment: CommentView
 }
 
-const BROADCAST_EVENT = 'comment_created'
+const BROADCAST_EVENT_COMMENT_CREATED = 'comment_created'
+const BROADCAST_EVENT_POST_HIDDEN = 'post_hidden'
 
 export async function broadcastNewComment(
   postId: string,
@@ -40,7 +41,7 @@ export async function broadcastNewComment(
   }
   const topic = `post:${postId}`
   try {
-    await getBroadcastSender().send(topic, BROADCAST_EVENT, {
+    await getBroadcastSender().send(topic, BROADCAST_EVENT_COMMENT_CREATED, {
       comment: payload.comment,
     })
     logger.debug(
@@ -60,6 +61,41 @@ export async function broadcastNewComment(
         err: err instanceof Error ? { message: err.message, name: err.name } : err,
       },
       'comment broadcast failed',
+    )
+  }
+}
+
+/**
+ * Audit #3: notifica a viewers activos del post que el admin lo ocultó. Sin
+ * esto, un viewer que ya tenía la página abierta sigue viendo el contenido
+ * + comentarios + puede crear comments inválidos hasta el próximo refresh
+ * (privacy/security real). El client handler redirige a `/conversations`
+ * con un toast.
+ *
+ * Best-effort idéntico a `broadcastNewComment`. Si el broadcast falla, el
+ * viewer sigue viendo el post hasta refresh — degradación graceful, no peor
+ * que el estado pre-fix.
+ *
+ * Mismo canal `post:<postId>` que el comment broadcast — cero conexiones
+ * nuevas, los viewers ya están suscritos vía CommentRealtimeAppender.
+ */
+export async function broadcastPostHidden(postId: string): Promise<void> {
+  if (!isBroadcastEnabled()) {
+    logger.debug({ event: 'postHiddenBroadcastDisabled', postId }, 'broadcast skipped: flag off')
+    return
+  }
+  const topic = `post:${postId}`
+  try {
+    await getBroadcastSender().send(topic, BROADCAST_EVENT_POST_HIDDEN, { postId })
+    logger.debug({ event: 'postHiddenBroadcastEmitted', postId }, 'post hidden broadcast emitted')
+  } catch (err) {
+    logger.warn(
+      {
+        event: 'postHiddenBroadcastFailed',
+        postId,
+        err: err instanceof Error ? { message: err.message, name: err.name } : err,
+      },
+      'post hidden broadcast failed',
     )
   }
 }

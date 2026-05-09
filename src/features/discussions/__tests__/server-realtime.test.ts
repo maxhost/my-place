@@ -36,7 +36,7 @@ vi.mock('@/shared/config/env', () => ({
 import { FakeBroadcastSender } from '@/shared/lib/realtime/server'
 import { resetBroadcastSender, setBroadcastSender } from '@/shared/lib/realtime/sender-provider'
 
-import { broadcastNewComment } from '../server/realtime'
+import { broadcastNewComment, broadcastPostHidden } from '../server/realtime'
 import type { CommentView } from '../server/queries'
 
 const baseComment: CommentView = {
@@ -143,5 +143,53 @@ describe('broadcastNewComment', () => {
       postId: 'post-xyz',
       commentId: 'c-1',
     })
+  })
+})
+
+// Audit #3: paridad con broadcastNewComment para el evento post_hidden.
+describe('broadcastPostHidden', () => {
+  let fake: FakeBroadcastSender
+
+  beforeEach(() => {
+    getBroadcastFlag.mockReturnValue('true')
+    fake = new FakeBroadcastSender()
+    setBroadcastSender(fake)
+    loggerWarn.mockReset()
+    loggerDebug.mockReset()
+  })
+
+  afterEach(() => {
+    resetBroadcastSender()
+  })
+
+  it('emite sobre topic `post:<id>` con event `post_hidden` y payload {postId}', async () => {
+    await broadcastPostHidden('post-abc')
+
+    expect(fake.captures).toHaveLength(1)
+    expect(fake.lastCapture).toMatchObject({
+      topic: 'post:post-abc',
+      event: 'post_hidden',
+      payload: { postId: 'post-abc' },
+    })
+  })
+
+  it('feature flag DISCUSSIONS_BROADCAST_ENABLED=false desactiva la emisión', async () => {
+    getBroadcastFlag.mockReturnValue('false')
+
+    await broadcastPostHidden('post-abc')
+
+    expect(fake.captures).toHaveLength(0)
+    expect(loggerDebug).toHaveBeenCalled()
+    expect(loggerDebug.mock.calls[0]![0]).toMatchObject({ event: 'postHiddenBroadcastDisabled' })
+  })
+
+  it('error del sender NO propaga: se traga y logea warn', async () => {
+    const failingFake = new FakeBroadcastSender({ failMode: true })
+    setBroadcastSender(failingFake)
+
+    await expect(broadcastPostHidden('post-abc')).resolves.toBeUndefined()
+
+    expect(loggerWarn).toHaveBeenCalled()
+    expect(loggerWarn.mock.calls[0]![0]).toMatchObject({ event: 'postHiddenBroadcastFailed' })
   })
 })

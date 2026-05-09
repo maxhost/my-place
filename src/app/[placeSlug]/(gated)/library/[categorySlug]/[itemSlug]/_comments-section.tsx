@@ -1,7 +1,11 @@
 import 'server-only'
 import { prisma } from '@/db/client'
 import { logger } from '@/shared/lib/logger'
-import { ReactionBar, type QuoteTargetState } from '@/features/discussions/public'
+import {
+  PostHiddenWatcher,
+  ReactionBar,
+  type QuoteTargetState,
+} from '@/features/discussions/public'
 import {
   CommentThread,
   PostReadersBlock,
@@ -100,6 +104,14 @@ export async function CommentsSection({
 
   return (
     <>
+      {/*
+        Audit #3: si admin oculta el item mientras el viewer lo está leyendo,
+        este watcher recibe el broadcast `post_hidden` (mismo canal post:<id>
+        que ya escucha CommentRealtimeAppender) y redirige a /conversations
+        con un toast.
+      */}
+      <PostHiddenWatcher postId={postId} />
+
       <div className="px-3 pt-4">
         <ReactionBar
           targetType="POST"

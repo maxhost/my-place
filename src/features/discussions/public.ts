@@ -120,6 +120,7 @@ export {
 export { DwellTracker } from './ui/dwell-tracker'
 export { PostUnreadDot } from './ui/post-unread-dot'
 export { PostAdminMenu } from './ui/post-admin-menu'
+export { PostHiddenWatcher } from './ui/post-hidden-watcher'
 export { ReactionBar } from './ui/reaction-bar'
 export { ThreadHeaderBar } from './ui/thread-header-bar'
 // Re-export del wrapper lazy (mismo shape de props que el real). El real
