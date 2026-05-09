@@ -79,6 +79,6 @@ export async function archiveLibraryCategoryAction(
     'library category archived',
   )
 
-  revalidateLibraryCategoryPaths(actor.placeSlug, category.slug)
+  revalidateLibraryCategoryPaths(actor.placeSlug, category.slug, actor.placeId)
   return { ok: true, categoryId: category.id, alreadyArchived: false }
 }

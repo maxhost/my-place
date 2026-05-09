@@ -76,6 +76,6 @@ export async function reorderLibraryCategoriesAction(
     'library categories reordered',
   )
 
-  revalidateLibraryCategoryPaths(actor.placeSlug)
+  revalidateLibraryCategoryPaths(actor.placeSlug, undefined, actor.placeId)
   return { ok: true, updated: updated.length }
 }

@@ -58,6 +58,6 @@ export async function removeContributorAction(
     alreadyRemoved ? 'contributor was not in list; idempotent skip' : 'library contributor removed',
   )
 
-  revalidateLibraryCategoryPaths(actor.placeSlug, category.slug)
+  revalidateLibraryCategoryPaths(actor.placeSlug, category.slug, actor.placeId)
   return { ok: true, alreadyRemoved }
 }

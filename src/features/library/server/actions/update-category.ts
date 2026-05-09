@@ -77,6 +77,6 @@ export async function updateLibraryCategoryAction(
     'library category updated',
   )
 
-  revalidateLibraryCategoryPaths(actor.placeSlug, category.slug)
+  revalidateLibraryCategoryPaths(actor.placeSlug, category.slug, actor.placeId)
   return { ok: true, categoryId: category.id, slug: category.slug }
 }

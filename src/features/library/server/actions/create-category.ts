@@ -101,6 +101,6 @@ export async function createLibraryCategoryAction(
     'library category created',
   )
 
-  revalidateLibraryCategoryPaths(actor.placeSlug, created.slug)
+  revalidateLibraryCategoryPaths(actor.placeSlug, created.slug, actor.placeId)
   return { ok: true, categoryId: created.id, slug: created.slug }
 }

@@ -88,7 +88,7 @@ export async function inviteContributorAction(
         },
         'contributor already invited; idempotent skip',
       )
-      revalidateLibraryCategoryPaths(actor.placeSlug, category.slug)
+      revalidateLibraryCategoryPaths(actor.placeSlug, category.slug, actor.placeId)
       return { ok: true, alreadyInvited: true }
     }
     throw err
@@ -105,7 +105,7 @@ export async function inviteContributorAction(
     'library contributor invited',
   )
 
-  revalidateLibraryCategoryPaths(actor.placeSlug, category.slug)
+  revalidateLibraryCategoryPaths(actor.placeSlug, category.slug, actor.placeId)
   return { ok: true, alreadyInvited: false }
 }
 
