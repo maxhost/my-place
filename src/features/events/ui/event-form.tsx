@@ -146,7 +146,11 @@ export function EventForm({
           // `replace` (no `push`): el form `/events/new` queda obsoleto
           // tras el submit exitoso. Reemplazar evita que el BackButton
           // del thread vuelva al form.
-          router.replace(`/conversations/${result.postSlug}`)
+          // `?from=events` para que el back del thread vuelva al
+          // listado `/events` — el origen visual del flujo es la zona
+          // Eventos (FAB → form → thread). Ver
+          // `docs/decisions/2026-05-09-back-navigation-origin.md`.
+          router.replace(`/conversations/${result.postSlug}?from=events`)
         } else {
           await updateEventAction({
             eventId: mode.eventId,
@@ -161,6 +165,12 @@ export function EventForm({
           // no hay postSlug (debería ser raro), volvemos al listado.
           // `replace` por la misma razón que en create: el form `/events/[id]
           // /edit` queda obsoleto tras el submit.
+          // Sin `?from=` en edit: la edición típicamente nace desde el
+          // kebab del thread, así que el origen del flujo previo ya
+          // estaba en el history (no lo perdemos al replace). Si el
+          // user vino por deep link al `/edit`, el back del thread cae
+          // a su default razonable (`/conversations`) por la
+          // resolución del page composer.
           router.replace(mode.postSlug ? `/conversations/${mode.postSlug}` : '/events')
           router.refresh()
         }

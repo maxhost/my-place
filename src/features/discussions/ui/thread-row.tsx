@@ -40,7 +40,7 @@ export function ThreadRow({ post }: { post: PostListView }): React.ReactNode {
   return (
     <article className={dormant ? 'opacity-75' : ''}>
       <Link
-        href={`/conversations/${post.slug}`}
+        href={`/conversations/${post.slug}?from=conversations`}
         className="block py-3.5 focus:outline-none focus-visible:bg-soft"
       >
         <header className="flex items-center gap-2">

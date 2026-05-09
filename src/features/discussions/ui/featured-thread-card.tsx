@@ -41,7 +41,7 @@ export function FeaturedThreadCard({ post }: { post: PostListView }): React.Reac
         .join(' ')}
     >
       <Link
-        href={`/conversations/${post.slug}`}
+        href={`/conversations/${post.slug}?from=conversations`}
         className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-bg"
       >
         <header className="flex items-center gap-2">

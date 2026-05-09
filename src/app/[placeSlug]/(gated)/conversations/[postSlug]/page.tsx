@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { notFound, permanentRedirect } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
+import { ORIGIN_ZONE_HREF, parseOriginZone } from '@/shared/lib/back-origin'
 import { ThreadHeaderBar } from '@/features/discussions/public'
 import { findPostBySlug } from '@/features/discussions/public.server'
 import { CommentsSection, CommentsSkeleton } from './_comments-section'
@@ -8,7 +9,10 @@ import { ThreadContent } from './_thread-content'
 import { ThreadHeaderActions } from './_thread-header-actions'
 import { ThreadContentSkeleton } from './_skeletons'
 
-type Props = { params: Promise<{ placeSlug: string; postSlug: string }> }
+type Props = {
+  params: Promise<{ placeSlug: string; postSlug: string }>
+  searchParams: Promise<{ from?: string }>
+}
 
 /**
  * Detalle del thread (R.6.4 layout). **Patrón canónico de streaming
@@ -35,7 +39,7 @@ type Props = { params: Promise<{ placeSlug: string; postSlug: string }> }
  *
  * Ver `docs/architecture.md` § "Streaming agresivo del shell".
  */
-export default async function PostDetailPage({ params }: Props) {
+export default async function PostDetailPage({ params, searchParams }: Props) {
   const { placeSlug, postSlug } = await params
   const place = await loadPlaceBySlug(placeSlug)
   if (!place) notFound()
@@ -46,9 +50,24 @@ export default async function PostDetailPage({ params }: Props) {
     permanentRedirect(`/library/${post.libraryItem.categorySlug}/${post.slug}`)
   }
 
+  // Resolución del back href:
+  //  - Discussion estándar (sin event): siempre `/conversations`. El
+  //    `?from=` no aplica — `/conversations/new` también pasa por acá
+  //    pero NO debe estar en el back path (router.replace en el
+  //    composer impide que el form quede en el history stack).
+  //  - Event-thread (`post.event !== null`): `?from=events` →
+  //    `/events`, default → `/conversations` (la URL canónica del
+  //    thread vive bajo `/conversations`).
+  // Ver `docs/decisions/2026-05-09-back-navigation-origin.md`.
+  const { from } = await searchParams
+  const origin = parseOriginZone(from)
+  const backHref =
+    post.event && origin === 'events' ? ORIGIN_ZONE_HREF.events : ORIGIN_ZONE_HREF.conversations
+
   return (
     <div className="pb-32">
       <ThreadHeaderBar
+        backHref={backHref}
         rightSlot={
           <Suspense fallback={null}>
             <ThreadHeaderActions placeId={place.id} placeSlug={placeSlug} post={post} />

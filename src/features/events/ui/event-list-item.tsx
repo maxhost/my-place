@@ -85,8 +85,12 @@ export function EventListItem({
   )
 
   if (event.postSlug) {
+    // `?from=events` permite que el back button del thread vuelva al
+    // listado `/events` (no a `/conversations`) — el evento ES el thread
+    // bajo `/conversations/[postSlug]`, pero el origen visual del user
+    // fue la zona Eventos. Ver `docs/decisions/2026-05-09-back-navigation-origin.md`.
     return (
-      <BentoCard hero={hero} as={Link} href={`/conversations/${event.postSlug}`}>
+      <BentoCard hero={hero} as={Link} href={`/conversations/${event.postSlug}?from=events`}>
         {inner}
       </BentoCard>
     )

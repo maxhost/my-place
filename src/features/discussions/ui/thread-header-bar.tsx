@@ -7,8 +7,12 @@ import { BackButton } from '@/shared/ui/back-button'
  * contextuales (típicamente `<PostAdminMenu>` para admins; vacío para
  * non-admins en R.6).
  *
- * El `fallbackHref` apunta a `/conversations` — si el user llega via deep
- * link y no tiene history, "Volver" lo lleva al listado.
+ * `backHref` lo computa la page composer SSR a partir del query param
+ * `?from=` (`conversations` | `events`) más el discriminador
+ * `post.event !== null`. Cuando está definido, el `BackButton` navega
+ * determinístico; si la page no lo provee (caso defensivo) cae al
+ * `fallbackHref` `/conversations`. Ver
+ * `docs/decisions/2026-05-09-back-navigation-origin.md`.
  *
  * Backdrop blur sobre `bg/80` preserva contraste cuando hay contenido
  * pasando por debajo durante el scroll. **Sin border-bottom** (removido
@@ -17,10 +21,20 @@ import { BackButton } from '@/shared/ui/back-button'
  *
  * Ver `docs/features/discussions/spec.md` § 21.2.
  */
-export function ThreadHeaderBar({ rightSlot }: { rightSlot?: React.ReactNode }): React.ReactNode {
+export function ThreadHeaderBar({
+  backHref,
+  rightSlot,
+}: {
+  backHref?: string
+  rightSlot?: React.ReactNode
+}): React.ReactNode {
   return (
     <div className="bg-bg/80 supports-[backdrop-filter]:bg-bg/70 sticky top-0 z-20 flex h-14 items-center justify-between gap-2 px-3 backdrop-blur">
-      <BackButton fallbackHref="/conversations" label="Volver a conversaciones" />
+      <BackButton
+        {...(backHref !== undefined ? { href: backHref } : {})}
+        fallbackHref="/conversations"
+        label="Volver"
+      />
       <div className="flex items-center gap-1">{rightSlot}</div>
     </div>
   )

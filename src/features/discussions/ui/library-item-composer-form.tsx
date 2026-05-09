@@ -95,7 +95,11 @@ export function LibraryItemComposerForm({
           coverUrl: cover,
         })
         toast.success('Recurso publicado.')
-        router.push(`/library/${res.categorySlug}/${res.postSlug}`)
+        // `router.replace`: el form `/library/<cat>/new` (o `/edit`)
+        // queda obsoleto post-submit. Evita que el back button del
+        // item detail vuelva al form. Ver
+        // `docs/decisions/2026-05-09-back-navigation-origin.md`.
+        router.replace(`/library/${res.categorySlug}/${res.postSlug}`)
       } else {
         const res = await mode.onUpdate({
           itemId: mode.itemId,
@@ -105,7 +109,7 @@ export function LibraryItemComposerForm({
           expectedVersion: mode.expectedVersion,
         })
         toast.success('Recurso actualizado.')
-        router.push(`/library/${mode.categorySlug}/${res.postSlug}`)
+        router.replace(`/library/${mode.categorySlug}/${res.postSlug}`)
       }
     } catch (err) {
       const msg =

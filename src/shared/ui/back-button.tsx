@@ -8,10 +8,18 @@ import { ChevronLeft } from 'lucide-react'
  * Botón "Volver" del thread detail (R.6) y otras pages que necesiten
  * un back navigation explícito.
  *
- * Comportamiento: si hay history disponible (`window.history.length > 1`),
- * dispara `router.back()` para preservar la navegación natural del browser
- * (incluyendo scroll restoration). Si no hay history (deep link, primera
- * page del session), navega al `fallbackHref` con `router.push`.
+ * Dos modos de operación:
+ *
+ *  1. **Determinista (`href` definido)**: navega siempre a `href` con
+ *     `router.push`, sin inspeccionar history. Usado cuando la page
+ *     resolvió SSR el destino exacto a partir del query param `?from=`
+ *     (ver `shared/lib/back-origin.ts`). Necesario para evitar caer al
+ *     form `/conversations/new` cuando el user llegó desde ahí — el
+ *     `router.back()` clásico pop al form recién enviado.
+ *
+ *  2. **History-aware (sólo `fallbackHref`)**: si hay history disponible
+ *     (`window.history.length > 1`) dispara `router.back()` para
+ *     preservar scroll restoration; si no, navega al `fallbackHref`.
  *
  * Visual: chip cuadrado 36×36 con bordes redondeados (radius 12),
  * `bg-surface` con `border-[0.5px] border-border`, icono
@@ -20,18 +28,25 @@ import { ChevronLeft } from 'lucide-react'
  * matching estilo `<PageIcon>` y otros chips del shell.)
  *
  * Genérico (shared/ui): no acoplado a un dominio específico. Las pages
- * que lo monten pasan su propio `fallbackHref` y `label` para
- * accesibilidad.
+ * que lo monten pasan su propio destino y `label` para accesibilidad.
  *
- * Ver `docs/features/discussions/spec.md` § 21.2 (uso en thread detail).
+ * Ver `docs/features/discussions/spec.md` § 21.2 (uso en thread detail) y
+ * `docs/decisions/2026-05-09-back-navigation-origin.md` (origen del
+ * approach `?from=` + determinista).
  */
 type Props = {
+  /** Destino determinista. Si está presente, ignora history y dispara
+   *  `router.push(href)`. Resuelto SSR a partir del query param `?from=`. */
+  href?: string
+  /** Destino fallback cuando no hay `href` determinista y tampoco hay
+   *  history (deep link, primera page del session). Default `/`. */
   fallbackHref?: string
   label?: string
   className?: string
 }
 
 export function BackButton({
+  href,
   fallbackHref = '/',
   label = 'Volver',
   className,
@@ -39,6 +54,10 @@ export function BackButton({
   const router = useRouter()
 
   function handleClick(): void {
+    if (href !== undefined) {
+      router.push(href)
+      return
+    }
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back()
     } else {

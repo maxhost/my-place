@@ -85,8 +85,11 @@ export function EventListItem({
   )
 
   if (event.postSlug) {
+    // `?from=events` para que el back button del thread vuelva al
+    // listado `/events`. Ver
+    // `docs/decisions/2026-05-09-back-navigation-origin.md`.
     return (
-      <BentoCard hero={hero} as={Link} href={`/conversations/${event.postSlug}`}>
+      <BentoCard hero={hero} as={Link} href={`/conversations/${event.postSlug}?from=events`}>
         {inner}
       </BentoCard>
     )

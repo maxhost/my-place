@@ -27,14 +27,23 @@ export function buildMentionResolvers({ placeId }: { placeId: string }): Mention
       const event = await findEventForMention(eventId, placeId)
       if (!event) return null
       // F.F: el evento ES el thread — vive bajo `/conversations/<postSlug>`.
-      return { label: event.title, href: `/conversations/${event.postSlug}` }
+      // Las mentions se renderizan dentro de bodies de Posts/Comments que
+      // viven en `/conversations/...`, así que el origen siempre es
+      // `conversations` (el back desde el target debería volver acá).
+      return {
+        label: event.title,
+        href: `/conversations/${event.postSlug}?from=conversations`,
+      }
     },
     libraryItem: async (itemId) => {
       const item = await findLibraryItemForMention(itemId, placeId)
       if (!item) return null
+      // Mismo razonamiento que `event`: la mention vive en un body
+      // renderizado bajo `/conversations/...`, así que `?from=conversations`
+      // hace que el back del item detail vuelva a la conversación origen.
       return {
         label: item.title,
-        href: `/library/${item.categorySlug}/${item.postSlug}`,
+        href: `/library/${item.categorySlug}/${item.postSlug}?from=conversations`,
       }
     },
   }

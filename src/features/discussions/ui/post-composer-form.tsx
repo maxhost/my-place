@@ -45,7 +45,11 @@ export function PostComposerWrapper({
       if (!res.ok) throw new Error('No pudimos publicar la conversación.')
       // Public path: el subdominio del place ya está implícito en el host
       // — el path NO incluye `/${placeSlug}`. (Ver memoria userEmail § URLs.)
-      router.push(`/conversations/${res.slug}`)
+      // `router.replace` (no `push`): el form `/conversations/new` queda
+      // obsoleto post-publish. Reemplazar evita que el BackButton del
+      // thread vuelva al form vacío. Mismo fix ya aplicado en
+      // `event-form.tsx`. Ver `docs/decisions/2026-05-09-back-navigation-origin.md`.
+      router.replace(`/conversations/${res.slug}?from=conversations`)
     },
     [placeId, router],
   )

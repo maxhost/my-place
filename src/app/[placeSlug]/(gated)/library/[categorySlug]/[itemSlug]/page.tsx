@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
+import { ORIGIN_ZONE_HREF, parseOriginZone } from '@/shared/lib/back-origin'
 import { LibraryItemHeaderBar } from '@/features/library/public'
 import { findItemBySlug } from '@/features/library/public.server'
 import { CommentsSection, CommentsSkeleton } from './_comments-section'
@@ -10,6 +11,7 @@ import { LibraryItemContentSkeleton } from './_skeletons'
 
 type Props = {
   params: Promise<{ placeSlug: string; categorySlug: string; itemSlug: string }>
+  searchParams: Promise<{ from?: string }>
 }
 
 /**
@@ -41,7 +43,7 @@ type Props = {
  * Ver `docs/architecture.md` § "Streaming agresivo del shell" y
  * `docs/features/library/spec.md` § 14.9.
  */
-export default async function LibraryItemDetailPage({ params }: Props) {
+export default async function LibraryItemDetailPage({ params, searchParams }: Props) {
   const { placeSlug, categorySlug, itemSlug } = await params
   const place = await loadPlaceBySlug(placeSlug)
   if (!place) notFound()
@@ -49,10 +51,19 @@ export default async function LibraryItemDetailPage({ params }: Props) {
   const item = await findItemBySlug(place.id, categorySlug, itemSlug, { includeArchived: true })
   if (!item) notFound()
 
+  // `?from=conversations` (mention desde un thread, library item linkeado
+  // desde discusiones) → back vuelve a `/conversations`. Cualquier otro
+  // origen / sin origen → categoría como destino canónico.
+  // Ver `docs/decisions/2026-05-09-back-navigation-origin.md`.
+  const { from } = await searchParams
+  const origin = parseOriginZone(from)
+  const backHref = origin === 'conversations' ? ORIGIN_ZONE_HREF.conversations : undefined
+
   return (
     <div className="pb-32">
       <LibraryItemHeaderBar
         categorySlug={item.categorySlug}
+        {...(backHref !== undefined ? { backHref } : {})}
         rightSlot={
           <Suspense fallback={null}>
             <LibraryItemHeaderActions item={item} placeSlug={placeSlug} />

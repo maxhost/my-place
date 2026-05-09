@@ -77,6 +77,28 @@ describe('BackButton', () => {
     expect(routerPush).toHaveBeenCalledWith('/')
   })
 
+  it('href determinista ignora history y dispara router.push(href) aunque haya history', () => {
+    Object.defineProperty(window, 'history', {
+      configurable: true,
+      value: { length: 5 },
+    })
+    render(<BackButton href="/events" fallbackHref="/conversations" />)
+    fireEvent.click(screen.getByLabelText('Volver'))
+    expect(routerPush).toHaveBeenCalledWith('/events')
+    expect(routerBack).not.toHaveBeenCalled()
+  })
+
+  it('href determinista funciona también sin history disponible', () => {
+    Object.defineProperty(window, 'history', {
+      configurable: true,
+      value: { length: 1 },
+    })
+    render(<BackButton href="/conversations" />)
+    fireEvent.click(screen.getByLabelText('Volver'))
+    expect(routerPush).toHaveBeenCalledWith('/conversations')
+    expect(routerBack).not.toHaveBeenCalled()
+  })
+
   it('icono ChevronLeft con aria-hidden', () => {
     render(<BackButton />)
     const button = screen.getByLabelText('Volver')

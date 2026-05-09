@@ -38,5 +38,9 @@ export default async function EventLegacyDetailPage({ params }: Props) {
   const event = await findEventForRedirect(eventId, place.id)
   if (!event) notFound()
 
-  redirect(`/conversations/${event.postSlug}`)
+  // `?from=events` para que el back button del thread destino vuelva al
+  // listado `/events`. Quien hit `/events/[id]` venía conceptualmente
+  // desde la zona Eventos (o desde un link viejo apuntando ahí). Ver
+  // `docs/decisions/2026-05-09-back-navigation-origin.md`.
+  redirect(`/conversations/${event.postSlug}?from=events`)
 }
