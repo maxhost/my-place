@@ -1,7 +1,17 @@
 import 'server-only'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { serverEnv } from '@/shared/config/env'
-import { DomainError } from '@/shared/errors/domain-error'
+import {
+  EditSessionInvalid,
+  type EditSessionInvalidReason,
+} from '@/shared/errors/edit-session-errors'
+
+// Re-export para no romper consumers que ya importan la clase desde
+// este módulo (`import { EditSessionInvalid } from '@/shared/lib/edit-session-token'`).
+// La clase real vive en `@/shared/errors/edit-session-errors` (no server-only)
+// para que el discriminador del helper de UI pueda usar `instanceof`.
+export { EditSessionInvalid }
+export type { EditSessionInvalidReason }
 
 /**
  * Edit-session token (HMAC-SHA256, stateless).
@@ -37,22 +47,11 @@ export type EditSessionPayload = {
   openedAt: string
 }
 
-/**
- * El token viajó en un form pero algo falla: firma inválida, expiró, o payload
- * no matchea al subject que se está editando. UI lo mapea a "la sesión de
- * edición expiró, reabrí el form".
- */
-export class EditSessionInvalid extends DomainError {
-  constructor(
-    reason: 'malformed' | 'bad_signature' | 'expired' | 'future_opened_at' | 'subject_mismatch',
-    context?: Record<string, unknown>,
-  ) {
-    super('AUTHORIZATION', 'Sesión de edición inválida o expirada.', {
-      reason,
-      ...context,
-    })
-  }
-}
+// La clase `EditSessionInvalid` y su tipo `EditSessionInvalidReason` viven en
+// `@/shared/errors/edit-session-errors` (no server-only) para que el discriminador
+// del helper de UI pueda usar `instanceof` en vez de string-matching frágil.
+// Re-export arriba mantiene compat con `import { EditSessionInvalid } from
+// '@/shared/lib/edit-session-token'`.
 
 function secret(): Buffer {
   const raw = serverEnv.APP_EDIT_SESSION_SECRET

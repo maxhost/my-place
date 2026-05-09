@@ -1,47 +1,45 @@
 import { describe, expect, it } from 'vitest'
 import { friendlyErrorMessage } from '../ui/utils'
-import { DomainError } from '@/shared/errors/domain-error'
+import { EditSessionInvalid } from '@/shared/errors/edit-session-errors'
 
 /**
- * Test específico para el discriminador de `EditSessionInvalid` en el helper
- * de UI. La clase real vive en `shared/lib/edit-session-token.ts` con
- * `import 'server-only'`, así que NO podemos instanciarla acá sin romper el
- * bundle cliente del test runner. En su lugar simulamos el shape: una
- * subclase de DomainError con `name = 'EditSessionInvalid'` y `context.reason`.
- *
- * Ver `friendlyErrorMessage` línea ~40 — discriminación por shape, mismo
- * patrón que SlugCollisionExhausted.
+ * Audit #1 (robust). La clase EditSessionInvalid vive en
+ * `@/shared/errors/edit-session-errors` (no server-only) precisamente para
+ * que el helper de UI pueda discriminarla por `instanceof` y que este test
+ * pueda instanciarla sin tocar `node:crypto` ni el secret server.
  */
-class FakeEditSessionInvalid extends DomainError {
-  override name = 'EditSessionInvalid'
-  constructor(reason: 'expired' | 'bad_signature' | 'malformed') {
-    super('AUTHORIZATION', 'Sesión de edición inválida.', { reason })
-  }
-}
-
 describe('friendlyErrorMessage — Audit #1: EditSessionInvalid copy específico', () => {
   it('reason="expired" → mensaje claro con CTA "abrí el editor de nuevo"', () => {
-    const msg = friendlyErrorMessage(new FakeEditSessionInvalid('expired'))
+    const msg = friendlyErrorMessage(new EditSessionInvalid('expired'))
     expect(msg).toContain('La sesión de edición venció')
     expect(msg).toContain('abrir el editor')
   })
 
   it('reason="bad_signature" → mensaje "no es válida" con misma CTA', () => {
-    const msg = friendlyErrorMessage(new FakeEditSessionInvalid('bad_signature'))
+    const msg = friendlyErrorMessage(new EditSessionInvalid('bad_signature'))
     expect(msg).toContain('La sesión de edición no es válida')
     expect(msg).toContain('abrir el editor')
   })
 
   it('reason="malformed" → cae al mismo "no es válida"', () => {
-    const msg = friendlyErrorMessage(new FakeEditSessionInvalid('malformed'))
+    const msg = friendlyErrorMessage(new EditSessionInvalid('malformed'))
     expect(msg).toContain('La sesión de edición no es válida')
   })
 
-  it('SIN discriminador → no caería al fallback "Algo no salió bien"', () => {
-    // Regression guard: si alguien refactoreara y removiera el branch
-    // EditSessionInvalid, el error caería al fallback genérico — este test
-    // garantiza que NO retornamos el mensaje fallback para este shape.
-    const msg = friendlyErrorMessage(new FakeEditSessionInvalid('expired'))
+  it('reason="future_opened_at" → mensaje "no es válida"', () => {
+    const msg = friendlyErrorMessage(new EditSessionInvalid('future_opened_at'))
+    expect(msg).toContain('La sesión de edición no es válida')
+  })
+
+  it('reason="subject_mismatch" → mensaje "no es válida"', () => {
+    const msg = friendlyErrorMessage(new EditSessionInvalid('subject_mismatch'))
+    expect(msg).toContain('La sesión de edición no es válida')
+  })
+
+  it('regression guard: NO cae al fallback "Algo no salió bien"', () => {
+    // Si alguien removiera el branch EditSessionInvalid del helper, el error
+    // caería al fallback genérico — este test rompe primero.
+    const msg = friendlyErrorMessage(new EditSessionInvalid('expired'))
     expect(msg).not.toContain('Algo no salió bien')
   })
 })

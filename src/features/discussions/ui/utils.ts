@@ -6,6 +6,7 @@ import {
   ValidationError,
   isDomainError,
 } from '@/shared/errors/domain-error'
+import { EditSessionInvalid } from '@/shared/errors/edit-session-errors'
 import {
   CommentDeletedError,
   EditWindowExpired,
@@ -37,14 +38,14 @@ export function friendlyErrorMessage(err: unknown): string {
   if (isDomainError(err) && (err as { name?: string }).name === 'SlugCollisionExhausted') {
     return 'No pudimos generar una URL única. Probá con otro título.'
   }
-  // Audit #1: EditSessionInvalid (token HMAC del edit-session) viene de
-  // `shared/lib/edit-session-token.ts` que es server-only — no podemos
-  // importar la clase acá sin romper el bundle cliente. Discriminamos por
-  // `name` + `reason` (mismo patrón que SlugCollisionExhausted arriba). Sin
-  // este case, el error caía al fallback "Algo no salió bien" — el viewer
-  // veía un mensaje genérico que no le sugería reabrir el editor, y volvía
-  // a intentar guardar con el mismo token expirado en loop.
-  if (isDomainError(err) && (err as { name?: string }).name === 'EditSessionInvalid') {
+  // Audit #1 (robust): EditSessionInvalid se discrimina por instanceof — la
+  // clase vive en `@/shared/errors/edit-session-errors` (no server-only)
+  // específicamente para poder importarla acá. Antes era string-matching por
+  // `name` y rename silencioso de la clase caía al fallback genérico. Ahora
+  // typecheck-enforced: si renombran la clase, el build rompe. Sin este case,
+  // el viewer veía "Algo no salió bien" y volvía a intentar guardar con el
+  // token expirado en loop.
+  if (err instanceof EditSessionInvalid) {
     const reason = (err.context as { reason?: string } | undefined)?.reason
     if (reason === 'expired') {
       return 'La sesión de edición venció. Cerrá y volvé a abrir el editor para continuar.'
