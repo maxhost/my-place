@@ -69,4 +69,32 @@ describe('MentionFeedbackMenu', () => {
     )
     expect(feedbackText(container, 'error')).toContain('No pudimos cargar categorías')
   })
+
+  it('loading + slow=true → label cambia a "Sigue cargando…"', () => {
+    const { container } = render(
+      <MentionFeedbackMenu kind="loading" trigger={asTrigger({ kind: 'user', query: '' })} slow />,
+    )
+    expect(feedbackText(container, 'loading')).toContain('Sigue cargando miembros…')
+    // El spinner sigue visible — slow es un cambio de label, no de UI.
+    expect(container.querySelector('.animate-spin')).not.toBeNull()
+  })
+
+  it('loading + slow=false (default) → label normal', () => {
+    const { container } = render(
+      <MentionFeedbackMenu
+        kind="loading"
+        trigger={asTrigger({ kind: 'library-category', query: '' })}
+      />,
+    )
+    expect(feedbackText(container, 'loading')).toContain('Cargando categorías…')
+    expect(feedbackText(container, 'loading')).not.toContain('Sigue cargando')
+  })
+
+  it('error + slow=true → ignorado (slow sólo aplica a loading)', () => {
+    const { container } = render(
+      <MentionFeedbackMenu kind="error" trigger={asTrigger({ kind: 'user', query: '' })} slow />,
+    )
+    expect(feedbackText(container, 'error')).toContain('No pudimos cargar miembros')
+    expect(feedbackText(container, 'error')).not.toContain('Sigue cargando')
+  })
 })

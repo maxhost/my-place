@@ -75,6 +75,13 @@ type Trigger =
 
 const MAX_RESULTS = 8
 
+/**
+ * Umbral después del cual un fetch live "se siente lento". El spinner
+ * cambia su label ("Sigue cargando…") para confirmar al viewer que el
+ * cliente sigue trabajando — sin esto, fetches >5s parecen un cuelgue.
+ */
+const SLOW_THRESHOLD_MS = 5000
+
 class GenericMenuOption extends MenuOption {
   payload: MenuPayload
   constructor(payload: MenuPayload) {
@@ -121,17 +128,18 @@ export function MentionPlugin({
   const [trigger, setTrigger] = useState<Trigger | null>(null)
   const [options, setOptions] = useState<GenericMenuOption[]>([])
   /**
-   * Indica fetch live in-flight con cache miss. Cuando es `true` y
-   * `options` aún está vacío, renderizamos un placeholder "Cargando…"
-   * en el menú para que el viewer vea respuesta inmediata al teclado
-   * (defensa UX cold start). Cache hit → loading queda `false` y se
-   * muestran items directo, sin placeholder visible.
+   * Estado de carga del fetch live:
+   *  - `false`  → no hay fetch pendiente (cache hit o trigger vacío).
+   *  - `true`   → fetch en curso, mostrar spinner normal.
+   *  - `'slow'` → pasaron `SLOW_THRESHOLD_MS` y aún no resolvió. Mismo
+   *    spinner pero label cambia a "Sigue cargando…" para que el viewer
+   *    sepa que NO está colgado el cliente, sino la red.
    *
    * `error` se setea si el fetch live falla (red caída, action throw).
    * El menú entonces muestra "No pudimos cargar" en vez del spinner
    * forever.
    */
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState<false | true | 'slow'>(false)
   const [error, setError] = useState(false)
 
   // Cache prefetcheado externo (Provider en `discussions/composers/` que vive
@@ -297,6 +305,12 @@ export function MentionPlugin({
     setOptions([])
     setLoading(true)
     setError(false)
+    // Slow-state timer: si pasa SLOW_THRESHOLD_MS sin resolver, el
+    // label del spinner cambia a "Sigue cargando…" — confirma al viewer
+    // que el cliente NO está colgado. El timer se cancela en cleanup.
+    const slowTimer = setTimeout(() => {
+      if (active) setLoading('slow')
+    }, SLOW_THRESHOLD_MS)
     void (async () => {
       try {
         // Usa composerRef en lugar de `composer` directo: el composer object
@@ -306,18 +320,27 @@ export function MentionPlugin({
         const results = await fetchOptionsForTrigger(trigger, composerRef.current)
         if (!active) return
         setOptions(results.slice(0, MAX_RESULTS))
-      } catch {
+      } catch (err) {
         if (!active) return
         // Si el action lanza (red caída, server error), mostramos un
         // mensaje en vez de dejar el spinner forever. El user puede
         // borrar el trigger y reintentar typeando de nuevo.
+        // Telemetry: log estructurado para detectar tasa de errores en
+        // prod sin esperar reportes manuales del user.
+        console.warn('[mention] fetchOptionsForTrigger failed', {
+          event: 'mentionFetchFailed',
+          triggerKind: trigger.kind,
+          err: err instanceof Error ? err.message : String(err),
+        })
         setError(true)
       } finally {
+        clearTimeout(slowTimer)
         if (active) setLoading(false)
       }
     })()
     return () => {
       active = false
+      clearTimeout(slowTimer)
     }
   }, [trigger, cachedUsers, cachedEvents, cachedCategories])
 
@@ -386,9 +409,9 @@ export function MentionPlugin({
               anchorElementRef.current,
             )
           }
-          if (loading) {
+          if (loading !== false) {
             return createPortal(
-              <MentionFeedbackMenu kind="loading" trigger={trigger} />,
+              <MentionFeedbackMenu kind="loading" trigger={trigger} slow={loading === 'slow'} />,
               anchorElementRef.current,
             )
           }
@@ -462,9 +485,17 @@ function MentionMenu({
 export function MentionFeedbackMenu({
   kind,
   trigger,
+  slow = false,
 }: {
   kind: 'loading' | 'error'
   trigger: Trigger
+  /**
+   * Sólo aplica a `kind === 'loading'`. Cuando `true`, el label cambia
+   * a "Sigue cargando…" para confirmar al viewer que el cliente NO
+   * se colgó — la red está lenta. Default `false` mantiene el label
+   * normal del primer momento del fetch.
+   */
+  slow?: boolean
 }): React.JSX.Element {
   const target =
     trigger.kind === 'user'
@@ -477,9 +508,11 @@ export function MentionFeedbackMenu({
   const label =
     kind === 'error'
       ? `No pudimos cargar ${target}. Probá de nuevo.`
-      : trigger.kind === 'user' || trigger.kind === 'event'
-        ? `Buscando ${target}…`
-        : `Cargando ${target}…`
+      : slow
+        ? `Sigue cargando ${target}…`
+        : trigger.kind === 'user' || trigger.kind === 'event'
+          ? `Buscando ${target}…`
+          : `Cargando ${target}…`
   return (
     <div
       data-mention-feedback={kind}
