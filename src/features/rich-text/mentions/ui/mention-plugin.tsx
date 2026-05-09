@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import {
@@ -170,29 +170,45 @@ export function MentionPlugin({
     typeof composer.listCategories === 'function' &&
     typeof composer.searchLibraryItems === 'function'
 
+  // Stable ref del `composer` — los wrappers (CommentComposer en particular)
+  // construyen el objeto `resolvers={{...}}` inline en cada render, así que
+  // su identidad cambia con cada keystroke de Lexical. Sin ref, los
+  // `useEffect` que dependen de `composer` re-disparan en cada render →
+  // re-fetch storm (medido: 15 requests al typear `/lib`). El ref captura
+  // siempre el último composer sin ser dep — `composer.placeId` sí es dep
+  // de los useEffect porque cambiar de place SÍ debe invalidar caches.
+  const composerRef = useRef(composer)
+  useEffect(() => {
+    composerRef.current = composer
+  })
+
   // Prefetch on mount — fuego una sola vez por placeId. Errores se
   // silencian: si la red falla, el cache queda null y el flujo cae al
   // fetch live como fallback.
+  // Dep `composer.placeId` (NO `composer`): el composer object cambia
+  // identidad por render del wrapper; sin esta restricción el prefetch
+  // se re-disparaba en cada keystroke (re-fetch storm).
   useEffect(() => {
     let active = true
     void (async () => {
+      const c = composerRef.current
       const tasks: Array<Promise<unknown>> = [
-        composer
+        c
           .searchUsers('')
           .then((r) => active && setCachedUsers(r))
           .catch(() => {}),
       ]
-      if (supportsEvents && composer.searchEvents) {
+      if (supportsEvents && c.searchEvents) {
         tasks.push(
-          composer
+          c
             .searchEvents('')
             .then((r) => active && setCachedEvents(r))
             .catch(() => {}),
         )
       }
-      if (supportsLibrary && composer.listCategories) {
+      if (supportsLibrary && c.listCategories) {
         tasks.push(
-          composer
+          c
             .listCategories()
             .then((r) => active && setCachedCategories(r))
             .catch(() => {}),
@@ -203,7 +219,7 @@ export function MentionPlugin({
     return () => {
       active = false
     }
-  }, [composer, supportsEvents, supportsLibrary])
+  }, [composer.placeId, supportsEvents, supportsLibrary])
 
   // -----------------------------
   // Match function combinada
@@ -257,14 +273,18 @@ export function MentionPlugin({
     }
     let active = true
     void (async () => {
-      const results = await fetchOptionsForTrigger(trigger, composer)
+      // Usa composerRef en lugar de `composer` directo: el composer object
+      // cambia identidad por render del wrapper. Si lo metiéramos en deps,
+      // este useEffect se re-dispararía en cada keystroke → re-fetch storm
+      // (medido: 15 requests al typear `/lib`).
+      const results = await fetchOptionsForTrigger(trigger, composerRef.current)
       if (!active) return
       setOptions(results.slice(0, MAX_RESULTS))
     })()
     return () => {
       active = false
     }
-  }, [trigger, composer, cachedUsers, cachedEvents, cachedCategories])
+  }, [trigger, cachedUsers, cachedEvents, cachedCategories])
 
   // -----------------------------
   // Selección
