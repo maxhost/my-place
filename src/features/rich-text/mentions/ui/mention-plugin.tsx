@@ -126,8 +126,13 @@ export function MentionPlugin({
    * en el menú para que el viewer vea respuesta inmediata al teclado
    * (defensa UX cold start). Cache hit → loading queda `false` y se
    * muestran items directo, sin placeholder visible.
+   *
+   * `error` se setea si el fetch live falla (red caída, action throw).
+   * El menú entonces muestra "No pudimos cargar" en vez del spinner
+   * forever.
    */
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(false)
 
   // Cache prefetcheado externo (Provider en `discussions/composers/` que vive
   // en el shell `(gated)/layout.tsx`). Si el viewer entró al shell hace ≥100ms,
@@ -266,6 +271,7 @@ export function MentionPlugin({
     if (trigger === null) {
       setOptions([])
       setLoading(false)
+      setError(false)
       return
     }
     // Cache-first para query vacía: armamos opciones desde el state
@@ -279,19 +285,30 @@ export function MentionPlugin({
     if (sync !== null) {
       setOptions(sync.slice(0, MAX_RESULTS))
       setLoading(false)
+      setError(false)
       return
     }
     let active = true
     setLoading(true)
+    setError(false)
     void (async () => {
-      // Usa composerRef en lugar de `composer` directo: el composer object
-      // cambia identidad por render del wrapper. Si lo metiéramos en deps,
-      // este useEffect se re-dispararía en cada keystroke → re-fetch storm
-      // (medido: 15 requests al typear `/lib`).
-      const results = await fetchOptionsForTrigger(trigger, composerRef.current)
-      if (!active) return
-      setOptions(results.slice(0, MAX_RESULTS))
-      setLoading(false)
+      try {
+        // Usa composerRef en lugar de `composer` directo: el composer object
+        // cambia identidad por render del wrapper. Si lo metiéramos en deps,
+        // este useEffect se re-dispararía en cada keystroke → re-fetch storm
+        // (medido: 15 requests al typear `/lib`).
+        const results = await fetchOptionsForTrigger(trigger, composerRef.current)
+        if (!active) return
+        setOptions(results.slice(0, MAX_RESULTS))
+      } catch {
+        if (!active) return
+        // Si el action lanza (red caída, server error), mostramos un
+        // mensaje en vez de dejar el spinner forever. El user puede
+        // borrar el trigger y reintentar typeando de nuevo.
+        setError(true)
+      } finally {
+        if (active) setLoading(false)
+      }
     })()
     return () => {
       active = false
@@ -352,11 +369,24 @@ export function MentionPlugin({
         { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex },
       ) => {
         if (anchorElementRef.current === null) return null
-        // Loading placeholder: trigger activo + cache miss + fetch in-flight.
-        // Mostramos respuesta inmediata al teclado aunque la red tarde.
+        // Loading / error placeholder: trigger activo + sin items todavía.
+        // Mostramos respuesta inmediata al teclado aunque la red tarde
+        // (o mensaje claro si falla, en vez de spinner forever).
         if (options.length === 0) {
-          if (!loading || trigger === null) return null
-          return createPortal(<MentionLoadingMenu trigger={trigger} />, anchorElementRef.current)
+          if (trigger === null) return null
+          if (error) {
+            return createPortal(
+              <MentionFeedbackMenu kind="error" trigger={trigger} />,
+              anchorElementRef.current,
+            )
+          }
+          if (loading) {
+            return createPortal(
+              <MentionFeedbackMenu kind="loading" trigger={trigger} />,
+              anchorElementRef.current,
+            )
+          }
+          return null
         }
         return createPortal(
           <MentionMenu
@@ -416,31 +446,54 @@ function MentionMenu({
 }
 
 /**
- * Placeholder visual mientras el `fetchOptionsForTrigger` resuelve.
- * Aparece sólo en cache miss + fetch in-flight; cache hit muestra los
- * items directo. Texto contextual al trigger para que el viewer sepa
- * qué está cargando. Spinner simple (CSS animation, sin dep externa).
+ * Placeholder visual mientras el `fetchOptionsForTrigger` resuelve, o
+ * mensaje claro si el fetch falló (kind="error"). Aparece sólo en cache
+ * miss; cache hit muestra los items directo. Texto contextual al trigger
+ * para que el viewer sepa qué está pasando. Spinner / icon CSS puro
+ * (sin dep externa).
  */
-function MentionLoadingMenu({ trigger }: { trigger: Trigger }): React.JSX.Element {
-  const label =
+/** Exportado sólo para tests del slice — no consumir desde fuera. */
+export function MentionFeedbackMenu({
+  kind,
+  trigger,
+}: {
+  kind: 'loading' | 'error'
+  trigger: Trigger
+}): React.JSX.Element {
+  const target =
     trigger.kind === 'user'
-      ? 'Buscando miembros…'
+      ? 'miembros'
       : trigger.kind === 'event'
-        ? 'Buscando eventos…'
+        ? 'eventos'
         : trigger.kind === 'library-category'
-          ? 'Cargando categorías…'
-          : 'Cargando recursos…'
+          ? 'categorías'
+          : 'recursos'
+  const label =
+    kind === 'error'
+      ? `No pudimos cargar ${target}. Probá de nuevo.`
+      : trigger.kind === 'user' || trigger.kind === 'event'
+        ? `Buscando ${target}…`
+        : `Cargando ${target}…`
   return (
-    <div className="rich-text-mention-menu min-w-[260px] overflow-hidden rounded-md border border-neutral-200 bg-white shadow-lg">
+    <div
+      data-mention-feedback={kind}
+      className="rich-text-mention-menu min-w-[260px] overflow-hidden rounded-md border border-neutral-200 bg-white shadow-lg"
+    >
       <div
-        role="status"
+        role={kind === 'error' ? 'alert' : 'status'}
         aria-live="polite"
         className="flex items-center gap-2 px-3 py-2 text-sm text-neutral-500"
       >
-        <span
-          aria-hidden
-          className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-600"
-        />
+        {kind === 'loading' ? (
+          <span
+            aria-hidden
+            className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-600"
+          />
+        ) : (
+          <span aria-hidden className="text-amber-600">
+            ⚠
+          </span>
+        )}
         <span className="truncate">{label}</span>
       </div>
     </div>
