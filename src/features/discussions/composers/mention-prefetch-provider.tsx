@@ -48,6 +48,19 @@ export function MentionPrefetchProvider({ placeId, children }: Props): ReactNode
   const activeRef = useRef(true)
 
   const doFetch = useCallback(async (): Promise<void> => {
+    // Telemetry estructurada para errores del prefetch — sin esto los
+    // fallos se silenciaban por completo (caché vacío en prod sin señal).
+    // Mismo shape que el spinner del MentionPlugin (event/source/err) para
+    // que un sink futuro pueda agruparlos. El fallback del consumer al
+    // fetch live cubre la funcionalidad; este log sólo asegura visibilidad.
+    const logPrefetchFailure = (source: 'users' | 'events' | 'categories', err: unknown): void => {
+      console.warn('[mention] prefetch failed', {
+        event: 'mentionPrefetchFailed',
+        source,
+        placeId,
+        err: err instanceof Error ? err.message : String(err),
+      })
+    }
     const tasks: Array<Promise<unknown>> = [
       searchMembersByPlaceAction(placeId, '')
         .then((rows) => {
@@ -56,12 +69,12 @@ export function MentionPrefetchProvider({ placeId, children }: Props): ReactNode
             rows.map((r) => ({ userId: r.userId, displayName: r.displayName, handle: r.handle })),
           )
         })
-        .catch(() => {}),
+        .catch((err: unknown) => logPrefetchFailure('users', err)),
       searchEventsByPlaceAction(placeId, '')
         .then((rows) => {
           if (activeRef.current) setEvents(rows)
         })
-        .catch(() => {}),
+        .catch((err: unknown) => logPrefetchFailure('events', err)),
       listLibraryCategoriesForMentionAction(placeId)
         .then((rows) => {
           if (activeRef.current)
@@ -69,7 +82,7 @@ export function MentionPrefetchProvider({ placeId, children }: Props): ReactNode
               rows.map((r) => ({ categoryId: r.categoryId, slug: r.slug, name: r.name })),
             )
         })
-        .catch(() => {}),
+        .catch((err: unknown) => logPrefetchFailure('categories', err)),
     ]
     await Promise.all(tasks)
     if (activeRef.current) {

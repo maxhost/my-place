@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { cleanup, render, waitFor } from '@testing-library/react'
 import { useMentionPrefetchSource } from '@/features/rich-text/mentions/public'
 
 vi.mock('@/features/members/public', () => ({
@@ -19,6 +19,7 @@ vi.mock('@/features/library/public', () => ({
 }))
 
 import { MentionPrefetchProvider } from '../mention-prefetch-provider'
+import { searchEventsByPlaceAction } from '@/features/events/public'
 
 function Probe(): React.ReactNode {
   const v = useMentionPrefetchSource()
@@ -39,6 +40,12 @@ describe('MentionPrefetchProvider', () => {
     // jsdom no implementa requestIdleCallback — el Provider cae al
     // fallback setTimeout(100), exactamente lo que queremos testear acá.
     vi.stubGlobal('requestIdleCallback', undefined as unknown as Window['requestIdleCallback'])
+  })
+  afterEach(() => {
+    // El setup global no aplica cleanup automático de RTL — sin esto, los
+    // tests previos dejan probes huérfanos en el DOM y getByTestId del
+    // siguiente test mata por "Found multiple elements".
+    cleanup()
   })
 
   it('popula users + events + categories + lastFetchedAt tras el setTimeout(100) fallback', async () => {
@@ -70,5 +77,40 @@ describe('MentionPrefetchProvider', () => {
     )
     unmount()
     expect(clearSpy).toHaveBeenCalled()
+  })
+
+  // Audit #8: telemetry. Si una source falla, el log estructurado debe
+  // dispararse con el shape correcto y las otras 2 sources deben poblar
+  // igual (los catch son por-promise, no global).
+  it('source que falla logea console.warn estructurado y NO bloquea las otras sources', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(searchEventsByPlaceAction).mockRejectedValueOnce(new Error('boom-events'))
+
+    const { getByTestId } = render(
+      <MentionPrefetchProvider placeId="p-3">
+        <Probe />
+      </MentionPrefetchProvider>,
+    )
+    await waitFor(
+      () => {
+        expect(getByTestId('probe').textContent).toContain('"users":1')
+      },
+      { timeout: 1500 },
+    )
+    // Users + categories pobladas; events queda en null por el reject.
+    expect(getByTestId('probe').textContent).toContain('"categories":1')
+    expect(getByTestId('probe').textContent).toContain('"events":"null"')
+
+    // Telemetry: el warn fue invocado con el shape esperado.
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[mention] prefetch failed',
+      expect.objectContaining({
+        event: 'mentionPrefetchFailed',
+        source: 'events',
+        placeId: 'p-3',
+        err: 'boom-events',
+      }),
+    )
+    warnSpy.mockRestore()
   })
 })
