@@ -11,6 +11,7 @@ import {
 } from '@lexical/react/LexicalTypeaheadMenuPlugin'
 import { $createTextNode, $insertNodes, type TextNode } from 'lexical'
 import { $createMentionNode } from './mention-node'
+import { useMentionPrefetchSource } from './mention-prefetch-context'
 
 // ---------------------------------------------------------------
 // Resolver shapes
@@ -120,16 +121,41 @@ export function MentionPlugin({
   const [trigger, setTrigger] = useState<Trigger | null>(null)
   const [options, setOptions] = useState<GenericMenuOption[]>([])
 
+  // Cache prefetcheado externo (Provider en `discussions/composers/` que vive
+  // en el shell `(gated)/layout.tsx`). Si el viewer entró al shell hace ≥100ms,
+  // estos arrays ya están poblados → typeahead instant. Si el Provider no está
+  // montado (tests isolated, futuras pages sin shell), el hook retorna null →
+  // caemos al prefetch propio + fetch live (fallback intacto).
+  // Ver `docs/plans/2026-05-09-mention-prefetch-background.md`.
+  const externalCache = useMentionPrefetchSource()
+
   // Caches client-side: prefetch al mount los listados base (top-N
   // sin filtro). Cuando el trigger se dispara con query vacía
   // ("/event", "/library", "@") devolvemos el cache instantáneamente,
   // sin Server Action round-trip. Con `connection_limit=1` en prod el
   // RTT serializado costaba ~500-1000ms — el cache lo hace inmediato.
-  const [cachedUsers, setCachedUsers] = useState<MentionUserResult[] | null>(null)
-  const [cachedEvents, setCachedEvents] = useState<MentionEventResult[] | null>(null)
-  const [cachedCategories, setCachedCategories] = useState<MentionLibraryCategoryResult[] | null>(
-    null,
+  // Seed inicial desde el cache externo si está disponible.
+  const [cachedUsers, setCachedUsers] = useState<MentionUserResult[] | null>(
+    externalCache?.users ?? null,
   )
+  const [cachedEvents, setCachedEvents] = useState<MentionEventResult[] | null>(
+    externalCache?.events ?? null,
+  )
+  const [cachedCategories, setCachedCategories] = useState<MentionLibraryCategoryResult[] | null>(
+    externalCache?.categories ?? null,
+  )
+
+  // Sync cuando el Provider emite nuevos valores (refresh por TTL/visibility).
+  // Sólo escribe si el externalCache trae data — null no pisa el cache propio.
+  useEffect(() => {
+    if (externalCache?.users) setCachedUsers(externalCache.users)
+  }, [externalCache?.users])
+  useEffect(() => {
+    if (externalCache?.events) setCachedEvents(externalCache.events)
+  }, [externalCache?.events])
+  useEffect(() => {
+    if (externalCache?.categories) setCachedCategories(externalCache.categories)
+  }, [externalCache?.categories])
 
   // El typeahead `@user` usa el matcher built-in (mantiene comportamiento
   // de F.3). Triggers `/event` y `/library` los detectamos manualmente
