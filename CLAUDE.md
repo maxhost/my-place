@@ -91,6 +91,13 @@ Cómo trabajamos con Claude Code en este proyecto.
 - **Documentar decisiones arquitectónicas.** Cambios que afectan paradigma o estructura se registran en `docs/architecture.md` o `docs/decisions/`.
 - **Gotchas compartidos.** Problemas sutiles descubiertos durante el desarrollo se anotan en la sección Gotchas más abajo, para que el contexto persista entre sesiones.
 
+## Seguridad de secrets
+
+- **NUNCA exponer API keys, passwords, ni service-role tokens en GitHub** — ni siquiera en repos pre-producción / privados / de desarrollo. Los secrets viven SOLO en `.env.local` (gitignored), Vercel env vars, o secret managers.
+- **NUNCA usar `git add -A` o `git add .`** — siempre stagear archivos por path explícito. Esos comandos atrapan untracked sensibles (backups de `.env`, dumps, credentials.json, tokens) que pueden no estar en `.gitignore`.
+- **Antes de cualquier `git commit`:** verificar `git status --short` y leer la lista de archivos a stagear. Si aparece algo que matchea `\.env`, `*-backup*`, `*credentials*`, `*token*`, `*.pem`, `*.key`, `*secret*` — STOP y consultar.
+- **Si se expone un secret accidentalmente:** rotar inmediatamente (Supabase Dashboard, Resend Dashboard, etc.), después limpiar historial Git. La rotación es prioridad sobre la limpieza.
+
 ## Límites de tamaño
 
 Acotar el tamaño hace que el código sea auditable por humanos y por agentes. No son cosméticos.
