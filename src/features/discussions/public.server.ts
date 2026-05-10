@@ -75,7 +75,7 @@ export {
 // del cliente cuando algún Client Component los importa transitivamente.
 export { CommentThread } from './ui/comment-thread'
 export { PostDetail } from './ui/post-detail'
-export { PostList } from './ui/post-list'
+export { PostList } from './threads/public'
 export { PostReadersBlock } from './presence/public'
 
 // Sesión 5.3: helpers de invalidación tag-based para el cache de
