@@ -13,6 +13,10 @@ const membershipFindFirst = vi.fn()
 const ownershipFindUnique = vi.fn()
 const userFindUnique = vi.fn()
 const groupMembershipFindFirst = vi.fn()
+// G.3 port (2026-05-09): hasPermission() consulta groupMembership.findMany
+// para resolver permisos atómicos delegados via grupos custom. Default `[]`
+// = no custom group con permiso → preserva comportamiento pre-port.
+const groupMembershipFindMany = vi.fn(async (..._a: unknown[]) => [] as Array<{ id: string }>)
 const postCreate = vi.fn()
 const postFindUnique = vi.fn()
 const postFindMany = vi.fn()
@@ -30,6 +34,7 @@ vi.mock('@/db/client', () => ({
     user: { findUnique: (...a: unknown[]) => userFindUnique(...a) },
     groupMembership: {
       findFirst: (...a: unknown[]) => groupMembershipFindFirst(...a),
+      findMany: (...a: unknown[]) => groupMembershipFindMany(...a),
     },
     post: {
       create: (...a: unknown[]) => postCreate(...a),
@@ -118,6 +123,9 @@ function mockActiveMember(opts: { asAdmin?: boolean } = {}): void {
   membershipFindFirst.mockResolvedValue({ id: 'm-1' })
   ownershipFindUnique.mockResolvedValue(null)
   groupMembershipFindFirst.mockResolvedValue(opts.asAdmin ? { id: 'gm-mock' } : null)
+  // G.3 port: hasPermission(_, _, 'discussions:*-post') consulta findMany.
+  // Si asAdmin, simula preset group con todos los permisos delegados.
+  groupMembershipFindMany.mockResolvedValue(opts.asAdmin ? [{ id: 'gm-preset' }] : [])
   userFindUnique.mockResolvedValue({ displayName: 'Max', avatarUrl: null })
   assertPlaceOpenFn.mockResolvedValue(undefined)
 }

@@ -7,6 +7,8 @@ const membershipFindFirst = vi.fn()
 const ownershipFindUnique = vi.fn()
 const userFindUnique = vi.fn()
 const groupMembershipFindFirst = vi.fn()
+// G.3 port (2026-05-09): hasPermission consulta findMany; default `[]`.
+const groupMembershipFindMany = vi.fn(async (..._a: unknown[]) => [] as Array<{ id: string }>)
 const postFindUnique = vi.fn()
 const commentFindUnique = vi.fn()
 const commentCreate = vi.fn()
@@ -25,6 +27,7 @@ vi.mock('@/db/client', () => ({
     user: { findUnique: (...a: unknown[]) => userFindUnique(...a) },
     groupMembership: {
       findFirst: (...a: unknown[]) => groupMembershipFindFirst(...a),
+      findMany: (...a: unknown[]) => groupMembershipFindMany(...a),
     },
     post: { findUnique: (...a: unknown[]) => postFindUnique(...a) },
     comment: {
@@ -114,6 +117,8 @@ function mockActiveMember(opts: { asAdmin?: boolean } = {}): void {
   membershipFindFirst.mockResolvedValue({ id: 'm-1' })
   ownershipFindUnique.mockResolvedValue(null)
   groupMembershipFindFirst.mockResolvedValue(opts.asAdmin ? { id: 'gm-mock' } : null)
+  // G.3 port: si asAdmin, simula preset group con todos los permisos delegados.
+  groupMembershipFindMany.mockResolvedValue(opts.asAdmin ? [{ id: 'gm-preset' }] : [])
   userFindUnique.mockResolvedValue({ displayName: 'Max', avatarUrl: null })
   assertPlaceOpenFn.mockResolvedValue(undefined)
   transactionFn.mockImplementation((fn: (tx: unknown) => unknown) =>

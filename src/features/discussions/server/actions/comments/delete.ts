@@ -16,6 +16,7 @@ import {
 } from '@/features/discussions/domain/invariants'
 import { EditWindowExpired } from '@/features/discussions/domain/errors'
 import { resolveActorForPlace, type DiscussionActor } from '@/features/discussions/server/actor'
+import { hasPermission } from '@/features/members/public.server'
 import { revalidateCommentPaths } from './shared'
 
 type CommentForDelete = {
@@ -45,10 +46,21 @@ export async function deleteCommentAction(input: unknown): Promise<{ ok: true; v
 
   const actor = await resolveActorForPlace({ placeId: comment.placeId })
   const now = new Date()
-  authorizeCommentDelete(actor, comment, now)
+
+  // G.3 port (2026-05-09): owner + grupos con `discussions:delete-comment`
+  // pueden borrar comments ajenos. Override de `actor.isAdmin` para que
+  // `canDeleteContent` lo respete sin tocar el dominio. Ver
+  // `docs/plans/2026-05-09-g3-debt-port-to-legacy.md` § A5.
+  const canModerate = await hasPermission(
+    actor.actorId,
+    actor.placeId,
+    'discussions:delete-comment',
+  )
+  const effectiveActor = { ...actor, isAdmin: canModerate || actor.isAdmin }
+  authorizeCommentDelete(effectiveActor, comment, now)
 
   const nextVersion = await applySoftDelete(comment, data.expectedVersion, now)
-  logCommentDeleted(actor, comment)
+  logCommentDeleted(effectiveActor, comment)
   revalidateCommentPaths(actor.placeSlug, comment.post.slug)
   return { ok: true, version: nextVersion }
 }

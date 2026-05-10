@@ -9,9 +9,9 @@ import {
   ValidationError,
 } from '@/shared/errors/domain-error'
 import { hidePostInputSchema, unhidePostInputSchema } from '@/features/discussions/schemas'
-import { canAdminHide } from '@/features/discussions/domain/invariants'
 import { resolveActorForPlace } from '@/features/discussions/server/actor'
 import { broadcastPostHidden } from '@/features/discussions/server/realtime'
+import { hasPermission } from '@/features/members/public.server'
 import { revalidatePostPaths } from './shared'
 
 /**
@@ -47,7 +47,11 @@ async function togglePostHidden(
   }
 
   const actor = await resolveActorForPlace({ placeId: post.placeId })
-  if (!canAdminHide(actor)) {
+  // G.3 port (2026-05-09): owner + grupos con `discussions:hide-post`. Antes
+  // `canAdminHide(actor)` que solo aceptaba `actor.isAdmin`. Ver
+  // `docs/plans/2026-05-09-g3-debt-port-to-legacy.md` § A4.
+  const allowed = await hasPermission(actor.actorId, actor.placeId, 'discussions:hide-post')
+  if (!allowed) {
     throw new AuthorizationError('Sólo admins pueden ocultar/revelar posts.', {
       postId: post.id,
     })

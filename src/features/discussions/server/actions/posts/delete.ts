@@ -13,6 +13,7 @@ import { canDeleteContent, editWindowOpen } from '@/features/discussions/domain/
 import { EditWindowExpired } from '@/features/discussions/domain/errors'
 import { resolveActorForPlace, type DiscussionActor } from '@/features/discussions/server/actor'
 import { hardDeletePost } from '@/features/discussions/server/hard-delete'
+import { hasPermission } from '@/features/members/public.server'
 import { revalidatePostPaths } from './shared'
 
 type PostForDelete = {
@@ -41,7 +42,13 @@ export async function deletePostAction(input: unknown): Promise<{ ok: true }> {
   const actor = await resolveActorForPlace({ placeId: post.placeId })
   const now = new Date()
 
-  authorizePostDelete(actor, post, now)
+  // G.3 port (2026-05-09): owner + grupos con `discussions:delete-post`
+  // pueden borrar posts ajenos. Override de `actor.isAdmin` para que
+  // `canDeleteContent` lo respete sin tocar el dominio. Ver
+  // `docs/plans/2026-05-09-g3-debt-port-to-legacy.md` § A4.
+  const canModerate = await hasPermission(actor.actorId, actor.placeId, 'discussions:delete-post')
+  const effectiveActor = { ...actor, isAdmin: canModerate || actor.isAdmin }
+  authorizePostDelete(effectiveActor, post, now)
   if (post.version !== data.expectedVersion) {
     throw new ConflictError('El post cambió desde que lo abriste.', {
       postId: post.id,
@@ -50,7 +57,7 @@ export async function deletePostAction(input: unknown): Promise<{ ok: true }> {
   }
 
   await hardDeletePost(post.id)
-  logPostDeleted(actor, post)
+  logPostDeleted(effectiveActor, post)
   revalidatePostPaths(actor.placeSlug, post.slug)
   return { ok: true }
 }

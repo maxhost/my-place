@@ -5,6 +5,7 @@ import { prisma } from '@/db/client'
 import { NotFoundError, ValidationError } from '@/shared/errors/domain-error'
 import type { PostListView } from '@/features/discussions/domain/types'
 import { postListFilterSchema } from '@/features/discussions/domain/filter'
+import { hasPermission } from '@/features/members/public.server'
 import { resolveActorForPlace } from '../actor'
 import { listPostsByPlace } from '../queries'
 import {
@@ -65,7 +66,11 @@ export async function loadMoreCommentsAction(input: unknown): Promise<{
   }
 
   const actor = await resolveActorForPlace({ placeId: post.placeId })
-  if (post.hiddenAt && !actor.isAdmin) {
+  // G.3 port (2026-05-09): "ver hidden = moderar visibility" — alineado al
+  // permiso `discussions:hide-post` (decisión owner). Antes solo `actor.isAdmin`.
+  // Ver `docs/plans/2026-05-09-g3-debt-port-to-legacy.md` § A6.
+  const canModerate = await hasPermission(actor.actorId, actor.placeId, 'discussions:hide-post')
+  if (post.hiddenAt && !canModerate) {
     throw new NotFoundError('Post no encontrado.', { postId: data.postId })
   }
 
@@ -76,7 +81,7 @@ export async function loadMoreCommentsAction(input: unknown): Promise<{
   const { items, nextCursor } = await listCommentsByPost({
     postId: post.id,
     cursor,
-    includeDeleted: actor.isAdmin,
+    includeDeleted: canModerate,
   })
 
   return {
@@ -103,6 +108,8 @@ export async function loadMorePostsAction(input: unknown): Promise<{
   const data = parsed.data
 
   const actor = await resolveActorForPlace({ placeId: data.placeId })
+  // G.3 port: "ver hidden = moderar visibility" — `discussions:hide-post`.
+  const canModerate = await hasPermission(actor.actorId, actor.placeId, 'discussions:hide-post')
 
   const cursor = data.cursor
     ? { createdAt: new Date(data.cursor.createdAt), id: data.cursor.id }
@@ -111,7 +118,7 @@ export async function loadMorePostsAction(input: unknown): Promise<{
   const { items, nextCursor } = await listPostsByPlace({
     placeId: actor.placeId,
     cursor,
-    includeHidden: actor.isAdmin,
+    includeHidden: canModerate,
     viewerUserId: actor.actorId,
     ...(data.filter ? { filter: data.filter } : {}),
   })

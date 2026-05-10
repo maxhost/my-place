@@ -24,6 +24,7 @@ import {
   signEditSessionToken,
 } from '@/shared/lib/edit-session-token'
 import { resolveActorForPlace, type DiscussionActor } from '@/features/discussions/server/actor'
+import { hasPermission } from '@/features/members/public.server'
 import { revalidatePostPaths } from './shared'
 
 type PostForEdit = {
@@ -47,8 +48,15 @@ export async function editPostAction(input: unknown): Promise<{ ok: true; versio
   const actor = await resolveActorForPlace({ placeId: post.placeId })
   await assertPlaceOpenOrThrow(actor.placeId)
 
+  // G.3 port (2026-05-09): owner + grupos con `discussions:edit-post`
+  // pueden editar posts ajenos (override de ADR §2 — ver
+  // `docs/decisions/2026-05-09-g3-edit-as-delegable-permission.md`).
+  // Antes solo `actor.isAdmin` (preset/owner).
+  const canEditAjeno = await hasPermission(actor.actorId, actor.placeId, 'discussions:edit-post')
+  const effectiveActor = { ...actor, isAdmin: canEditAjeno || actor.isAdmin }
+
   const now = new Date()
-  if (!actor.isAdmin) {
+  if (!effectiveActor.isAdmin) {
     requireAuthorship(post, actor)
     if (data.session) {
       authorizeAuthorEditWithSession(post, data.session, actor.actorId, now)
@@ -60,7 +68,7 @@ export async function editPostAction(input: unknown): Promise<{ ok: true; versio
   if (data.body) assertRichTextSize(data.body)
 
   const nextVersion = await applyEdit(post, data, now)
-  logPostEdited(actor, post)
+  logPostEdited(effectiveActor, post)
   revalidatePostPaths(actor.placeSlug, post.slug)
   return { ok: true, version: nextVersion }
 }
@@ -92,7 +100,9 @@ export async function openPostEditSession(
   if (!post) throw new NotFoundError('Post no encontrado.', { postId: data.postId })
 
   const actor = await resolveActorForPlace({ placeId: post.placeId })
-  if (actor.isAdmin) return { ok: true, adminBypass: true }
+  // G.3 port: bypass extendido con `discussions:edit-post`.
+  const canEditAjeno = await hasPermission(actor.actorId, actor.placeId, 'discussions:edit-post')
+  if (canEditAjeno || actor.isAdmin) return { ok: true, adminBypass: true }
   if (!post.authorUserId || post.authorUserId !== actor.actorId) {
     throw new AuthorizationError('No podés editar este post.', { postId: post.id })
   }
