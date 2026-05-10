@@ -178,6 +178,27 @@ export async function updateSession(req: NextRequest): Promise<{
     // locales via el callback `setAll` configurado arriba, que también se
     // refleja en `response.cookies` (Domain=apex preservado).
     await supabase.auth.signOut({ scope: 'local' }).catch(() => {})
+
+    // **Cleanup defensivo HOST-ONLY:** signOut limpia con `Domain=apex` (el
+    // domain configurado en el cookies adapter de arriba). Pero pueden
+    // coexistir cookies residuales con `Domain=<host actual>` (host-only)
+    // de flows previos — esas tienen precedencia sobre las apex-domain por
+    // RFC 6265 (cookies más específicas primero). Si no las limpiamos, el
+    // próximo request las re-envía y el SDK falla otra vez con stale.
+    //
+    // Emitimos Max-Age=0 para sb-{ref}-auth-token y sus chunks .0/.1/...
+    // SIN domain (host-only) — apunta exclusivamente al host actual.
+    for (const cookie of req.cookies.getAll()) {
+      if (!/^sb-[A-Za-z0-9]+-auth-token(\.\d+)?$/.test(cookie.name)) continue
+      response.headers.append(
+        'Set-Cookie',
+        `${cookie.name}=; Path=/; Max-Age=0; Secure; SameSite=Lax`,
+      )
+    }
+    logger.warn(
+      { debug: 'MW_stale_cleanup', host, path },
+      `DBG MW[stale-cleanup] host=${host} path=${path} cleared host-only sb-* cookies`,
+    )
   }
 
   return { response, user }
