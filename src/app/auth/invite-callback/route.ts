@@ -10,6 +10,7 @@ import {
   buildLegacyCookieCleanup,
   type CookieToSet,
 } from '@/shared/lib/supabase/cookie-cleanup'
+import { buildSessionCookies, extractProjectRef } from '@/shared/lib/supabase/build-session-cookies'
 import { resolveNextRedirect } from '@/shared/lib/next-redirect'
 import { htmlRedirect } from '@/shared/lib/auth-redirect-html'
 import { deriveDisplayName } from '@/app/auth/callback/helpers'
@@ -95,13 +96,26 @@ export async function GET(req: NextRequest) {
     return finalize(htmlRedirect(buildLoginUrl('invalid_link')), cookieBag)
   }
 
-  // Fuerza escritura síncrona del cookies adapter (workaround supabase/ssr#36).
-  await supabase.auth.setSession({
-    access_token: verify.session.access_token,
-    refresh_token: verify.session.refresh_token,
-  })
-
   const { user } = verify
+
+  // Construir cookies de sesión MANUALMENTE — el cookies adapter del SDK
+  // no se invoca sincrónicamente en route handlers (race con
+  // onAuthStateChange async listener). Replicamos el formato exacto que
+  // el SDK lee con combineChunks. Ver supabase/ssr#36.
+  const projectRef = extractProjectRef(clientEnv.NEXT_PUBLIC_SUPABASE_URL)
+  cookieBag.push(
+    ...buildSessionCookies({
+      session: verify.session,
+      user: {
+        id: user.id,
+        email: user.email,
+        user_metadata: user.user_metadata as Record<string, unknown> | undefined,
+        app_metadata: user.app_metadata as Record<string, unknown> | undefined,
+      },
+      projectRef,
+      domain,
+    }),
+  )
   try {
     const email = user.email ?? null
     await prisma.user.upsert({

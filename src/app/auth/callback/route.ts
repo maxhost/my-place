@@ -10,6 +10,7 @@ import {
   buildLegacyCookieCleanup,
   type CookieToSet,
 } from '@/shared/lib/supabase/cookie-cleanup'
+import { buildSessionCookies, extractProjectRef } from '@/shared/lib/supabase/build-session-cookies'
 import { resolveNextRedirect } from '@/shared/lib/next-redirect'
 import { htmlRedirect } from '@/shared/lib/auth-redirect-html'
 import { deriveDisplayName } from './helpers'
@@ -66,12 +67,23 @@ export async function GET(req: NextRequest) {
     return finalize(htmlRedirect(buildLoginUrl('invalid_link')), cookieBag)
   }
 
-  await supabase.auth.setSession({
-    access_token: exchange.session.access_token,
-    refresh_token: exchange.session.refresh_token,
-  })
-
   const { user } = exchange
+
+  // Build session cookies manually (workaround supabase/ssr#36).
+  const projectRef = extractProjectRef(clientEnv.NEXT_PUBLIC_SUPABASE_URL)
+  cookieBag.push(
+    ...buildSessionCookies({
+      session: exchange.session,
+      user: {
+        id: user.id,
+        email: user.email,
+        user_metadata: user.user_metadata as Record<string, unknown> | undefined,
+        app_metadata: user.app_metadata as Record<string, unknown> | undefined,
+      },
+      projectRef,
+      domain,
+    }),
+  )
   try {
     const email = user.email ?? null
     await prisma.user.upsert({
