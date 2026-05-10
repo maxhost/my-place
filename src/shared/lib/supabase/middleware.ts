@@ -65,19 +65,27 @@ export async function updateSession(req: NextRequest): Promise<{
     )
   }
 
-  // `auth.getUser()` puede disparar refresh interno de Supabase. Si el refresh
-  // token está stale (race con otra request paralela, revocación, expire), el
-  // SDK tira AuthApiError. En vez de crashear el render, deslogueamos local
-  // (limpia las cookies) y devolvemos `user: null` para que el gate redirija
-  // a `/login` sin overlay.
+  // **`getSession()` no `getUser()`** — getSession solo lee la cookie y decodea
+  // el JWT (sin server validation, sin refresh). getUser hace una llamada al
+  // server Supabase y puede disparar refresh internal del SDK. En requests
+  // paralelos (browser carga page + assets + favicon simultáneamente), el
+  // primer refresh consume el refresh_token y los siguientes throwean
+  // "refresh_token_not_found" → middleware hace signOut → user perdió session.
+  //
+  // Trade-off aceptable: el middleware confía en la cookie hasta que expire.
+  // Endpoints críticos (server actions, server components) llaman getUser()
+  // para validación fresh. Si sesión revocada en otro device, el user sigue
+  // logueado hasta que expire (típicamente 1 hora con auto-refresh por SDK).
   let user: { id: string; email: string | null } | null = null
   try {
-    const { data } = await supabase.auth.getUser()
-    user = data.user ? { id: data.user.id, email: data.user.email ?? null } : null
+    const { data } = await supabase.auth.getSession()
+    user = data.session?.user
+      ? { id: data.session.user.id, email: data.session.user.email ?? null }
+      : null
     if (isAuthFlowPath) {
       logger.warn(
-        { debug: 'MW_getUser', traceId, path, hasUser: !!user, userId: user?.id ?? null },
-        `DBG MW[getUser] tr=${traceId} path=${path} user=${user?.id ?? 'null'}`,
+        { debug: 'MW_getSession', traceId, path, hasUser: !!user, userId: user?.id ?? null },
+        `DBG MW[getSession] tr=${traceId} path=${path} user=${user?.id ?? 'null'}`,
       )
     }
   } catch (err) {
