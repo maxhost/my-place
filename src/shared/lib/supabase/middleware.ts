@@ -186,18 +186,33 @@ export async function updateSession(req: NextRequest): Promise<{
     // RFC 6265 (cookies más específicas primero). Si no las limpiamos, el
     // próximo request las re-envía y el SDK falla otra vez con stale.
     //
-    // Emitimos Max-Age=0 para sb-{ref}-auth-token y sus chunks .0/.1/...
-    // SIN domain (host-only) — apunta exclusivamente al host actual.
+    // Emitimos Max-Age=0 SIN domain (host-only) para `sb-{currentRef}-auth-token`
+    // y sus chunks `.0/.1/...`. **Filtro por currentRef:** no tocamos cookies
+    // de OTROS proyectos Supabase coexistentes en el browser (un user puede
+    // tener sesiones simultáneas en varios productos basados en Supabase). Si
+    // borráramos sin filtro, romperíamos esas sesiones legítimas.
+    //
+    // Ver `docs/decisions/2026-05-10-cookie-residual-host-only-cleanup.md`.
+    const cleanupRe = new RegExp(`^sb-${currentRef}-auth-token(\\.\\d+)?$`)
+    const clearedNames: string[] = []
     for (const cookie of req.cookies.getAll()) {
-      if (!/^sb-[A-Za-z0-9]+-auth-token(\.\d+)?$/.test(cookie.name)) continue
+      if (!cleanupRe.test(cookie.name)) continue
       response.headers.append(
         'Set-Cookie',
         `${cookie.name}=; Path=/; Max-Age=0; Secure; SameSite=Lax`,
       )
+      clearedNames.push(cookie.name)
     }
     logger.warn(
-      { debug: 'MW_stale_cleanup', host, path },
-      `DBG MW[stale-cleanup] host=${host} path=${path} cleared host-only sb-* cookies`,
+      {
+        debug: 'MW_stale_cleanup',
+        host,
+        path,
+        currentRef,
+        clearedCount: clearedNames.length,
+        clearedNames,
+      },
+      `DBG MW[stale-cleanup] host=${host} path=${path} ref=${currentRef} cleared=${clearedNames.length} names=[${clearedNames.join(',')}]`,
     )
   }
 
