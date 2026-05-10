@@ -74,9 +74,35 @@ export function cleanupLegacyCookies(req: NextRequest, response: NextResponse): 
 
 /**
  * Aplica un array de cookies a un response.
+ *
+ * **Importante:** usa `headers.append('Set-Cookie', ...)` directamente en
+ * vez de `response.cookies.set()`. La API `.cookies.set()` deduplica por
+ * nombre — si emitís 3 Set-Cookie con el mismo nombre y distintos Domain
+ * (caso típico del cleanup defensivo), solo el último persiste. Append a
+ * raw header garantiza los 3 headers separados.
  */
 export function applyCookies(response: NextResponse, cookies: CookieToSet[]): void {
   for (const c of cookies) {
-    response.cookies.set(c.name, c.value, c.options)
+    response.headers.append('Set-Cookie', serializeCookie(c))
   }
+}
+
+function serializeCookie(c: CookieToSet): string {
+  const parts: string[] = [`${c.name}=${encodeURIComponent(c.value)}`]
+  const o = c.options
+  if (o.domain) parts.push(`Domain=${o.domain}`)
+  if (o.path) parts.push(`Path=${o.path}`)
+  if (o.maxAge !== undefined) parts.push(`Max-Age=${o.maxAge}`)
+  if (o.expires) parts.push(`Expires=${o.expires.toUTCString()}`)
+  if (o.httpOnly) parts.push('HttpOnly')
+  if (o.secure) parts.push('Secure')
+  if (o.sameSite) {
+    const v = typeof o.sameSite === 'string' ? o.sameSite : o.sameSite ? 'Strict' : ''
+    if (v) parts.push(`SameSite=${capitalize(v)}`)
+  }
+  return parts.join('; ')
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
 }
