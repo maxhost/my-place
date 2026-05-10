@@ -19,6 +19,16 @@ single-column, side drawers para edit forms (no centered modal), inline icon but
 hover en list rows, y atajos de teclado (Cmd+K, Esc, Cmd+Enter). Mobile sigue exactamente
 igual que hoy.
 
+## Pre-requisito: Split de `features/shell`
+
+Antes de empezar Sub-sesión 1a, ejecutar `docs/plans/2026-05-10-shell-sub-slices-split.md`
+(SHELL-1 a SHELL-5). Razón: `features/shell` está en 1382/1500 LOC; este plan agregaría
+otros ~5+ LOC en Sub-sesión 1c (md:hidden wrapper en SettingsNavFab) y Sesión 6
+(Frequently Accessed hub). Splitear shell en sub-slices ANTES libera margen y permite
+tocar el sub-slice `settings-nav/` específicamente, sin contaminar todo `shell/`.
+
+Tiempo estimado pre-req: ~3.75h adicionales antes de Sub-sesión 1a.
+
 ## Sesiones
 
 Total estimado: **10 sub-sesiones** (Sesión 1 dividida en 1a/1b/1c, resto igual), ~12h. Cada una independiente y deployable sola.
