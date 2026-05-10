@@ -29,6 +29,7 @@ export function revalidateMemberPermissions(userId: string, placeId: string): vo
 
 // Queries (server-only)
 export {
+  findActiveMembership,
   findInvitationById,
   findInvitationByToken,
   findInviterPermissions as findMemberPermissions,
@@ -40,6 +41,15 @@ export {
   type InvitationWithPlace,
   type MemberProfile,
 } from './server/queries'
+
+// Invitation accept core (server-only) — invocado desde el server action
+// `acceptInvitationAction` y desde el route handler `/auth/invite-callback`
+// para hacer accept inline post-verifyOtp (T2). Ver
+// `docs/plans/2026-05-10-invite-callback-direct-accept.md`.
+export {
+  acceptInvitationCore,
+  type AcceptInvitationCoreResult,
+} from './invitations/server/accept-core'
 
 // Directory queries (server-only) — sub-slice members/directory/
 export {

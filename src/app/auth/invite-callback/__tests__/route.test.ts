@@ -60,6 +60,24 @@ vi.mock('@/db/client', () => ({
   },
 }))
 
+// Mock del accept-core + revalidate: el callback ahora intenta accept inline
+// cuando `next` matchéa `/invite/accept/<token>` (T2 — eliminar PÁGINA 2 del
+// flow). Importamos via `@/features/members/public.server` (public boundary).
+const acceptCoreMock = vi.fn()
+const revalidateMemberPermissionsMock = vi.fn()
+vi.mock('@/features/members/public.server', () => ({
+  acceptInvitationCore: (...a: unknown[]) => acceptCoreMock(...a),
+  revalidateMemberPermissions: (...a: unknown[]) => revalidateMemberPermissionsMock(...a),
+}))
+
+// Mock cache invalidation (revalidatePath).
+const revalidatePathMock = vi.fn()
+vi.mock('next/cache', () => ({
+  revalidatePath: (...a: unknown[]) => revalidatePathMock(...a),
+  revalidateTag: vi.fn(),
+  unstable_cache: <T extends (...args: never[]) => Promise<unknown>>(fn: T): T => fn,
+}))
+
 vi.mock('@/shared/config/env', () => ({
   clientEnv: {
     NEXT_PUBLIC_APP_URL: 'http://localhost:3000', // APEX (post-S1)
@@ -98,6 +116,9 @@ beforeEach(() => {
   setAllSpy.mockReset()
   cookieStoreSetSpy.mockReset()
   cleanupLegacyCookiesMock.mockReset()
+  acceptCoreMock.mockReset()
+  revalidatePathMock.mockReset()
+  revalidateMemberPermissionsMock.mockReset()
 })
 
 afterEach(() => {
@@ -137,7 +158,7 @@ describe('GET /auth/invite-callback', () => {
     expect(userUpsertMock).not.toHaveBeenCalled()
   })
 
-  it('happy path invite: verifyOtp ok + upsert ok → 307 a apex /invite/accept (host-aware)', async () => {
+  it('happy path invite + accept inline OK → redirect a placeUrl del slug retornado por core (T2)', async () => {
     verifyOtpMock.mockReturnValue({
       data: {
         user: { id: 'usr-1', email: 'ana@example.com', user_metadata: {} },
@@ -146,6 +167,12 @@ describe('GET /auth/invite-callback', () => {
       error: null,
     })
     userUpsertMock.mockResolvedValue({})
+    acceptCoreMock.mockResolvedValue({
+      ok: true,
+      placeSlug: 'the-company',
+      placeId: 'place-1',
+      alreadyMember: false,
+    })
 
     const res = await GET(
       mkReq({
@@ -156,19 +183,87 @@ describe('GET /auth/invite-callback', () => {
     )
 
     expect(res.status).toBe(200)
-    // resolveNextRedirect mapea /invite/accept/<tok> → APEX (no subdomain).
-    expect(await res.text()).toContain('http://localhost:3000/invite/accept/tok_abc')
+    // T2: el callback acepta inline y redirige DIRECTO al place subdomain
+    // (no más PÁGINA 2 con botón "Aceptar y entrar").
+    expect(await res.text()).toContain('http://the-company.localhost:3000/')
     expect(verifyOtpMock).toHaveBeenCalledWith({
       token_hash: 'hash_invite_xyz',
       type: 'invite',
     })
     expect(userUpsertMock).toHaveBeenCalledTimes(1)
+    expect(acceptCoreMock).toHaveBeenCalledWith('tok_abc', 'usr-1')
+    expect(revalidatePathMock).toHaveBeenCalledWith('/inbox')
+    expect(revalidatePathMock).toHaveBeenCalledWith('/the-company')
+    expect(revalidatePathMock).toHaveBeenCalledWith('/the-company', 'layout')
+    expect(revalidateMemberPermissionsMock).toHaveBeenCalledWith('usr-1', 'place-1')
 
-    // verifyOtp escribió cookies vía setAll del adapter de createSupabaseServer.
+    // verifyOtp escribió cookies vía setAll del adapter.
     expect(setAllSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('happy path magiclink (fallback path para users existentes)', async () => {
+  it('accept inline FAILS (e.g. expired) → fallback a accept page con ?error=expired (T2)', async () => {
+    verifyOtpMock.mockReturnValue({
+      data: {
+        user: { id: 'usr-1', email: 'ana@example.com', user_metadata: {} },
+        session: { access_token: 'at', refresh_token: 'rt' },
+      },
+      error: null,
+    })
+    userUpsertMock.mockResolvedValue({})
+    // Simular que el core tira ValidationError con reason=expired (igual que
+    // el código real de `acceptInvitationCore`).
+    const expiredErr = Object.assign(new Error('La invitación expiró.'), {
+      code: 'VALIDATION',
+      context: { reason: 'expired' },
+      name: 'ValidationError',
+    })
+    // isDomainError check matcha por instanceof DomainError. Mockeamos shape.
+    acceptCoreMock.mockRejectedValue(expiredErr)
+
+    const res = await GET(
+      mkReq({
+        token_hash: 'h',
+        type: 'invite',
+        next: '/invite/accept/tok_expired',
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    // Fallback redirect: vuelve a la accept page con error param para que la
+    // page renderee el mensaje (o `<InvitationProblem kind="expired">`).
+    expect(body).toContain('http://localhost:3000/invite/accept/tok_expired')
+    expect(body).toContain('error=')
+    expect(acceptCoreMock).toHaveBeenCalledWith('tok_expired', 'usr-1')
+    // Cache invalidation NO se llama si el accept falló.
+    expect(revalidatePathMock).not.toHaveBeenCalled()
+  })
+
+  it('next NO es /invite/accept/<tok> → resolveNextRedirect (no llama acceptCore)', async () => {
+    verifyOtpMock.mockReturnValue({
+      data: {
+        user: { id: 'usr-1', email: 'a@y.com', user_metadata: {} },
+        session: { access_token: 'at', refresh_token: 'rt' },
+      },
+      error: null,
+    })
+    userUpsertMock.mockResolvedValue({})
+
+    const res = await GET(
+      mkReq({
+        token_hash: 'h',
+        type: 'magiclink',
+        next: '/inbox',
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('http://app.localhost:3000/')
+    // Sin token de invitación, accept inline NO se ejecuta.
+    expect(acceptCoreMock).not.toHaveBeenCalled()
+  })
+
+  it('happy path magiclink + accept inline (T2 también aplica al type=magiclink)', async () => {
     verifyOtpMock.mockReturnValue({
       data: {
         user: { id: 'usr-2', email: 'bob@example.com', user_metadata: {} },
@@ -177,6 +272,12 @@ describe('GET /auth/invite-callback', () => {
       error: null,
     })
     userUpsertMock.mockResolvedValue({})
+    acceptCoreMock.mockResolvedValue({
+      ok: true,
+      placeSlug: 'the-company',
+      placeId: 'place-1',
+      alreadyMember: false,
+    })
 
     const res = await GET(
       mkReq({
@@ -191,9 +292,10 @@ describe('GET /auth/invite-callback', () => {
       token_hash: 'hash_magic_xyz',
       type: 'magiclink',
     })
+    expect(acceptCoreMock).toHaveBeenCalledWith('tok_xyz', 'usr-2')
   })
 
-  it('next /<slug>/conversations → place subdomain (host-aware)', async () => {
+  it('next /<slug>/conversations → place subdomain (host-aware, no es invite path)', async () => {
     verifyOtpMock.mockReturnValue({
       data: {
         user: { id: 'usr-place', email: 'p@y.com', user_metadata: {} },
@@ -209,6 +311,8 @@ describe('GET /auth/invite-callback', () => {
 
     expect(res.status).toBe(200)
     expect(await res.text()).toContain('http://the-company.localhost:3000/conversations')
+    // Path no es invitación → no llama acceptCore.
+    expect(acceptCoreMock).not.toHaveBeenCalled()
   })
 
   it('next inválido (no en allowlist) → fallback al inbox subdomain root', async () => {

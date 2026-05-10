@@ -1,5 +1,6 @@
 import { type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { revalidatePath } from 'next/cache'
 import { prisma } from '@/db/client'
 import { clientEnv } from '@/shared/config/env'
 import { createRequestLogger, REQUEST_ID_HEADER } from '@/shared/lib/request-id'
@@ -13,7 +14,10 @@ import {
 import { extractProjectRef } from '@/shared/lib/supabase/build-session-cookies'
 import { resolveNextRedirect } from '@/shared/lib/next-redirect'
 import { htmlRedirect } from '@/shared/lib/auth-redirect-html'
+import { apexUrl, placeUrl } from '@/shared/lib/app-url'
+import { isDomainError } from '@/shared/errors/domain-error'
 import { deriveDisplayName } from '@/app/auth/callback/helpers'
+import { acceptInvitationCore, revalidateMemberPermissions } from '@/features/members/public.server'
 
 /**
  * GET /auth/invite-callback?token_hash=...&type=invite|magiclink&next=...
@@ -165,8 +169,54 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // Pasar traceId al next URL para correlación end-to-end.
-  const redirectTarget = resolveNextRedirect(rawNext)
+  // **Accept inline (T2):** si `next` es `/invite/accept/<token>`, intentamos
+  // ejecutar el accept ACÁ para que el user llegue directo al place sin pasar
+  // por la PÁGINA 2 ("Aceptar y entrar"). Manejamos errores recuperables
+  // redirigiendo al fallback de la accept page con `?error=<reason>`.
+  // Plan: docs/plans/2026-05-10-invite-callback-direct-accept.md
+  const inviteToken = extractInviteToken(rawNext)
+  let redirectTarget: URL
+  if (inviteToken) {
+    try {
+      const acceptResult = await acceptInvitationCore(inviteToken, user.id)
+      // Cache invalidation (mismo set que `acceptInvitationAction`).
+      revalidatePath('/inbox')
+      revalidatePath(`/${acceptResult.placeSlug}`)
+      revalidatePath(`/${acceptResult.placeSlug}`, 'layout')
+      revalidateMemberPermissions(user.id, acceptResult.placeId)
+      redirectTarget = placeUrl(acceptResult.placeSlug)
+      log.info(
+        {
+          event: 'invite_callback_accept_inline',
+          userId: user.id,
+          placeSlug: acceptResult.placeSlug,
+          alreadyMember: acceptResult.alreadyMember,
+          traceId,
+        },
+        'invite accepted inline in callback',
+      )
+    } catch (acceptErr) {
+      // Fallback: redirigir a la accept page con el error como query param.
+      // La page maneja el render del mensaje (ya tiene `<InvitationProblem>`).
+      const reason = acceptErrorToReason(acceptErr)
+      log.warn(
+        {
+          event: 'invite_callback_accept_failed',
+          err: acceptErr,
+          reason,
+          userId: user.id,
+          inviteToken,
+          traceId,
+        },
+        'invite accept inline failed — redirecting to accept page fallback',
+      )
+      const fallback = apexUrl(`/invite/accept/${encodeURIComponent(inviteToken)}`)
+      fallback.searchParams.set('error', reason)
+      redirectTarget = fallback
+    }
+  } else {
+    redirectTarget = resolveNextRedirect(rawNext)
+  }
   redirectTarget.searchParams.set('_t', traceId)
 
   log.warn(
@@ -183,6 +233,33 @@ export async function GET(req: NextRequest) {
 
   log.info({ userId: user.id, type, traceId }, 'invite_callback_success')
   return finalize(htmlRedirect(redirectTarget), cookieBag)
+}
+
+/**
+ * Extrae el token de invitación de `next=/invite/accept/<token>`. Retorna
+ * `null` si `next` no matchéa el patrón. Token shape (de `acceptInvitationTokenSchema`):
+ * 1-512 chars, alfanuméricos + `_` + `-`.
+ */
+function extractInviteToken(rawNext: string | null): string | null {
+  if (!rawNext) return null
+  const match = rawNext.match(/^\/invite\/accept\/([A-Za-z0-9_-]{1,512})\/?$/)
+  return match?.[1] ?? null
+}
+
+/**
+ * Mapea errores typed de `acceptInvitationCore` a un reason corto que la
+ * accept page (`/invite/accept/[token]`) puede leer del query y mostrar.
+ * Reasons matchean los `kind` de `<InvitationProblem>` + extras del core.
+ */
+function acceptErrorToReason(err: unknown): string {
+  if (!isDomainError(err)) return 'unknown'
+  const ctx = err.context as { reason?: string } | undefined
+  if (ctx?.reason) return ctx.reason
+  if (err.code === 'NOT_FOUND') return 'not_found'
+  if (err.code === 'VALIDATION') return 'invalid'
+  if (err.code === 'CONFLICT') return 'conflict'
+  if (err.code === 'INVARIANT_VIOLATION') return 'invariant'
+  return 'unknown'
 }
 
 /** Apply cookie bag al response final + retornar. */

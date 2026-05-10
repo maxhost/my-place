@@ -119,26 +119,42 @@ model Invitation {
 
 **Input:** `{ token: string }` (del path param).
 
-**Flow:**
+**Flow real (post-T2 — accept inline en callback):**
 
-1. Si el usuario no tiene sesión, la ruta `/invite/accept/[token]` redirige a `/login?next=/invite/accept/{token}`. Después del callback, el `resolveSafeNext` del callback reenvía al accept. **El token se preserva en el path**, no en query — más difícil de filtrar por referrer.
-2. Con sesión, server action `acceptInvitationAction`:
+El usuario clickea el link del email → `/auth/invite-callback` (apex):
+
+1. Verifica el OTP de Supabase (`verifyOtp`) y crea/loguea al user.
+2. Upserta el row de `User` en Prisma.
+3. Si el `next` matchéa `/invite/accept/<token>`, **acepta la invitación inline** llamando `acceptInvitationCore(token, user.id)` (mismo core que el server action `acceptInvitationAction` — ver más abajo). On success:
+   - `revalidatePath('/inbox')` + `revalidatePath('/<slug>')` + layout invalidation.
+   - `revalidateMemberPermissions(userId, placeId)`.
+   - El `redirectTarget` del callback pasa de `/invite/accept/<token>` (la accept page) a `placeUrl(slug)` directamente. **El user llega al place sin pasar por la PÁGINA 2 ("Aceptar y entrar").**
+4. Si `acceptInvitationCore` tira un error de dominio recuperable (expired, archived, over_capacity, conflict, etc.), el callback hace fallback: redirect a `/invite/accept/<token>?error=<reason>` (la accept page lee el error y lo muestra arriba del botón Aceptar como mensaje informativo, dejando que el user reintente o vea el problema).
+5. La PÁGINA 1 (`htmlRedirect` con botón "Continuar →") sigue siendo necesaria por **Safari iOS ITP cross-app** — sin user click, el browser puede rechazar `Set-Cookie` cuando el flow viene desde Mail.app. El user ve UN solo botón visible y entra al place.
+
+**Flow fallback (accept page directa, sin callback):**
+
+Si el user llega a `/invite/accept/<token>` sin pasar por callback (e.g. clickea email ya logueado en otro browser, refresh manual, link compartido):
+
+1. Si no hay sesión, la ruta `/invite/accept/[token]` redirige a `/login?next=/invite/accept/{token}`. Después del callback, el `resolveNextRedirect` reenvía al accept (con accept inline). **El token se preserva en el path**, no en query — más difícil de filtrar por referrer.
+2. Si hay sesión y el user **ya es member activo** del place (caso típico post-callback), redirect inmediato a `placeUrl(slug)`.
+3. Si hay sesión pero NO es member, render del `<AcceptInvitationView>` con botón "Aceptar y entrar" → POST `acceptInvitationAction`:
    - `findInvitationByToken(token)` → si no existe, `InvitationNotFoundError`.
    - Si `expiresAt < now()`, `InvitationExpiredError`.
    - Si `acceptedAt != null`:
      - Si la membresía del user actor ya existe activa en ese place, retorna `{ ok: true, alreadyMember: true }` (idempotente).
      - Si no existe y el invitee original era otro email, `InvitationAlreadyUsedError`.
    - Si el place está archivado, `PlaceArchivedError`.
-3. Resolver identidad del invitee: si el `user.email` no matchea `invitation.email`, igualmente **se acepta** si el user está logueado (Supabase creó la cuenta con el email de la invitación; pero un user podría haber iniciado sesión con otro email antes de clickear el link). **Regla MVP**: el `userId` de la sesión es quien queda como miembro, no se verifica match de email. Esto simplifica el flow y acepta que el admin confía en el destinatario. Se documenta aquí para que quede explícito.
-4. **Transacción Prisma:**
+4. Resolver identidad del invitee: si el `user.email` no matchea `invitation.email`, igualmente **se acepta** si el user está logueado (Supabase creó la cuenta con el email de la invitación; pero un user podría haber iniciado sesión con otro email antes de clickear el link). **Regla MVP**: el `userId` de la sesión es quien queda como miembro, no se verifica match de email. Esto simplifica el flow y acepta que el admin confía en el destinatario. Se documenta aquí para que quede explícito.
+5. **Transacción Prisma:**
    - `countActiveMemberships(placeId)` ≥ 150 → `PlaceCapacityExceededError` (el trigger DB de 2.G también lo cubre como red de seguridad — ambas capas son intencionales).
    - `findActiveMembership(userId, placeId)`:
      - Si existe (idempotencia dura) → marca `Invitation.acceptedAt = now()` si nula y retorna `{ ok: true, alreadyMember: true }`.
      - Si no existe → `INSERT Membership(userId, placeId, role = invitation.asAdmin ? ADMIN : MEMBER, joinedAt = now())`.
    - `UPDATE Invitation SET acceptedAt = now() WHERE id = :id AND acceptedAt IS NULL` (condición evita race).
-5. Log estructurado (`invitationAccepted`) con `{ requestId, placeId, invitationId, userId, role }`.
-6. `revalidatePath('/inbox')` + `revalidatePath('/[placeSlug]')`.
-7. Retorna `{ ok: true, placeSlug, alreadyMember: false }` — la UI redirige a `https://{placeSlug}.place.app/`.
+6. Log estructurado (`invitationAccepted`) con `{ requestId, placeId, invitationId, userId, role }`.
+7. `revalidatePath('/inbox')` + `revalidatePath('/[placeSlug]')`.
+8. Retorna `{ ok: true, placeSlug, alreadyMember: false }` — la UI redirige a `https://{placeSlug}.place.app/`.
 
 **Multi-place explícito:** el usuario puede estar logueado con membresías activas en places A y B, y aceptar una invitación a C. La transacción **sólo inserta** en C; no toca ninguna fila de A ni B. La sesión universal sigue siendo la misma.
 

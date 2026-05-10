@@ -17,14 +17,21 @@ export function AcceptInvitationView({
   placeName,
   placeSlug,
   asAdmin,
+  errorFromCallback = null,
 }: {
   token: string
   placeName: string
   placeSlug: string
   asAdmin: boolean
+  /**
+   * Mensaje opcional que el callback puede pasar via `?error=<reason>` cuando
+   * el accept inline (T2) falló y necesita fallback al flow manual. La page
+   * mappea reasons del core a mensajes humanos antes de pasarlo acá.
+   */
+  errorFromCallback?: string | null
 }) {
   const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(errorFromCallback)
 
   function onAccept() {
     setError(null)
