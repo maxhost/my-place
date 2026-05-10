@@ -9,6 +9,7 @@ import {
 } from '@/shared/errors/domain-error'
 import { logger } from '@/shared/lib/logger'
 import { resolveActorForPlace } from '@/features/discussions/public.server'
+import { hasPermission } from '@/features/members/public.server'
 import { cancelEventInputSchema } from '@/features/events/schemas'
 import { revalidateEventPaths } from './shared'
 
@@ -46,7 +47,10 @@ export async function cancelEventAction(input: unknown): Promise<{ ok: true }> {
   }
 
   const actor = await resolveActorForPlace({ placeId: event.placeId })
-  if (event.authorUserId !== actor.actorId && !actor.isAdmin) {
+  // G.3 port (2026-05-09): owner + grupos con `events:moderate`. Antes
+  // solo `actor.isAdmin`. Ver `docs/plans/2026-05-09-g3-debt-port-to-legacy.md` § A2.
+  const canModerate = await hasPermission(actor.actorId, actor.placeId, 'events:moderate')
+  if (event.authorUserId !== actor.actorId && !canModerate) {
     throw new AuthorizationError('Solo el autor o admin pueden cancelar este evento.', {
       eventId: event.id,
       actorId: actor.actorId,

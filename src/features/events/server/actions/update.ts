@@ -7,6 +7,7 @@ import { logger } from '@/shared/lib/logger'
 import { assertPlaceOpenOrThrow } from '@/features/hours/public.server'
 import { assertRichTextSize } from '@/features/rich-text/public'
 import { resolveActorForPlace } from '@/features/discussions/public.server'
+import { hasPermission } from '@/features/members/public.server'
 import {
   validateEventLocation,
   validateEventTimes,
@@ -53,7 +54,12 @@ export async function updateEventAction(input: unknown): Promise<{ ok: true }> {
   const actor = await resolveActorForPlace({ placeId: event.placeId })
   await assertPlaceOpenOrThrow(actor.placeId)
 
-  if (event.authorUserId !== actor.actorId && !actor.isAdmin) {
+  // G.3 port (2026-05-09): owner + cualquier grupo (preset o custom) con
+  // `events:moderate` puede editar eventos ajenos. Antes solo
+  // `actor.isAdmin` (preset/owner). Ver
+  // `docs/plans/2026-05-09-g3-debt-port-to-legacy.md` § A2.
+  const canModerate = await hasPermission(actor.actorId, actor.placeId, 'events:moderate')
+  if (event.authorUserId !== actor.actorId && !canModerate) {
     throw new AuthorizationError('Solo el autor o admin pueden modificar este evento.', {
       eventId: event.id,
       actorId: actor.actorId,

@@ -11,6 +11,11 @@ const membershipFindFirst = vi.fn()
 const ownershipFindUnique = vi.fn()
 const userFindUnique = vi.fn()
 const groupMembershipFindFirst = vi.fn()
+// G.3 port (2026-05-09): hasPermission() consulta groupMembership.findMany
+// para resolver permisos atómicos delegados via grupos custom. Default `[]`
+// = no custom group con permiso → preserva comportamiento pre-port. Tests
+// específicos de delegación atómica overrider con datos.
+const groupMembershipFindMany = vi.fn(async (..._a: unknown[]) => [] as Array<{ id: string }>)
 const eventCreate = vi.fn()
 const eventFindUnique = vi.fn()
 const eventUpdate = vi.fn()
@@ -30,6 +35,7 @@ vi.mock('@/db/client', () => ({
     user: { findUnique: (...a: unknown[]) => userFindUnique(...a) },
     groupMembership: {
       findFirst: (...a: unknown[]) => groupMembershipFindFirst(...a),
+      findMany: (...a: unknown[]) => groupMembershipFindMany(...a),
     },
     event: {
       findUnique: (...a: unknown[]) => eventFindUnique(...a),
@@ -111,6 +117,11 @@ function mockActiveMember(opts: { asAdmin?: boolean } = {}): void {
   membershipFindFirst.mockResolvedValue({ id: 'm-1' })
   ownershipFindUnique.mockResolvedValue(null)
   groupMembershipFindFirst.mockResolvedValue(opts.asAdmin ? { id: 'gm-mock' } : null)
+  // G.3 port: hasPermission(_, _, 'events:moderate') consulta findMany. Si el
+  // user es admin (preset member), simula su pertenencia al preset group con
+  // todos los permisos delegados. Tests específicos de delegación atómica
+  // (custom group con events:moderate) overrider con datos propios.
+  groupMembershipFindMany.mockResolvedValue(opts.asAdmin ? [{ id: 'gm-preset' }] : [])
   userFindUnique.mockResolvedValue({ displayName: 'Max', avatarUrl: null })
   assertPlaceOpenFn.mockResolvedValue(undefined)
 }
