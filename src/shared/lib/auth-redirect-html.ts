@@ -52,11 +52,13 @@ export function htmlRedirect(target: URL): NextResponse {
       a.btn { display: inline-block; margin-top: 1.5rem; padding: 0.875rem 2rem; background: #111; color: #fff; text-decoration: none; border-radius: 999px; font-size: 1rem; font-weight: 500; }
       a.btn:active { background: #444; }
       p { color: #666; }
+      .debug { font-size: 0.7rem; color: #999; margin-top: 2rem; word-break: break-all; }
     </style>
   </head>
   <body>
     <p>Click el botón para continuar a Place.</p>
     <a class="btn" href="${escapedAttr}">Continuar →</a>
+    <p class="debug">DEBUG TARGET → ${escapedAttr}</p>
   </body>
 </html>`
 
