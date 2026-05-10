@@ -13,9 +13,12 @@ vi.mock('./admin', () => ({
 
 import { generateInviteMagicLink } from './admin-links'
 
-function okResponse(url: string) {
+function okResponse(url: string, hashedToken = 'hash_default') {
   return {
-    data: { properties: { action_link: url }, user: { id: 'user-x' } },
+    data: {
+      properties: { action_link: url, hashed_token: hashedToken },
+      user: { id: 'user-x' },
+    },
     error: null,
   }
 }
@@ -32,9 +35,12 @@ function errResponse(overrides: { status?: number; message?: string; code?: stri
   }
 }
 
+// Post 2026-05-10 fix (Approach C): redirectTo es opcional. El email del
+// invite usa `hashed_token` server-side via /auth/invite-callback, no el
+// `action_link` de Supabase. Mantenemos el field por compat futura (otros
+// flows que sigan dependiendo del action_link).
 const INPUT = {
   email: 'maria@example.com',
-  redirectTo: 'https://app/invite/accept/tok_abc',
 }
 
 describe('generateInviteMagicLink', () => {
@@ -42,8 +48,10 @@ describe('generateInviteMagicLink', () => {
     generateLinkMock.mockReset()
   })
 
-  it('user nuevo: invite OK devuelve URL + isNewAuthUser=true', async () => {
-    generateLinkMock.mockResolvedValueOnce(okResponse('https://supabase/auth/invite?token=xyz'))
+  it('user nuevo: invite OK devuelve URL + hashedToken + type=invite + isNewAuthUser=true', async () => {
+    generateLinkMock.mockResolvedValueOnce(
+      okResponse('https://supabase/auth/invite?token=xyz', 'hash_invite'),
+    )
 
     const result = await generateInviteMagicLink(INPUT)
 
@@ -51,18 +59,20 @@ describe('generateInviteMagicLink', () => {
     expect(generateLinkMock).toHaveBeenCalledWith({
       type: 'invite',
       email: INPUT.email,
-      options: { redirectTo: INPUT.redirectTo },
+      options: {},
     })
     expect(result).toEqual({
       url: 'https://supabase/auth/invite?token=xyz',
+      hashedToken: 'hash_invite',
+      type: 'invite',
       isNewAuthUser: true,
     })
   })
 
-  it('user existente: invite 422 email_exists → fallback magiclink OK', async () => {
+  it('user existente: invite 422 email_exists → fallback magiclink OK con type=magiclink', async () => {
     generateLinkMock
       .mockResolvedValueOnce(errResponse({ status: 422, code: 'email_exists' }))
-      .mockResolvedValueOnce(okResponse('https://supabase/auth/magic?token=abc'))
+      .mockResolvedValueOnce(okResponse('https://supabase/auth/magic?token=abc', 'hash_magic'))
 
     const result = await generateInviteMagicLink(INPUT)
 
@@ -70,10 +80,12 @@ describe('generateInviteMagicLink', () => {
     expect(generateLinkMock).toHaveBeenNthCalledWith(2, {
       type: 'magiclink',
       email: INPUT.email,
-      options: { redirectTo: INPUT.redirectTo },
+      options: {},
     })
     expect(result).toEqual({
       url: 'https://supabase/auth/magic?token=abc',
+      hashedToken: 'hash_magic',
+      type: 'magiclink',
       isNewAuthUser: false,
     })
   })
@@ -91,6 +103,37 @@ describe('generateInviteMagicLink', () => {
     const result = await generateInviteMagicLink(INPUT)
 
     expect(result.isNewAuthUser).toBe(false)
+    expect(result.type).toBe('magiclink')
+  })
+
+  it('redirectTo opcional: si se pasa, se forwardea a Supabase en options', async () => {
+    generateLinkMock.mockResolvedValueOnce(okResponse('https://supabase/auth/invite?token=x'))
+
+    await generateInviteMagicLink({
+      ...INPUT,
+      redirectTo: 'https://example.com/r',
+    })
+
+    expect(generateLinkMock).toHaveBeenCalledWith({
+      type: 'invite',
+      email: INPUT.email,
+      options: { redirectTo: 'https://example.com/r' },
+    })
+  })
+
+  it('success sin hashed_token tira error tipado', async () => {
+    generateLinkMock.mockResolvedValueOnce({
+      data: { properties: { action_link: 'https://x' } },
+      error: null,
+    })
+
+    await expect(generateInviteMagicLink(INPUT)).rejects.toSatisfy((err) => {
+      return (
+        isDomainError(err) &&
+        err.code === 'INVITATION_LINK_GENERATION' &&
+        err.message.includes('hashed_token')
+      )
+    })
   })
 
   it('fallback magiclink también falla → InvitationLinkGenerationError', async () => {

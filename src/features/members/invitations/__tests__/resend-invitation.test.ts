@@ -189,22 +189,26 @@ describe('resendInvitationAction', () => {
     invitationFindUnique.mockResolvedValue(pendingInvitation)
     generateInviteMagicLinkMock.mockResolvedValue({
       url: 'https://supabase/magic?token=new',
+      hashedToken: 'hash_resend',
+      type: 'magiclink',
       isNewAuthUser: false,
     })
 
     const res = await resendInvitationAction({ invitationId: 'inv-1' })
     expect(res).toEqual({ ok: true, invitationId: 'inv-1' })
 
+    // 2026-05-10 fix (Approach C): generateInviteMagicLink se llama SIN
+    // redirectTo. La URL del email apunta a nuestra /auth/invite-callback que
+    // hace verifyOtp server-side con el hashed_token. Ver
+    // `docs/gotchas/supabase-magic-link-callback-required.md`.
     expect(generateInviteMagicLinkMock).toHaveBeenCalledWith({
       email: 'ana@example.com',
-      // 2026-05-09 fix: redirectTo pasa por /auth/callback?next=... — ver
-      // `src/shared/lib/auth-callback-url.ts` y commit feat(members): fix
-      // invitation flow magic link friction.
-      redirectTo: 'http://lvh.me:3000/auth/callback?next=%2Finvite%2Faccept%2Ftok_abc',
     })
 
     expect(fakeMailer.captures).toHaveLength(1)
-    expect(fakeMailer.lastInvitation?.inviteUrl).toBe('https://supabase/magic?token=new')
+    expect(fakeMailer.lastInvitation?.inviteUrl).toBe(
+      'http://lvh.me:3000/auth/invite-callback?token_hash=hash_resend&type=magiclink&next=%2Finvite%2Faccept%2Ftok_abc',
+    )
 
     const update = invitationUpdate.mock.calls.at(-1)?.[0] as {
       data: Record<string, unknown>

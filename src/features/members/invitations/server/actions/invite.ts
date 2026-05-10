@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/db/client'
 import { logger } from '@/shared/lib/logger'
-import { authCallbackUrlForNext } from '@/shared/lib/auth-callback-url'
 import {
   AuthorizationError,
   ConflictError,
@@ -54,7 +53,7 @@ export async function inviteMemberAction(
   await deliverInvitationEmail({
     invitationId,
     email: data.email,
-    redirectTo: authCallbackUrlForNext(`/invite/accept/${token}`),
+    next: `/invite/accept/${token}`,
     placeName: place.name,
     placeSlug: place.slug,
     inviterDisplayName: await fetchInviterDisplayName(actorId),

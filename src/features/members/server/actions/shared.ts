@@ -2,6 +2,7 @@ import 'server-only'
 import { InvitationDeliveryStatus } from '@prisma/client'
 import { prisma } from '@/db/client'
 import { generateInviteMagicLink } from '@/shared/lib/supabase/admin-links'
+import { inviteCallbackUrl } from '@/shared/lib/auth-callback-url'
 import { getMailer } from '@/shared/lib/mailer'
 import {
   DomainError,
@@ -52,23 +53,34 @@ export async function findPlaceStateBySlugWithName(slug: string): Promise<PlaceW
  * en la row. Orchestrator: link → send → mark SENT. Cada sub-helper maneja
  * su propio path de error y actualiza `deliveryStatus=FAILED` antes de
  * re-throw.
+ *
+ * `next` es el path destino post-auth (ej: `/invite/accept/<token>`).
+ * Internamente: extraemos `hashed_token` + `type` del payload de Supabase y
+ * construimos `inviteUrl` apuntando a `/auth/invite-callback` (server-side
+ * verifyOtp). El `action_link` de Supabase (implicit flow) NO se usa.
+ * Ver `docs/gotchas/supabase-magic-link-callback-required.md`.
  */
 export async function deliverInvitationEmail(params: {
   invitationId: string
   email: string
-  redirectTo: string
+  next: string
   placeName: string
   placeSlug: string
   inviterDisplayName: string
   expiresAt: Date
 }): Promise<void> {
-  const link = await generateInviteLinkOrFail(params.invitationId, params.email, params.redirectTo)
+  const link = await generateInviteLinkOrFail(params.invitationId, params.email)
+  const inviteUrl = inviteCallbackUrl({
+    tokenHash: link.hashedToken,
+    type: link.type,
+    next: params.next,
+  })
   const sendResult = await sendInvitationEmailOrFail(params.invitationId, {
     to: params.email,
     placeName: params.placeName,
     placeSlug: params.placeSlug,
     inviterDisplayName: params.inviterDisplayName,
-    inviteUrl: link.url,
+    inviteUrl,
     expiresAt: params.expiresAt,
   })
   await markInvitationSent(params.invitationId, sendResult.id)
@@ -81,10 +93,10 @@ export async function deliverInvitationEmail(params: {
 async function generateInviteLinkOrFail(
   invitationId: string,
   email: string,
-  redirectTo: string,
-): Promise<{ url: string; isNewAuthUser: boolean }> {
+): Promise<{ hashedToken: string; type: 'invite' | 'magiclink' }> {
   try {
-    return await generateInviteMagicLink({ email, redirectTo })
+    const result = await generateInviteMagicLink({ email })
+    return { hashedToken: result.hashedToken, type: result.type }
   } catch (err) {
     const reason = err instanceof DomainError ? err.message : String(err)
     await prisma.invitation.update({

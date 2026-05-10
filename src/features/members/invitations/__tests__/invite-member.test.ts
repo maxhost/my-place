@@ -227,6 +227,8 @@ describe('inviteMemberAction — flujo de delivery (Resend)', () => {
     invitationCreate.mockResolvedValue({ id: 'inv-1' })
     generateInviteMagicLinkMock.mockResolvedValue({
       url: 'https://supabase/invite?token=xyz',
+      hashedToken: 'hash_invite_xyz',
+      type: 'invite',
       isNewAuthUser: true,
     })
 
@@ -245,13 +247,11 @@ describe('inviteMemberAction — flujo de delivery (Resend)', () => {
     })
     expect(createArgs.data.token).toMatch(/^[A-Za-z0-9_-]{43}$/)
 
+    // 2026-05-10 fix (Approach C): el flow ya no usa el action_link de Supabase
+    // (implicit flow → tokens en #hash que no llegan al server). Extraemos
+    // hashed_token + type y construimos URL nuestra que va a /auth/invite-callback.
     expect(generateInviteMagicLinkMock).toHaveBeenCalledWith({
       email: 'ana@example.com',
-      // 2026-05-09 fix: redirectTo pasa por /auth/callback?next=...
-      // (URL-encoded). Ver `src/shared/lib/auth-callback-url.ts`.
-      redirectTo: expect.stringMatching(
-        /^http:\/\/lvh\.me:3000\/auth\/callback\?next=%2Finvite%2Faccept%2F[A-Za-z0-9_-]{43}$/,
-      ) as unknown,
     })
 
     expect(fakeMailer.captures).toHaveLength(1)
@@ -260,8 +260,10 @@ describe('inviteMemberAction — flujo de delivery (Resend)', () => {
       placeName: 'The Company',
       placeSlug: 'the-company',
       inviterDisplayName: 'Max',
-      inviteUrl: 'https://supabase/invite?token=xyz',
     })
+    expect(fakeMailer.lastInvitation?.inviteUrl).toMatch(
+      /^http:\/\/lvh\.me:3000\/auth\/invite-callback\?token_hash=hash_invite_xyz&type=invite&next=%2Finvite%2Faccept%2F[A-Za-z0-9_-]{43}$/,
+    )
 
     const sentUpdate = invitationUpdate.mock.calls.at(-1)?.[0] as {
       where: { id: string }
@@ -283,12 +285,16 @@ describe('inviteMemberAction — flujo de delivery (Resend)', () => {
     invitationCreate.mockResolvedValue({ id: 'inv-2' })
     generateInviteMagicLinkMock.mockResolvedValue({
       url: 'https://supabase/magiclink?token=abc',
+      hashedToken: 'hash_magic_abc',
+      type: 'magiclink',
       isNewAuthUser: false,
     })
 
     const res = await inviteMemberAction(validInput)
     expect(res.ok).toBe(true)
-    expect(fakeMailer.lastInvitation?.inviteUrl).toBe('https://supabase/magiclink?token=abc')
+    expect(fakeMailer.lastInvitation?.inviteUrl).toMatch(
+      /^http:\/\/lvh\.me:3000\/auth\/invite-callback\?token_hash=hash_magic_abc&type=magiclink&next=/,
+    )
     const sentUpdate = invitationUpdate.mock.calls.at(-1)?.[0] as {
       data: { deliveryStatus: string }
     }
@@ -322,6 +328,8 @@ describe('inviteMemberAction — flujo de delivery (Resend)', () => {
     invitationCreate.mockResolvedValue({ id: 'inv-4' })
     generateInviteMagicLinkMock.mockResolvedValue({
       url: 'https://supabase/invite?token=zzz',
+      hashedToken: 'hash_zzz',
+      type: 'invite',
       isNewAuthUser: true,
     })
 
@@ -354,6 +362,8 @@ describe('inviteMemberAction — persistencia', () => {
     invitationCreate.mockResolvedValue({ id: 'inv-5' })
     generateInviteMagicLinkMock.mockResolvedValue({
       url: 'https://supabase/invite?token=xyz',
+      hashedToken: 'hash_xyz',
+      type: 'invite',
       isNewAuthUser: true,
     })
 
@@ -376,6 +386,8 @@ describe('inviteMemberAction — persistencia', () => {
     invitationCreate.mockResolvedValue({ id: 'inv-owner-1' })
     generateInviteMagicLinkMock.mockResolvedValue({
       url: 'https://supabase/invite?token=xyz',
+      hashedToken: 'hash_xyz',
+      type: 'invite',
       isNewAuthUser: true,
     })
 

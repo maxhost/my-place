@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/shared/lib/logger'
-import { authCallbackUrlForNext } from '@/shared/lib/auth-callback-url'
 import { ConflictError, NotFoundError, ValidationError } from '@/shared/errors/domain-error'
 import { resendInvitationSchema, type ResendInvitationInput } from '@/features/members/schemas'
 import {
@@ -39,7 +38,7 @@ export async function resendInvitationAction(
   await deliverInvitationEmail({
     invitationId: invitation.id,
     email: invitation.email,
-    redirectTo: authCallbackUrlForNext(`/invite/accept/${invitation.token}`),
+    next: `/invite/accept/${invitation.token}`,
     placeName: invitation.place.name,
     placeSlug: invitation.place.slug,
     inviterDisplayName: await fetchInviterDisplayName(actorId),
