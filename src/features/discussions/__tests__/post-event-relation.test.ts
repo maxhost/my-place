@@ -10,7 +10,9 @@ vi.mock('@/db/client', () => ({
 // `queries.ts` ahora importa `findOrCreateCurrentOpening` (R.6.1) que
 // arrastra el chain de hours/env. Mock evita el chain — esta suite cubre
 // `findPostById/findPostBySlug` que NO usan `findOrCreateCurrentOpening`.
-vi.mock('../server/place-opening', () => ({
+// `queries.ts` ahora importa `findOrCreateCurrentOpening` desde el sub-slice
+// presence (post-Fase A re-wire). Mock al barrel del sub-slice.
+vi.mock('../presence/public.server', () => ({
   findOrCreateCurrentOpening: vi.fn().mockResolvedValue(null),
 }))
 vi.mock('server-only', () => ({}))

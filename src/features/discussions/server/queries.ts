@@ -12,7 +12,7 @@ import type {
   QuoteSnapshot,
 } from '../domain/types'
 import type { PostListFilter } from '../domain/filter'
-import { findOrCreateCurrentOpening } from './place-opening'
+import { findOrCreateCurrentOpening } from '../presence/public.server'
 
 /**
  * Vista de Comment para lectores: cuando el comment está deletado y el actor no es
@@ -225,66 +225,18 @@ function buildFilterWhere(
  * Proyección de un lector del post durante una apertura específica. Shape
  * consumido por el componente UI `PostReadersBlock`. El `userId` permite
  * linkear al perfil contextual del miembro (`/m/<userId>`).
+ *
+ * NOTA (B.1 migración presence): el shape canónico ahora vive en
+ * `presence/server/queries/post-readers.ts`. Este export se mantiene
+ * temporalmente porque el legacy `ui/post-readers-block.tsx` lo consume vía
+ * `'../server/queries'`. Cuando B.2 borre ese UI legacy, este type se elimina
+ * también (ya no hay otros consumers).
  */
 export type PostReader = {
   userId: string
   displayName: string
   avatarUrl: string | null
   readAt: Date
-}
-
-/**
- * Lista lectores de un post durante una apertura específica (`placeOpeningId`).
- *
- * Reglas de filtrado (en línea con la ontología `docs/ontologia/
- * conversaciones.md § Tres` y spec § PostRead):
- *
- * - **Ex-miembros excluidos**: solo lectores con `Membership` activa
- *   (`leftAt IS NULL`) en el mismo place aparecen. Derecho al olvido
- *   estructurado: quien salió no debe seguir visible como lector.
- * - **Viewer excluido opcionalmente**: `excludeUserId` filtra al viewer
- *   actual — simetría con `ThreadPresence` que oculta al viewer de la
- *   presencia live.
- * - **Orden `readAt DESC`**: el lector más reciente primero (coherente con
- *   el texto ontológico "hasta ahora").
- *
- * Sin límite de filas — el cap es 150 miembros/place por invariante del
- * dominio; el consumidor UI hace slice(0, 8) visual. Index
- * `(postId, placeOpeningId)` garantiza que la query es sub-milisegundo.
- */
-export async function listReadersByPost(params: {
-  postId: string
-  placeId: string
-  placeOpeningId: string
-  excludeUserId?: string
-}): Promise<PostReader[]> {
-  const rows = await prisma.postRead.findMany({
-    where: {
-      postId: params.postId,
-      placeOpeningId: params.placeOpeningId,
-      ...(params.excludeUserId ? { userId: { not: params.excludeUserId } } : {}),
-      user: {
-        memberships: {
-          some: {
-            placeId: params.placeId,
-            leftAt: null,
-          },
-        },
-      },
-    },
-    select: {
-      userId: true,
-      readAt: true,
-      user: { select: { displayName: true, avatarUrl: true } },
-    },
-    orderBy: { readAt: 'desc' },
-  })
-  return rows.map((row) => ({
-    userId: row.userId,
-    displayName: row.user.displayName,
-    avatarUrl: row.user.avatarUrl,
-    readAt: row.readAt,
-  }))
 }
 
 /**

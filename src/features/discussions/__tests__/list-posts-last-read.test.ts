@@ -21,7 +21,9 @@ vi.mock('@/db/client', () => ({
   },
 }))
 
-vi.mock('../server/place-opening', () => ({
+// `queries.ts` ahora importa `findOrCreateCurrentOpening` desde el sub-slice
+// presence (post-Fase A re-wire). Mock al barrel del sub-slice.
+vi.mock('../presence/public.server', () => ({
   findOrCreateCurrentOpening: (...a: unknown[]) => findOrCreateOpeningMock(...a),
 }))
 
