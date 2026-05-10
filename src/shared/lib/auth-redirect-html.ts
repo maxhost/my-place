@@ -29,33 +29,34 @@ import { NextResponse } from 'next/server'
 export function htmlRedirect(target: URL): NextResponse {
   const url = target.toString()
   const escapedAttr = escapeHtmlAttr(url)
-  const escapedJs = escapeJsString(url)
-  // Meta refresh con delay 1s + script con setTimeout 250ms — DOS escapes
-  // para que Safari iOS termine de procesar Set-Cookie headers ANTES de
-  // navegar. Ejecución síncrona (replace inmediato) hace que Safari aborte
-  // el procesamiento de cookies del response actual cuando navega.
-  // Verificado empíricamente con /api/test-set-cookie?html=1 (con
-  // setTimeout 1000ms) que las cookies SÍ se persisten en Safari iOS.
+  // escapedJs preservado por si reintroducimos auto-redirect controlado por
+  // user interaction en el futuro.
+  void escapeJsString
+  void url
+  // **User interaction requerida (Safari iOS ITP cross-app):** Safari iOS
+  // rechaza `Set-Cookie` en el initial load cuando el user llega desde un
+  // app externo (Mail.app email click) PORQUE trata el flow como
+  // "potentially tracking". Mostrar un button visible que requiere CLICK
+  // del user antes de navegar fuerza first-party intent — Safari coopera
+  // y acepta cookies. Sin auto-redirect (meta refresh / window.replace
+  // automático).
+  //
+  // Ver supabase/ssr#36 + Safari ITP docs.
   const html = `<!DOCTYPE html>
 <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="refresh" content="1;url=${escapedAttr}" />
-    <title>Redirigiendo…</title>
-    <style>body{font-family:sans-serif;color:#666;padding:2rem;text-align:center}</style>
+    <title>Continuar a Place</title>
+    <style>
+      body { font-family: -apple-system, system-ui, sans-serif; color: #333; padding: 3rem 1.5rem; text-align: center; max-width: 28rem; margin: 0 auto; line-height: 1.5; }
+      a.btn { display: inline-block; margin-top: 1.5rem; padding: 0.875rem 2rem; background: #111; color: #fff; text-decoration: none; border-radius: 999px; font-size: 1rem; font-weight: 500; }
+      a.btn:active { background: #444; }
+      p { color: #666; }
+    </style>
   </head>
   <body>
-    <p>Redirigiendo…</p>
-    <script>
-      setTimeout(function() {
-        window.location.replace("${escapedJs}");
-      }, 250);
-    </script>
-    <noscript>
-      <p>Si no eres redirigido automáticamente,
-        <a href="${escapedAttr}">click acá</a>.
-      </p>
-    </noscript>
+    <p>Click el botón para continuar a Place.</p>
+    <a class="btn" href="${escapedAttr}">Continuar →</a>
   </body>
 </html>`
 

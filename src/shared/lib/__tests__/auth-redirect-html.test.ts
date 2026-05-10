@@ -13,21 +13,22 @@ describe('htmlRedirect', () => {
     expect(res.headers.get('cache-control')).toContain('no-store')
   })
 
-  it('body contiene meta refresh + script con la URL destino', async () => {
+  it('body contiene anchor button con la URL destino (user interaction requerida)', async () => {
     const res = htmlRedirect(new URL('https://www.place.community/inbox'))
     const body = await res.text()
-    expect(body).toContain('<meta http-equiv="refresh"')
-    expect(body).toContain('https://www.place.community/inbox')
-    expect(body).toContain('window.location.replace')
+    expect(body).toContain('href="https://www.place.community/inbox"')
+    expect(body).toContain('Continuar')
+  })
+
+  it('NO usa auto-redirect (Safari iOS ITP rechaza Set-Cookie sin user click)', async () => {
+    const res = htmlRedirect(new URL('https://www.place.community/inbox'))
+    const body = await res.text()
+    expect(body).not.toContain('window.location.replace')
+    expect(body).not.toContain('http-equiv="refresh"')
   })
 
   it('escape HTML en attributes (defense in depth contra URL maliciosa)', async () => {
-    // Aunque URL nunca debería tener `<` o `>` literales, defendemos contra
-    // bug futuro que pase un target sin sanitizar.
     const url = new URL('https://www.place.community/path')
-    // Mutamos el toString del URL artificialmente (no posible en práctica
-    // con un URL real) — solo verificamos que el escapeHtmlAttr funciona si
-    // alguien pasa caracteres "<>&\"" en la URL.
     const dangerous = `https://www.place.community/?evil="><script>alert(1)</script>`
     const dangerousUrl = Object.create(url) as URL
     Object.defineProperty(dangerousUrl, 'toString', { value: () => dangerous })
@@ -35,12 +36,5 @@ describe('htmlRedirect', () => {
     const body = await res.text()
     expect(body).not.toContain('"><script>alert')
     expect(body).toContain('&quot;&gt;&lt;script&gt;')
-  })
-
-  it('noscript fallback con anchor para users sin JS', async () => {
-    const res = htmlRedirect(new URL('https://www.place.community/inbox'))
-    const body = await res.text()
-    expect(body).toContain('<noscript>')
-    expect(body).toContain('href="https://www.place.community/inbox"')
   })
 })
