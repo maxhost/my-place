@@ -96,6 +96,32 @@ export async function GET(req: NextRequest) {
     return response
   }
 
+  // DEBUG TEMPORAL 2026-05-10 — diagnosticar cookies en mobile post-S2.
+  // Reportado: incógnito desktop OK, mobile con state previo cae a /login.
+  // Hipótesis: cookie nueva no llega al browser o se mezcla con vieja.
+  log.warn(
+    {
+      debug: 'invite_callback_response_cookies',
+      userId: user.id,
+      host: req.headers.get('host'),
+      incomingCookieNames: req.cookies.getAll().map((c) => c.name),
+      responseCookieNames: response.cookies.getAll().map((c) => c.name),
+      responseCookieDetails: response.cookies.getAll().map((c) => ({
+        name: c.name,
+        hasValue: !!c.value,
+        valueLen: c.value?.length ?? 0,
+        domain: (c as { domain?: string }).domain ?? null,
+        path: (c as { path?: string }).path ?? null,
+        sameSite: (c as { sameSite?: string }).sameSite ?? null,
+        secure: (c as { secure?: boolean }).secure ?? null,
+        httpOnly: (c as { httpOnly?: boolean }).httpOnly ?? null,
+        maxAge: (c as { maxAge?: number }).maxAge ?? null,
+      })),
+      redirectLocation: response.headers.get('location'),
+    },
+    'DEBUG invite_callback final response',
+  )
+
   log.info({ userId: user.id, type }, 'invite_callback_success')
   return response
 }
