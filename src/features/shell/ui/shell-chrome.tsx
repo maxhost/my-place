@@ -3,9 +3,7 @@
 import { usePathname } from 'next/navigation'
 import type { MyPlace } from '@/features/places/public'
 import { TopBar } from './top-bar'
-import { SectionDots } from './section-dots'
-import { ZONES } from '../domain/zones'
-import { shouldShowShellChrome } from '../domain/swiper-snap'
+import { SectionDots, ZONES, shouldShowShellChrome } from '../zone-navigation/public'
 
 /**
  * Chrome del shell (TopBar + SectionDots) con visibilidad condicional

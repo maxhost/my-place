@@ -5,8 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
 import { FAB } from '@/shared/ui/fab'
 import { DropdownMenuItem } from '@/shared/ui/dropdown-menu'
-import { ZONES } from '../domain/zones'
-import { isZoneRootPath } from '../domain/swiper-snap'
+import { ZONES, isZoneRootPath } from '../zone-navigation/public'
 
 /**
  * Componente cliente del FAB cross-zona — concentra toda la lógica de

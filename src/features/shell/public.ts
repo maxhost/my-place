@@ -10,5 +10,13 @@
 export { AppShell } from './ui/app-shell'
 export { SettingsNavFab } from './ui/settings-nav-fab'
 export { ZoneFab } from './ui/zone-fab'
-export { ZoneSwiper } from './ui/zone-swiper'
-export { ZONES, deriveActiveZone, type Zone, type ZoneIndex } from './domain/zones'
+// Sub-slice re-exports (backwards compat — no romper consumers que importan
+// desde @/features/shell/public). Nuevos consumers pueden importar directamente
+// de @/features/shell/zone-navigation/public si prefieren.
+export {
+  ZoneSwiper,
+  ZONES,
+  deriveActiveZone,
+  type Zone,
+  type ZoneIndex,
+} from './zone-navigation/public'
