@@ -44,6 +44,27 @@ export async function updateSession(req: NextRequest): Promise<{
     },
   )
 
+  // DEBUG TEMPORAL — log de cookies entrantes en paths críticos del flow auth.
+  const path = req.nextUrl.pathname
+  const host = req.headers.get('host') ?? '?'
+  const traceId = req.nextUrl.searchParams.get('_t') ?? 'no-trace'
+  const isAuthFlowPath =
+    path.startsWith('/invite/accept/') ||
+    path.startsWith('/auth/') ||
+    path === '/login' ||
+    path === '/inbox'
+  if (isAuthFlowPath) {
+    const sbCookieNames = req.cookies
+      .getAll()
+      .filter((c) => /^sb-/.test(c.name))
+      .map((c) => `${c.name}(${c.value?.length ?? 0})`)
+      .join(',')
+    logger.warn(
+      { debug: 'MW_entry', traceId, host, path, sbCookieNames },
+      `DBG MW[entry] tr=${traceId} host=${host} path=${path} sb=[${sbCookieNames || '(none)'}]`,
+    )
+  }
+
   // `auth.getUser()` puede disparar refresh interno de Supabase. Si el refresh
   // token está stale (race con otra request paralela, revocación, expire), el
   // SDK tira AuthApiError. En vez de crashear el render, deslogueamos local
@@ -53,6 +74,12 @@ export async function updateSession(req: NextRequest): Promise<{
   try {
     const { data } = await supabase.auth.getUser()
     user = data.user ? { id: data.user.id, email: data.user.email ?? null } : null
+    if (isAuthFlowPath) {
+      logger.warn(
+        { debug: 'MW_getUser', traceId, path, hasUser: !!user, userId: user?.id ?? null },
+        `DBG MW[getUser] tr=${traceId} path=${path} user=${user?.id ?? 'null'}`,
+      )
+    }
   } catch (err) {
     if (!isStaleSessionError(err)) throw err
     logger.warn(

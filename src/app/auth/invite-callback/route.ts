@@ -41,10 +41,31 @@ export async function GET(req: NextRequest) {
   const rawType = url.searchParams.get('type')
   const rawNext = url.searchParams.get('next')
 
+  // DEBUG TEMPORAL — traceId único que propaga al next URL para correlacionar logs end-to-end.
+  const traceId = Math.random().toString(36).substring(2, 10)
+  const incomingSb = req.cookies
+    .getAll()
+    .filter((c) => /^sb-/.test(c.name))
+    .map((c) => c.name)
+    .join(',')
+  log.warn(
+    {
+      debug: 'IC_entry',
+      traceId,
+      host: req.headers.get('host'),
+      tokenHashLen: tokenHash?.length ?? 0,
+      rawType,
+      rawNext,
+      incomingSb,
+      ua: req.headers.get('user-agent'),
+    },
+    `DBG IC[entry] tr=${traceId} host=${req.headers.get('host')} tokenLen=${tokenHash?.length ?? 0} type=${rawType} next=${rawNext} sb=[${incomingSb}]`,
+  )
+
   if (!tokenHash) {
     log.warn(
-      { err: new InvalidMagicLinkError('missing token_hash') },
-      'invite_callback_missing_token',
+      { err: new InvalidMagicLinkError('missing token_hash'), traceId },
+      `DBG IC[fail-no-token] tr=${traceId}`,
     )
     return htmlRedirect(buildLoginUrl('invalid_link'))
   }
@@ -88,9 +109,21 @@ export async function GET(req: NextRequest) {
     token_hash: tokenHash,
     type,
   })
+  log.warn(
+    {
+      debug: 'IC_verify_done',
+      traceId,
+      hasUser: !!verify?.user,
+      hasSession: !!verify?.session,
+      userId: verify?.user?.id ?? null,
+      errorMessage: error?.message ?? null,
+      errorCode: (error as { code?: string } | null)?.code ?? null,
+    },
+    `DBG IC[verify] tr=${traceId} user=${verify?.user?.id ?? 'null'} sess=${!!verify?.session} err=${error?.message ?? '-'}`,
+  )
   if (error || !verify.user || !verify.session) {
     log.warn(
-      { err: new InvalidMagicLinkError(error?.message ?? 'no user/session'), type },
+      { err: new InvalidMagicLinkError(error?.message ?? 'no user/session'), type, traceId },
       'invite_callback_verify_failed',
     )
     return finalize(htmlRedirect(buildLoginUrl('invalid_link')), cookieBag)
@@ -135,9 +168,23 @@ export async function GET(req: NextRequest) {
     )
   }
 
+  // Pasar traceId al next URL para correlación end-to-end.
   const redirectTarget = resolveNextRedirect(rawNext)
+  redirectTarget.searchParams.set('_t', traceId)
 
-  log.info({ userId: user.id, type }, 'invite_callback_success')
+  log.warn(
+    {
+      debug: 'IC_response_built',
+      traceId,
+      userId: user.id,
+      redirectTarget: redirectTarget.toString(),
+      bagSize: cookieBag.length,
+      bagNames: cookieBag.map((c) => `${c.name}|d=${c.options.domain ?? '-'}|v=${c.value.length}`),
+    },
+    `DBG IC[response] tr=${traceId} target=${redirectTarget.toString()} bag=${cookieBag.length}`,
+  )
+
+  log.info({ userId: user.id, type, traceId }, 'invite_callback_success')
   return finalize(htmlRedirect(redirectTarget), cookieBag)
 }
 

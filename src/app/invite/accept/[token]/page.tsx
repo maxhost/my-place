@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createSupabaseServer } from '@/shared/lib/supabase/server'
+import { logger } from '@/shared/lib/logger'
 import { AcceptInvitationView } from '@/features/members/invitations/public'
 import { findInvitationByToken } from '@/features/members/public.server'
 
@@ -22,14 +24,51 @@ export const metadata: Metadata = {
  */
 export default async function AcceptInvitationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>
+  searchParams?: Promise<{ _t?: string }>
 }) {
   const { token } = await params
+  const sp = (await searchParams) ?? {}
+  const traceId = sp._t ?? 'no-trace'
+  const headerStore = await headers()
+  const cookieHeader = headerStore.get('cookie') ?? ''
+  const sbCookies =
+    cookieHeader
+      .split(';')
+      .map((c) => c.trim())
+      .filter((c) => /^sb-/.test(c))
+      .map((c) => {
+        const [name, value] = c.split('=')
+        return `${name}(${value?.length ?? 0})`
+      })
+      .join(',') || '(none)'
+  logger.warn(
+    {
+      debug: 'AP_entry',
+      traceId,
+      token,
+      host: headerStore.get('host'),
+      sbCookies,
+      ua: headerStore.get('user-agent'),
+    },
+    `DBG AP[entry] tr=${traceId} host=${headerStore.get('host')} sb=[${sbCookies}]`,
+  )
 
   const supabase = await createSupabaseServer()
   const { data: auth } = await supabase.auth.getUser()
+  logger.warn(
+    {
+      debug: 'AP_getUser',
+      traceId,
+      hasUser: !!auth.user,
+      userId: auth.user?.id ?? null,
+    },
+    `DBG AP[getUser] tr=${traceId} user=${auth.user?.id ?? 'null'}`,
+  )
   if (!auth.user) {
+    logger.warn({ debug: 'AP_redirect_login', traceId }, `DBG AP[redirect-login] tr=${traceId}`)
     redirect(`/login?next=/invite/accept/${encodeURIComponent(token)}`)
   }
 
