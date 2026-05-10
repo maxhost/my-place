@@ -40,7 +40,16 @@ export function ThreadPresence({
 
   useEffect(() => {
     const supabase = createSupabaseBrowser()
-    const channel: RealtimeChannel = supabase.channel(`post:${postId}`, {
+    // Topic dedicado a presence (`post:<id>:presence`) para evitar colisión con
+    // los broadcast watchers (`PostHiddenWatcher`, `CommentRealtimeAppender`)
+    // que comparten `post:<id>`. supabase-js dedupea channels por topic exacto;
+    // si esos watchers montan primero y subscriben, el `channel.on('presence',
+    // ...)` de acá throwearía con `cannot add presence callbacks ... after
+    // subscribe()`. Ver `docs/gotchas/supabase-channel-topic-collision.md`.
+    // La RLS function `realtime.discussions_post_id_from_topic()` extrae el
+    // postId tanto de `post:<id>` como de `post:<id>:<suffix>` (migration
+    // `20260509230000_realtime_topic_split_presence`).
+    const channel: RealtimeChannel = supabase.channel(`post:${postId}:presence`, {
       config: { private: true },
     })
 

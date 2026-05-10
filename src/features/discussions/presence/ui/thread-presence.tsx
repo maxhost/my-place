@@ -40,7 +40,12 @@ export function ThreadPresence({
 
   useEffect(() => {
     const supabase = createSupabaseBrowser()
-    const channel: RealtimeChannel = supabase.channel(`post:${postId}`, {
+    // Topic dedicado a presence (`post:<id>:presence`) para evitar colisión con
+    // los broadcast watchers que comparten `post:<id>`. Ver
+    // `docs/gotchas/supabase-channel-topic-collision.md` y la copia legacy en
+    // `src/features/discussions/ui/thread-presence.tsx` (que es la wireada vía
+    // `discussions/public.ts` hasta que se complete la migración del sub-slice).
+    const channel: RealtimeChannel = supabase.channel(`post:${postId}:presence`, {
       config: { private: true },
     })
 

@@ -22,6 +22,7 @@ Problemas operativos sutiles descubiertos durante el desarrollo. Cada entry desc
 
 - [Supabase Realtime: "Allow public access to channels" OFF](supabase-realtime-private-channels.md) — checklist obligatorio antes del primer deploy con private channels.
 - [RLS harness usa DIRECT_URL session mode](rls-harness-direct-url.md) — `SET LOCAL request.jwt.claims` no persiste en transaction pooler.
+- [Supabase Realtime: `channel(topic)` dedupea — presence + broadcast en mismo topic colisionan](supabase-channel-topic-collision.md) — usar suffix dedicado (`post:<id>:presence`) cuando varias features comparten dominio.
 
 ## Tests (E2E + CI)
 
