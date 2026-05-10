@@ -4,6 +4,7 @@ import { prisma } from '@/db/client'
 import { AuthorizationError, NotFoundError, ValidationError } from '@/shared/errors/domain-error'
 import { logger } from '@/shared/lib/logger'
 import { resolveActorForPlace } from '@/features/discussions/public.server'
+import { hasPermission } from '@/features/members/public.server'
 import { archiveCategoryInputSchema } from '@/features/library/schemas'
 import { revalidateLibraryCategoryPaths } from './shared'
 
@@ -43,9 +44,16 @@ export async function archiveLibraryCategoryAction(
   }
 
   const actor = await resolveActorForPlace({ placeId: category.placeId })
-  if (!actor.isAdmin) {
-    throw new AuthorizationError('Solo admin/owner pueden archivar categorías.', {
+  // G.3 port (2026-05-09): owner + grupos con `library:moderate-categories`
+  // (scoped por categoryId si el grupo tiene scope a categorías específicas).
+  // Antes solo `actor.isAdmin`. Ver `docs/plans/2026-05-09-g3-debt-port-to-legacy.md` § A3.
+  const allowed = await hasPermission(actor.actorId, actor.placeId, 'library:moderate-categories', {
+    categoryId: category.id,
+  })
+  if (!allowed) {
+    throw new AuthorizationError('No tenés permiso para archivar esta categoría.', {
       placeId: actor.placeId,
+      categoryId: category.id,
       actorId: actor.actorId,
     })
   }

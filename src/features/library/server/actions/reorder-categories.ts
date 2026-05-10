@@ -4,6 +4,7 @@ import { prisma } from '@/db/client'
 import { AuthorizationError, ConflictError, ValidationError } from '@/shared/errors/domain-error'
 import { logger } from '@/shared/lib/logger'
 import { resolveActorForPlace } from '@/features/discussions/public.server'
+import { hasPermission } from '@/features/members/public.server'
 import { reorderCategoriesInputSchema } from '@/features/library/schemas'
 import { revalidateLibraryCategoryPaths } from './shared'
 
@@ -35,7 +36,9 @@ export async function reorderLibraryCategoriesAction(
   const data = parsed.data
 
   const actor = await resolveActorForPlace({ placeId: data.placeId })
-  if (!actor.isAdmin) {
+  // G.3 port: reorder es global (sin categoryId scope).
+  const allowed = await hasPermission(actor.actorId, actor.placeId, 'library:moderate-categories')
+  if (!allowed) {
     throw new AuthorizationError('Solo admin/owner pueden reordenar categorías.', {
       placeId: actor.placeId,
       actorId: actor.actorId,

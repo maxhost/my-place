@@ -13,6 +13,7 @@ import { assertRichTextSize } from '@/features/rich-text/public'
 import { canEditItem, validateItemCoverUrl } from '@/features/library/public'
 import { updateItemInputSchema } from '@/features/library/schemas'
 import { resolveLibraryViewer, revalidateLibraryItemPaths } from '@/features/library/public.server'
+import { hasPermission } from '@/features/members/public.server'
 
 /**
  * Actualiza el body + título + cover de un item.
@@ -62,9 +63,25 @@ export async function updateLibraryItemAction(input: unknown): Promise<{
   }
 
   const { viewer, actor } = await resolveLibraryViewer({ placeId: item.placeId })
-  // G.3 (decisión ADR #2): editar contenido ajeno NO es permiso atómico.
-  // Author edita su item; admin/owner bypassea via `viewer.isAdmin`.
-  if (!canEditItem({ authorUserId: item.authorUserId }, viewer)) {
+  // G.3 port (2026-05-09): override de ADR §2. El nuevo permiso atómico
+  // `library:edit-item` (delegable, scopable por categoría) habilita a
+  // grupos custom a editar items ajenos. Owner + preset siguen pudiendo
+  // (preset incluye todos los permisos por default). Author de su propio
+  // item no requiere el permiso. Ver
+  // `docs/decisions/2026-05-09-g3-edit-as-delegable-permission.md` y
+  // `docs/plans/2026-05-09-g3-debt-port-to-legacy.md` § A3.5.
+  const canEditViaPermission = await hasPermission(
+    actor.actorId,
+    actor.placeId,
+    'library:edit-item',
+    { categoryId: item.categoryId },
+  )
+  if (
+    !canEditItem(
+      { authorUserId: item.authorUserId },
+      { ...viewer, isAdmin: canEditViaPermission || viewer.isAdmin },
+    )
+  ) {
     throw new AuthorizationError('No tenés permiso para editar este item.', {
       placeId: actor.placeId,
       itemId: item.id,

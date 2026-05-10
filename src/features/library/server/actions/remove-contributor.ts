@@ -4,6 +4,7 @@ import { prisma } from '@/db/client'
 import { AuthorizationError, NotFoundError, ValidationError } from '@/shared/errors/domain-error'
 import { logger } from '@/shared/lib/logger'
 import { resolveActorForPlace } from '@/features/discussions/public.server'
+import { hasPermission } from '@/features/members/public.server'
 import { removeContributorInputSchema } from '@/features/library/schemas'
 import { revalidateLibraryCategoryPaths } from './shared'
 
@@ -34,9 +35,14 @@ export async function removeContributorAction(
   }
 
   const actor = await resolveActorForPlace({ placeId: category.placeId })
-  if (!actor.isAdmin) {
+  // G.3 port: scopable por categoría.
+  const allowed = await hasPermission(actor.actorId, actor.placeId, 'library:moderate-categories', {
+    categoryId: category.id,
+  })
+  if (!allowed) {
     throw new AuthorizationError('Solo admin/owner pueden quitar contribuidores.', {
       placeId: actor.placeId,
+      categoryId: category.id,
       actorId: actor.actorId,
     })
   }

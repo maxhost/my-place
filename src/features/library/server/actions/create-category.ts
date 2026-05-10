@@ -4,6 +4,7 @@ import { prisma } from '@/db/client'
 import { AuthorizationError, ValidationError } from '@/shared/errors/domain-error'
 import { logger } from '@/shared/lib/logger'
 import { resolveActorForPlace } from '@/features/discussions/public.server'
+import { hasPermission } from '@/features/members/public.server'
 import {
   RESERVED_LIBRARY_CATEGORY_SLUGS,
   generateLibraryCategorySlug,
@@ -50,7 +51,9 @@ export async function createLibraryCategoryAction(
   const data = parsed.data
 
   const actor = await resolveActorForPlace({ placeId: data.placeId })
-  if (!actor.isAdmin) {
+  // G.3 port: create no tiene categoryId scope (es global del place).
+  const allowed = await hasPermission(actor.actorId, actor.placeId, 'library:moderate-categories')
+  if (!allowed) {
     throw new AuthorizationError('Solo admin/owner pueden crear categorías.', {
       placeId: actor.placeId,
       actorId: actor.actorId,
