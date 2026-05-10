@@ -11,17 +11,26 @@ const cleanupLegacyCookiesMock = vi.fn()
 // `cookies()` de next/headers — ver `src/shared/lib/supabase/server.ts`).
 const setSessionMock = vi.fn().mockResolvedValue({ data: null, error: null })
 
-vi.mock('@/shared/lib/supabase/server', () => ({
-  createSupabaseServer: async () => ({
+// Mock @supabase/ssr createServerClient (patrón directo con cookies adapter
+// que escribe en response.cookies — necesario porque cookies() de next/headers
+// no se mergea cuando el handler retorna su propio NextResponse).
+vi.mock('@supabase/ssr', () => ({
+  createServerClient: (
+    _url: string,
+    _key: string,
+    opts: { cookies: { setAll: (c: unknown[]) => void } },
+  ) => ({
     auth: {
       verifyOtp: (...a: unknown[]) => {
-        // Simula que verifyOtp setea cookies vía cookieStore (next/headers)
-        // cuando el flow es exitoso. En runtime real, esto lo hace el SDK
-        // automáticamente vía el setAll del cookies adapter de createSupabaseServer.
         const result = verifyOtpMock(...a)
         return Promise.resolve(result).then((r) => {
           if (r && !r.error && r.data?.user) {
             cookieStoreSetSpy('sb-test-auth-token', 'access_jwt', { path: '/' })
+            // En runtime real, verifyOtp invoca el setAll del adapter via
+            // onAuthStateChange listener — async. Acá simulamos sync para test.
+            opts.cookies.setAll([
+              { name: 'sb-test-auth-token', value: 'access_jwt', options: { path: '/' } },
+            ])
             setAllSpy([{ name: 'sb-test-auth-token', value: 'access_jwt' }])
           }
           return r

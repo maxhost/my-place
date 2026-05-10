@@ -8,13 +8,20 @@ const cleanupLegacyCookiesMock = vi.fn()
 
 const setSessionMock = vi.fn().mockResolvedValue({ data: null, error: null })
 
-vi.mock('@/shared/lib/supabase/server', () => ({
-  createSupabaseServer: async () => ({
+vi.mock('@supabase/ssr', () => ({
+  createServerClient: (
+    _url: string,
+    _key: string,
+    opts: { cookies: { setAll: (c: unknown[]) => void } },
+  ) => ({
     auth: {
       exchangeCodeForSession: (...a: unknown[]) => {
         const result = exchangeCodeForSessionMock(...a)
         return Promise.resolve(result).then((r) => {
           if (r && !r.error && r.data?.user) {
+            opts.cookies.setAll([
+              { name: 'sb-test-auth-token', value: 'access_jwt', options: { path: '/' } },
+            ])
             setAllSpy([{ name: 'sb-test-auth-token', value: 'access_jwt' }])
           }
           return r

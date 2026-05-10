@@ -1,9 +1,10 @@
 import { type NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 import { prisma } from '@/db/client'
 import { clientEnv } from '@/shared/config/env'
 import { createRequestLogger, REQUEST_ID_HEADER } from '@/shared/lib/request-id'
 import { InvalidMagicLinkError, UserSyncError } from '@/shared/errors/auth'
-import { createSupabaseServer } from '@/shared/lib/supabase/server'
+import { cookieDomain } from '@/shared/lib/supabase/cookie-domain'
 import { cleanupLegacyCookies } from '@/shared/lib/supabase/cookie-cleanup'
 import { resolveNextRedirect } from '@/shared/lib/next-redirect'
 import { htmlRedirect } from '@/shared/lib/auth-redirect-html'
@@ -13,25 +14,13 @@ import { deriveDisplayName } from './helpers'
  * GET /auth/callback?code=...&next=...
  *
  * Callback PKCE para magic links generados por `signInWithOtp` desde el
- * browser. Vive en APEX — ver ADR `2026-05-10-auth-callbacks-on-apex.md`.
+ * browser.
  *
- * Si el flow viene de `auth.admin.generateLink` (server-side, implicit
- * flow), usar `/auth/invite-callback` en su lugar.
+ * Mismo patrón que `/auth/invite-callback` (createServerClient con cookies
+ * adapter que escribe en `response.cookies.set` directamente +
+ * `setSession()` post-exchange + `htmlRedirect` 200 OK con meta refresh).
  *
- * **Por qué `htmlRedirect` y no `NextResponse.redirect`:** Safari iOS ITP
- * + algunos browsers descartan `Set-Cookie` headers en respuestas a
- * redirects HTTP (307/303). Documentado en supabase/ssr#36 y vercel/next.js
- * discussions/48434. Workaround: respuesta 200 OK con HTML meta-refresh
- * (browser guarda cookies antes de navegar).
- *
- * Steps:
- * 1. Validar `code` no-vacío.
- * 2. Cleanup defensivo de cookies legacy.
- * 3. `exchangeCodeForSession(code)` server-side via `createSupabaseServer()`.
- * 4. Upsert `User` local.
- * 5. `htmlRedirect` al `next` resuelto via `resolveNextRedirect` (host-aware).
- *
- * Ver `docs/features/auth/spec.md`.
+ * Ver `docs/features/auth/spec.md` y comentarios en `/auth/invite-callback`.
  */
 export async function GET(req: NextRequest) {
   const log = createRequestLogger(req.headers.get(REQUEST_ID_HEADER) ?? 'unknown')
@@ -48,7 +37,23 @@ export async function GET(req: NextRequest) {
   const response = htmlRedirect(redirectTarget)
   cleanupLegacyCookies(req, response)
 
-  const supabase = await createSupabaseServer()
+  const domain = cookieDomain(clientEnv.NEXT_PUBLIC_APP_DOMAIN)
+  const supabase = createServerClient(
+    clientEnv.NEXT_PUBLIC_SUPABASE_URL,
+    clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() {
+          return req.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          for (const { name, value, options } of cookiesToSet) {
+            response.cookies.set(name, value, { ...options, ...(domain ? { domain } : {}) })
+          }
+        },
+      },
+    },
+  )
 
   const { data: exchange, error } = await supabase.auth.exchangeCodeForSession(code)
   if (error || !exchange.user || !exchange.session) {
@@ -59,7 +64,7 @@ export async function GET(req: NextRequest) {
     return htmlRedirect(buildLoginUrl('invalid_link'))
   }
 
-  // Workaround supabase/ssr#36 — fuerza escritura síncrona de cookies.
+  // Fuerza escritura síncrona del cookies adapter (workaround supabase/ssr#36).
   await supabase.auth.setSession({
     access_token: exchange.session.access_token,
     refresh_token: exchange.session.refresh_token,
