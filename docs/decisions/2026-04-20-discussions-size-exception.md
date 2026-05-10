@@ -6,6 +6,8 @@
 
 > **Update 2026-05-06:** Tras la migración TipTap → Lexical (`docs/decisions/2026-05-06-tiptap-to-lexical.md`), el AST y schemas Zod del rich-text viven ahora en `src/features/rich-text/` (slice nuevo). El cap 20 KB del documento se mantiene; el shape del AST cambió. Esta excepción de tamaño sigue vigente para la densidad propia de discussions (posts + comments + threads + reads + presence + citas), independiente del rich-text.
 
+> **Update 2026-05-09:** Aplicación del Approach C del plan G.3 port (`docs/plans/2026-05-09-g3-debt-port-to-legacy.md`). Cierre del experimento sub-slice posts/comments/moderation (35 archivos borrados, ADR `2026-05-09-discussions-subslice-experiment-closed.md`). El raíz queda en **6202 LOC** (vs cap 1500 — viola por 4702). B.4 y B.5 cancelados. B.3 (threads consolidation) sigue vigente como follow-up no urgente — el sub-slice `discussions/threads/` es byte-equivalente al legacy y su consolidación bajaría -550 LOC del raíz a ~5650 (sigue 4× sobre el cap). **El cap 1500 no es alcanzable con el dominio actual.** Se acepta excepción permanente con cap mayor autorizado a ser definido cuando B.3 cierre. Tabla de medición actualizada abajo.
+
 ## Contexto
 
 `CLAUDE.md` fija tres límites no cosméticos:
@@ -63,6 +65,44 @@ Revisar esta excepción al cerrar:
 - **C.F** (realtime + dwell tracker + dot indicator): sumará ~400–600 líneas en `ui/` y `server/realtime.ts`. Evaluar si el bucket `ui/` justifica ya un `ui/thread/` y `ui/list/` como subdirectorios.
 - **C.G** (moderación: flag modal, cola admin, hide/unhide UI): sumará ~500–700 líneas. Evaluar si `flags` debería pasar a su propio slice — candidato fuerte porque tiene página propia (`/settings/flags`) y un RLS/actions distinto.
 - Si la feature cruza 6 000 líneas antes de C.G, tratar el split de `flags/` como prioridad.
+
+## Estado a 2026-05-09 (post-G.3 port + cierre sub-slices)
+
+**Medición actual** (output de `pnpm tsx scripts/lint/check-slice-size.ts`):
+
+```
+✗  discussions                   6202 / 1500 (-4702)
+✓  discussions/presence           872 / 1500 (+628)
+✓  discussions/threads            531 / 1500 (+969)
+✓  discussions/reactions          368 / 1500 (+1132)
+✓  discussions/composers          192 / 1500 (+1308)
+```
+
+**Sub-slices consolidados** (`presence`, `reactions`, `composers`) suman **1432 LOC** descontados del raíz.
+
+**Sub-slice orphan vigente:** `threads/` (531 LOC) — sigue sin consumers externos. Plan B.3 (`docs/plans/2026-05-09-threads-subslice-migration.md`) propone consolidación con bajada esperada del raíz -550 LOC. Pendiente de ejecución.
+
+**Sub-slices borrados (cierre del experimento, 2026-05-09):**
+
+- `posts/` (~1004 LOC) — eliminado por drift bidireccional irreconciliable.
+- `comments/` (~1354 LOC) — idem.
+- `moderation/` (~170 LOC) — orphan adicional limpiado por dependency chain.
+
+Total ~2528 LOC fuera del repo. Detalle en ADR `2026-05-09-discussions-subslice-experiment-closed.md`.
+
+**Pendientes para acercarse al cap (no para cerrarlo — el cap 1500 no es alcanzable):**
+
+- [x] **`presence/`** — cerrado.
+- [x] **`reactions/`** — cerrado.
+- [x] **`composers/`** — cerrado.
+- [x] **`posts/`** — sub-slice eliminado, port G.3 al legacy en su lugar.
+- [x] **`comments/`** — sub-slice eliminado, port G.3 al legacy en su lugar.
+- [x] **`moderation/`** — sub-slice orphan eliminado.
+- [ ] **`threads/`** — pendiente B.3 (-550 LOC esperados).
+- [ ] **`server/queries.ts` cleanup** — ya no contiene queries de comments duplicadas. Sigue con queries de posts (-287 LOC eliminables si se hace un `posts/server/queries/` mini-split en el futuro, pero no es urgente).
+- [ ] **`server/actions/posts/{create,edit}.ts`** — son los 2 archivos legacy más grandes del raíz. Su split por concern (CRUD vs auditoría) podría bajar otros -200 LOC.
+
+**Estimación de cierre máximo:** post-B.3 + posibles micro-splits = ~5450 LOC en el raíz. **Sigue 3.6× sobre el cap 1500.** Se acepta excepción permanente con cap mayor autorizado (a definir formalmente cuando B.3 cierre o al lanzamiento, lo que ocurra primero).
 
 ## No aplica
 
