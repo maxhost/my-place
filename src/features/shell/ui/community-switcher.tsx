@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, LogOut } from 'lucide-react'
 import type { MyPlace } from '@/features/places/public'
 import { placeUrl } from '@/shared/lib/app-url'
 import { hashToIndex } from '@/shared/ui/avatar'
+import { logout } from '@/app/logout/actions'
 import { CommunityRow } from './community-row'
 
 /**
@@ -139,6 +140,24 @@ export function CommunitySwitcher({ places, currentSlug }: Props): React.ReactNo
               >
                 + Descubrir comunidades
               </p>
+            </div>
+            <div className="border-t-[0.5px] border-border px-2 py-2">
+              {/*
+                Logout via server action (vive en `src/app/logout/actions.ts`).
+                Form-action es el patrón canónico para invocar server actions
+                desde Client Components (vs `useTransition` + call directo).
+                El action hace `supabase.auth.signOut()` y redirige al apex.
+              */}
+              <form action={logout}>
+                <button
+                  type="submit"
+                  role="menuitem"
+                  className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left text-sm text-muted hover:bg-soft hover:text-text motion-safe:transition-colors"
+                >
+                  <LogOut size={16} aria-hidden="true" />
+                  <span className="font-body">Cerrar sesión</span>
+                </button>
+              </form>
             </div>
           </div>
         </>

@@ -1,11 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 
 // `community-switcher.tsx` importa `placeUrl` desde `@/shared/lib/app-url`,
 // que lee `clientEnv.NEXT_PUBLIC_APP_DOMAIN`. Mockeamos para evitar el parse
 // eager del env real (Zod tiraría sin `NEXT_PUBLIC_*`).
 vi.mock('@/shared/config/env', () => ({
   clientEnv: { NEXT_PUBLIC_APP_DOMAIN: 'lvh.me:3000' },
+}))
+
+// `community-switcher.tsx` importa la server action `logout` que arrastra
+// `supabase/server` (lee env server-side completo). En tests sólo nos importa
+// que la sección logout aparezca con form-action — la invocación real la
+// cubren los tests del action mismo (si los hay).
+vi.mock('@/app/logout/actions', () => ({
+  logout: vi.fn(),
 }))
 
 import { CommunitySwitcher } from '../ui/community-switcher'
@@ -78,7 +86,10 @@ describe('CommunitySwitcher', () => {
   it('selección de current place es no-op (cierra sin navegar)', () => {
     render(<CommunitySwitcher places={places} currentSlug="the-company" />)
     fireEvent.click(screen.getByRole('button', { name: /the company/i }))
-    fireEvent.click(screen.getByRole('menuitem', { name: /the company/i }))
+    // Post-2026-05-09: el menuitem ahora es un `div` (contiene un button +
+    // opcionalmente un `<a>` Gear). Click target es el button interno.
+    const currentItem = screen.getByRole('menuitem', { name: /the company/i })
+    fireEvent.click(within(currentItem).getByRole('button'))
     expect(assignSpy).not.toHaveBeenCalled()
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
@@ -86,7 +97,8 @@ describe('CommunitySwitcher', () => {
   it('selección de otro place dispara cross-subdomain navigation', () => {
     render(<CommunitySwitcher places={places} currentSlug="the-company" />)
     fireEvent.click(screen.getByRole('button', { name: /the company/i }))
-    fireEvent.click(screen.getByRole('menuitem', { name: /palermo cowork/i }))
+    const otherItem = screen.getByRole('menuitem', { name: /palermo cowork/i })
+    fireEvent.click(within(otherItem).getByRole('button'))
     expect(assignSpy).toHaveBeenCalledWith('http://palermo-cowork.lvh.me:3000/')
   })
 
