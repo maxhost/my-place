@@ -1,5 +1,5 @@
 import type { MyPlace } from '@/features/places/public'
-import { CommunitySwitcher } from '../community-switcher/public'
+import { CommunitySwitcher } from '@/features/shell/community-switcher/public'
 import { SearchTrigger } from './search-trigger'
 
 /**

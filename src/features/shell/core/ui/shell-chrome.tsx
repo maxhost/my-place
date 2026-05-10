@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation'
 import type { MyPlace } from '@/features/places/public'
 import { TopBar } from './top-bar'
-import { SectionDots, ZONES, shouldShowShellChrome } from '../zone-navigation/public'
+import { SectionDots, ZONES, shouldShowShellChrome } from '@/features/shell/zone-navigation/public'
 
 /**
  * Chrome del shell (TopBar + SectionDots) con visibilidad condicional

@@ -7,7 +7,7 @@
  * `public.server.ts` porque ningún export tiene `import 'server-only'`.
  */
 
-export { AppShell } from './ui/app-shell'
+export { AppShell } from './core/ui/app-shell'
 export { SettingsNavFab } from './settings-nav/public'
 export { ZoneFab } from './zone-fab/public'
 // Sub-slice re-exports (backwards compat — no romper consumers que importan
