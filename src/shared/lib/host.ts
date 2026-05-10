@@ -35,6 +35,16 @@ export function resolveHost(hostname: string, appDomain: string): HostResolution
   // Soporte de subdominios anidados (raro pero posible): tomamos el primer segmento desde el final.
   const firstSegment = subdomain.split('.').at(-1) ?? subdomain
 
+  // `www.<apex>` se trata como alias del apex (marketing). Vercel y muchos
+  // CDNs hacen redirect automático apex → www cuando ambos están registrados;
+  // sin este alias, el redirect mata flows que apuntan a apex (callbacks de
+  // auth, accept page de invites, etc.) porque caerían en `reserved` →
+  // `/not-found`. Ver ADR `2026-05-10-auth-callbacks-on-apex.md` y
+  // `docs/multi-tenancy.md`.
+  if (firstSegment === 'www') {
+    return { kind: 'marketing' }
+  }
+
   if (firstSegment === 'app') {
     return { kind: 'inbox' }
   }

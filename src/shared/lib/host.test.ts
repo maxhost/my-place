@@ -82,5 +82,13 @@ describe('resolveHost', () => {
         slug: 'api',
       })
     })
+
+    it('www.place.app → marketing (alias del apex; Vercel redirige apex→www)', () => {
+      expect(resolveHost('www.place.app', appDomain)).toEqual({ kind: 'marketing' })
+    })
+
+    it('WWW.PLACE.APP → marketing (case-insensitive)', () => {
+      expect(resolveHost('WWW.PLACE.APP', appDomain)).toEqual({ kind: 'marketing' })
+    })
   })
 })
