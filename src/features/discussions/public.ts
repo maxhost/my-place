@@ -100,7 +100,7 @@ export {
 } from './server/actions/load-more'
 
 export { reactAction, unreactAction } from './server/actions/reactions'
-export { markPostReadAction } from './server/actions/reads'
+export { markPostReadAction } from './presence/public'
 
 export { RESERVED_POST_SLUGS, generatePostSlug } from './domain/slug'
 
@@ -117,18 +117,17 @@ export {
 //
 // stub F.1: PostComposer + RichTextRenderer eliminados. F.3-F.4 reintroducen
 // los composers/renderers Lexical desde el slice `rich-text/`.
-export { DwellTracker } from './ui/dwell-tracker'
-export { PostUnreadDot } from './ui/post-unread-dot'
 export { PostAdminMenu } from './ui/post-admin-menu'
 export { PostHiddenWatcher } from './ui/post-hidden-watcher'
 export { ReactionBar } from './ui/reaction-bar'
 export { ThreadHeaderBar } from './ui/thread-header-bar'
-// Re-export del wrapper lazy (mismo shape de props que el real). El real
-// vive en `./ui/thread-presence.tsx` y se carga en un chunk separado vía
-// `React.lazy` + `requestIdleCallback` desde el wrapper. El bundle de
-// Supabase Realtime + GoTrue (~12-15 kB gzip) sólo viaja al cliente
-// post-FCP. Ver `./ui/thread-presence-lazy.tsx`.
-export { ThreadPresenceLazy as ThreadPresence } from './ui/thread-presence-lazy'
+
+// Presence (sub-slice). Re-export para mantener la superficie pública del
+// slice estable. El `ThreadPresence` exportado es el wrapper lazy (chunk
+// separado post-FCP); el componente real vive en `./presence/ui/thread-presence`
+// y se consume sólo desde el wrapper. Ver
+// `docs/plans/2026-05-09-presence-subslice-migration.md`.
+export { DwellTracker, PostUnreadDot, ThreadPresence } from './presence/public'
 
 export {
   createCommentInputSchema,

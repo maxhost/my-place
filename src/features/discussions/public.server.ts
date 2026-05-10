@@ -44,10 +44,18 @@ export {
   findPostBySlug,
   listCommentsByPost,
   listPostsByPlace,
-  listReadersByPost,
   type CommentView,
-  type PostReader,
 } from './server/queries'
+
+// Presence (sub-slice). Re-export para mantener la superficie pública del
+// slice estable mientras los callers externos siguen importando desde
+// `discussions/public.server`. La copia legacy en `./server/queries` queda
+// sin consumers internos hasta B.1 (ver `docs/plans/2026-05-09-presence-subslice-migration.md`).
+export {
+  findOrCreateCurrentOpening,
+  listReadersByPost,
+  type PostReader,
+} from './presence/public.server'
 
 // Tipo `Post` re-exportado para Server Components consumidores
 // (pages que pre-fetchean post via `findPostBySlug` y lo pasan a
@@ -62,15 +70,13 @@ export {
   type ReactionAggregationMap,
 } from './server/reactions-aggregation'
 
-export { findOrCreateCurrentOpening } from './server/place-opening'
-
 // Server Components que importan queries/aggregation server-only directo.
 // No pueden viajar via `public.ts` porque Next traza los imports al bundle
 // del cliente cuando algún Client Component los importa transitivamente.
 export { CommentThread } from './ui/comment-thread'
 export { PostDetail } from './ui/post-detail'
 export { PostList } from './ui/post-list'
-export { PostReadersBlock } from './ui/post-readers-block'
+export { PostReadersBlock } from './presence/public'
 
 // Sesión 5.3: helpers de invalidación tag-based para el cache de
 // `aggregateReactions`. Llamados desde `reactAction`/`unreactAction`.
