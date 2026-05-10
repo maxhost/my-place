@@ -48,28 +48,26 @@ describe('cleanupLegacyCookies', () => {
     expect(calls).toHaveLength(0)
   })
 
-  it('cookie sb-tkidot-auth-token presente → emite cleanup en domains alternativos', () => {
+  it('cookie sb-tkidot-auth-token → cleanup en 3 variantes (apex, app.<apex>, host-only)', () => {
     cleanupLegacyCookies(fakeReq([{ name: 'sb-tkidot-auth-token', value: 'whatever' }]), response)
 
-    // Esperamos cleanup en:
-    // - Domain=app.<apex> (subdomain potencialmente legacy)
-    // - host-only (sin Domain) — cookies que pueden quedar pegadas en el subdomain
-    expect(calls).toHaveLength(2)
+    // 3 cleanups: Domain=place.community + Domain=app.place.community + host-only.
+    expect(calls).toHaveLength(3)
+
+    const apexCleanup = calls.find((c) => c.options.domain === 'place.community')
+    expect(apexCleanup).toBeDefined()
+    expect(apexCleanup?.value).toBe('')
+    expect(apexCleanup?.options.maxAge).toBe(0)
 
     const subdomainCleanup = calls.find((c) => c.options.domain === 'app.place.community')
     expect(subdomainCleanup).toBeDefined()
-    expect(subdomainCleanup?.name).toBe('sb-tkidot-auth-token')
-    expect(subdomainCleanup?.value).toBe('')
-    expect(subdomainCleanup?.options.maxAge).toBe(0)
-    expect(subdomainCleanup?.options.path).toBe('/')
 
     const hostOnly = calls.find((c) => c.options.domain === undefined)
     expect(hostOnly).toBeDefined()
-    expect(hostOnly?.name).toBe('sb-tkidot-auth-token')
     expect(hostOnly?.options.maxAge).toBe(0)
   })
 
-  it('chunked cookies (sb-tkidot-auth-token.0, .1) → cubre todas', () => {
+  it('chunked cookies (auth-token.0, .1) → cubre todas con 3 variantes c/u', () => {
     cleanupLegacyCookies(
       fakeReq([
         { name: 'sb-tkidot-auth-token.0', value: 'chunk-a' },
@@ -77,26 +75,36 @@ describe('cleanupLegacyCookies', () => {
       ]),
       response,
     )
-
-    // 2 cookies × 2 domains alternativos = 4 cleanups.
-    expect(calls).toHaveLength(4)
+    // 2 cookies × 3 variantes = 6 cleanups.
+    expect(calls).toHaveLength(6)
 
     const cleanedNames = new Set(calls.map((c) => c.name))
     expect(cleanedNames).toEqual(new Set(['sb-tkidot-auth-token.0', 'sb-tkidot-auth-token.1']))
   })
 
-  it('multiples auth tokens (refresh + access) → cleanup independiente', () => {
+  it('code-verifier residual de PKCE → cubierto', () => {
+    cleanupLegacyCookies(
+      fakeReq([{ name: 'sb-tkidot-auth-token-code-verifier', value: 'cv' }]),
+      response,
+    )
+    expect(calls).toHaveLength(3)
+    expect(calls.every((c) => c.name === 'sb-tkidot-auth-token-code-verifier')).toBe(true)
+  })
+
+  it('cookies de DOS proyectos Supabase distintos (proyecto viejo + actual) → ambos limpiados', () => {
     cleanupLegacyCookies(
       fakeReq([
-        { name: 'sb-tkidot-auth-token', value: 'access' },
-        { name: 'sb-otherproj-auth-token', value: 'access2' },
+        { name: 'sb-tkidotchffveygzisxbn-auth-token', value: 'current' },
+        { name: 'sb-pdifweaajellxzdpbaht-auth-token', value: 'legacy-project' },
       ]),
       response,
     )
-
-    expect(calls).toHaveLength(4) // 2 cookies × 2 domains
-    const tokenNames = new Set(calls.map((c) => c.name))
-    expect(tokenNames).toEqual(new Set(['sb-tkidot-auth-token', 'sb-otherproj-auth-token']))
+    // 2 cookies × 3 variantes = 6 cleanups.
+    expect(calls).toHaveLength(6)
+    const names = new Set(calls.map((c) => c.name))
+    expect(names).toEqual(
+      new Set(['sb-tkidotchffveygzisxbn-auth-token', 'sb-pdifweaajellxzdpbaht-auth-token']),
+    )
   })
 
   it('ignora cookies que no matchean pattern sb-*-auth-token', () => {
@@ -109,18 +117,16 @@ describe('cleanupLegacyCookies', () => {
       ]),
       response,
     )
-
-    // Solo sb-tkidot-auth-token cuenta → 2 cleanups.
-    expect(calls).toHaveLength(2)
+    // Solo sb-tkidot-auth-token cuenta → 3 cleanups.
+    expect(calls).toHaveLength(3)
     expect(calls.every((c) => c.name === 'sb-tkidot-auth-token')).toBe(true)
   })
 
-  it('idempotente: invocar dos veces sobre el mismo response duplica calls (no se filtra) — el handler solo lo invoca una vez', () => {
-    // Esta semántica es intencional: la función no trackea estado. El caller
-    // debe invocarla una sola vez por request. Test documenta el contrato.
+  it('semántica idempotente documentada: invocar dos veces NO filtra', () => {
+    // La función no trackea estado. El caller invoca una vez por request.
     const req = fakeReq([{ name: 'sb-tkidot-auth-token', value: 'x' }])
     cleanupLegacyCookies(req, response)
     cleanupLegacyCookies(req, response)
-    expect(calls).toHaveLength(4)
+    expect(calls).toHaveLength(6)
   })
 })
