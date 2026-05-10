@@ -3,7 +3,7 @@ import {
   SETTINGS_SECTIONS,
   deriveActiveSettingsSection,
   deriveVisibleSettingsSections,
-} from '@/features/shell/domain/settings-sections'
+} from '../domain/settings-sections'
 
 describe('SETTINGS_SECTIONS', () => {
   it('expone las 9 secciones canónicas en orden (post F.5 plan rich-text)', () => {

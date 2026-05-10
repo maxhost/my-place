@@ -21,7 +21,7 @@ vi.mock('next/link', () => ({
   ),
 }))
 
-import { SettingsNavFab } from '@/features/shell/ui/settings-nav-fab'
+import { SettingsNavFab } from '../ui/settings-nav-fab'
 
 afterEach(() => {
   cleanup()

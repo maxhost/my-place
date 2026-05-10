@@ -8,7 +8,7 @@
  */
 
 export { AppShell } from './ui/app-shell'
-export { SettingsNavFab } from './ui/settings-nav-fab'
+export { SettingsNavFab } from './settings-nav/public'
 export { ZoneFab } from './zone-fab/public'
 // Sub-slice re-exports (backwards compat — no romper consumers que importan
 // desde @/features/shell/public). Nuevos consumers pueden importar directamente
