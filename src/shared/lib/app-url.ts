@@ -74,8 +74,26 @@ export function placeUrl(slug: string, path = '/'): URL {
   return new URL(path, `${protocolFor(domain)}://${slug}.${domain}`)
 }
 
-/** URL del apex (marketing/landing). */
+/**
+ * URL del apex (marketing/landing).
+ *
+ * **Prod usa `www.<apex>`** (no apex pelado) para evitar el redirect
+ * automático apex→www de Vercel. Cada hop cross-host (apex↔www) rompe
+ * cookies en Safari iOS (ITP trata el redirect como cross-site y descarta
+ * Set-Cookie). Resolver directo a `www.<apex>` mantiene todo el flow en
+ * el mismo host.
+ *
+ * Las cookies setteadas con `Domain=<apex>` (ej. `Domain=place.community`)
+ * cruzan a `www.<apex>` sin problema (RFC 6265: Domain attr aplica al host
+ * y todos sus subdomains).
+ *
+ * En dev (`lvh.me`, `localhost`) NO se prefija `www.` — los dominios locales
+ * no tienen ese alias y rompería los workflows de desarrollo.
+ *
+ * Ver ADR `2026-05-10-auth-callbacks-on-apex.md`.
+ */
 export function apexUrl(path = '/'): URL {
   const domain = clientEnv.NEXT_PUBLIC_APP_DOMAIN
-  return new URL(path, `${protocolFor(domain)}://${domain}`)
+  const host = isLocalDomain(domain) ? domain : `www.${domain}`
+  return new URL(path, `${protocolFor(domain)}://${host}`)
 }

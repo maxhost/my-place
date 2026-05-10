@@ -55,8 +55,22 @@ describe('placeUrl', () => {
 })
 
 describe('apexUrl', () => {
-  it('retorna el apex sin path', () => {
-    expect(apexUrl().toString()).toBe('https://place.community/')
+  it('en prod prefija www.<apex> (evita redirect Vercel apex→www que rompe cookies en Safari iOS)', () => {
+    expect(apexUrl().toString()).toBe('https://www.place.community/')
+  })
+
+  it('en prod con path agrega path al www.<apex>', () => {
+    expect(apexUrl('/login').toString()).toBe('https://www.place.community/login')
+  })
+
+  it('en local (lvh.me) NO prefija www. (no existe ese alias en dev)', () => {
+    const original = mockEnv.current.NEXT_PUBLIC_APP_DOMAIN
+    mockEnv.current.NEXT_PUBLIC_APP_DOMAIN = 'lvh.me:3000'
+    try {
+      expect(apexUrl('/').toString()).toBe('http://lvh.me:3000/')
+    } finally {
+      mockEnv.current.NEXT_PUBLIC_APP_DOMAIN = original
+    }
   })
 })
 

@@ -45,19 +45,19 @@ describe('resolveNextRedirect — paths globales (apex)', () => {
     getChildLogger()?.warn.mockClear()
   })
 
-  it('/invite/accept/<token> → apex (la accept page vive ahí)', () => {
+  it('/invite/accept/<token> → www.<apex> (apex via apexUrl, prefijado www en prod)', () => {
     const token = 'aBcDeF0123456789-_xyzABCDEF0123456789-_xyz0'
     const url = resolveNextRedirect(`/invite/accept/${token}`)
-    expect(url.toString()).toBe(`https://place.community/invite/accept/${token}`)
+    expect(url.toString()).toBe(`https://www.place.community/invite/accept/${token}`)
   })
 
-  it('/login → apex', () => {
-    expect(resolveNextRedirect('/login').toString()).toBe('https://place.community/login')
+  it('/login → www.<apex>', () => {
+    expect(resolveNextRedirect('/login').toString()).toBe('https://www.place.community/login')
   })
 
-  it('/auth/callback → apex (edge: bouncing intencional)', () => {
+  it('/auth/callback → www.<apex> (edge: bouncing intencional)', () => {
     expect(resolveNextRedirect('/auth/callback').toString()).toBe(
-      'https://place.community/auth/callback',
+      'https://www.place.community/auth/callback',
     )
   })
 })

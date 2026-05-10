@@ -19,24 +19,26 @@ import { authCallbackUrlForNext, inviteCallbackUrl } from '../auth-callback-url'
 describe('authCallbackUrlForNext', () => {
   it('construye URL del callback con next URL-encoded (host APEX)', () => {
     const url = authCallbackUrlForNext('/invite/accept/tok_abc123')
-    expect(url).toBe('https://place.community/auth/callback?next=%2Finvite%2Faccept%2Ftok_abc123')
+    expect(url).toBe(
+      'https://www.place.community/auth/callback?next=%2Finvite%2Faccept%2Ftok_abc123',
+    )
   })
 
   it('normaliza nextPath sin slash inicial agregándolo', () => {
     const url = authCallbackUrlForNext('inbox')
-    expect(url).toBe('https://place.community/auth/callback?next=%2Finbox')
+    expect(url).toBe('https://www.place.community/auth/callback?next=%2Finbox')
   })
 
   it('preserva caracteres especiales del path via encodeURIComponent', () => {
     const url = authCallbackUrlForNext('/path/with-dashes_and_underscores/123')
     expect(url).toBe(
-      'https://place.community/auth/callback?next=%2Fpath%2Fwith-dashes_and_underscores%2F123',
+      'https://www.place.community/auth/callback?next=%2Fpath%2Fwith-dashes_and_underscores%2F123',
     )
   })
 
   it('encoding seguro contra injection (query string en el path)', () => {
     const url = authCallbackUrlForNext('/foo?injected=evil')
-    expect(url).toBe('https://place.community/auth/callback?next=%2Ffoo%3Finjected%3Devil')
+    expect(url).toBe('https://www.place.community/auth/callback?next=%2Ffoo%3Finjected%3Devil')
     expect(url).not.toContain('&injected=evil')
   })
 })
@@ -49,7 +51,7 @@ describe('inviteCallbackUrl', () => {
       next: '/invite/accept/tok_xyz',
     })
     expect(url).toBe(
-      'https://place.community/auth/invite-callback?token_hash=hash_abc123&type=invite&next=%2Finvite%2Faccept%2Ftok_xyz',
+      'https://www.place.community/auth/invite-callback?token_hash=hash_abc123&type=invite&next=%2Finvite%2Faccept%2Ftok_xyz',
     )
   })
 
@@ -60,7 +62,7 @@ describe('inviteCallbackUrl', () => {
       next: '/invite/accept/tok_xyz',
     })
     expect(url).toContain('type=magiclink')
-    expect(url.startsWith('https://place.community/')).toBe(true)
+    expect(url.startsWith('https://www.place.community/')).toBe(true)
   })
 
   it('normaliza next sin slash inicial agregándolo', () => {
