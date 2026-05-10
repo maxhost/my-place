@@ -120,7 +120,7 @@ export {
 export { PostAdminMenu } from './ui/post-admin-menu'
 export { PostHiddenWatcher } from './ui/post-hidden-watcher'
 export { ReactionBar } from './ui/reaction-bar'
-export { ThreadHeaderBar } from './ui/thread-header-bar'
+export { ThreadHeaderBar } from './threads/public'
 
 // Presence (sub-slice). Re-export para mantener la superficie pública del
 // slice estable. El `ThreadPresence` exportado es el wrapper lazy (chunk
