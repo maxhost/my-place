@@ -5,7 +5,11 @@ import { clientEnv } from '@/shared/config/env'
 import { createRequestLogger, REQUEST_ID_HEADER } from '@/shared/lib/request-id'
 import { InvalidMagicLinkError, UserSyncError } from '@/shared/errors/auth'
 import { cookieDomain } from '@/shared/lib/supabase/cookie-domain'
-import { cleanupLegacyCookies } from '@/shared/lib/supabase/cookie-cleanup'
+import {
+  applyCookies,
+  buildLegacyCookieCleanup,
+  type CookieToSet,
+} from '@/shared/lib/supabase/cookie-cleanup'
 import { resolveNextRedirect } from '@/shared/lib/next-redirect'
 import { htmlRedirect } from '@/shared/lib/auth-redirect-html'
 import { deriveDisplayName } from './helpers'
@@ -14,13 +18,8 @@ import { deriveDisplayName } from './helpers'
  * GET /auth/callback?code=...&next=...
  *
  * Callback PKCE para magic links generados por `signInWithOtp` desde el
- * browser.
- *
- * Mismo patrón que `/auth/invite-callback` (createServerClient con cookies
- * adapter que escribe en `response.cookies.set` directamente +
- * `setSession()` post-exchange + `htmlRedirect` 200 OK con meta refresh).
- *
- * Ver `docs/features/auth/spec.md` y comentarios en `/auth/invite-callback`.
+ * browser. Mismo patrón que `/auth/invite-callback` (cookie bag + htmlRedirect
+ * + setSession). Ver comentarios ahí.
  */
 export async function GET(req: NextRequest) {
   const log = createRequestLogger(req.headers.get(REQUEST_ID_HEADER) ?? 'unknown')
@@ -33,9 +32,8 @@ export async function GET(req: NextRequest) {
     return htmlRedirect(buildLoginUrl('invalid_link'))
   }
 
-  const redirectTarget = resolveNextRedirect(rawNext)
-  const response = htmlRedirect(redirectTarget)
-  cleanupLegacyCookies(req, response)
+  const cookieBag: CookieToSet[] = []
+  cookieBag.push(...buildLegacyCookieCleanup(req))
 
   const domain = cookieDomain(clientEnv.NEXT_PUBLIC_APP_DOMAIN)
   const supabase = createServerClient(
@@ -47,8 +45,12 @@ export async function GET(req: NextRequest) {
           return req.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          for (const { name, value, options } of cookiesToSet) {
-            response.cookies.set(name, value, { ...options, ...(domain ? { domain } : {}) })
+          for (const c of cookiesToSet) {
+            cookieBag.push({
+              name: c.name,
+              value: c.value,
+              options: { ...c.options, ...(domain ? { domain } : {}) },
+            })
           }
         },
       },
@@ -61,10 +63,9 @@ export async function GET(req: NextRequest) {
       { err: new InvalidMagicLinkError(error?.message ?? 'no user/session') },
       'callback_exchange_failed',
     )
-    return htmlRedirect(buildLoginUrl('invalid_link'))
+    return finalize(htmlRedirect(buildLoginUrl('invalid_link')), cookieBag)
   }
 
-  // Fuerza escritura síncrona del cookies adapter (workaround supabase/ssr#36).
   await supabase.auth.setSession({
     access_token: exchange.session.access_token,
     refresh_token: exchange.session.refresh_token,
@@ -85,10 +86,20 @@ export async function GET(req: NextRequest) {
   } catch (syncErr) {
     log.error({ err: syncErr, userId: user.id }, 'user_sync_failed')
     await supabase.auth.signOut().catch(() => {})
-    return htmlRedirect(buildLoginUrl('sync', new UserSyncError('user upsert failed')))
+    return finalize(
+      htmlRedirect(buildLoginUrl('sync', new UserSyncError('user upsert failed'))),
+      cookieBag,
+    )
   }
 
+  const redirectTarget = resolveNextRedirect(rawNext)
+
   log.info({ userId: user.id }, 'callback_success')
+  return finalize(htmlRedirect(redirectTarget), cookieBag)
+}
+
+function finalize(response: ReturnType<typeof htmlRedirect>, bag: CookieToSet[]) {
+  applyCookies(response, bag)
   return response
 }
 

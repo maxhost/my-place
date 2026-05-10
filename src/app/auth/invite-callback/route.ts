@@ -1,11 +1,15 @@
-import { type NextRequest, NextResponse } from 'next/server'
+import { type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { prisma } from '@/db/client'
 import { clientEnv } from '@/shared/config/env'
 import { createRequestLogger, REQUEST_ID_HEADER } from '@/shared/lib/request-id'
 import { InvalidMagicLinkError, UserSyncError } from '@/shared/errors/auth'
 import { cookieDomain } from '@/shared/lib/supabase/cookie-domain'
-import { cleanupLegacyCookies } from '@/shared/lib/supabase/cookie-cleanup'
+import {
+  applyCookies,
+  buildLegacyCookieCleanup,
+  type CookieToSet,
+} from '@/shared/lib/supabase/cookie-cleanup'
 import { resolveNextRedirect } from '@/shared/lib/next-redirect'
 import { htmlRedirect } from '@/shared/lib/auth-redirect-html'
 import { deriveDisplayName } from '@/app/auth/callback/helpers'
@@ -15,23 +19,19 @@ import { deriveDisplayName } from '@/app/auth/callback/helpers'
  *
  * Callback dedicado para magic links generados por `auth.admin.generateLink`.
  *
- * **Patrón de cookies (importante):** usamos `createServerClient` directo (NO
- * `createSupabaseServer()`) con un `cookies` adapter que escribe DIRECTAMENTE
- * en `response.cookies.set()`. Razón: cuando un route handler retorna su
- * propio `NextResponse`, las cookies escritas via `cookies()` de
- * `next/headers` (que es lo que `createSupabaseServer` usa) NO se mergean
- * al response final. Las cookies tienen que ir explícitamente en el
- * `response.cookies` que retornamos.
- *
- * **`setSession` post-verifyOtp:** workaround para supabase/ssr#36 — verifyOtp
- * escribe la session via `onAuthStateChange` listener async, que puede no
- * ejecutarse antes del return. `setSession()` fuerza la escritura síncrona
- * del cookies adapter (vía `setItem` interno → invoca `setAll` antes del
- * await retorne).
+ * **Patrón de cookies:** acumulamos todas las cookies a setear en un "bag"
+ * (cleanup defensivo + cookies de verifyOtp/setSession via cookies adapter
+ * de @supabase/ssr) y las aplicamos al response FINAL en cualquier path
+ * (happy / verify error / sync error). Sin esto, los paths de error pierden
+ * el cleanup porque retornan un response distinto.
  *
  * **`htmlRedirect` (200 OK + meta refresh)** en vez de `NextResponse.redirect`:
- * Safari iOS ITP descarta `Set-Cookie` en respuestas a redirects (307/303).
- * Documentado en vercel/next.js#48434.
+ * Safari iOS descarta `Set-Cookie` en respuestas a redirects. Documentado
+ * en vercel/next.js#48434. Confirmado empíricamente con test endpoint.
+ *
+ * **`setSession` post-verifyOtp:** workaround para supabase/ssr#36 — verifyOtp
+ * escribe la session via `onAuthStateChange` listener async. `setSession()`
+ * fuerza la escritura síncrona del cookies adapter.
  */
 export async function GET(req: NextRequest) {
   const log = createRequestLogger(req.headers.get(REQUEST_ID_HEADER) ?? 'unknown')
@@ -57,9 +57,9 @@ export async function GET(req: NextRequest) {
     return htmlRedirect(buildLoginUrl('invalid_link'))
   }
 
-  const redirectTarget = resolveNextRedirect(rawNext)
-  const response = htmlRedirect(redirectTarget)
-  cleanupLegacyCookies(req, response)
+  // Acumulamos cookies a setear en el response final (sea cual sea).
+  const cookieBag: CookieToSet[] = []
+  cookieBag.push(...buildLegacyCookieCleanup(req))
 
   const domain = cookieDomain(clientEnv.NEXT_PUBLIC_APP_DOMAIN)
   const supabase = createServerClient(
@@ -71,8 +71,12 @@ export async function GET(req: NextRequest) {
           return req.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          for (const { name, value, options } of cookiesToSet) {
-            response.cookies.set(name, value, { ...options, ...(domain ? { domain } : {}) })
+          for (const c of cookiesToSet) {
+            cookieBag.push({
+              name: c.name,
+              value: c.value,
+              options: { ...c.options, ...(domain ? { domain } : {}) },
+            })
           }
         },
       },
@@ -88,7 +92,7 @@ export async function GET(req: NextRequest) {
       { err: new InvalidMagicLinkError(error?.message ?? 'no user/session'), type },
       'invite_callback_verify_failed',
     )
-    return htmlRedirect(buildLoginUrl('invalid_link'))
+    return finalize(htmlRedirect(buildLoginUrl('invalid_link')), cookieBag)
   }
 
   // Fuerza escritura síncrona del cookies adapter (workaround supabase/ssr#36).
@@ -112,28 +116,32 @@ export async function GET(req: NextRequest) {
   } catch (syncErr) {
     log.error({ err: syncErr, userId: user.id }, 'invite_callback_user_sync_failed')
     await supabase.auth.signOut().catch(() => {})
-    return htmlRedirect(buildLoginUrl('sync', new UserSyncError('user upsert failed')))
+    return finalize(
+      htmlRedirect(buildLoginUrl('sync', new UserSyncError('user upsert failed'))),
+      cookieBag,
+    )
   }
 
-  // DEBUG TEMPORAL — verificar Set-Cookie headers en response final.
-  const setCookieHeaders: string[] = []
-  response.headers.forEach((value, key) => {
-    if (key.toLowerCase() === 'set-cookie') setCookieHeaders.push(value)
-  })
+  const redirectTarget = resolveNextRedirect(rawNext)
+
+  // DEBUG TEMPORAL — log Set-Cookie count para confirmar que el bag llega al response.
   log.warn(
     {
-      debug: 'invite_callback_response_set_cookie',
+      debug: 'invite_callback_cookie_bag',
       userId: user.id,
-      setCookieCount: setCookieHeaders.length,
-      cookieNames: response.cookies.getAll().map((c) => c.name),
+      bagSize: cookieBag.length,
+      bagNames: cookieBag.map((c) => `${c.name}(d=${c.options.domain ?? '-'},v=${c.value.length})`),
     },
-    `DBG SetCookie count=${setCookieHeaders.length} cookies=[${response.cookies
-      .getAll()
-      .map((c) => `${c.name}(${c.value.length})`)
-      .join(',')}]`,
+    `DBG bag size=${cookieBag.length}`,
   )
 
   log.info({ userId: user.id, type }, 'invite_callback_success')
+  return finalize(htmlRedirect(redirectTarget), cookieBag)
+}
+
+/** Apply cookie bag al response final + retornar. */
+function finalize(response: ReturnType<typeof htmlRedirect>, bag: CookieToSet[]) {
+  applyCookies(response, bag)
   return response
 }
 
@@ -149,6 +157,3 @@ function buildLoginUrl(error: 'invalid_link' | 'sync', _cause?: Error): URL {
 function fallbackEmail(userId: string): string {
   return `${userId}@noemail.place.local`
 }
-
-// Suppress unused import warning for NextResponse (used implicitly via htmlRedirect).
-void NextResponse

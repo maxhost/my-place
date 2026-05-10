@@ -35,6 +35,11 @@ vi.mock('@supabase/ssr', () => ({
 
 vi.mock('@/shared/lib/supabase/cookie-cleanup', () => ({
   cleanupLegacyCookies: (...a: unknown[]) => cleanupLegacyCookiesMock(...a),
+  buildLegacyCookieCleanup: (...a: unknown[]) => {
+    cleanupLegacyCookiesMock(...a)
+    return []
+  },
+  applyCookies: vi.fn(),
 }))
 
 vi.mock('@/db/client', () => ({

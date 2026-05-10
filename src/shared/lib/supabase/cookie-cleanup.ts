@@ -2,69 +2,81 @@ import 'server-only'
 import type { NextRequest, NextResponse } from 'next/server'
 import { clientEnv } from '@/shared/config/env'
 
-/**
- * Defensive cleanup de cookies de sesión Supabase residuales (de versiones
- * previas del producto, otros proyectos Supabase, o sesiones zombi).
- *
- * **Por qué:** detectado en producción 2026-05-10 (Safari iOS) — un user
- * tenía `sb-pdifweaajellxzdpbaht-auth-token` (proyecto Supabase ANTERIOR
- * del producto) con `Domain=place.community` que persistía en el browser
- * y confundía el flow de auth del proyecto actual `tkidotchffveygzisxbn`.
- * Más: residuos de PKCE flow incompleto (`*-auth-token-code-verifier`).
- *
- * Solución: al inicio de cada callback, emitimos `Set-Cookie` con
- * `Max-Age=0` para CADA cookie `sb-*-auth-token{,.<n>,-code-verifier}`
- * presente en el request, en TODOS los Domain attrs posibles del apex y
- * subdomain inbox.
- *
- * **NextResponse cookie merge:** si el verifyOtp/exchange posterior setea
- * `Set-Cookie` para el cookie del proyecto ACTUAL con mismo `name+domain+path`,
- * sobrescribe nuestro cleanup en el response. Net: cookie nueva persiste,
- * cookies viejas/de otros proyectos se borran. (Validar que el SDK use
- * `path=/` — Supabase SSR lo hace por default.)
- *
- * **Pattern de cookies cubierto:**
- * - `sb-<projectRef>-auth-token` (no chunked)
- * - `sb-<projectRef>-auth-token.0`, `.1`, ... (chunked cuando session > 4KB)
- * - `sb-<projectRef>-auth-token-code-verifier` (PKCE flow residual)
- *
- * **Domains que limpiamos:**
- * - `Domain=<apex>` — cookies viejas/de otros proyectos en apex
- * - `Domain=app.<apex>` — cookies legacy en subdomain inbox
- * - host-only (sin Domain) — cookies pegadas al host actual sin Domain attr
- *
- * **Idempotencia:** la función no trackea estado. El caller debe invocarla
- * una vez por request al inicio del handler.
- *
- * Ver ADR `2026-05-10-auth-callbacks-on-apex.md`.
- */
-export function cleanupLegacyCookies(req: NextRequest, response: NextResponse): void {
-  const apex = clientEnv.NEXT_PUBLIC_APP_DOMAIN.split(':')[0] ?? ''
-  const domainsToClean = [apex, `app.${apex}`]
-
-  for (const cookie of req.cookies.getAll()) {
-    if (!isSupabaseAuthCookie(cookie.name)) continue
-
-    for (const domain of domainsToClean) {
-      response.cookies.set(cookie.name, '', {
-        domain,
-        path: '/',
-        maxAge: 0,
-      })
-    }
-
-    // Host-only (sin Domain) — para cookies pegadas al host sin Domain attr.
-    response.cookies.set(cookie.name, '', {
-      path: '/',
-      maxAge: 0,
-    })
+export type CookieToSet = {
+  name: string
+  value: string
+  options: {
+    domain?: string
+    path?: string
+    maxAge?: number
+    httpOnly?: boolean
+    secure?: boolean
+    sameSite?: 'lax' | 'strict' | 'none' | boolean
+    expires?: Date
   }
 }
 
-// Pattern: `sb-<projectRef>-auth-token` opcional con `.<n>` (chunked) o
-// `-code-verifier` (PKCE residual).
 const SUPABASE_AUTH_COOKIE_RE = /^sb-[A-Za-z0-9]+-auth-token(\.\d+|-code-verifier)?$/
 
 function isSupabaseAuthCookie(name: string): boolean {
   return SUPABASE_AUTH_COOKIE_RE.test(name)
+}
+
+/**
+ * Defensive cleanup de cookies de sesión Supabase residuales — devuelve
+ * un array de cookies a setear con `Max-Age=0` para invalidar las viejas.
+ *
+ * **Por qué un array (cookie bag) en vez de mutar response:** el callback
+ * puede retornar distintos `NextResponse` según el path (happy / fail /
+ * sync error). Si mutamos un response que después se descarta, el cleanup
+ * se pierde. Devolver un array permite al caller aplicarlo al response
+ * FINAL que efectivamente se retorna.
+ *
+ * **Pattern de cookies cubierto:** `sb-<projectRef>-auth-token` +
+ * `.<n>` chunked + `-code-verifier` PKCE residual.
+ *
+ * **Domains que limpiamos** (Safari iOS solo acepta los que matchean el
+ * host actual o ancestor — `Domain=app.<apex>` desde `www.<apex>` es
+ * rechazado silenciosamente, RFC 6265):
+ * - `Domain=<apex>` ✓ aplica al apex y todos los subdomains
+ * - host-only (sin Domain) ✓ aplica al host actual
+ * - `Domain=app.<apex>` — emitido SOLO si el caller corre en app.<apex> o
+ *   subdomain (sino Safari rechaza). Lo seguimos emitiendo defensivamente
+ *   porque NO causa daño (browsers que no coinciden lo ignoran sin error).
+ */
+export function buildLegacyCookieCleanup(req: NextRequest): CookieToSet[] {
+  const apex = clientEnv.NEXT_PUBLIC_APP_DOMAIN.split(':')[0] ?? ''
+  const domainsToClean = [apex, `app.${apex}`]
+  const out: CookieToSet[] = []
+
+  for (const cookie of req.cookies.getAll()) {
+    if (!isSupabaseAuthCookie(cookie.name)) continue
+    for (const domain of domainsToClean) {
+      out.push({ name: cookie.name, value: '', options: { domain, path: '/', maxAge: 0 } })
+    }
+    out.push({ name: cookie.name, value: '', options: { path: '/', maxAge: 0 } })
+  }
+  return out
+}
+
+/**
+ * Backward-compat: aplica el cleanup directamente a un response (mismo
+ * comportamiento que la versión previa).
+ *
+ * @deprecated Usar `buildLegacyCookieCleanup(req)` y aplicar al response
+ * final del handler para que el cleanup sobreviva en todos los paths.
+ */
+export function cleanupLegacyCookies(req: NextRequest, response: NextResponse): void {
+  for (const c of buildLegacyCookieCleanup(req)) {
+    response.cookies.set(c.name, c.value, c.options)
+  }
+}
+
+/**
+ * Aplica un array de cookies a un response.
+ */
+export function applyCookies(response: NextResponse, cookies: CookieToSet[]): void {
+  for (const c of cookies) {
+    response.cookies.set(c.name, c.value, c.options)
+  }
 }
