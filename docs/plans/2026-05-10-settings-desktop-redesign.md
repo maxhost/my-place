@@ -21,42 +21,172 @@ igual que hoy.
 
 ## Sesiones
 
-Total estimado: **8 sesiones**, ~12h. Cada una independiente y deployable sola.
+Total estimado: **10 sub-sesiones** (Sesión 1 dividida en 1a/1b/1c, resto igual), ~12h. Cada una independiente y deployable sola.
 
-### Sesión 1 — Foundation: `<SettingsShell>` responsive
+### Sesión 1 — Foundation: `<Sidebar>` agnóstico + feature `settings-shell` + integración
 
-**Goal:** primitive del shell (sidebar desktop + full-screen mobile). Todas las sub-pages
-cuelgan de él. Una sub-page valida el approach.
+**Dividida en 3 sub-sesiones manejables** (architecture.md: "una sesión = una cosa, partir si toca >5 archivos").
+
+Decisiones clave (review 2026-05-10):
+
+- **`<Sidebar>` primitive vive en `shared/ui/sidebar/`** (agnóstico al dominio), reusable para futuros casos (members directory en gated zone, etc.). architecture.md: `shared/` no importa de `features/` → si lo metiéramos en `features/settings-shell/` no podría reusarse.
+- **Active state** se pasa como prop `currentPath: string` (server-rendered, sin `usePathname()` client). El layout server-side lee headers/params y lo inyecta.
+- **Theming agnóstico**: primitive default chrome-neutral (raw Tailwind neutrals según `ux-patterns.md`). Acepta `className` override para casos de gated zone con tematización.
+- **Accessibility specs**: `<nav aria-label>`, `aria-current="page"` en active item, focus visible (`focus-visible:ring`), keyboard nav nativo (Tab/Enter/Space).
+- **Sidebar+FAB coexisten por viewport**: sidebar `md:flex hidden`, FAB `md:hidden block`. NO se reemplazan en JS.
+- **`/settings` root es placeholder** (futuro dashboard, no en este plan). Mismo contenido en ambos viewports, solo cambia chrome alrededor.
+- **Spec doc obligatorio** (`docs/features/settings-shell/spec.md`) antes de tocar código (CLAUDE.md regla).
+
+---
+
+#### Sub-sesión 1a — Spec doc + `<Sidebar>` primitive agnóstico en `shared/ui/`
+
+**Goal:** spec del feature + primitive shared sin acoplar a dominio.
 
 **Files:**
 
-- **NEW** `src/features/settings-shell/` (nueva feature slice — usa `public.ts` para exportar)
-  - `ui/settings-shell.tsx` — wrapper que renderiza sidebar desktop + content area
-  - `ui/settings-sidebar.tsx` — sidebar nav 240px desktop, items con sections (Place / Comunicación / Cuenta)
-  - `ui/settings-mobile-hub.tsx` — vista mobile cuando estás en `/settings` root: lista completa de sub-pages + "Frequently Accessed" (placeholder, lleno en Sesión 6)
-  - `domain/sections.ts` — tipo + data estática de las secciones del sidebar (path, label, icon, group)
-  - `public.ts` — barrel export
-- `src/app/[placeSlug]/settings/layout.tsx` — usa `<SettingsShell>` envolviendo `{children}`. Mantiene gate de auth/admin actual.
-- `src/app/[placeSlug]/settings/page.tsx` — root. En desktop redirect a primera sub-page (`/settings/hours`); en mobile renderea `<SettingsMobileHub>`.
-- `src/features/shell/ui/settings-nav-fab.tsx` — refactor: solo aparece en mobile (CSS `md:hidden`). En desktop el sidebar lo reemplaza.
+- **NEW** `docs/features/settings-shell/spec.md` (~120 LOC) — comportamiento del shell:
+  - Layout responsive (sidebar desktop, FAB mobile coexisten)
+  - Active state via `currentPath` prop
+  - Sections data shape (`SidebarSection`, `SidebarItem`)
+  - Accessibility requirements
+  - Theming policy (default neutrals, override via className)
+  - Reuse policy (primitive en shared/, data en features/)
+  - Casos no cubiertos (futuro dashboard `/settings` root, animaciones)
+- **NEW** `src/shared/ui/sidebar/sidebar.tsx` (~80 LOC) — primitive agnóstico:
+  - Props: `{ items: SidebarItem[], currentPath: string, ariaLabel: string, className?: string }`
+  - Renderiza `<nav aria-label>`, items con `<Link>`, grouping con `<h3>` headers, active state
+  - Default styles: 240px width, neutral-200 border, padding consistente con `ux-patterns.md`
+  - SIN domain knowledge (no sabe qué es "settings", no importa de features/)
+- **NEW** `src/shared/ui/sidebar/sidebar.types.ts` (~30 LOC) — tipos exportables:
+  - `SidebarItem = { href: string; label: string; icon?: ReactNode }`
+  - `SidebarGroup = { id: string; label?: string; items: SidebarItem[] }`
+  - `SidebarSections = SidebarGroup[]` (array de groups, cada uno con items)
+- **NEW** `src/shared/ui/sidebar/__tests__/sidebar.test.tsx` (~150 LOC):
+  - Items renderizan con label + href
+  - Grouping: h3 headers cuando `group.label` está
+  - Active state: item con `href === currentPath` tiene `aria-current="page"` + active class
+  - Accessibility: `<nav>` tiene `aria-label`, items tienen `focus-visible:ring`
+  - Keyboard: Tab navega entre items, Enter activa el link
+  - className override: pasa al elemento root sin romper defaults
 
-**Decisión clave del shell:** sidebar contextual swap al estilo Discourse. Cuando el user
-está en `/settings/*`, el "place chrome" del `[placeSlug]/layout.tsx` SE MANTIENE (top bar
-con switcher), pero dentro del content del settings layout el sidebar agrega navegación
-secundaria. NO reemplaza el shell entero — más seguro y menos blast radius.
+**Tests:** Vitest unitarios + boundary check (no imports de features).
 
-**Tests:**
+**Verificación:** `pnpm typecheck` + tests verdes. Suite completa sigue 1991/1991+.
 
-- `settings-shell.test.tsx` — render desktop tiene sidebar, mobile no (CSS-driven, validar via class presence)
-- `settings-sidebar.test.tsx` — items renderean con active state cuando matchéa pathname
-- Boundary test: `tests/boundaries.test.ts` valida nuevo slice respeta cross-slice rules
+**LOC delta:** ~+380 (spec ~120 + primitive ~110 + tests ~150).
 
-**Verificación:** `pnpm typecheck` + `pnpm vitest run` verde. Smoke manual: abrir
-`/settings/hours` en desktop ve sidebar; en mobile no ve sidebar.
+**Riesgo deploy:** **bajo** (puro shared/ui, nadie lo consume aún).
 
-**LOC delta:** ~+450 net (nuevo slice ~350 + refactor settings layout ~50 + tests ~150 - delete settings-nav-fab desktop logic ~20).
+**Commit final:** `feat(shared): <Sidebar> primitive agnóstico + spec settings-shell` + push.
 
-**Riesgo deploy:** medio. Layout shell afecta TODAS las sub-pages. Tests + smoke manual son críticos.
+---
+
+#### Sub-sesión 1b — Feature slice `settings-shell` (data + composición)
+
+**Goal:** feature slice que usa el primitive y aporta domain knowledge específico.
+
+**Files:**
+
+- **NEW** `src/features/settings-shell/domain/sections.ts` (~50 LOC):
+  ```ts
+  export const SETTINGS_SECTIONS: SidebarSections = [
+    { id: 'place', label: 'Place', items: [
+      { href: '/settings/hours', label: 'Horario', icon: <ClockIcon/> },
+      { href: '/settings/access', label: 'Acceso', icon: <KeyIcon/> },
+      { href: '/settings/editor', label: 'Identidad visual', icon: <PaletteIcon/> },
+    ]},
+    { id: 'comunidad', label: 'Comunidad', items: [
+      { href: '/settings/members', label: 'Miembros', icon: <UsersIcon/> },
+      { href: '/settings/groups', label: 'Grupos', icon: <UsersGroupIcon/> },
+      { href: '/settings/tiers', label: 'Tiers', icon: <BadgeIcon/> },
+    ]},
+    { id: 'contenido', label: 'Contenido', items: [
+      { href: '/settings/library', label: 'Biblioteca', icon: <BookIcon/> },
+      { href: '/settings/flags', label: 'Feature flags', icon: <FlagIcon/> },
+    ]},
+  ]
+  ```
+- **NEW** `src/features/settings-shell/ui/settings-shell.tsx` (~70 LOC):
+  - Server Component
+  - Recibe `{ children, currentPath, placeSlug }` como props
+  - Compone `<Sidebar items={SETTINGS_SECTIONS} currentPath={currentPath} ariaLabel="Configuración del place" className="md:flex hidden" />` + content area `<div className="flex-1 max-w-screen-md mx-auto px-3 py-6 md:px-8 md:py-10">{children}</div>`
+  - Wraps todo en `<div className="md:flex md:gap-6">` para grid desktop
+  - Resolves item paths con prefix `/${placeSlug}` (sections solo tienen el suffix `/settings/...`)
+- **NEW** `src/features/settings-shell/ui/settings-mobile-hub.tsx` (~60 LOC):
+  - Vista del root `/settings` en mobile
+  - Grid de cards (1 col mobile, 2 col `md:`) con cada section como card
+  - Sin sidebar (FAB cubre nav)
+  - Texto placeholder: "Pronto vivirá acá el dashboard del place. Mientras tanto, elegí una sección."
+- **NEW** `src/features/settings-shell/public.ts` (~10 LOC) — barrel: exports `SettingsShell`, `SettingsMobileHub`, `SETTINGS_SECTIONS`.
+- **NEW** `src/features/settings-shell/__tests__/sections.test.ts` (~30 LOC):
+  - Sections data integrity: paths únicos, todos empiezan con `/settings/`, labels no-empty
+- **NEW** `src/features/settings-shell/__tests__/settings-shell.test.tsx` (~80 LOC):
+  - Render desktop: sidebar visible, content area con max-width
+  - Render mobile: sidebar hidden via class
+  - Pass-through de currentPath al primitive
+  - Resolve de placeSlug al prefix de hrefs
+
+**Verificación:** suite verde + boundary test (slice nueva respeta `public.ts` rules).
+
+**LOC delta:** ~+300.
+
+**Riesgo deploy:** **bajo** (slice nueva sin integrarse aún al layout).
+
+**Commit final:** `feat(settings-shell): feature slice + sections data + tests` + push.
+
+---
+
+#### Sub-sesión 1c — Integración: layout + page root + FAB
+
+**Goal:** wirear el shell al layout existente. Esta sub-sesión SÍ tiene blast radius (toca todas las sub-pages de settings).
+
+**Files:**
+
+- `src/app/[placeSlug]/settings/layout.tsx` — refactor:
+  - Mantiene gate de auth/admin (NO TOCAR esa lógica).
+  - Envuelve `{children}` con `<SettingsShell currentPath={...} placeSlug={placeSlug}>`.
+  - `currentPath` se obtiene server-side via `headers()` (header `x-pathname` que ya seteamos en middleware o vía `next/headers` segments si hay un primitive de Next 15 que lo provea — verificar al implementar).
+  - `<SettingsNavFab>` queda mounted como sibling DESPUÉS de `<SettingsShell>` (mantiene compatibilidad mobile actual).
+- `src/app/[placeSlug]/settings/page.tsx` — root:
+  - Server Component que retorna `<SettingsMobileHub />`.
+  - Mismo contenido en ambos viewports — solo cambia chrome alrededor (sidebar visible o no).
+  - Texto placeholder con nota futuro dashboard.
+- `src/features/shell/ui/settings-nav-fab.tsx` — wrapping del root con `md:hidden`:
+  - El componente entero queda envuelto en un `<div className="md:hidden">` o equivalente.
+  - NO se mueve el archivo, NO se cambia su API. Solo CSS visibility.
+- **NEW** `src/app/[placeSlug]/settings/__tests__/layout.test.tsx` (~80 LOC):
+  - Layout renderea SettingsShell con currentPath correcto
+  - FAB renderea wrapped en md:hidden
+  - Children pasan al content area
+- Smoke manual en ambos viewports.
+
+**Verificación:**
+
+- `pnpm typecheck` + suite verde.
+- Smoke desktop: navegar a `/settings/hours` → sidebar visible con "Horario" activo, content area max-width.
+- Smoke mobile: navegar a `/settings/hours` → no sidebar, FAB visible para nav.
+- Smoke desktop /settings root → sidebar + placeholder content.
+- Smoke mobile /settings root → mobile hub + FAB.
+
+**LOC delta:** ~+50 net (refactor layout + page + FAB wrap + tests).
+
+**Riesgo deploy:** **medio**. Toca el layout que cubre TODAS las sub-pages de settings. Si algo se rompe, blast radius alto. Smoke manual + tests son críticos.
+
+**Commit final:** `feat(settings): integrate SettingsShell + FAB md:hidden` + push.
+
+---
+
+**Sesión 1 — Resumen consolidado:**
+
+| Sub-sesión                        | LOC      | Riesgo | Tiempo  |
+| --------------------------------- | -------- | ------ | ------- |
+| 1a — Spec + Sidebar primitive     | +380     | Bajo   | 1.5h    |
+| 1b — Feature slice settings-shell | +300     | Bajo   | 1h      |
+| 1c — Integración layout/page/FAB  | +50      | Medio  | 30min   |
+| **Sesión 1 total**                | **+730** | —      | **~3h** |
+
+LOC más alto que la versión original (+450 → +730) porque ahora incluye spec doc + primitive separado + más tests. **Vale la pena**: production-grade desde el día 1, sin parches después.
 
 ---
 
@@ -276,19 +406,26 @@ Search de members + comandos globales fuera de scope (decisión user 2026-05-10)
 
 ---
 
-## Resumen total (rev. 2026-05-10 con decisiones confirmadas)
+## Resumen total (rev. 2026-05-10 — Sesión 1 dividida en 1a/1b/1c)
 
-| Sesión                                                         | LOC delta | Riesgo     | Tiempo est. |
-| -------------------------------------------------------------- | --------- | ---------- | ----------- |
-| 1 — SettingsShell foundation (sidebar md:flex + FAB md:hidden) | +450      | Medio      | 2h          |
-| 2 — Hours desktop (validate via EditPanel responsive)          | +200      | Bajo       | 1h          |
-| 3 — Parallel Routes master-detail + members                    | +400      | Medio-Alto | 2h          |
-| 4 — RowActions adaptive                                        | +200      | Bajo       | 1h          |
-| 5 — Library + groups + tiers (Parallel Routes c/u)             | +400      | Medio      | 2h          |
-| 6 — Frequently Accessed hub                                    | +150      | Bajo       | 1h          |
-| 7 — Keyboard shortcuts (Cmd+K solo settings)                   | +200      | Bajo-Medio | 1h          |
-| 8 — Container queries                                          | +100      | Bajo       | 1h          |
-| **Total**                                                      | **+2100** | —          | **~11h**    |
+| Sesión                                                   | LOC delta | Riesgo     | Tiempo est. |
+| -------------------------------------------------------- | --------- | ---------- | ----------- |
+| 1a — Spec + `<Sidebar>` primitive en `shared/ui/`        | +380      | Bajo       | 1.5h        |
+| 1b — Feature slice `settings-shell` (data + composición) | +300      | Bajo       | 1h          |
+| 1c — Integración layout + page root + FAB                | +50       | Medio      | 30min       |
+| 2 — Hours desktop (validate via EditPanel responsive)    | +200      | Bajo       | 1h          |
+| 3 — Parallel Routes master-detail + members              | +400      | Medio-Alto | 2h          |
+| 4 — RowActions adaptive                                  | +200      | Bajo       | 1h          |
+| 5 — Library + groups + tiers (Parallel Routes c/u)       | +400      | Medio      | 2h          |
+| 6 — Frequently Accessed hub                              | +150      | Bajo       | 1h          |
+| 7 — Keyboard shortcuts (Cmd+K solo settings)             | +200      | Bajo-Medio | 1h          |
+| 8 — Container queries                                    | +100      | Bajo       | 1h          |
+| **Total**                                                | **+2380** | —          | **~12h**    |
+
+**Cambio vs rev. anterior:** Sesión 1 dividida en 3 sub-sesiones manejables (architecture.md:
+"una sesión = una cosa"). +280 LOC vs versión inline porque ahora incluye spec doc obligatorio,
+primitive separado en `shared/ui/` (reusable agnóstico), tests específicos por capa, y
+accessibility specs explícitas. Production-grade desde día 1.
 
 **Cumplimiento CLAUDE.md / architecture.md:**
 
