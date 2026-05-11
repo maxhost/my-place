@@ -4,7 +4,6 @@ import { loadPlaceBySlug } from '@/shared/lib/place-loader'
 import {
   ALLOWED_TIMEZONES,
   HoursForm,
-  HoursPreview,
   parseOpeningHours,
   type HoursFormDefaults,
   type OpeningHours,
@@ -42,11 +41,6 @@ export default async function SettingsHoursPage({ params }: Props) {
           Un place nace cerrado; configurá ventanas para que los miembros puedan entrar.
         </p>
       </header>
-
-      <section className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-        <p className="mb-2 text-xs uppercase tracking-wide text-neutral-500">Estado actual</p>
-        <HoursPreview hours={hours} />
-      </section>
 
       <HoursForm placeSlug={place.slug} defaults={defaults} />
     </div>

@@ -77,37 +77,7 @@ export function ExceptionsEditor({ fields, onAdd, onUpdate, onRemove }: Props) {
       {fields.length === 0 ? (
         <p className="text-sm italic text-neutral-500">Sin excepciones.</p>
       ) : (
-        <ul className="divide-y divide-neutral-200 border-y border-neutral-200">
-          {fields.map((field, idx) => (
-            <li key={field.id} className="min-h-[56px]">
-              <button
-                type="button"
-                onClick={() => openEdit(idx, stripId(field))}
-                className="flex w-full items-center gap-3 py-3 text-left hover:bg-neutral-50"
-                aria-label={`Editar excepción del ${formatDateLong(field.date)}`}
-              >
-                <span className="font-mono text-sm text-neutral-700">{field.date}</span>
-                <span className="flex-1 text-sm">
-                  {'closed' in field ? (
-                    <span className="inline-flex items-center rounded-full border border-neutral-300 px-2.5 py-1 text-xs">
-                      Cerrado
-                    </span>
-                  ) : (
-                    <span
-                      className="inline-flex items-center rounded-full border border-neutral-300 px-2.5 py-1 text-xs tabular-nums"
-                      suppressHydrationWarning
-                    >
-                      Horario especial:{' '}
-                      {field.windows
-                        .map((w) => `${formatTime(w.start)}–${formatTime(w.end)}`)
-                        .join(', ')}
-                    </span>
-                  )}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <ExceptionsGroupedList fields={fields} onEdit={openEdit} />
       )}
 
       <button
@@ -143,6 +113,143 @@ function stripId(field: DateException & { id: string }): DateException {
     return { date: field.date, closed: true }
   }
   return { date: field.date, windows: field.windows.map((w) => ({ start: w.start, end: w.end })) }
+}
+
+/**
+ * Lista agrupada por mes-año. Mejora vs la lista plana anterior:
+ *  - Header subtle por mes ayuda al scanning cuando hay >5 excepciones.
+ *  - Cada card muestra día numérico grande + abreviatura día semanal,
+ *    en vez del `YYYY-MM-DD` técnico anterior.
+ *  - Dot de color (rojo cerrado, ámbar especial) diferencia tipo
+ *    visualmente sin depender solo del texto del badge.
+ */
+function ExceptionsGroupedList({
+  fields,
+  onEdit,
+}: {
+  fields: Array<DateException & { id: string }>
+  onEdit: (idx: number, initial: DateException) => void
+}) {
+  // Group preserving original index para los callbacks.
+  type Indexed = { field: DateException & { id: string }; index: number }
+  const grouped = new Map<string, Indexed[]>()
+  fields.forEach((field, index) => {
+    const monthKey = field.date.slice(0, 7) // YYYY-MM
+    const list = grouped.get(monthKey) ?? []
+    list.push({ field, index })
+    grouped.set(monthKey, list)
+  })
+  // Orden cronológico ascendente (mes y dentro del mes por fecha).
+  const monthKeys = Array.from(grouped.keys()).sort()
+  for (const key of monthKeys) {
+    const list = grouped.get(key)
+    if (list) list.sort((a, b) => a.field.date.localeCompare(b.field.date))
+  }
+
+  return (
+    <div className="space-y-4">
+      {monthKeys.map((monthKey) => {
+        const items = grouped.get(monthKey) ?? []
+        return (
+          <div key={monthKey} className="space-y-2">
+            <h3 className="text-xs uppercase tracking-wide text-neutral-500">
+              {formatMonthHeader(monthKey)}
+            </h3>
+            <ul className="divide-y divide-neutral-200 border-y border-neutral-200">
+              {items.map(({ field, index }) => (
+                <li key={field.id}>
+                  <ExceptionCard field={field} onEdit={() => onEdit(index, stripId(field))} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ExceptionCard({
+  field,
+  onEdit,
+}: {
+  field: DateException & { id: string }
+  onEdit: () => void
+}) {
+  const isClosed = 'closed' in field
+  const { dayNum, weekdayShort } = parseDateParts(field.date)
+
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      className="flex min-h-[64px] w-full items-center gap-3 px-1 py-3 text-left hover:bg-neutral-50"
+      aria-label={`Editar excepción del ${formatDateLong(field.date)}`}
+    >
+      <div className="flex w-12 flex-col items-center text-neutral-700" aria-hidden="true">
+        <span className="text-2xl font-medium tabular-nums leading-none">{dayNum}</span>
+        <span className="mt-0.5 text-[10px] uppercase tracking-wide text-neutral-500">
+          {weekdayShort}
+        </span>
+      </div>
+      <span
+        className={`h-2 w-2 shrink-0 rounded-full ${isClosed ? 'bg-red-500' : 'bg-amber-500'}`}
+        aria-hidden="true"
+      />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-neutral-800">
+          {isClosed ? 'Cerrado' : 'Horario especial'}
+        </p>
+        {!isClosed ? (
+          <p className="text-xs tabular-nums text-neutral-600" suppressHydrationWarning>
+            {field.windows.map((w) => `${formatTime(w.start)} → ${formatTime(w.end)}`).join(' · ')}
+          </p>
+        ) : null}
+      </div>
+      <span aria-hidden="true" className="text-neutral-400">
+        ›
+      </span>
+    </button>
+  )
+}
+
+const MONTHS_LONG = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+] as const
+const WEEKDAY_SHORT_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'] as const
+
+function formatMonthHeader(monthKey: string): string {
+  // monthKey es 'YYYY-MM'. Devuelve "Diciembre 2026".
+  const [y, m] = monthKey.split('-')
+  if (!y || !m) return monthKey
+  const monthName = MONTHS_LONG[Number(m) - 1] ?? m
+  // Capitalizamos primera letra para uso como header.
+  const display = monthName.charAt(0).toUpperCase() + monthName.slice(1)
+  return `${display} ${y}`
+}
+
+function parseDateParts(date: string): { dayNum: string; weekdayShort: string } {
+  const [y, m, d] = date.split('-')
+  if (!y || !m || !d) return { dayNum: '?', weekdayShort: '???' }
+  const dayNum = String(Number(d))
+  // Calculamos día de la semana de manera determinística (Zeller's o
+  // construyendo Date noon-UTC para evitar shifts de timezone). Usamos
+  // Date con noon UTC: cualquier timezone shift queda dentro del mismo día.
+  const dt = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), 12))
+  const weekday = dt.getUTCDay() // 0=Dom..6=Sáb
+  const weekdayShort = WEEKDAY_SHORT_ES[weekday] ?? '???'
+  return { dayNum, weekdayShort }
 }
 
 function formatDateLong(date: string): string {

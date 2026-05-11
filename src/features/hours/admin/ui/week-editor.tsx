@@ -3,43 +3,40 @@
 import { useState } from 'react'
 import type { DayOfWeek, RecurringWindow } from '@/features/hours/domain/types'
 import { DAY_ORDER } from '@/features/hours/domain/types'
-import { DayRow } from './week-editor-day-row'
+import { DayCard } from './week-editor-day-card'
 import { WindowSheet, type SheetState } from './week-editor-window-sheet'
 
 /**
- * Editor de ventanas recurrentes con layout día-por-fila estilo Cal.com.
+ * Editor de ventanas recurrentes con layout card-por-día (mobile-native).
  *
  * Renderiza un `<div>` (no `<section>` con header propio) — el wrapper
  * semántico + heading lo aporta `<HoursForm>` (sección "Horario de
  * apertura" que incluye también la toggle "Abierto 24/7"). Acá solo
  * proveemos el contenido del editor.
  *
- * Sólo se renderizan rows para días que tienen al menos una ventana. Para
- * agregar un día nuevo, el usuario usa el botón "+ Añadir horario" debajo
- * de la lista, que abre un sheet con day-picker + inputs de hora.
- *
- * Cada chip de ventana es a su vez un dropdown trigger con dos acciones:
- *  - Editar (abre el sheet en modo `edit`).
- *  - Eliminar (llama `onRemove` directo, sin confirm — ya está 2 taps deep).
- *
- * El menú overflow del día (a la derecha) mantiene: agregar otra ventana al
- * mismo día y copiar a otros días.
+ * Renderiza UNA card por cada uno de los 7 días siempre (no condicional).
+ * Cada card tiene un switch on/off:
+ *  - OFF: card colapsado al header — visualmente comunica "este día está cerrado".
+ *  - ON: card expandido con ventanas verticales + acciones inline visibles
+ *    (Agregar ventana, Copiar a otros días).
  *
  * El alta y la edición ocurren en un `<BottomSheet>` (resuelve overflow en
  * mobile + se alinea con thumb-zone). Las ventanas NO cruzan medianoche
  * (documentado en `docs/features/hours/spec.md`); el Zod schema rechaza
  * `start >= end`.
  *
- * **API pública**: `fields`, `onAdd`, `onUpdate`, `onRemove`. El parent
- * (`<HoursForm>`) es el ÚNICO que invoca `useFieldArray({ name: 'recurring' })`
- * — esa es la fuente canónica del array. Tener dos instancias del mismo
- * `name` causa desyncs (RHF docs: "only one is effective"), que se
- * manifiestan como chips que no actualizan tras editar.
+ * Toggle ON → OFF dispara `onReplace(arrayWithoutThisDay)` — bulk op, NO
+ * autosavea (queda dirty para Save explícito). Toggle OFF → ON abre el
+ * sheet add con el día preseleccionado.
+ *
+ * **API pública**: `fields`, `onAdd`, `onUpdate`, `onRemove`, `onReplace`.
+ * El parent (`<HoursForm>`) es el ÚNICO que invoca `useFieldArray({ name:
+ * 'recurring' })` — esa es la fuente canónica del array.
  *
  * Este archivo es el orquestador del sistema WeekEditor: maneja state
  * (`SheetState`), agrupa fields por día (`groupByDay`), implementa
- * copy-to-* y compone `<DayRow>` + `<WindowSheet>` (archivos siblings
- * `week-editor-day-row.tsx` y `week-editor-window-sheet.tsx`).
+ * copy-to-* y compone `<DayCard>` + `<WindowSheet>` (archivos siblings
+ * `week-editor-day-card.tsx` y `week-editor-window-sheet.tsx`).
  */
 
 export const DAY_ES: Record<DayOfWeek, string> = {
@@ -75,8 +72,6 @@ export function WeekEditor({ fields, onAdd, onUpdate, onRemove, onReplace }: Pro
   const [sheet, setSheet] = useState<SheetState>({ mode: 'closed' })
 
   const byDay = groupByDay(fields)
-  const presentDays = DAY_ORDER.filter((d) => (byDay.get(d) ?? []).length > 0)
-  const missingDays = DAY_ORDER.filter((d) => (byDay.get(d) ?? []).length === 0)
 
   function openAdd(day: DayOfWeek) {
     setSheet({ mode: 'add', day })
@@ -92,12 +87,24 @@ export function WeekEditor({ fields, onAdd, onUpdate, onRemove, onReplace }: Pro
     })
   }
 
-  function openAddNewDay() {
-    setSheet({ mode: 'add-new-day', availableDays: missingDays })
-  }
-
   function closeSheet() {
     setSheet({ mode: 'closed' })
+  }
+
+  /**
+   * Toggle switch ON → OFF de un día: elimina TODAS las ventanas de ese día
+   * en una sola operación (`onReplace`). NO autosavea — queda dirty para
+   * que el user confirme con "Guardar cambios". Patrón consistente con
+   * copy-to-* (también bulk vía `onReplace`).
+   *
+   * Sin confirmación inline: la operación es reversible (toggle ON → sheet
+   * add). Si el user cierra antes de Save, las ventanas no se persisten en DB.
+   */
+  function toggleDayOff(day: DayOfWeek) {
+    const next: RecurringWindow[] = fields
+      .filter((w) => w.day !== day)
+      .map(({ day: d, start, end }) => ({ day: d, start, end }))
+    onReplace(next)
   }
 
   function copyTo(sourceDay: DayOfWeek, targetDays: ReadonlyArray<DayOfWeek>) {
@@ -133,38 +140,27 @@ export function WeekEditor({ fields, onAdd, onUpdate, onRemove, onReplace }: Pro
         22:00–23:59 y domingo 00:00–01:00).
       </p>
 
-      {presentDays.length > 0 ? (
-        <ul className="divide-y divide-neutral-200 border-y border-neutral-200">
-          {presentDays.map((day) => (
-            <DayRow
-              key={day}
-              day={day}
-              windows={byDay.get(day) ?? []}
-              onAddWindow={() => openAdd(day)}
-              onEditWindow={openEdit}
-              onRemoveWindow={onRemove}
-              onCopyToAll={() =>
-                copyTo(
-                  day,
-                  DAY_ORDER.filter((d) => d !== day),
-                )
-              }
-              onCopyToWeekdays={() => copyTo(day, WEEKDAYS)}
-              onCopyToWeekend={() => copyTo(day, WEEKEND)}
-            />
-          ))}
-        </ul>
-      ) : null}
-
-      {missingDays.length > 0 ? (
-        <button
-          type="button"
-          onClick={openAddNewDay}
-          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-dashed border-neutral-300 px-4 text-sm font-medium text-neutral-600 hover:border-neutral-500"
-        >
-          <span aria-hidden="true">+</span> Añadir horario
-        </button>
-      ) : null}
+      <div className="space-y-3">
+        {DAY_ORDER.map((day) => (
+          <DayCard
+            key={day}
+            day={day}
+            windows={byDay.get(day) ?? []}
+            onAddWindow={() => openAdd(day)}
+            onEditWindow={openEdit}
+            onRemoveWindow={onRemove}
+            onToggleOff={() => toggleDayOff(day)}
+            onCopyToAll={() =>
+              copyTo(
+                day,
+                DAY_ORDER.filter((d) => d !== day),
+              )
+            }
+            onCopyToWeekdays={() => copyTo(day, WEEKDAYS)}
+            onCopyToWeekend={() => copyTo(day, WEEKEND)}
+          />
+        ))}
+      </div>
 
       <WindowSheet
         sheet={sheet}
