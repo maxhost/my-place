@@ -44,7 +44,7 @@ export function SettingsShell({ children, currentPath, isOwner }: Props): React.
         items={sections}
         currentPath={currentPath}
         ariaLabel="Configuración del place"
-        className="hidden md:flex"
+        className="hidden md:block"
       />
       <div className="w-full flex-1">{children}</div>
     </div>

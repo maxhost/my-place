@@ -24,7 +24,7 @@ describe('<SettingsShell> composer', () => {
     expect(screen.getByTestId('content')).toBeInTheDocument()
   })
 
-  it('sidebar oculto en mobile via CSS (hidden md:flex)', () => {
+  it('sidebar oculto en mobile via CSS (hidden md:block — block, NO flex, para layout vertical)', () => {
     render(
       <SettingsShell currentPath="/x/settings/hours" isOwner={false}>
         <p>x</p>
@@ -32,7 +32,11 @@ describe('<SettingsShell> composer', () => {
     )
     const nav = screen.getByRole('navigation')
     expect(nav.className).toMatch(/hidden/)
-    expect(nav.className).toMatch(/md:flex/)
+    expect(nav.className).toMatch(/md:block/)
+    // Importante: NO debe ser md:flex — flex por default es flex-row → sidebar
+    // se renderea horizontal. Block preserva el layout vertical natural del
+    // <nav><div><ul> primitivo. Bug post-Sesión 1 fixed.
+    expect(nav.className).not.toMatch(/md:flex(?!-)/)
   })
 
   it('owner ve más items que admin (members, groups, tiers, editor)', () => {

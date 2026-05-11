@@ -9,32 +9,21 @@ import { listLibraryCategories } from '@/features/library/public.server'
 import { PageHeader } from '@/shared/ui/page-header'
 
 /**
- * Content compartido del detail de un grupo.
+ * Content compartido del detail de un grupo. Único consumer hoy:
+ * `[groupId]/page.tsx`, que se renderea como `{children}` del layout
+ * master-detail (post-fix Sesión 3).
  *
- * Consumido por:
- * - `[groupId]/page.tsx` — mobile/standalone full page (con back link)
- * - `@detail/[groupId]/page.tsx` — desktop slot del Parallel Routes
- *   master-detail (sin back link, lista visible en master pane)
- *
- * Centralizar la lógica de gate + queries + render acá evita duplicación
- * y garantiza que ambos contextos comparten exactamente el mismo behavior
- * de seguridad y data.
- *
- * El parámetro `showBackLink` controla si renderear el "← Volver a Grupos":
- * - mobile/standalone: `true` (UX clásica de detail page)
- * - desktop slot: `false` (la lista master ya es la "vuelta")
+ * El back link "← Volver a Grupos" tiene `md:hidden`: visible solo en
+ * mobile (donde el detail ocupa full screen y la lista no se ve);
+ * oculto en desktop (donde la lista master pane ya está visible al lado
+ * y el back link sería ruido).
  */
 type Props = {
   placeSlug: string
   groupId: string
-  showBackLink?: boolean
 }
 
-export async function GroupDetailContent({
-  placeSlug,
-  groupId,
-  showBackLink = true,
-}: Props): Promise<React.ReactNode> {
+export async function GroupDetailContent({ placeSlug, groupId }: Props): Promise<React.ReactNode> {
   const auth = await getCurrentAuthUser()
   if (!auth) {
     redirect(`/login?next=/settings/groups/${groupId}`)
@@ -79,14 +68,12 @@ export async function GroupDetailContent({
 
   return (
     <div className="space-y-6 px-3 py-6 md:px-4 md:py-8">
-      {showBackLink ? (
-        <Link
-          href="/settings/groups"
-          className="inline-block text-sm text-neutral-600 hover:text-neutral-900"
-        >
-          ← Volver a Grupos
-        </Link>
-      ) : null}
+      <Link
+        href="/settings/groups"
+        className="inline-block text-sm text-neutral-600 hover:text-neutral-900 md:hidden"
+      >
+        ← Volver a Grupos
+      </Link>
       <PageHeader
         title={group.name}
         description={

@@ -1,42 +1,120 @@
 import { headers } from 'next/headers'
+import { notFound, redirect } from 'next/navigation'
+import { getCurrentAuthUser } from '@/shared/lib/auth-user'
+import { loadPlaceBySlug } from '@/shared/lib/place-loader'
+import { findMemberPermissions } from '@/features/members/public.server'
+import { listGroupsByPlace } from '@/features/groups/public.server'
+import { ADMIN_PRESET_NAME, GroupsListAdmin } from '@/features/groups/public'
+import { listLibraryCategories } from '@/features/library/public.server'
+import { PageHeader } from '@/shared/ui/page-header'
 import { MasterDetailLayout } from '@/shared/ui/master-detail-layout'
-
-/**
- * Layout master-detail de `/settings/groups/*` con Parallel Routes (Next 15).
- *
- * Estructura:
- * - `master` slot = `{children}` (el `page.tsx` con la lista de grupos).
- * - `detail` slot = `{detail}` (Parallel Route `@detail/`):
- *   - `@detail/default.tsx` cuando no hay grupo seleccionado.
- *   - `@detail/[groupId]/page.tsx` cuando hay un grupo seleccionado en el URL.
- *
- * Mobile (`< md`): el `<MasterDetailLayout>` muestra solo UN pane según
- * `hasDetail` (derivado del pathname `/settings/groups/[groupId]`).
- * Desktop: split view 360px lista + content pane detail siempre visibles.
- *
- * `hasDetail` se deriva del header `x-pathname` que setea el middleware
- * (server-rendered, sin `usePathname()` client). Pattern matching:
- * `/settings/groups` → false, `/settings/groups/[groupId]` → true.
- *
- * Ver `docs/plans/2026-05-10-settings-desktop-redesign.md` § "Sesión 3" y
- * `docs/research/2026-05-10-settings-desktop-ux-research.md` § 4.
- */
 
 type Props = {
   children: React.ReactNode
-  detail: React.ReactNode
+  params: Promise<{ placeSlug: string }>
 }
 
-export default async function GroupsMasterDetailLayout({ children, detail }: Props) {
+/**
+ * Layout master-detail de `/settings/groups/*`.
+ *
+ * **Patrón Next 15 master-detail correcto** (post-Sesión 3 fix):
+ *  - La **lista** (master) vive ACÁ en el layout, server-rendered una sola
+ *    vez. Persiste cuando navegás entre `/settings/groups` y
+ *    `/settings/groups/[groupId]` — Next reusa el layout, no re-renderea.
+ *  - El **detail** es `{children}`, variable según el segment hijo:
+ *     - `/settings/groups` (sin segment) → children = `default.tsx` (placeholder).
+ *     - `/settings/groups/[groupId]` → children = `[groupId]/page.tsx` (detail).
+ *  - Mobile: `<MasterDetailLayout hasDetail={true}>` esconde el master
+ *    cuando hay detail (full screen). Detail content tiene back link
+ *    `md:hidden`.
+ *
+ * **Setup anterior** (revertido) usaba Parallel Routes `@detail/` slot,
+ * pero al tener `[groupId]/page.tsx` como ruta principal Y como slot,
+ * el detail se renderea DOS veces. Mover la lista al layout y eliminar
+ * el slot @detail soluciona el bug — más simple y idiomático Next 15.
+ *
+ * Gate: owner-only (idéntico al gate viejo del page.tsx). El layout
+ * `/settings/layout.tsx` ya gateá admin/owner; acá afinamos a owner.
+ *
+ * Ver `docs/features/groups/spec.md` § 5.
+ */
+export default async function GroupsMasterDetailLayout({ children, params }: Props) {
+  const { placeSlug } = await params
+
+  const auth = await getCurrentAuthUser()
+  if (!auth) {
+    redirect(`/login?next=/settings/groups`)
+  }
+
+  const place = await loadPlaceBySlug(placeSlug)
+  if (!place || place.archivedAt) {
+    notFound()
+  }
+
+  const perms = await findMemberPermissions(auth.id, place.id)
+  if (!perms.isOwner) {
+    notFound()
+  }
+
+  const [groups, categories] = await Promise.all([
+    listGroupsByPlace(place.id),
+    listLibraryCategories(place.id),
+  ])
+
+  const categoryOptions = categories.map((c) => ({
+    id: c.id,
+    emoji: c.emoji,
+    title: c.title,
+  }))
+
+  const customGroups = groups.filter((g) => !g.isPreset)
+  const hasCustomGroups = customGroups.length > 0
+
+  // hasDetail derivado del pathname: si tenemos /settings/groups/[non-empty]
+  // mobile esconde la lista y muestra el detail full-screen. Desktop muestra
+  // ambos (split view) siempre.
   const headerStore = await headers()
   const pathname = headerStore.get('x-pathname') ?? ''
-  // hasDetail = true cuando estamos en /settings/groups/[groupId] (no en root)
   const hasDetail = /^\/settings\/groups\/[^/]+/.test(pathname)
+
+  const masterPane = (
+    <div className="space-y-6 px-3 py-6 md:px-4 md:py-8">
+      <PageHeader
+        title="Grupos"
+        description={
+          <>
+            Definí grupos con permisos atómicos para delegar moderación. El grupo &quot;
+            {ADMIN_PRESET_NAME}&quot; tiene todos los permisos por defecto y no se puede eliminar.
+          </>
+        }
+      />
+      <section aria-labelledby="groups-list-heading" className="space-y-3">
+        <h2
+          id="groups-list-heading"
+          className="border-b pb-2 font-serif text-xl"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          Grupos
+        </h2>
+        <p className="mt-1 text-xs text-neutral-600">
+          {groups.length} {groups.length === 1 ? 'grupo' : 'grupos'}. El preset &quot;
+          {ADMIN_PRESET_NAME}&quot; tiene todos los permisos por defecto.
+        </p>
+        <GroupsListAdmin placeSlug={place.slug} groups={groups} categories={categoryOptions} />
+        {!hasCustomGroups && (
+          <p className="text-sm italic text-neutral-500">
+            Todavía no creaste grupos custom. Crealos para delegar moderación a miembros sin darles
+            todos los permisos.
+          </p>
+        )}
+      </section>
+    </div>
+  )
 
   return (
     <MasterDetailLayout
-      master={children}
-      detail={detail}
+      master={masterPane}
+      detail={children}
       hasDetail={hasDetail}
       masterLabel="Lista de grupos"
       detailLabel="Detalle del grupo"

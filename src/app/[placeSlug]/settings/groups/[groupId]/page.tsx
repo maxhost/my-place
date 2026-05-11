@@ -32,5 +32,5 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function SettingsGroupDetailPage({ params }: Props) {
   const { placeSlug, groupId } = await params
-  return <GroupDetailContent placeSlug={placeSlug} groupId={groupId} showBackLink />
+  return <GroupDetailContent placeSlug={placeSlug} groupId={groupId} />
 }
