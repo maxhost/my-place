@@ -1,13 +1,8 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
-import {
-  ALLOWED_TIMEZONES,
-  HoursForm,
-  parseOpeningHours,
-  type HoursFormDefaults,
-  type OpeningHours,
-} from '@/features/hours/public'
+import { ALLOWED_TIMEZONES, parseOpeningHours, type OpeningHours } from '@/features/hours/public'
+import { HoursForm, type HoursFormDefaults } from '@/features/hours/admin/public'
 
 export const metadata: Metadata = {
   title: 'Horario · Settings',
@@ -51,6 +46,7 @@ function hoursToFormDefaults(hours: OpeningHours): HoursFormDefaults {
   if (hours.kind === 'scheduled') {
     return {
       timezone: coerceTimezone(hours.timezone),
+      alwaysOpen: false,
       recurring: hours.recurring,
       exceptions: hours.exceptions,
     }
@@ -58,12 +54,14 @@ function hoursToFormDefaults(hours: OpeningHours): HoursFormDefaults {
   if (hours.kind === 'always_open') {
     return {
       timezone: coerceTimezone(hours.timezone),
+      alwaysOpen: true,
       recurring: [],
       exceptions: [],
     }
   }
   return {
     timezone: 'America/Argentina/Buenos_Aires',
+    alwaysOpen: false,
     recurring: [],
     exceptions: [],
   }

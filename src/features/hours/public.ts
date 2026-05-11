@@ -33,6 +33,11 @@ export {
 
 export { updatePlaceHoursAction } from './server/actions'
 
-export { HoursForm, type HoursFormDefaults } from './ui/hours-form'
-export { HoursPreview } from './ui/hours-preview'
-export { PlaceClosedView } from './ui/place-closed-view'
+// `HoursForm` vive en `./admin/public` (sub-slice admin). Consumirlo de ahí
+// directamente. El re-export top-level se quitó para no servir la versión
+// legacy de `./ui/hours-form` (eliminada).
+//
+// `HoursPreview` y `PlaceClosedView` también viven en sub-slices ahora
+// (`./member/public`). El top-level los re-exporta para mantener compat con
+// los consumers (`(gated)/layout.tsx`).
+export { HoursPreview, PlaceClosedView } from './member/public'
