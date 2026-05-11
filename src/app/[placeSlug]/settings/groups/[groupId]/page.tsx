@@ -3,10 +3,6 @@ import { loadPlaceBySlug } from '@/shared/lib/place-loader'
 import { findGroupById } from '@/features/groups/public.server'
 import { GroupDetailContent } from '../_group-detail-content'
 
-export const metadata: Metadata = {
-  title: 'Grupo · Settings',
-}
-
 type Props = {
   params: Promise<{ placeSlug: string; groupId: string }>
 }
