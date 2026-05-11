@@ -394,17 +394,25 @@ Search de members + comandos globales fuera de scope (decisión user 2026-05-10)
 
 ---
 
-### Sesión 8 — Container queries en components reusables (gated zone fuera de scope, pero ready)
+### Sesión 8 — Container queries en components reusables (EVALUADA Y POSTERGADA)
 
-**Goal:** preparar componentes que viven en widths variables (master-detail desktop vs full mobile vs sidebar) para usar `@container` en lugar de `md:`/`lg:`. Set up para futuro.
+**Status final (2026-05-10): NO implementada. Decisión documentada.**
 
-**Files:**
+**Goal original:** preparar componentes que viven en widths variables (master-detail desktop vs full mobile vs sidebar) para usar `@container` en lugar de `md:`/`lg:`. Set up para futuro.
 
-- `src/features/members/ui/member-card.tsx` — migrar a `@container`. Container = wrapper directo del card (no viewport).
-- `src/features/library/ui/library-item-card.tsx` — idem.
-- `src/features/events/ui/event-list-item.tsx` — idem.
-- `tailwind.config.ts` — verificar `@tailwindcss/container-queries` plugin instalado (default en v4).
-- `docs/ux-patterns.md` — sección "Container queries: cuándo y cómo".
+**Hallazgo en audit:** ningún componente candidato (`member-card`, `library-item-row`, `category-card`, `event-list-item`, `featured-thread-card`, `thread-row`) usa actualmente clases `md:`. Concretamente:
+
+- AppShell aplica `max-w-[420px]` constante en gated zone (donde viven todos esos componentes).
+- Settings sub-pages aplican `max-w-screen-md` constante (forms y master pane).
+- Master-detail (groups) split desktop tiene UN solo `_group-detail-content.tsx` que se renderea idéntico en cualquier width del pane.
+
+Bajo estas condiciones, instalar `@tailwindcss/container-queries` (Tailwind v3 — el plugin no viene por default; v4 lo trae integrado) + migrar componentes a `@container` agregaría dependencia + complejidad cognitiva sin beneficio real. Media queries cubren el 100% de casos hoy.
+
+**Decisión production-grade:** NO instalar plugin, NO migrar componentes. Documentar criterio de "cuándo SÍ" para futuro.
+
+**Documentado en:** `docs/ux-patterns.md` § "Container queries: cuándo SÍ y cuándo NO".
+
+**Cuándo emerge necesidad real**: si un componente se renderea en widths SIGNIFICATIVAMENTE distintos según contexto y necesita layouts distintos (ej. mismo `<MemberCard>` en sidebar 280px vs feed 720px con layouts diferentes). En ese momento: instalar plugin + migrar ese componente puntualmente. NO over-engineer ahora.
 
 **Tests:** visuales (snapshot tests con width específico simulado).
 
@@ -418,24 +426,36 @@ Search de members + comandos globales fuera de scope (decisión user 2026-05-10)
 
 ## Resumen total (rev. 2026-05-10 — Sesión 1 dividida en 1a/1b/1c)
 
-| Sesión                                                   | LOC delta | Riesgo     | Tiempo est. |
-| -------------------------------------------------------- | --------- | ---------- | ----------- |
-| 1a — Spec + `<Sidebar>` primitive en `shared/ui/`        | +380      | Bajo       | 1.5h        |
-| 1b — Feature slice `settings-shell` (data + composición) | +300      | Bajo       | 1h          |
-| 1c — Integración layout + page root + FAB                | +50       | Medio      | 30min       |
-| 2 — Hours desktop (validate via EditPanel responsive)    | +200      | Bajo       | 1h          |
-| 3 — Parallel Routes master-detail + members              | +400      | Medio-Alto | 2h          |
-| 4 — RowActions adaptive                                  | +200      | Bajo       | 1h          |
-| 5 — Library + groups + tiers (Parallel Routes c/u)       | +400      | Medio      | 2h          |
-| 6 — Frequently Accessed hub                              | +150      | Bajo       | 1h          |
-| 7 — Keyboard shortcuts (Cmd+K solo settings)             | +200      | Bajo-Medio | 1h          |
-| 8 — Container queries                                    | +100      | Bajo       | 1h          |
-| **Total**                                                | **+2380** | —          | **~12h**    |
+**Estado final del plan (cierre 2026-05-10):**
 
-**Cambio vs rev. anterior:** Sesión 1 dividida en 3 sub-sesiones manejables (architecture.md:
-"una sesión = una cosa"). +280 LOC vs versión inline porque ahora incluye spec doc obligatorio,
-primitive separado en `shared/ui/` (reusable agnóstico), tests específicos por capa, y
-accessibility specs explícitas. Production-grade desde día 1.
+| Sesión                                                              | Estado               | LOC entregado   |
+| ------------------------------------------------------------------- | -------------------- | --------------- |
+| 1a — Spec + `<Sidebar>` primitive                                   | ✓ deployed           | +457            |
+| 1b — Feature slice `settings-shell`                                 | ✓ deployed           | +402            |
+| 1c — Integración layout + page root + FAB                           | ✓ deployed           | +88             |
+| Correctiva — max-width AppShell + active state hrefs                | ✓ deployed           | +111            |
+| Fase A — SettingsShell sin max-width                                | ✓ deployed           | +18             |
+| 2 — Hours desktop + EditPanel responsive                            | ✓ deployed           | +348            |
+| 3 — Master-detail + groups (refactored: NO Parallel Routes)         | ✓ deployed           | +302            |
+| Fix Sesión 3 — bugs sidebar horizontal + detail duplicado           | ✓ deployed           | +111            |
+| Fix Sesión 3 final — 404 root + canonizar patrón Opción C           | ✓ deployed           | +79             |
+| 4 — RowActions adaptive                                             | ✓ deployed           | +441            |
+| 5 — Wrappers max-w (re-scoped: NO Parallel Routes en library/tiers) | ✓ deployed           | +6              |
+| 6 — Frequently Accessed hub mobile                                  | ✓ deployed           | +527            |
+| 7 — Cmd+K palette settings                                          | ✓ deployed           | +329            |
+| 8 — Container queries                                               | EVALUADA, postergada | docs only       |
+| **Total código + tests + docs**                                     | —                    | **~+3,200 LOC** |
+
+**Cambios vs plan original:**
+
+- Sesión 3 originalmente "members con Parallel Routes" — descubrimos que members tiene formularios mezclados (no encaja con master-detail puro). Reemplazado por groups (más simple).
+- **Parallel Routes descartado canonicalmente**: bug fix en commits posteriores reveló que `@detail/` slot duplicaba detail cuando matchea ambos children y slot. Nuevo patrón canónico: lista en layout + page.tsx placeholder + [id]/page.tsx detail. Documentado en `docs/ux-patterns.md` § "Master-detail layout".
+- Sesión 5 originalmente "library + tiers Parallel Routes" — descubrimos que ninguno tiene `[id]/page.tsx` separado (su edit/create vive en dialogs inline). Re-scoped a estandarizar wrappers `max-w-screen-md` (1 línea por page).
+- Sesión 8 originalmente "container queries en components reusables" — audit reveló que ningún componente candidato usa `md:` ni vive en widths variables. Decisión production-grade: NO instalar dep ni migrar componentes que no necesitan el cambio. Documentado criterio "cuándo SÍ" para futuro.
+
+**Members rediseño**: postergado, requiere plan separado. Su page actual mezcla lista + invite form + transfer ownership + leave button — refactor UX significativo antes de aplicar master-detail.
+
+**Suite final**: 2097/2097 tests verde. Build production OK. Typecheck OK.
 
 **Cumplimiento CLAUDE.md / architecture.md:**
 

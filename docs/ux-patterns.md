@@ -95,6 +95,33 @@ When a new situation isn't covered, fall back to these meta-rules:
 - Destructive UI is red (`red-600`). Amber (`amber-50` / `amber-300` / `amber-900`) is reserved for recoverable destructive (archive / hide) and warnings. Never mix.
 - The "+ add" affordance is dashed-border bottom-of-list, not a top-right filled button. Top-right filled buttons read as primary CTAs and compete with the sheet's "Guardar".
 
+## Container queries: cuándo SÍ y cuándo NO
+
+**Estado actual (2026-05-10)**: NO usamos container queries en el codebase. Todos los componentes responsive usan media queries (Tailwind `md:`/`lg:`).
+
+**Por qué:** los componentes que viven en widths "variables" hoy NO tienen layouts variables. Concretamente:
+
+- AppShell aplica `max-w-[420px]` constante en gated zone (donde viven `member-card`, `event-list-item`, `library-item-row`).
+- Settings sub-pages aplican `max-w-screen-md` constante (forms y master pane).
+- Master-detail (groups) split desktop tiene UN solo `_group-detail-content.tsx` que se renderea idéntico independiente del width del pane.
+
+Bajo estas condiciones, instalar `@tailwindcss/container-queries` + migrar componentes a `@container` agregaría dependencia + complejidad cognitiva sin beneficio. Media queries cubren el 100% de casos reales hoy.
+
+**Cuándo AGREGAR container queries**: si emerge un componente que se renderea en widths SIGNIFICATIVAMENTE distintos según contexto y necesita layouts distintos:
+
+- Mismo `<MemberCard>` en sidebar de 280px (avatar arriba, label abajo) vs feed de 720px (avatar inline, label al lado).
+- Mismo `<LibraryItemCard>` en grid de 2 col mobile vs grid de 4 col desktop con misma estructura interna.
+- Otro caso similar: el contenido del componente se vería raro/torpe si forzáramos UN solo layout.
+
+En ese momento:
+
+1. `pnpm add -D @tailwindcss/container-queries`
+2. Agregar al `tailwind.config.ts` `plugins: [require('@tailwindcss/container-queries')]`
+3. En el componente afectado: `<div className="@container">...<div className="@md:flex">...</div></div>`
+4. Documentar el caso aquí (qué componente, qué contextos, por qué media queries no alcanzaban).
+
+**No usar container queries para "preparar para el futuro"**: agregar `@container` wrappers ahora "por si acaso" es over-engineering. Prefiere agregar cuando emerja necesidad concreta.
+
 ## Master-detail layout (lista + detalle)
 
 **What.** Settings sub-pages with a list of items where each item has its own detail (groups, library categories, members) use a layout-shared list + child page detail pattern. Mobile: stack navigation. Desktop: split view 360px lista + detail pane.
