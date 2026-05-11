@@ -28,11 +28,16 @@ type Props = {
 export function SettingsShell({ children, currentPath, isOwner }: Props): React.ReactNode {
   const sections = buildSettingsShellSections({ isOwner })
 
-  // Content area: solo centrado + max-width + flex-1 (toma el resto del grid).
-  // **NO aplica padding propio.** Cada sub-page maneja su padding interno
-  // (canonical: `space-y-6 px-3 py-6 md:px-4 md:py-8` según ux-patterns.md).
-  // Si el shell agregara padding, se acumularía con el de la page → overflow
-  // en 360px y desktop con espacio descomensurado.
+  // Content area: solo flex-1 (toma el resto del grid). **NO aplica padding
+  // ni max-width propios.** Cada sub-page maneja:
+  //  - Su padding interno (canonical: `space-y-6 px-3 py-6 md:px-4 md:py-8`
+  //    según ux-patterns.md).
+  //  - Su max-width: forms típicos usan `max-w-screen-md mx-auto`; pages
+  //    master-detail (groups, members) usan full width para acomodar el
+  //    grid lista 360px + detail.
+  //
+  // Si el shell impusiera max-width, las master-detail pages quedarían
+  // atrapadas en 768px y el detail pane sería ~408px (insuficiente).
   return (
     <div className="md:flex md:gap-6">
       <Sidebar
@@ -41,7 +46,7 @@ export function SettingsShell({ children, currentPath, isOwner }: Props): React.
         ariaLabel="Configuración del place"
         className="hidden md:flex"
       />
-      <div className="mx-auto w-full max-w-screen-md flex-1">{children}</div>
+      <div className="w-full flex-1">{children}</div>
     </div>
   )
 }

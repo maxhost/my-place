@@ -63,14 +63,17 @@ describe('<SettingsShell> composer', () => {
     expect(horario).toHaveAttribute('aria-current', 'page')
   })
 
-  it('content area tiene max-width responsive (max-w-screen-md)', () => {
+  it('content area tiene flex-1 + w-full (sin max-width: cada page maneja su ancho)', () => {
     const { container } = render(
-      <SettingsShell currentPath="/x/settings/hours" isOwner={false}>
+      <SettingsShell currentPath="/settings/hours" isOwner={false}>
         <p data-testid="content">x</p>
       </SettingsShell>,
     )
     const contentWrapper = container.querySelector('div.flex-1')
-    expect(contentWrapper?.className).toMatch(/max-w-screen-md/)
+    expect(contentWrapper?.className).toContain('w-full')
+    // El shell NO debe imponer max-width — sub-pages tipo form (hours)
+    // aplican `max-w-screen-md`; master-detail (groups, members) usan full.
+    expect(contentWrapper?.className).not.toContain('max-w-')
   })
 })
 

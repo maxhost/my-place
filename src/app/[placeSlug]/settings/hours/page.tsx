@@ -34,7 +34,7 @@ export default async function SettingsHoursPage({ params }: Props) {
   const defaults = hoursToFormDefaults(hours)
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="mx-auto max-w-screen-md space-y-8 p-4 md:p-8">
       <header>
         <p className="text-sm text-neutral-500">Settings · {place.name}</p>
         <h1 className="font-serif text-3xl italic">Horario</h1>
