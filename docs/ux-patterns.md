@@ -145,13 +145,60 @@ Same form layout, same Guardar/Cancelar; in `edit` mode an inline "Eliminar" →
 
 **When NOT to use.** Single-action items (just use a button labelled with the action). Lots of actions (5+) → side sheet or its own page. Selection-derived bulk ops — the dropdown is per-item, not for selection.
 
-**How.** Wrap the chip/row in `<DropdownMenu><DropdownMenuTrigger asChild><button>...</button></DropdownMenuTrigger>...`. See `src/features/hours/ui/week-editor-day-row.tsx:51-77` (per-chip menu) and `:81-112` (row-level overflow).
+**How.** Use the `<RowActions>` primitive (`src/shared/ui/row-actions.tsx`). It handles BOTH viewports automatically (mobile chip-as-dropdown-trigger, desktop chip + hover icons). See "Adaptive per-row actions (`<RowActions>`)" below.
 
 **Pitfalls.**
 
 - Use `asChild` so Radix sets `aria-haspopup` / `aria-expanded` on the underlying button.
 - The `aria-label` must include human-readable identifiers ("Opciones para ventana 09:00 a 17:00 del Lunes") — visible label is just times.
 - Use raw `HH:MM` in `aria-label`, not `formatTime()` (see hydration-safety section).
+
+## Adaptive per-row actions (`<RowActions>`)
+
+**What.** Single primitive that adapts the per-row action UX between mobile (chip-as-dropdown-trigger) and desktop (chip + icon buttons inline). One CSS-driven component, no `useMediaQuery`.
+
+```tsx
+<RowActions
+  triggerLabel="Opciones para ventana 09:00 a 17:00 del Lunes"
+  chipClassName="rounded-full border px-3 py-2 text-sm tabular-nums"
+  actions={[
+    { icon: <Pencil className="h-4 w-4" />, label: 'Editar', onSelect: handleEdit },
+    {
+      icon: <Trash2 className="h-4 w-4" />,
+      label: 'Eliminar',
+      onSelect: handleDelete,
+      destructive: true,
+    },
+  ]}
+>
+  09:00 → 17:00
+</RowActions>
+```
+
+**Behavior.**
+
+- Mobile (`< md`): chip is a `<DropdownMenuTrigger asChild>`. Tap opens dropdown with `actions[].label` as text items. Original chip-as-trigger pattern preserved.
+- Desktop (`md:`): chip is display-only span; `actions[].icon` rendered as `<button aria-label={label}>` next to the chip. More density, fewer clicks.
+- **Overflow** (`actions.length > 3`): both viewports use a kebab `...` button instead. Threshold prevents 4+ icons making chips wider than 360px (mobile) or visually noisy (desktop).
+
+**Why.** Density vs touch-target tradeoff is viewport-dependent — admins on desktop want 1-click access to "Editar"/"Eliminar"; users on mobile want chip-as-trigger because hover doesn't exist and dedicated icons would inflate chip width past 360px.
+
+**When to use.** Per-row actions in lists/grids where each item has 1-3 primary actions and you want optimal UX in both viewports. Replaces the manual chip-as-DropdownMenuTrigger pattern from settings sub-pages.
+
+**When NOT to use.**
+
+- Standalone overflow kebab without a chip (e.g. day-row overflow with "Add another window" / "Copy to all"): use `<DropdownMenu>` directly — `<RowActions>` requires a chip children.
+- Single-action items: just use a labelled button.
+- Bulk-selection actions (footer toolbar style): `<RowActions>` is per-item.
+
+**How.** See `src/shared/ui/row-actions.tsx` (~150 LOC). Reference usage in `src/features/hours/admin/ui/week-editor-day-row.tsx`.
+
+**Pitfalls.**
+
+- `chipClassName` is applied to BOTH the mobile button and the desktop span. The chip has identical look in both viewports.
+- `actions[].destructive` activates `text-red-600` styling on the desktop icon button and the mobile dropdown item. Use it for delete/archive only (per `ux-patterns.md` § "Color palette").
+- Touch targets: each desktop icon button is `min-h-11 min-w-11` (44px). Don't override.
+- The trigger `<button>` for mobile and the `<span>` for desktop both render in the DOM (CSS hide-show). Avoid stateful `children` to prevent double-mount issues.
 
 ## Autosave with soft barrier
 
