@@ -12,6 +12,59 @@ Cada entry: qué es, dónde vive, por qué se dejó, cómo revertirlo.
 
 ## Pendientes
 
+### Sistema de diagnóstico DiagnosticLog (2026-05-10)
+
+**Origen:** sesión de hoy. Sistema de logging estructurado a tabla `DiagnosticLog` (Supabase) para debuggear flow auth (callbacks PKCE/invite, logout, getSession failures, 4xx). Reemplaza logs Pino transitorios — los entries persisten en DB y se queryean via MCP.
+
+**Por qué se dejó:** debugging de bugs auth que aparecen solo bajo condiciones reales (mobile, cookies cross-subdomain residuales, race conditions con magic link). Pino → Vercel Logs tiene retention limitada y filtros por window de tiempo; DiagnosticLog persiste indefinidamente y permite queries por traceId/event/userId.
+
+**Archivos a tocar (revertir):**
+
+1. **Borrar directorio completo** `src/shared/lib/diag/`
+
+   ```bash
+   rm -rf src/shared/lib/diag/
+   ```
+
+2. **Borrar tabla `DiagnosticLog` en Supabase** via MCP:
+
+   ```sql
+   DROP TABLE IF EXISTS "DiagnosticLog";
+   ```
+
+   Y crear migration `prisma/migrations/<fecha>_drop_diagnostic_log/migration.sql` con la misma sentencia para mantener history sincronizada.
+
+3. **Quitar el modelo `DiagnosticLog`** de `prisma/schema.prisma` (al final del archivo, claramente marcado como "TEMPORAL — Diagnóstico del flow de autenticación").
+
+4. **Regenerar Prisma client:** `pnpm prisma generate`.
+
+5. **Quitar todas las llamadas a `logDiag(...)`**:
+
+   ```bash
+   grep -rln 'logDiag\|diag/public' src/
+   # Esperado en este momento:
+   #   src/app/auth/callback/route.ts
+   #   src/app/auth/invite-callback/route.ts
+   #   src/app/logout/actions.ts
+   #   src/shared/lib/auth-user.ts
+   ```
+
+   En cada archivo: borrar el `import { ... } from '@/shared/lib/diag/public'` y todas las llamadas `logDiag(...)`. Mantener los `log.info/warn/error` de Pino que siguen siendo útiles como observabilidad mínima.
+
+6. **Borrar la migration local** `prisma/migrations/20260510020000_diagnostic_log/migration.sql` (opcional — no afecta el comportamiento si ya se aplicó).
+
+**Cómo encontrar todos los callsites:**
+
+```bash
+grep -rln 'logDiag\|diag/public\|DiagnosticLog' src/ prisma/
+```
+
+Después del cleanup, este grep retorna 0.
+
+**Test post-revert:** `pnpm typecheck` + `pnpm vitest run` deben quedar verdes. Cero comportamiento del producto cambia — solo se quita instrumentación de DB.
+
+---
+
 ### Instrumentación de diagnóstico — error en /conversations (2026-05-09)
 
 **Origen:** commit `7c329f4` (`chore(debug): instrumentar conversations + global error listener + smtp resend doc`).

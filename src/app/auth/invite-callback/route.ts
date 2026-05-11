@@ -18,6 +18,7 @@ import { apexUrl, placeUrl } from '@/shared/lib/app-url'
 import { isDomainError } from '@/shared/errors/domain-error'
 import { deriveDisplayName } from '@/app/auth/callback/helpers'
 import { acceptInvitationCore, revalidateMemberPermissions } from '@/features/members/public.server'
+import { extractCookieNames, logDiag, truncateIp } from '@/shared/lib/diag/public'
 
 /**
  * GET /auth/invite-callback?token_hash=...&type=invite|magiclink&next=...
@@ -37,45 +38,54 @@ import { acceptInvitationCore, revalidateMemberPermissions } from '@/features/me
  * **`setSession` post-verifyOtp:** workaround para supabase/ssr#36 — verifyOtp
  * escribe la session via `onAuthStateChange` listener async. `setSession()`
  * fuerza la escritura síncrona del cookies adapter.
+ *
+ * **DIAG TEMPORAL:** instrumentado con `logDiag(...)` (tabla `DiagnosticLog`).
+ * Borrar entries pre-launch (ver `docs/pre-launch-checklist.md`).
  */
 export async function GET(req: NextRequest) {
-  const log = createRequestLogger(req.headers.get(REQUEST_ID_HEADER) ?? 'unknown')
+  const traceId = req.headers.get(REQUEST_ID_HEADER) ?? Math.random().toString(36).substring(2, 10)
+  const log = createRequestLogger(traceId)
   const url = new URL(req.url)
   const tokenHash = url.searchParams.get('token_hash')
   const rawType = url.searchParams.get('type')
   const rawNext = url.searchParams.get('next')
 
-  // DEBUG TEMPORAL — traceId único que propaga al next URL para correlacionar logs end-to-end.
-  const traceId = Math.random().toString(36).substring(2, 10)
-  const incomingSb = req.cookies
-    .getAll()
-    .filter((c) => /^sb-/.test(c.name))
-    .map((c) => c.name)
-    .join(',')
-  log.warn(
+  const host = req.headers.get('host') ?? '?'
+  const userAgent = req.headers.get('user-agent')
+  const ipPrefix = truncateIp(req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip'))
+  const cookieNames = extractCookieNames(req.cookies.getAll())
+  const baseDiagCtx = {
+    traceId,
+    host,
+    path: url.pathname,
+    method: 'GET',
+    cookieNames,
+    userAgent,
+    ipPrefix,
+  }
+
+  logDiag(
+    'cb_invite_entry',
     {
-      debug: 'IC_entry',
-      traceId,
-      host: req.headers.get('host'),
       tokenHashLen: tokenHash?.length ?? 0,
       rawType,
       rawNext,
-      incomingSb,
-      ua: req.headers.get('user-agent'),
     },
-    `DBG IC[entry] tr=${traceId} host=${req.headers.get('host')} tokenLen=${tokenHash?.length ?? 0} type=${rawType} next=${rawNext} sb=[${incomingSb}]`,
+    baseDiagCtx,
   )
 
   if (!tokenHash) {
+    logDiag('cb_invite_missing_token', {}, baseDiagCtx, 'warn')
     log.warn(
       { err: new InvalidMagicLinkError('missing token_hash'), traceId },
-      `DBG IC[fail-no-token] tr=${traceId}`,
+      'invite_callback_missing_token',
     )
     return htmlRedirect(buildLoginUrl('invalid_link'))
   }
 
   const type = parseOtpType(rawType)
   if (!type) {
+    logDiag('cb_invite_invalid_type', { rawType }, baseDiagCtx, 'warn')
     log.warn(
       { err: new InvalidMagicLinkError('invalid type'), rawType },
       'invite_callback_invalid_type',
@@ -122,19 +132,19 @@ export async function GET(req: NextRequest) {
     token_hash: tokenHash,
     type,
   })
-  log.warn(
-    {
-      debug: 'IC_verify_done',
-      traceId,
-      hasUser: !!verify?.user,
-      hasSession: !!verify?.session,
-      userId: verify?.user?.id ?? null,
-      errorMessage: error?.message ?? null,
-      errorCode: (error as { code?: string } | null)?.code ?? null,
-    },
-    `DBG IC[verify] tr=${traceId} user=${verify?.user?.id ?? 'null'} sess=${!!verify?.session} err=${error?.message ?? '-'}`,
-  )
   if (error || !verify.user || !verify.session) {
+    logDiag(
+      'cb_invite_verify_failed',
+      {
+        type,
+        errorCode: (error as { code?: string } | null)?.code ?? null,
+        errorMessage: error?.message ?? null,
+        hasUser: !!verify?.user,
+        hasSession: !!verify?.session,
+      },
+      baseDiagCtx,
+      'warn',
+    )
     log.warn(
       { err: new InvalidMagicLinkError(error?.message ?? 'no user/session'), type, traceId },
       'invite_callback_verify_failed',
@@ -143,6 +153,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { user } = verify
+  const userDiagCtx = { ...baseDiagCtx, userId: user.id, sessionState: 'present' as const }
 
   // Drain microtasks para que `onAuthStateChange` listener interno del SDK
   // ssr corra → invoque applyServerStorage → invoque setAll de nuestro
@@ -161,6 +172,14 @@ export async function GET(req: NextRequest) {
       update: email ? { email } : {},
     })
   } catch (syncErr) {
+    logDiag(
+      'cb_invite_user_sync_failed',
+      {
+        errMessage: syncErr instanceof Error ? syncErr.message : String(syncErr),
+      },
+      userDiagCtx,
+      'error',
+    )
     log.error({ err: syncErr, userId: user.id }, 'invite_callback_user_sync_failed')
     await supabase.auth.signOut().catch(() => {})
     return finalize(
@@ -185,6 +204,14 @@ export async function GET(req: NextRequest) {
       revalidatePath(`/${acceptResult.placeSlug}`, 'layout')
       revalidateMemberPermissions(user.id, acceptResult.placeId)
       redirectTarget = placeUrl(acceptResult.placeSlug)
+      logDiag(
+        'cb_invite_accept_inline',
+        {
+          placeSlug: acceptResult.placeSlug,
+          alreadyMember: acceptResult.alreadyMember,
+        },
+        userDiagCtx,
+      )
       log.info(
         {
           event: 'invite_callback_accept_inline',
@@ -199,6 +226,16 @@ export async function GET(req: NextRequest) {
       // Fallback: redirigir a la accept page con el error como query param.
       // La page maneja el render del mensaje (ya tiene `<InvitationProblem>`).
       const reason = acceptErrorToReason(acceptErr)
+      logDiag(
+        'cb_invite_accept_failed',
+        {
+          reason,
+          inviteToken,
+          errMessage: acceptErr instanceof Error ? acceptErr.message : String(acceptErr),
+        },
+        userDiagCtx,
+        'warn',
+      )
       log.warn(
         {
           event: 'invite_callback_accept_failed',
@@ -219,16 +256,15 @@ export async function GET(req: NextRequest) {
   }
   redirectTarget.searchParams.set('_t', traceId)
 
-  log.warn(
+  logDiag(
+    'cb_invite_success',
     {
-      debug: 'IC_response_built',
-      traceId,
-      userId: user.id,
+      type,
       redirectTarget: redirectTarget.toString(),
       bagSize: cookieBag.length,
-      bagNames: cookieBag.map((c) => `${c.name}|d=${c.options.domain ?? '-'}|v=${c.value.length}`),
+      bagCookieNames: cookieBag.map((c) => c.name),
     },
-    `DBG IC[response] tr=${traceId} target=${redirectTarget.toString()} bag=${cookieBag.length}`,
+    userDiagCtx,
   )
 
   log.info({ userId: user.id, type, traceId }, 'invite_callback_success')
@@ -265,12 +301,6 @@ function acceptErrorToReason(err: unknown): string {
 /** Apply cookie bag al response final + retornar. */
 function finalize(response: ReturnType<typeof htmlRedirect>, bag: CookieToSet[]) {
   applyCookies(response, bag)
-  // DEBUG TEMPORAL — bag info en headers para verificar vía curl.
-  response.headers.set('x-debug-bag-size', String(bag.length))
-  response.headers.set(
-    'x-debug-bag-names',
-    bag.map((c) => `${c.name}|d=${c.options.domain ?? '-'}|v=${c.value.length}`).join(','),
-  )
   return response
 }
 

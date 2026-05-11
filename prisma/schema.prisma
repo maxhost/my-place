@@ -863,3 +863,32 @@ model GroupCategoryScope {
   @@id([groupId, categoryId])
   @@index([categoryId])
 }
+
+// TEMPORAL — Diagnóstico del flow de autenticación (callbacks, logout, middleware,
+// RLS denials, 4xx). DEBE BORRARSE antes de prod junto con `src/shared/lib/diag/`
+// y todas las llamadas a `logDiag(...)`. Ver `docs/pre-launch-checklist.md`.
+//
+// Migration: `20260510020000_diagnostic_log`. RLS DISABLED siguiendo el patrón
+// del core (Prisma escribe con connection privilegiada; lectura solo via MCP).
+model DiagnosticLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+  traceId      String
+  host         String
+  path         String
+  method       String
+  userId       String?
+  sessionState String?
+  cookieNames  String[] @default([])
+  event        String
+  severity     String
+  payload      Json     @default("{}")
+  userAgent    String?
+  ipPrefix     String?
+
+  @@index([createdAt(sort: Desc)])
+  @@index([traceId])
+  @@index([event])
+  @@index([severity])
+  @@index([userId])
+}

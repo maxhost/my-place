@@ -13,6 +13,7 @@ import {
 import { extractProjectRef } from '@/shared/lib/supabase/build-session-cookies'
 import { resolveNextRedirect } from '@/shared/lib/next-redirect'
 import { htmlRedirect } from '@/shared/lib/auth-redirect-html'
+import { extractCookieNames, logDiag, truncateIp } from '@/shared/lib/diag/public'
 import { deriveDisplayName } from './helpers'
 
 /**
@@ -21,14 +22,39 @@ import { deriveDisplayName } from './helpers'
  * Callback PKCE para magic links generados por `signInWithOtp` desde el
  * browser. Mismo patrón que `/auth/invite-callback` (cookie bag + htmlRedirect
  * + setSession). Ver comentarios ahí.
+ *
+ * **DIAG TEMPORAL:** instrumentado con `logDiag(...)` (tabla `DiagnosticLog`).
+ * Borrar entries pre-launch (ver `docs/pre-launch-checklist.md`).
  */
 export async function GET(req: NextRequest) {
-  const log = createRequestLogger(req.headers.get(REQUEST_ID_HEADER) ?? 'unknown')
+  const traceId = req.headers.get(REQUEST_ID_HEADER) ?? 'unknown'
+  const log = createRequestLogger(traceId)
   const url = new URL(req.url)
   const code = url.searchParams.get('code')
   const rawNext = url.searchParams.get('next')
 
+  const baseDiagCtx = {
+    traceId,
+    host: req.headers.get('host') ?? '?',
+    path: url.pathname,
+    method: 'GET',
+    cookieNames: extractCookieNames(req.cookies.getAll()),
+    userAgent: req.headers.get('user-agent'),
+    ipPrefix: truncateIp(req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip')),
+  }
+
+  logDiag(
+    'cb_pkce_entry',
+    {
+      hasCode: !!code,
+      codeLen: code?.length ?? 0,
+      rawNext,
+    },
+    baseDiagCtx,
+  )
+
   if (!code) {
+    logDiag('cb_pkce_missing_code', {}, baseDiagCtx, 'warn')
     log.warn({ err: new InvalidMagicLinkError('missing code') }, 'callback_missing_code')
     return htmlRedirect(buildLoginUrl('invalid_link'))
   }
@@ -63,6 +89,17 @@ export async function GET(req: NextRequest) {
 
   const { data: exchange, error } = await supabase.auth.exchangeCodeForSession(code)
   if (error || !exchange.user || !exchange.session) {
+    logDiag(
+      'cb_pkce_exchange_failed',
+      {
+        errorCode: (error as { code?: string } | null)?.code ?? null,
+        errorMessage: error?.message ?? null,
+        hasUser: !!exchange?.user,
+        hasSession: !!exchange?.session,
+      },
+      baseDiagCtx,
+      'warn',
+    )
     log.warn(
       { err: new InvalidMagicLinkError(error?.message ?? 'no user/session') },
       'callback_exchange_failed',
@@ -71,6 +108,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { user } = exchange
+  const userDiagCtx = { ...baseDiagCtx, userId: user.id, sessionState: 'present' as const }
 
   // Drain microtasks → onAuthStateChange listener corre → setAll captura
   // session cookies con formato canónico del SDK.
@@ -87,6 +125,14 @@ export async function GET(req: NextRequest) {
       update: email ? { email } : {},
     })
   } catch (syncErr) {
+    logDiag(
+      'cb_pkce_user_sync_failed',
+      {
+        errMessage: syncErr instanceof Error ? syncErr.message : String(syncErr),
+      },
+      userDiagCtx,
+      'error',
+    )
     log.error({ err: syncErr, userId: user.id }, 'user_sync_failed')
     await supabase.auth.signOut().catch(() => {})
     return finalize(
@@ -96,6 +142,16 @@ export async function GET(req: NextRequest) {
   }
 
   const redirectTarget = resolveNextRedirect(rawNext)
+
+  logDiag(
+    'cb_pkce_success',
+    {
+      redirectTarget: redirectTarget.toString(),
+      bagSize: cookieBag.length,
+      bagCookieNames: cookieBag.map((c) => c.name),
+    },
+    userDiagCtx,
+  )
 
   log.info({ userId: user.id }, 'callback_success')
   return finalize(htmlRedirect(redirectTarget), cookieBag)

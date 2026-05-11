@@ -1,9 +1,12 @@
 import 'server-only'
 import { cache } from 'react'
+import { headers } from 'next/headers'
 import { AuthorizationError } from '@/shared/errors/domain-error'
 import { createSupabaseServer } from './supabase/server'
 import { isStaleSessionError } from './supabase/refresh-token-error'
 import { logger } from './logger'
+import { logDiag } from './diag/public'
+import { REQUEST_ID_HEADER } from './request-id'
 
 export type AuthUser = { id: string; email: string | null }
 
@@ -13,6 +16,10 @@ export type AuthUser = { id: string; email: string | null }
  * Supabase Auth — todas las invocaciones en el mismo render comparten el
  * resultado. Retorna `null` si no hay sesión (el caller decide si redirigir o
  * tirar `AuthorizationError`).
+ *
+ * **DIAG TEMPORAL:** loggea via `logDiag` los unexpected nulls + errores
+ * (con context de host/path) — borrar entries pre-launch (ver
+ * `docs/pre-launch-checklist.md`).
  */
 export const getCurrentAuthUser = cache(async (): Promise<AuthUser | null> => {
   const supabase = await createSupabaseServer()
@@ -23,20 +30,15 @@ export const getCurrentAuthUser = cache(async (): Promise<AuthUser | null> => {
   try {
     const { data } = await supabase.auth.getUser()
     if (!data.user) {
-      // DEBUG TEMPORAL — getUser retornó sin user (sin throw).
-      logger.warn(
-        { debug: 'AU_getUser_no_user', layer: 'rsc' },
-        `DBG AU[getUser-no-user] supabase returned no user without error`,
-      )
+      void emitDiag('session_get_user_unexpected_null', { layer: 'rsc' }, 'warn').catch(() => {})
       return null
     }
     return { id: data.user.id, email: data.user.email ?? null }
   } catch (err) {
-    // DEBUG TEMPORAL — capturar TODA la info del error en RSC.
     const e = err as { code?: string; message?: string; name?: string; status?: number }
-    logger.warn(
+    void emitDiag(
+      'session_get_user_error',
       {
-        debug: 'AU_getUser_error',
         layer: 'rsc',
         errName: e?.name ?? null,
         errCode: e?.code ?? null,
@@ -44,8 +46,9 @@ export const getCurrentAuthUser = cache(async (): Promise<AuthUser | null> => {
         errMessage: e?.message ?? null,
         isStale: isStaleSessionError(err),
       },
-      `DBG AU[getUser-err] name=${e?.name} code=${e?.code} status=${e?.status} msg=${e?.message} stale=${isStaleSessionError(err)}`,
-    )
+      'error',
+    ).catch(() => {})
+
     if (!isStaleSessionError(err)) {
       // DURANTE DIAGNÓSTICO: tratar como anonymous en lugar de propagar
       // (para no crashear el render con error overlay y poder ver el log).
@@ -74,4 +77,34 @@ export async function requireAuthUserId(reason: string): Promise<string> {
   const user = await getCurrentAuthUser()
   if (!user) throw new AuthorizationError(reason)
   return user.id
+}
+
+/**
+ * Helper para escribir a DiagnosticLog desde RSC con context auto-resuelto
+ * (host/path desde headers, traceId desde x-request-id).
+ *
+ * Aislado en este módulo para borrarlo junto con el resto del DIAG TEMPORAL.
+ */
+async function emitDiag(
+  event: 'session_get_user_unexpected_null' | 'session_get_user_error',
+  payload: Record<string, unknown>,
+  severity: 'warn' | 'error',
+): Promise<void> {
+  try {
+    const h = await headers()
+    logDiag(
+      event,
+      payload,
+      {
+        traceId: h.get(REQUEST_ID_HEADER) ?? 'unknown',
+        host: h.get('host') ?? '?',
+        path: h.get('x-pathname') ?? '?',
+        method: 'RSC',
+        userAgent: h.get('user-agent'),
+      },
+      severity,
+    )
+  } catch {
+    // headers() puede fallar fuera de request scope; ignorar silently.
+  }
 }
