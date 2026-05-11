@@ -95,6 +95,41 @@ When a new situation isn't covered, fall back to these meta-rules:
 - Destructive UI is red (`red-600`). Amber (`amber-50` / `amber-300` / `amber-900`) is reserved for recoverable destructive (archive / hide) and warnings. Never mix.
 - The "+ add" affordance is dashed-border bottom-of-list, not a top-right filled button. Top-right filled buttons read as primary CTAs and compete with the sheet's "Guardar".
 
+## Master-detail layout (lista + detalle)
+
+**What.** Settings sub-pages with a list of items where each item has its own detail (groups, library categories, members) use a layout-shared list + child page detail pattern. Mobile: stack navigation. Desktop: split view 360px lista + detail pane.
+
+**How.**
+
+```
+settings/<feature>/
+├── layout.tsx               ← gate + lista cargada inline + <MasterDetailLayout master={lista} detail={children} hasDetail={pathnameHasId}>
+├── page.tsx                 ← children placeholder en /settings/<feature>: "Elegí un item"
+└── [itemId]/page.tsx        ← children detail en /settings/<feature>/[itemId]: GroupDetailContent / etc
+```
+
+Cuando navegás de `/settings/<feature>` a `/settings/<feature>/[itemId]`, **Next 15 reusa el layout** (decisión documentada). La lista server-rendered en el layout NO se re-fetchea — la transición desktop es solo un cambio de detail pane, sin reload visual de la lista.
+
+**Cómo `<MasterDetailLayout>` decide qué pane mostrar (mobile)**: el layout deriva `hasDetail` del header `x-pathname` que setea el middleware (`/^\/settings\/<feature>\/[^/]+/`). Mobile esconde el pane que no aplica. Desktop muestra ambos.
+
+**Why this approach (not alternatives).**
+
+- ❌ **Parallel Routes (`@detail/` slot)**: probado y descartado. Causa duplicación cuando ambos children y slot matchean la misma ruta. Más complejo, menos auditable. Bug fix commit `60c777e`.
+- ❌ **page.tsx independiente sin layout shared**: la lista se re-fetchea en cada navegación → page reload visual en desktop al cambiar de detail.
+- ❌ **`default.tsx` en raíz**: solo aplica con Parallel Routes. Sin slots, el URL `/settings/<feature>` da 404 sin `page.tsx` real. Bug fix commit `<este>`.
+
+**When to use.** Sub-pages tipo "lista de items administrables, cada uno con detail page propio": groups (✓ implementado), futuro library/members/tiers cuando se rediseñen.
+
+**When NOT to use.** Sub-pages tipo single form (hours, access, editor, flags) — esas usan max-w-screen-md mx-auto centered, sin master pane.
+
+**Pitfalls.**
+
+- El layout debe cargar la lista una vez. Si se mueve a `page.tsx` el patrón se rompe (se re-fetchea en cada nav).
+- El back link del detail debe ser `md:hidden` — visible en mobile (donde la lista no se ve), oculto en desktop (donde la lista master ya está visible al lado).
+- El gate (auth + perms) puede vivir en el layout (compartido) o en cada page (defensa en profundidad). Settings/groups lo tiene en layout porque el shell padre ya validó admin/owner.
+
+**How.** Reference implementation: `src/app/[placeSlug]/settings/groups/{layout,page,_group-detail-content}.tsx` + `[groupId]/page.tsx`.
+
 ## `<BottomSheet>` for add / edit forms
 
 **What.** Forms with multiple inputs (time pickers, day picker, radios) open in a `<BottomSheet>` anchored to the bottom of the viewport — not a centered `<Dialog>`, not inline.

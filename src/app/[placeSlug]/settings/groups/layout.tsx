@@ -17,26 +17,34 @@ type Props = {
 /**
  * Layout master-detail de `/settings/groups/*`.
  *
- * **Patrón Next 15 master-detail correcto** (post-Sesión 3 fix):
+ * **Patrón canónico Place para master-detail** (decisión post-fixes Sesión
+ * 3 + 5; aplicar este mismo patrón al rediseño futuro de library/tiers/members):
+ *
  *  - La **lista** (master) vive ACÁ en el layout, server-rendered una sola
  *    vez. Persiste cuando navegás entre `/settings/groups` y
- *    `/settings/groups/[groupId]` — Next reusa el layout, no re-renderea.
+ *    `/settings/groups/[groupId]` — Next 15 reusa layouts entre routes
+ *    hermanas, NO re-fetchea.
  *  - El **detail** es `{children}`, variable según el segment hijo:
- *     - `/settings/groups` (sin segment) → children = `default.tsx` (placeholder).
+ *     - `/settings/groups` (sin segment) → children = `page.tsx` (placeholder).
  *     - `/settings/groups/[groupId]` → children = `[groupId]/page.tsx` (detail).
  *  - Mobile: `<MasterDetailLayout hasDetail={true}>` esconde el master
- *    cuando hay detail (full screen). Detail content tiene back link
- *    `md:hidden`.
+ *    cuando hay detail (full screen). Detail content tiene back link `md:hidden`.
  *
- * **Setup anterior** (revertido) usaba Parallel Routes `@detail/` slot,
- * pero al tener `[groupId]/page.tsx` como ruta principal Y como slot,
- * el detail se renderea DOS veces. Mover la lista al layout y eliminar
- * el slot @detail soluciona el bug — más simple y idiomático Next 15.
+ * **Approaches descartados:**
+ *
+ *  - **Parallel Routes (`@detail/` slot)**: probado en Sesión 3, descartado.
+ *    Causa duplicación cuando ambos children y slot matchean la misma ruta.
+ *    Más complejo y menos auditable. Doc: bug fix commit 60c777e.
+ *  - **page.tsx independiente sin layout shared**: lista se re-fetchea en
+ *    cada navegación → page reload visual en desktop al cambiar de detail.
+ *  - **default.tsx en groups/ root**: solo aplica con Parallel Routes;
+ *    sin slots, el URL `/groups` raíz da 404 sin un page.tsx real.
  *
  * Gate: owner-only (idéntico al gate viejo del page.tsx). El layout
  * `/settings/layout.tsx` ya gateá admin/owner; acá afinamos a owner.
  *
- * Ver `docs/features/groups/spec.md` § 5.
+ * Ver `docs/features/groups/spec.md` § 5 y `docs/ux-patterns.md` §
+ * "Master-detail layout".
  */
 export default async function GroupsMasterDetailLayout({ children, params }: Props) {
   const { placeSlug } = await params
