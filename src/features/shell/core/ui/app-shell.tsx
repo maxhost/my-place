@@ -35,6 +35,20 @@ type Props = {
   currentSlug: string
   apexUrl: string
   placeClosed?: boolean
+  /**
+   * Libera el `max-w-[420px]` del container en desktop. Default `false`
+   * (mobile-first preservado: gated zone sigue centrada en 420px).
+   *
+   * Cuando `true`, el shell ocupa todo el ancho disponible (con scrollbars
+   * si el viewport es muy ancho). Usado por `/settings/*` para permitir el
+   * sidebar 240px + content area amplio del rediseño desktop. El layout
+   * padre (`[placeSlug]/layout.tsx`) decide pasar `wide={true}` cuando el
+   * pathname es `/settings/...`.
+   *
+   * Ver `docs/plans/2026-05-10-settings-desktop-redesign.md` § "Sub-sesión
+   * correctiva".
+   */
+  wide?: boolean
   children: React.ReactNode
 }
 
@@ -43,10 +57,14 @@ export function AppShell({
   currentSlug,
   apexUrl,
   placeClosed = false,
+  wide = false,
   children,
 }: Props): React.ReactNode {
+  const containerClass = wide
+    ? 'mx-auto flex min-h-screen w-full flex-col bg-bg'
+    : 'mx-auto flex min-h-screen max-w-[420px] flex-col bg-bg'
   return (
-    <div className="mx-auto flex min-h-screen max-w-[420px] flex-col bg-bg">
+    <div className={containerClass}>
       <ShellChrome
         places={places}
         currentSlug={currentSlug}

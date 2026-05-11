@@ -29,5 +29,5 @@ export default async function PlaceSettingsRootPage({ params }: Props) {
   const perms = await findMemberPermissions(auth.id, place.id)
   if (!perms.isAdmin) notFound()
 
-  return <SettingsMobileHub placeSlug={placeSlug} isOwner={perms.isOwner} />
+  return <SettingsMobileHub isOwner={perms.isOwner} />
 }

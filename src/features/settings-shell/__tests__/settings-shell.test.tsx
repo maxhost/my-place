@@ -8,11 +8,7 @@ afterEach(() => cleanup())
 describe('<SettingsShell> composer', () => {
   it('renderiza el sidebar con aria-label "Configuración del place"', () => {
     render(
-      <SettingsShell
-        currentPath="/the-company/settings/hours"
-        placeSlug="the-company"
-        isOwner={false}
-      >
+      <SettingsShell currentPath="/settings/hours" isOwner={false}>
         <p>Page content</p>
       </SettingsShell>,
     )
@@ -21,7 +17,7 @@ describe('<SettingsShell> composer', () => {
 
   it('children se renderean en el content area', () => {
     render(
-      <SettingsShell currentPath="/x/settings/hours" placeSlug="x" isOwner={false}>
+      <SettingsShell currentPath="/x/settings/hours" isOwner={false}>
         <p data-testid="content">Custom content</p>
       </SettingsShell>,
     )
@@ -30,7 +26,7 @@ describe('<SettingsShell> composer', () => {
 
   it('sidebar oculto en mobile via CSS (hidden md:flex)', () => {
     render(
-      <SettingsShell currentPath="/x/settings/hours" placeSlug="x" isOwner={false}>
+      <SettingsShell currentPath="/x/settings/hours" isOwner={false}>
         <p>x</p>
       </SettingsShell>,
     )
@@ -41,7 +37,7 @@ describe('<SettingsShell> composer', () => {
 
   it('owner ve más items que admin (members, groups, tiers, editor)', () => {
     render(
-      <SettingsShell currentPath="/x/settings/hours" placeSlug="x" isOwner={false}>
+      <SettingsShell currentPath="/x/settings/hours" isOwner={false}>
         <p>x</p>
       </SettingsShell>,
     )
@@ -49,7 +45,7 @@ describe('<SettingsShell> composer', () => {
 
     cleanup()
     render(
-      <SettingsShell currentPath="/x/settings/hours" placeSlug="x" isOwner={true}>
+      <SettingsShell currentPath="/x/settings/hours" isOwner={true}>
         <p>x</p>
       </SettingsShell>,
     )
@@ -59,11 +55,7 @@ describe('<SettingsShell> composer', () => {
 
   it('item activo (currentPath match) tiene aria-current="page"', () => {
     render(
-      <SettingsShell
-        currentPath="/the-company/settings/hours"
-        placeSlug="the-company"
-        isOwner={true}
-      >
+      <SettingsShell currentPath="/settings/hours" isOwner={true}>
         <p>x</p>
       </SettingsShell>,
     )
@@ -73,7 +65,7 @@ describe('<SettingsShell> composer', () => {
 
   it('content area tiene max-width responsive (max-w-screen-md)', () => {
     const { container } = render(
-      <SettingsShell currentPath="/x/settings/hours" placeSlug="x" isOwner={false}>
+      <SettingsShell currentPath="/x/settings/hours" isOwner={false}>
         <p data-testid="content">x</p>
       </SettingsShell>,
     )
@@ -84,13 +76,13 @@ describe('<SettingsShell> composer', () => {
 
 describe('<SettingsMobileHub>', () => {
   it('renderiza el header con texto placeholder de futuro dashboard', () => {
-    render(<SettingsMobileHub placeSlug="x" isOwner={false} />)
+    render(<SettingsMobileHub isOwner={false} />)
     expect(screen.getByRole('heading', { level: 1, name: 'Configuración' })).toBeInTheDocument()
     expect(screen.getByText(/Pronto vivirá acá el dashboard/i)).toBeInTheDocument()
   })
 
   it('renderiza secciones agrupadas con sus items', () => {
-    render(<SettingsMobileHub placeSlug="the-company" isOwner={true} />)
+    render(<SettingsMobileHub isOwner={true} />)
     // Group headers
     expect(screen.getByRole('heading', { level: 2, name: 'Place' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Comunidad' })).toBeInTheDocument()
@@ -101,19 +93,19 @@ describe('<SettingsMobileHub>', () => {
   })
 
   it('admin (no owner) NO ve sección Comunidad (todos sus items son owner-only)', () => {
-    render(<SettingsMobileHub placeSlug="x" isOwner={false} />)
+    render(<SettingsMobileHub isOwner={false} />)
     expect(screen.queryByRole('heading', { level: 2, name: 'Comunidad' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Miembros/i })).not.toBeInTheDocument()
   })
 
   it('cada card linkea al href correcto del item', () => {
-    render(<SettingsMobileHub placeSlug="the-company" isOwner={true} />)
+    render(<SettingsMobileHub isOwner={true} />)
     const horario = screen.getByRole('link', { name: /Horarios/i })
-    expect(horario).toHaveAttribute('href', '/the-company/settings/hours')
+    expect(horario).toHaveAttribute('href', '/settings/hours')
   })
 
   it('cards tienen min-height para touch target ≥56px', () => {
-    render(<SettingsMobileHub placeSlug="x" isOwner={false} />)
+    render(<SettingsMobileHub isOwner={false} />)
     const links = screen.getAllByRole('link')
     for (const link of links) {
       expect(link.className).toMatch(/min-h-/)

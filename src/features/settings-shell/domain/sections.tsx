@@ -16,7 +16,12 @@ import type { SidebarSections } from '@/shared/ui/sidebar/sidebar.types'
  *   grouping (renderiza flat list en dropdown), por eso el mapping vive acá.
  * - **Icons** de `lucide-react` — reusa los del FAB para coherencia visual
  *   entre desktop y mobile.
- * - **Hrefs absolutos** prefijados con placeSlug (ej. `/the-company/settings/hours`).
+ * - **Hrefs SIN prefijo placeSlug** (ej. `/settings/hours`): en multi-subdomain
+ *   cada place vive en su propio host (`the-company.place.community`). El
+ *   pathname server-side del request es `/settings/hours` (el slug está en el
+ *   host, no en el path). `<Link href="/settings/hours">` resuelve correctamente
+ *   dentro del subdomain. Patrón consistente con `<SettingsNavFab>` que ya usa
+ *   los mismos hrefs sin slug.
  *
  * **Excluye explícitamente** el slug `''` (General) — el `/settings` root
  * es placeholder hub mobile / welcome desktop, NO una sub-page con
@@ -58,15 +63,12 @@ const GROUPS: ReadonlyArray<GroupDefinition> = [
  * Construye las sections del sidebar para el viewer actual.
  *
  * - Filtra por `isOwner` via el helper canónico del shell.
- * - Resuelve hrefs absolutos con `placeSlug`.
+ * - Hrefs sin prefijo placeSlug (ver doc del módulo arriba).
  * - Agrupa según `GROUPS`.
  * - Excluye groups completamente vacíos (si el viewer no tiene permisos
  *   para ningún item del group).
  */
-export function buildSettingsShellSections(ctx: {
-  isOwner: boolean
-  placeSlug: string
-}): SidebarSections {
+export function buildSettingsShellSections(ctx: { isOwner: boolean }): SidebarSections {
   const visible = deriveVisibleSettingsSections({ isOwner: ctx.isOwner })
   const visibleBySlug = new Map(visible.map((s) => [s.slug, s]))
 
@@ -78,7 +80,7 @@ export function buildSettingsShellSections(ctx: {
       if (!section) return []
       return [
         {
-          href: `/${ctx.placeSlug}/settings/${slug}`,
+          href: `/settings/${slug}`,
           label: section.label,
           icon: ICONS_BY_SLUG[slug],
         },

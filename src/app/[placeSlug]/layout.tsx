@@ -1,3 +1,4 @@
+import { headers } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { getCurrentAuthUser } from '@/shared/lib/auth-user'
 import { findMemberPermissions } from '@/features/members/public.server'
@@ -60,6 +61,16 @@ export default async function PlaceLayout({ children, params }: Props) {
   // acá solo lo usamos para el chrome.
   const placeClosed = !isPlaceOpen(parseOpeningHours(place.openingHours), new Date()).open
 
+  // **AppShell wide en `/settings/*`** (Sub-sesión correctiva del rediseño
+  // desktop): el `<AppShell>` por default centra todo en `max-w-[420px]`
+  // (mobile-first preservado para la gated zone). En `/settings/*` el
+  // sidebar 240px + content area amplio del rediseño desktop necesitan
+  // todo el viewport — pasamos `wide={true}` para liberar el max-width.
+  // El pathname viene del header `x-pathname` que setea el middleware.
+  const headerStore = await headers()
+  const pathname = headerStore.get('x-pathname') ?? ''
+  const isSettings = pathname === '/settings' || pathname.startsWith('/settings/')
+
   return (
     <div style={buildThemeVars(themeConfig)} className="min-h-screen">
       <AppShell
@@ -67,6 +78,7 @@ export default async function PlaceLayout({ children, params }: Props) {
         currentSlug={placeSlug}
         apexUrl={clientEnv.NEXT_PUBLIC_APP_URL}
         placeClosed={placeClosed}
+        wide={isSettings}
       >
         {children}
       </AppShell>

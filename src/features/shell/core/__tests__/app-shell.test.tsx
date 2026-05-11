@@ -109,7 +109,7 @@ describe('AppShell', () => {
     expect(search.getAttribute('title')).toBe('Próximamente')
   })
 
-  it('layout root tiene max-w-[420px] mx-auto (mobile-first centrado)', () => {
+  it('layout root default (wide=false) tiene max-w-[420px] mx-auto (mobile-first centrado)', () => {
     usePathnameMock.mockReturnValue('/')
     const { container } = render(
       <AppShell places={places} currentSlug="the-company" apexUrl="http://lvh.me:3000">
@@ -118,6 +118,21 @@ describe('AppShell', () => {
     )
     const root = container.firstElementChild as HTMLElement
     expect(root.className).toContain('max-w-[420px]')
+    expect(root.className).toContain('mx-auto')
+    expect(root.className).toContain('bg-bg')
+  })
+
+  it('layout root con wide=true: NO tiene max-w-[420px] (libera viewport para sidebar settings desktop)', () => {
+    usePathnameMock.mockReturnValue('/settings/hours')
+    const { container } = render(
+      <AppShell places={places} currentSlug="the-company" apexUrl="http://lvh.me:3000" wide>
+        <p>x</p>
+      </AppShell>,
+    )
+    const root = container.firstElementChild as HTMLElement
+    expect(root.className).not.toContain('max-w-[420px]')
+    expect(root.className).toContain('w-full')
+    // mx-auto + bg-bg siguen
     expect(root.className).toContain('mx-auto')
     expect(root.className).toContain('bg-bg')
   })

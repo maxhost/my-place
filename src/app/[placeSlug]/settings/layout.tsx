@@ -60,7 +60,7 @@ export default async function SettingsLayout({ children, params }: Props) {
 
   return (
     <>
-      <SettingsShell currentPath={currentPath} placeSlug={placeSlug} isOwner={perms.isOwner}>
+      <SettingsShell currentPath={currentPath} isOwner={perms.isOwner}>
         {children}
       </SettingsShell>
       <div className="md:hidden">

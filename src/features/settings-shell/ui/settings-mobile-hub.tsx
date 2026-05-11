@@ -13,12 +13,11 @@ import { buildSettingsShellSections } from '../domain/sections'
  */
 
 type Props = {
-  placeSlug: string
   isOwner: boolean
 }
 
-export function SettingsMobileHub({ placeSlug, isOwner }: Props): React.ReactNode {
-  const sections = buildSettingsShellSections({ isOwner, placeSlug })
+export function SettingsMobileHub({ isOwner }: Props): React.ReactNode {
+  const sections = buildSettingsShellSections({ isOwner })
 
   return (
     <div className="mx-auto max-w-screen-md px-3 py-6 md:px-8 md:py-10">

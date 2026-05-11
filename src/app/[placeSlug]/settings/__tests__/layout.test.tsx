@@ -57,18 +57,15 @@ vi.mock('@/features/settings-shell/public', () => ({
   SettingsShell: ({
     children,
     currentPath,
-    placeSlug,
     isOwner,
   }: {
     children: React.ReactNode
     currentPath: string
-    placeSlug: string
     isOwner: boolean
   }) => (
     <div
       data-testid="settings-shell"
       data-current-path={currentPath}
-      data-place-slug={placeSlug}
       data-is-owner={String(isOwner)}
     >
       {children}

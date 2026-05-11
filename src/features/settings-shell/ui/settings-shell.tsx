@@ -15,21 +15,18 @@ import { buildSettingsShellSections } from '../domain/sections'
 
 type Props = {
   children: React.ReactNode
-  /** Pathname server-rendered del request (vía `headers()` o segments). */
+  /**
+   * Pathname server-rendered del request (vía `headers()` o segments).
+   * En multi-subdomain place, viene como `/settings/hours` (sin slug — el
+   * slug está en el host).
+   */
   currentPath: string
-  /** Slug del place actual, para prefijar los hrefs del sidebar. */
-  placeSlug: string
   /** Si el viewer es owner — para filtrar items owner-only del sidebar. */
   isOwner: boolean
 }
 
-export function SettingsShell({
-  children,
-  currentPath,
-  placeSlug,
-  isOwner,
-}: Props): React.ReactNode {
-  const sections = buildSettingsShellSections({ isOwner, placeSlug })
+export function SettingsShell({ children, currentPath, isOwner }: Props): React.ReactNode {
+  const sections = buildSettingsShellSections({ isOwner })
 
   // Content area: solo centrado + max-width + flex-1 (toma el resto del grid).
   // **NO aplica padding propio.** Cada sub-page maneja su padding interno
