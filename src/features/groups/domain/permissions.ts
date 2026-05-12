@@ -38,6 +38,7 @@ export const PERMISSIONS_ALL = [
   'members:invite',
   'members:block',
   'members:resend-invitation',
+  'members:revoke-invitation',
 ] as const
 
 export type Permission = (typeof PERMISSIONS_ALL)[number]
@@ -75,6 +76,7 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   'members:invite': 'Invitar nuevos miembros (no admins)',
   'members:block': 'Bloquear/desbloquear acceso de un miembro',
   'members:resend-invitation': 'Reenviar invitación pendiente',
+  'members:revoke-invitation': 'Revocar invitación pendiente',
 }
 
 export function permissionLabel(p: Permission): string {

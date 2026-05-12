@@ -52,6 +52,12 @@ export const resendInvitationSchema = z.object({
 
 export type ResendInvitationInput = z.infer<typeof resendInvitationSchema>
 
+export const revokeInvitationSchema = z.object({
+  invitationId: z.string().trim().min(1, 'invitationId requerido.'),
+})
+
+export type RevokeInvitationInput = z.infer<typeof revokeInvitationSchema>
+
 // ---------------------------------------------------------------
 // Aceptar invitación — token base64url (43 chars desde 32 bytes random;
 // ver `members/domain/invariants.ts` § generateInvitationToken).
