@@ -23,6 +23,7 @@ afterEach(() => cleanup())
 
 const baseCategory: LibraryCategory = {
   id: 'cat-1',
+  placeId: 'place-1',
   slug: 'recursos-onboarding',
   emoji: '📘',
   title: 'Onboarding',

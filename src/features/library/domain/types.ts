@@ -82,6 +82,10 @@ export const LIBRARY_READ_ACCESS_KIND_VALUES: ReadonlyArray<LibraryReadAccessKin
  */
 export type LibraryCategory = {
   id: string
+  /** FK al Place owner. Necesario para validar pertenencia cross-place al
+   *  hacer deep-link a `/<slug>.place.community/settings/library/[categoryId]`
+   *  desde el admin de otro place (security check). */
+  placeId: string
   /** Slug único per-place. URL canónica `/library/[slug]`. Inmutable. */
   slug: string
   /** Emoji Unicode (no clase CSS). 1..8 chars (CHECK constraint). */

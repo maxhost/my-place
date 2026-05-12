@@ -1,105 +1,26 @@
-import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
-import { loadPlaceBySlug } from '@/shared/lib/place-loader'
-import { listActiveMembers } from '@/features/members/public.server'
-import {
-  CategoryFormDialog,
-  CategoryListAdmin,
-  MAX_CATEGORIES_PER_PLACE,
-} from '@/features/library/public'
-import {
-  listContributorsByCategoryIds,
-  listLibraryCategories,
-} from '@/features/library/public.server'
-
-export const metadata: Metadata = {
-  title: 'Biblioteca · Settings',
-}
-
-type Props = {
-  params: Promise<{ placeSlug: string }>
-}
-
 /**
- * Settings de Biblioteca (R.7.3 + R.7.4) — admin CRUD de categorías y
- * gestión de contribuidores designated.
+ * Children del layout cuando estás en `/settings/library` raíz (sin segment
+ * `[categoryId]`). Renderea el placeholder en el detail pane del MasterDetailLayout.
  *
- * Gate admin/owner heredado del layout `/settings/layout.tsx`. Carga
- * en paralelo: categorías activas + members activos + contributors
- * de las categorías DESIGNATED (batch query, sin N+1).
+ * - Desktop: ocupa el detail pane (lista master visible al lado).
+ * - Mobile: oculto via `<MasterDetailLayout hasDetail={false}>` que esconde
+ *   el detail pane y muestra el master (lista) full-width.
  *
- * Reordering manual queda diferido a R.7.3.X. Restore de archivadas
- * a R.7.X+.
+ * El layout (`./layout.tsx`) carga la lista UNA VEZ y la mantiene cuando
+ * navegás a `/settings/library/[categoryId]` (Next 15 reusa layouts entre
+ * routes hermanas → lista persistente sin re-fetch).
  *
- * Ver `docs/features/library/spec.md` § 14.3 + § 14.4.
+ * Mismo patrón que `/settings/groups/page.tsx` (canon master-detail Place,
+ * doc en `docs/ux-patterns.md` § "Master-detail layout").
  */
-export default async function SettingsLibraryPage({ params }: Props) {
-  const { placeSlug } = await params
-
-  const place = await loadPlaceBySlug(placeSlug)
-  if (!place || place.archivedAt) {
-    notFound()
-  }
-
-  const [categories, activeMembers] = await Promise.all([
-    listLibraryCategories(place.id),
-    listActiveMembers(place.id),
-  ])
-
-  const designatedIds = categories
-    .filter((c) => c.contributionPolicy === 'DESIGNATED')
-    .map((c) => c.id)
-  const contributorsByCategory = await listContributorsByCategoryIds(designatedIds)
-
-  const memberOptions = activeMembers.map((m) => ({
-    userId: m.userId,
-    displayName: m.user.displayName,
-    avatarUrl: m.user.avatarUrl,
-    handle: m.user.handle,
-  }))
-
-  const remaining = MAX_CATEGORIES_PER_PLACE - categories.length
-  const canCreateMore = remaining > 0
-
+export default function LibraryRootPage(): React.ReactNode {
   return (
-    <div className="mx-auto max-w-screen-md space-y-6 p-4 md:p-8">
-      <header>
-        <p className="text-sm text-muted">Settings · {place.name}</p>
-        <h1 className="font-serif text-3xl italic text-text">Biblioteca</h1>
-        <p className="mt-2 text-sm text-muted">
-          Las categorías agrupan los recursos de la biblioteca. Vos elegís el emoji, el título y
-          quién puede agregar contenido en cada una.
+    <div className="flex h-full items-center justify-center px-6 py-10">
+      <div className="text-center">
+        <p className="text-sm text-neutral-500">
+          Elegí una categoría de la lista para ver su detalle.
         </p>
-      </header>
-
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-title text-base font-semibold text-text">
-            Categorías ({categories.length}
-            {canCreateMore ? ` de ${MAX_CATEGORIES_PER_PLACE}` : ' — máximo'})
-          </h2>
-          {canCreateMore ? (
-            <CategoryFormDialog
-              mode={{ kind: 'create', placeId: place.id }}
-              trigger={
-                <span className="rounded-md bg-accent px-3 py-1.5 text-sm text-bg">
-                  Nueva categoría
-                </span>
-              }
-            />
-          ) : (
-            <span className="text-xs text-muted">
-              Llegaste al máximo. Archivá alguna para crear otra.
-            </span>
-          )}
-        </div>
-
-        <CategoryListAdmin
-          categories={categories}
-          members={memberOptions}
-          contributorsByCategory={contributorsByCategory}
-        />
-      </section>
+      </div>
     </div>
   )
 }

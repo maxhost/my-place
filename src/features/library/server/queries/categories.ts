@@ -26,6 +26,7 @@ const categoriesTag = (placeId: string) => `place:${placeId}:library-categories`
 
 type CategoryRow = {
   id: string
+  placeId: string
   slug: string
   emoji: string
   title: string
@@ -44,6 +45,7 @@ type CategoryRow = {
 function mapCategoryRow(row: CategoryRow, docCount: number): LibraryCategory {
   return {
     id: row.id,
+    placeId: row.placeId,
     slug: row.slug,
     emoji: row.emoji,
     title: row.title,
@@ -62,6 +64,7 @@ function mapCategoryRow(row: CategoryRow, docCount: number): LibraryCategory {
 /** Select compartido — los 3 helpers exponen el mismo shape de fila. */
 const CATEGORY_SELECT = {
   id: true,
+  placeId: true,
   slug: true,
   emoji: true,
   title: true,
