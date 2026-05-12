@@ -577,31 +577,60 @@ When redesigning a settings page, apply in order:
 
 Mini-spec por cada `/settings/*` sub-page para guiar el rediseño. Cada uno cita qué del patrón canónico aplica directo + qué necesita extension específica del dominio.
 
-### `/settings/access` — invitaciones
+### `/settings/access` — ownership (no invitaciones generales)
 
-**Estructura propuesta:**
+**Decisión 2026-05-03 (M.4):** `/settings/access` se enfoca exclusivamente en **ownership**. Member/admin invites viven en `/settings/members` (directorio owner-only). La page combina owners activos + invitaciones pendientes con `asOwner=true` en una sola lista.
 
-- `<PageHeader title="Acceso" description="Invitá miembros al place." />`
-- Section "Invitar": form simple (email + checkbox admin) → server action `inviteMemberAction`. Botón "Invitar miembro" (no es BottomSheet — es form inline corto, ≤2 inputs).
-- Section "Invitaciones pendientes": lista plana `<ul divide-y border-y>` (no cards — flat list). Cada row: email + fecha + `<RowActions>` con [Reenviar, Revocar (destructive)].
+**Estado actual:** ya está bastante alineado con el patrón canónico (PageHeader, padding, sections, color palette, BottomSheets, Dialog). Plan de rediseño en `docs/plans/2026-05-12-settings-access-redesign.md`.
+
+**Estructura:**
+
+- `<PageHeader title="Acceso" description="Owners activos y pendientes, transferencia de ownership." />`
+- Section "Owners": lista plana combinada de owners activos + pending owner invites con chip de estado (`activo` / `pendiente`). Dashed-border "+ Invitar owner" arriba de la lista. Cada pending invite: row con email + inviter + vence + `<RowActions>` con [Reenviar, Revocar (destructive)].
+- Section "Transferir ownership" (solo owners): botón abre `<TransferOwnershipSheet>`.
+- ~~Section "Salir del place"~~: **MOVER** a nuevo `/settings/system` (es lifecycle del place, no config de acceso).
 
 **Patrón aplicado:**
 
-| Patrón                               | Aplica                                                                                       |
-| ------------------------------------ | -------------------------------------------------------------------------------------------- |
-| Page padding                         | ✓                                                                                            |
-| `<PageHeader>`                       | ✓                                                                                            |
-| Sections con `aria-labelledby`       | ✓ ("Invitar", "Pendientes")                                                                  |
-| Color palette neutrals               | ✓                                                                                            |
-| `<RowActions>` per pending invite    | ✓                                                                                            |
-| Confirm dialog destructive (revocar) | ✓                                                                                            |
-| Card-per-item                        | ✗ (lista plana)                                                                              |
-| `<BottomSheet>`                      | ✗ (form inline)                                                                              |
-| Save model "todo manual"             | ✗ (cada acción es discreta — invitar, reenviar, revocar persisten directo, no hay form bulk) |
+| Patrón                               | Aplica                                                                   |
+| ------------------------------------ | ------------------------------------------------------------------------ |
+| Page padding                         | ✓                                                                        |
+| `<PageHeader>`                       | ✓                                                                        |
+| Sections con `aria-labelledby`       | ✓                                                                        |
+| Color palette neutrals               | ✓                                                                        |
+| `<RowActions>` per pending invite    | A agregar (refactor del `<ResendInvitationButton>` inline)               |
+| Confirm dialog destructive (revocar) | A agregar (gap funcional: revoke action no existe en backend)            |
+| `<BottomSheet>` para invite/transfer | ✓                                                                        |
+| `<Dialog>` para leave confirm        | ✓                                                                        |
+| Card-per-item                        | ✗ (lista plana, no items con sub-data)                                   |
+| Save model "todo manual"             | ✗ (cada acción es discreta — invitar/revocar/reenviar persisten directo) |
 
-**Extension específica:** invitar es acción discreta — botón "Invitar miembro" persiste directo sin "Guardar cambios" page-level.
+**Files actuales:** `src/app/[placeSlug]/settings/access/page.tsx` + orchestrator `src/features/members/ui/owners-access-panel.tsx`.
 
-**Files actuales:** `src/app/[placeSlug]/settings/access/page.tsx`.
+### `/settings/system` — ciclo de vida del place (NUEVO)
+
+**Razón de existir:** separar "config del place" (access, hours, editor) de "ciclo de vida del place" (salir, archivar futuro). Click en "Salir del place" no es config — es decisión de abandonar la comunidad. Si owner único intenta salir, hoy está bloqueado en el `<LeavePlaceDialog>` (debe transferir primero — `leave-place-dialog.tsx:67`).
+
+**Estructura propuesta:**
+
+- `<PageHeader title="Sistema" description="Decisiones sobre tu lugar y permanencia." />`
+- Section "Salir del place": copy explicativo + botón rojo "Salir de este place" → `<LeavePlaceDialog>` (mantener el componente existente, mover desde access).
+- (Futuro) Section "Archivar place": owner-only, soft-delete del place.
+
+**Patrón aplicado:**
+
+| Patrón                                        | Aplica                 |
+| --------------------------------------------- | ---------------------- |
+| Page padding                                  | ✓                      |
+| `<PageHeader>`                                | ✓                      |
+| Sections                                      | ✓                      |
+| Color palette neutrals + red para destructive | ✓                      |
+| `<Dialog>` para leave confirm                 | ✓                      |
+| Save model                                    | ✗ (acciones discretas) |
+
+**Posición en el sidebar de settings-shell:** después de las páginas de config. Como "Sistema" — copy a confirmar con stakeholders.
+
+**Files (a crear):** `src/app/[placeSlug]/settings/system/page.tsx`.
 
 ### `/settings/editor` — identidad visual del place
 
