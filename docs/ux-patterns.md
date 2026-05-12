@@ -1,8 +1,8 @@
 # UX/UI patterns — settings pages
 
-Canonical patterns from the `/settings/hours` redesign (May 2026). Use them when redesigning the rest of the settings pages — library next, then members, groups, tiers. Each pattern earned its place by solving a specific failure mode (overflow at 360px, hydration mismatch, race conditions on bulk ops, persisted side-effects of unconfirmed changes). Rejected approaches are listed in Anti-patterns at the end so future agents don't re-derive the wrong answer.
+Canonical patterns from the `/settings/hours` redesign (May 2026, iter post-feedback May 11). Use them when redesigning the rest of the settings pages — access, editor, members, groups, tiers, library, flags. Each pattern earned its place by solving a specific failure mode (overflow at 360px, hydration mismatch, race conditions on bulk ops, accidental tap-on-scroll, destructive ops without confirm). Rejected approaches are listed in Anti-patterns at the end so future agents don't re-derive the wrong answer.
 
-The goal is mechanical reuse: a future implementer should apply these patterns without re-reading the entire `features/hours` slice.
+The goal is mechanical reuse: a future implementer should apply these patterns without re-reading the entire `features/hours` slice. See § "Per-feature application matrix" near the end for a per-page checklist of what to apply where.
 
 ## Anchor principles
 
@@ -10,8 +10,10 @@ When a new situation isn't covered, fall back to these meta-rules:
 
 1. **Mobile-first.** Validate at 360px viewport. Touch targets ≥ 44px tall. Inputs ≥ 16px font (iOS auto-zooms anything smaller).
 2. **Single source of truth in form state.** RHF `useFieldArray` lives only in the form orchestrator; children get callbacks. No double instances. No state mirrored in component-local `useState` for the same data.
-3. **The user controls commits.** Single-item edits via explicit UI can autosave. Bulk transforms (copy-to-all, timezone, mode toggle) defer until explicit Save. A click the user didn't make never triggers a write.
-4. **Locale respect.** Time/date formatting follows the viewer's locale via `Intl.*`. Canonical values (`HH:MM`, `YYYY-MM-DD`) live in the schema; presentation is downstream.
+3. **The user controls commits — todo manual.** Cualquier mutación aplica solo localmente; el user persiste con UN tap en "Guardar cambios" page-level. NO hay autosave por gesto. Razón: el modelo previo "soft barrier" (autosave si limpio, defer si dirty) era impredecible — el mismo gesto tenía 2 comportamientos. Ver § "Save model — todo manual".
+4. **Acciones destructivas requieren confirmación SIEMPRE.** El primitive `<RowActions>` aplica el confirm dialog automáticamente para cualquier action con `destructive: true`. Forms con destructive standalone usan `<Dialog>` o el patrón inline "Eliminar → ¿Sí, eliminar?".
+5. **Acciones fuera del scroll path en mobile.** Botones full-width en el body de cards son propensos a tap accidental durante scroll vertical. Las acciones del card viven en su 3-dots header o como chips pequeños inline. Ver § "Acciones fuera del scroll path".
+6. **Locale respect.** Time/date formatting follows the viewer's locale via `Intl.*`. Canonical values (`HH:MM`, `YYYY-MM-DD`) live in the schema; presentation is downstream.
 
 ---
 
@@ -53,7 +55,7 @@ When a new situation isn't covered, fall back to these meta-rules:
 
 **When NOT to use.** A page with one concern. One `<PageHeader>` + the controls is enough.
 
-**How.** See `src/features/hours/ui/hours-form.tsx:244-281`.
+**How.** See `src/features/hours/admin/ui/hours-form.tsx`.
 
 **Pitfalls.** Don't use `<details>`/`<summary>` to "save space" — settings pages should show everything. Don't use tabs for ≤3 sections.
 
@@ -65,7 +67,7 @@ When a new situation isn't covered, fall back to these meta-rules:
 
 **Canonical button styles.**
 
-- **Primary CTA in a sheet footer** — `inline-flex min-h-12 w-full items-center justify-center rounded-md bg-neutral-900 px-4 text-sm font-medium text-white`. Black solid bar. Used for "Guardar", "Crear categoría", "Listo". Disabled state: add `disabled:opacity-60`.
+- **Primary CTA in a sheet footer** — `inline-flex min-h-12 w-full items-center justify-center rounded-md bg-neutral-900 px-4 text-sm font-medium text-white`. Black solid bar. Copy del botón del sheet: **"Listo"** (= aplicar cambio local, queda dirty hasta que el user toque "Guardar cambios" page-level). NUNCA "Guardar" en un sheet — eso es el botón page-level. Para forms standalone (sin parent dirty state, e.g. crear categoría desde page propia), copy = "Crear categoría", "Invitar miembro", etc. Disabled state: add `disabled:opacity-60`.
 - **Secondary CTA in a sheet footer (Cancel)** — `inline-flex min-h-11 w-full items-center justify-center rounded-md border border-neutral-300 px-4 text-sm`. Outlined, full-width, neutral.
 - **Destructive single action** — `inline-flex min-h-11 w-full items-center justify-center rounded-md px-4 text-sm font-medium text-red-600 hover:bg-red-50` collapsed; the confirmed pair is `[Cancelar (border-neutral-300), Sí, eliminar (border-red-600 bg-red-600 text-white)]`.
 - **Recoverable destructive (archive)** — amber semantic: `border border-amber-300 bg-amber-50 text-amber-900`. Distinct from red; signals "reversible, but think twice". Use for soft-delete only.
@@ -83,7 +85,7 @@ When a new situation isn't covered, fall back to these meta-rules:
 - Row container: `<ul className="divide-y divide-neutral-200 border-y border-neutral-200">`. No `bg-surface`, no rounded card around the list — the cream page background carries through and dividers are enough rhythm.
 - Each row: `<li className="flex min-h-[56px] items-center gap-3 py-2">` (or `py-3` if the row needs more breathing room with multi-line content).
 
-**When to use.** Every `/settings/*` sub-page after this doc. When in doubt, copy the class strings from `src/features/hours/ui/week-editor-window-sheet.tsx` and `src/features/hours/ui/week-editor-day-row.tsx`.
+**When to use.** Every `/settings/*` sub-page after this doc. When in doubt, copy the class strings from `src/features/hours/admin/ui/week-editor-window-sheet.tsx` and `src/features/hours/admin/ui/week-editor-day-card.tsx`.
 
 **When NOT to use.** Outside `/settings/*` — gated zone components (conversations, library reading view, member profile, place home) keep `var(--accent)` / `var(--text)` / `var(--bg)`. That's where brand identity lives.
 
@@ -93,7 +95,7 @@ When a new situation isn't covered, fall back to these meta-rules:
 - Don't replace `border-neutral-300` with `border-border` in settings sheets — the CSS-var version drifts when admins customise the palette and can become invisible.
 - Don't use `text-muted` for actionable affordances like 3-dot triggers. `text-neutral-600` is the floor for interactive icons in settings.
 - Destructive UI is red (`red-600`). Amber (`amber-50` / `amber-300` / `amber-900`) is reserved for recoverable destructive (archive / hide) and warnings. Never mix.
-- The "+ add" affordance is dashed-border bottom-of-list, not a top-right filled button. Top-right filled buttons read as primary CTAs and compete with the sheet's "Guardar".
+- El "+ add" affordance vive en el header del card (3-dots) cuando es per-card add (e.g. "Agregar ventana al Lunes"). Para listas planas sin cards (e.g. excepciones de hours, invitaciones), un dashed-border bottom-of-list está OK. NUNCA top-right filled accent button — competen con CTAs primarios y leen como global destructive.
 
 ## Container queries: cuándo SÍ y cuándo NO
 
@@ -157,6 +159,143 @@ Cuando navegás de `/settings/<feature>` a `/settings/<feature>/[itemId]`, **Nex
 
 **How.** Reference implementation: `src/app/[placeSlug]/settings/groups/{layout,page,_group-detail-content}.tsx` + `[groupId]/page.tsx`.
 
+## Card-per-item con header + body + switch on/off
+
+**What.** Para listas de items administrables donde cada item tiene **estado on/off** y **acciones contextuales**, usar el patrón canonizado en `week-editor-day-card.tsx`:
+
+```
+┌─ <NombreItem> ───── <estado> · ⋮ · [●─] ─┐
+│                                            │
+│  ( chip-info-1 )  ( chip-info-2 )          │
+│                                            │
+└────────────────────────────────────────────┘
+```
+
+**Estructura:**
+
+- **Container:** `<div className="rounded-md border border-neutral-200">`
+- **Header (siempre visible):** `<div className="flex min-h-[56px] items-center gap-2 px-3 ${isOn ? 'border-b border-neutral-200' : ''}">`
+  - Nombre del item (`<span className="flex-1 text-base font-medium text-neutral-900">`)
+  - Label de estado (`<span className="text-xs text-neutral-500">{isOn ? 'Abierto' : 'Cerrado'}</span>` — copy específico del dominio)
+  - Overflow menu 3-dots (solo cuando `isOn` y hay acciones contextuales). Patrón en § "Acciones fuera del scroll path".
+  - Switch on/off (`<button role="switch" aria-checked>` con thumb h-5 w-5 dentro de track h-6 w-11)
+- **Body (solo cuando ON):** `<div className="flex flex-wrap items-center gap-2 px-3 py-3">`
+  - Chips de info (ventanas, tags, configuración expandible)
+  - Cada chip envuelto en `<RowActions>` con sus per-item actions
+
+**Comportamiento del switch:**
+
+- **OFF → ON:** abre BottomSheet add con el item como contexto (no muta state directo — el user agrega el primer dato).
+- **ON → OFF:** dispara bulk delete vía `onReplace(arrayWithoutThisItem)` — NO autosave, queda dirty para "Guardar cambios". Sin confirm modal — es reversible vía toggle ON.
+
+**When to use.** Listas de items con estado binario (días abierto/cerrado, feature flags on/off, tiers activos/inactivos, library categories visibles/ocultas). El switch comunica visualmente "este item está activo" sin texto extra.
+
+**When NOT to use.**
+
+- Items con >2 estados (e.g. member roles owner/admin/member): usar dropdown selector, no switch.
+- Items sin sub-data expandible (e.g. lista plana de invitaciones pendientes): usar `<ul className="divide-y">` con rows simples, sin cards.
+- Items que viven en grid (e.g. category cards de library con cover image): usar grid layout, no cards-stacked.
+
+**Why.**
+
+- WYSIWYG total: el user ve qué items están on/off sin tener que tap o expandir.
+- Switch de plataforma (iOS Settings) es un control conocido — cero friction de aprendizaje.
+- Stashed data: switch OFF preserva el sub-data del item localmente (RHF state) — toggle ON re-inflate sin pérdida.
+
+**How.** Reference implementation: `src/features/hours/admin/ui/week-editor-day-card.tsx` (~210 LOC) + orquestador `src/features/hours/admin/ui/week-editor.tsx` (renderiza UNA card por cada item siempre, no condicional por `presentItems`).
+
+**Pitfalls.**
+
+- Renderear los 7/N items SIEMPRE, no solo los con sub-data. Hidden state confunde — el user no sabe qué le falta configurar.
+- Switch icon 5×5 dentro de track 6×11 — el contenedor padre debe tener `min-h-[56px]` para garantizar touch target ≥44px (el switch en sí mide 24×44px).
+- `border-b border-neutral-200` en el header SOLO cuando `isOn` — sin body, sin border (visualmente colapsa a una row simple).
+- Si el item tiene N>1 sub-data (e.g. múltiples ventanas en un día), usar `flex-wrap` en el body para que chips wrappeen a 2da línea sin overflow.
+
+## Acciones fuera del scroll path
+
+**What.** Las acciones del card NO viven en su body como botones full-width. Viven en:
+
+1. **3-dots overflow del header** del card (`<DropdownMenu>` con items textuales).
+2. **Chips de `<RowActions>`** en el body cuando aplican a UN sub-item específico (cada chip lleva sus propios icon buttons inline).
+
+**Por qué.** En mobile, el browser tiene threshold ~10px de movement antes de distinguir scroll de tap. Un dedo apoyado en un botón `min-h-11 w-full` durante swipe vertical puede activarlo accidentalmente. Botones grandes maximizan superficie de error. Mantener el body del card libre de botones full-width hace el scroll 100% safe.
+
+**Reglas:**
+
+- **Body del card:** solo chips de info (con sus propios `<RowActions>`) o display-only content. **Cero buttons full-width.**
+- **Acciones que aplican al card entero** (e.g. "Agregar ventana", "Copiar a otros días", "Renombrar grupo"): viven en el menu 3-dots del header del card.
+- **Acciones por sub-item** (e.g. editar/eliminar ventana específica): viven en el chip via `<RowActions>` (lápiz + trashcan inline en cualquier viewport).
+- **Acción primaria del page-level** (e.g. "Guardar cambios", "Crear place"): puede ser full-width — vive ABAJO de todo el contenido scrolleable, no en medio. El user llega a ese botón después de scroll completo.
+
+**When to use.** Cualquier card en una lista de cards scrolleable de settings. Aplica a hours days, futuro flags, futuro tiers, etc.
+
+**When NOT to use.** Forms standalone (no embebidos en lista) donde el primary CTA está al final natural — ahí el botón sí puede ser full-width porque NO está en scroll path mid-flow.
+
+**How.** El header del card incluye el 3-dots cuando hay acciones del card-level:
+
+```tsx
+<div className="flex min-h-[56px] items-center gap-2 px-3 border-b">
+  <span className="flex-1 ...">{itemName}</span>
+  <span className="text-xs text-neutral-500">{statusLabel}</span>
+  {isOn ? <CardOverflowMenu actions={cardActions} /> : null}
+  <ItemSwitch isOn={isOn} onToggle={...} />
+</div>
+```
+
+Reference: `src/features/hours/admin/ui/week-editor-day-card.tsx` § `DayOverflowMenu`.
+
+**Pitfalls.**
+
+- No reintroducir botones full-width "+ Agregar X" o "Copiar a..." en el body del card "para visibilidad". El 3-dots es discoverable y mantiene el body safe.
+- El 3-dots solo aparece cuando hay acciones (e.g. cuando el card está ON). En estado OFF, el header tiene solo nombre + estado + switch.
+- `<DropdownMenuSeparator>` entre grupos de acciones (e.g. "Agregar X" vs "Copiar a Y") — comunica jerarquía sin overhead visual.
+
+## Confirm dialog automático para destructive actions
+
+**What.** El primitive `<RowActions>` aplica un confirm dialog modal automáticamente cuando una `RowAction` tiene `destructive: true`. El `onSelect` NO se ejecuta directo — se abre el dialog primero. Solo si el user confirma, se invoca.
+
+**Por qué.** Toda acción destructiva requiere confirmación (Anchor principle #4). Centralizar esto en el primitive convierte el flag `destructive: true` en contrato fuerte: imposible olvidar agregar confirm a una destructive nueva.
+
+**API:**
+
+```tsx
+{
+  icon: <Trash2 ...>,
+  label: 'Eliminar',
+  onSelect: () => handleDelete(item.id),
+  destructive: true,
+  // Customización opcional del copy:
+  confirmTitle: '¿Eliminar ventana 09:00 → 17:00?',
+  confirmDescription: 'Se eliminará del Lunes. Podés agregarla de nuevo después.',
+  confirmActionLabel: 'Sí, eliminar',
+}
+```
+
+**Defaults derivados** (cuando no se override):
+
+- `confirmTitle`: `¿{label}?` (ej. "¿Eliminar?")
+- `confirmDescription`: "Esta acción no se puede deshacer."
+- `confirmActionLabel`: `Sí, ${label.toLowerCase()}`
+
+**Comportamiento:**
+
+- Click en action destructive → abre Dialog modal.
+- Focus default en "Cancelar" (convención HIG — destructive nunca es default).
+- ESC, click outside, X = Cancel (nunca Confirm).
+- Botón "Sí, ..." es rojo (`bg-red-600 text-white border-red-600`).
+
+**When to use.** Cualquier action destructiva dentro de un `<RowActions>` (eliminar item, eliminar ventana, expulsar member, archivar place). El primitive lo maneja automáticamente.
+
+**When NOT to use.** Destructives standalone que NO viven en `<RowActions>` (e.g. botón "Eliminar place" page-level): usar `<Dialog>` directamente o el patrón inline "Eliminar → ¿Sí, eliminar?" en el footer del sheet.
+
+**How.** Ver `src/shared/ui/row-actions.tsx` § `ConfirmDialog`. Reference customization: `src/features/hours/admin/ui/week-editor-day-card.tsx` (delete chip ventana con título contextual).
+
+**Pitfalls.**
+
+- Custom `confirmTitle` con datos del item ayuda al user (vs default genérico). Hacé el esfuerzo de pasarlo cuando hay contexto útil.
+- NO uses `destructive: true` para actions reversibles (e.g. "Archivar" que se puede des-archivar). Para esas, el patrón "amber semantic" — sin confirm forzado, color ámbar en vez de rojo.
+- Si el callsite necesita confirmación CON inputs adicionales (e.g. "Escribí el nombre del place para confirmar"), el primitive no cubre ese case — usar `<Dialog>` custom.
+
 ## `<BottomSheet>` for add / edit forms
 
 **What.** Forms with multiple inputs (time pickers, day picker, radios) open in a `<BottomSheet>` anchored to the bottom of the viewport — not a centered `<Dialog>`, not inline.
@@ -175,45 +314,27 @@ Cuando navegás de `/settings/<feature>` a `/settings/<feature>/[itemId]`, **Nex
 - Forms that take the entire page (e.g. a long wizard) — those are their own route.
 - A single-input action like "rename" — a `<DropdownMenuItem>` with an inline prompt is lighter.
 
-**How.** `<BottomSheet open={...} onOpenChange={...}><BottomSheetContent>...</BottomSheetContent></BottomSheet>`. Structure with `<BottomSheetHeader>` (`<BottomSheetTitle>` is required by Radix for `aria-labelledby`), `<BottomSheetBody>` (scrollable), `<BottomSheetFooter>` (sticky CTAs). See `src/shared/ui/bottom-sheet.tsx` and `src/features/hours/ui/week-editor-window-sheet.tsx`.
+**How.** `<BottomSheet open={...} onOpenChange={...}><BottomSheetContent>...</BottomSheetContent></BottomSheet>`. Structure with `<BottomSheetHeader>` (`<BottomSheetTitle>` is required by Radix for `aria-labelledby`), `<BottomSheetBody>` (scrollable), `<BottomSheetFooter>` (sticky CTAs). See `src/shared/ui/bottom-sheet.tsx` and `src/features/hours/admin/ui/week-editor-window-sheet.tsx`.
 
-### The 3-modes pattern
+### The 2-modes pattern (add / edit)
 
-The same sheet handles `add` / `edit` / `add-new-*` via a discriminated union state:
+The same sheet handles `add` / `edit` via a discriminated union state:
 
 ```ts
 type SheetState =
   | { mode: 'closed' }
   | { mode: 'add'; day: DayOfWeek }
   | { mode: 'edit'; day: DayOfWeek; index: number; start: string; end: string }
-  | { mode: 'add-new-day'; availableDays: ReadonlyArray<DayOfWeek> }
 ```
 
-Same form layout, same Guardar/Cancelar; in `edit` mode an inline "Eliminar" → "¿Sí, eliminar?" confirmation appears in the footer. Reusing the same sheet keeps the visual language consistent.
+Same form layout, mismo botón **"Listo"** (NO "Guardar" — ese es el page-level); en `edit` mode aparece "Eliminar" → "¿Sí, eliminar?" inline en el footer (o el primitive `<RowActions>` cuando aplica). Reusing the same sheet keeps the visual language consistent.
 
 **Pitfalls.**
 
 - `aria-describedby={undefined}` on `<BottomSheetContent>` is intentional when there's no separate description.
 - Don't render the inner sheet form unless `open` — otherwise initial-state hooks (`useState`) run with stale defaults.
 - The sheet portals to `<body>` — pass state via the `SheetState` discriminated union, not parent context.
-
-## Per-item dropdown menus as the contextual entry point
-
-**What.** Each interactive item in a list (a window chip, a row, a member card) is itself the trigger of a `<DropdownMenu>` whose items are the per-item actions ("Editar", "Eliminar"). The row also carries an overflow menu (`...`) for row-level actions ("Agregar otra ventana", "Copiar a todos los días").
-
-**Why.** Chip-as-trigger eliminates a "select first, then act" two-step. Tapping a window goes straight to "Editar / Eliminar" — no separate icons cluttering the chip and no inline pencil/trash icons (which on mobile would push chips wider than the 360px viewport). The per-row `...` menu keeps the row clean of operations that don't apply to a single chip but to the whole row.
-
-**When to use.** Lists/grids of items where each item has 2-3 primary actions, and the actions are textual ("Editar", "Eliminar", "Cambiar rol").
-
-**When NOT to use.** Single-action items (just use a button labelled with the action). Lots of actions (5+) → side sheet or its own page. Selection-derived bulk ops — the dropdown is per-item, not for selection.
-
-**How.** Use the `<RowActions>` primitive (`src/shared/ui/row-actions.tsx`). It handles BOTH viewports automatically (mobile chip-as-dropdown-trigger, desktop chip + hover icons). See "Adaptive per-row actions (`<RowActions>`)" below.
-
-**Pitfalls.**
-
-- Use `asChild` so Radix sets `aria-haspopup` / `aria-expanded` on the underlying button.
-- The `aria-label` must include human-readable identifiers ("Opciones para ventana 09:00 a 17:00 del Lunes") — visible label is just times.
-- Use raw `HH:MM` in `aria-label`, not `formatTime()` (see hydration-safety section).
+- Si tu sheet necesita un 3er mode (e.g. day picker para add-new-day en hours iter previa), preferí refactorizar el flujo a UN solo entry point en lugar de inflar el discriminated union. La iter actual de hours eliminó `add-new-day` cuando los 7 días pasaron a tener su propio switch.
 
 ## Per-row actions (`<RowActions>`) — layout unificado
 
@@ -255,14 +376,15 @@ Same form layout, same Guardar/Cancelar; in `edit` mode an inline "Eliminar" →
 - Single-action items: just use a labelled button.
 - Bulk-selection actions (footer toolbar style): `<RowActions>` is per-item.
 
-**How.** See `src/shared/ui/row-actions.tsx` (~150 LOC). Reference usage in `src/features/hours/admin/ui/week-editor-day-row.tsx`.
+**How.** See `src/shared/ui/row-actions.tsx` (~280 LOC con confirm dialog). Reference usage in `src/features/hours/admin/ui/week-editor-day-card.tsx`.
 
 **Pitfalls.**
 
-- `chipClassName` is applied to BOTH the mobile button and the desktop span. The chip has identical look in both viewports.
-- `actions[].destructive` activates `text-red-600` styling on the desktop icon button and the mobile dropdown item. Use it for delete/archive only (per `ux-patterns.md` § "Color palette").
-- Touch targets: each desktop icon button is `min-h-11 min-w-11` (44px). Don't override.
-- The trigger `<button>` for mobile and the `<span>` for desktop both render in the DOM (CSS hide-show). Avoid stateful `children` to prevent double-mount issues.
+- `chipClassName` is applied al span del chip. El primitive ya no envuelve el chip en un button — es display-only.
+- `actions[].destructive` activates `text-red-600` styling en el icon button + abre el confirm dialog automático. Use it for delete/archive only.
+- Touch targets: cada icon button es `min-h-11 min-w-11` (44px). Don't override.
+- Customize confirm copy con `confirmTitle`, `confirmDescription`, `confirmActionLabel` cuando el contexto importa (e.g. "¿Eliminar ventana 09:00→17:00?" en lugar del default "¿Eliminar?").
+- ESC / click outside del confirm dialog se trata como Cancel — nunca como Confirm.
 
 ## Save model — todo manual (consistente)
 
@@ -295,11 +417,11 @@ See `src/features/hours/admin/ui/hours-form.tsx`.
 
 ## `persist()` helper as the single commit path
 
-**What.** One function inside the form orchestrator validates the payload, calls the Server Action, and on success calls `methods.reset(snapshot)` to mark the new baseline. Both the explicit Save (`onSubmit`) and the autosaves (`commitOrDefer`) go through the same helper.
+**What.** One function inside the form orchestrator validates the payload, calls the Server Action, and on success calls `methods.reset(snapshot)` to mark the new baseline. El único caller es `onSubmit` (botón "Guardar cambios" page-level) — no hay autosaves bajo el modelo "todo manual".
 
-**Why.** Without it, validation, error mapping, and baseline reset get duplicated and drift. Forgetting `methods.reset(snapshot)` on autosave leaves `formState.isDirty === true` even after a successful save, making the dirty indicator and Save button lie. One helper means one place where "successful save → reset baseline → toast success" lives.
+**Why.** Centraliza validación + error mapping + baseline reset. Forgetting `methods.reset(snapshot)` después del save deja `formState.isDirty === true` even after a successful save, making the dirty indicator and Save button lie.
 
-**How.** See `src/features/hours/ui/hours-form.tsx:100-131`. The `snapshot` argument is the source of truth for the payload — never read `methods.getValues()` inside the helper.
+**How.** See `src/features/hours/admin/ui/hours-form.tsx`. The `snapshot` argument is the source of truth for the payload — never read `methods.getValues()` inside the helper.
 
 **Pitfalls.** `methods.reset(snapshot)` re-baselines `defaultValues`. Without it, the user sees "Cambios sin guardar" forever.
 
@@ -309,7 +431,7 @@ See `src/features/hours/admin/ui/hours-form.tsx`.
 
 **Why.** Disabling when nothing is dirty prevents the user from clicking and getting a no-op (and a useless success toast). The label gives a calm, persistent signal — no flashing, no banner. `aria-live="polite"` lets screen readers announce without interrupting.
 
-**How.** See `src/features/hours/ui/hours-form.tsx:334-351`.
+**How.** See `src/features/hours/admin/ui/hours-form.tsx`.
 
 **Pitfalls.** Don't add a separate `useState` mirror — RHF owns this. `methods.reset(snapshot)` after each successful persist is what keeps `isDirty` accurate.
 
@@ -319,7 +441,7 @@ See `src/features/hours/admin/ui/hours-form.tsx`.
 
 **Why.** A user who clicks Save at the bottom of a long form, scrolls up, and gets an inline success banner at the top will never see it. Toasts are visible regardless of scroll. Inline banners stay reserved for "you can't submit because field X is wrong" — the user needs to find the field, so the message belongs near it.
 
-**When to use toast.** Save success, server errors from the action, soft-barrier defer.
+**When to use toast.** Save success, server errors from the action.
 
 **When to use inline banner.** Zod `safeParse` failure on the client before calling the action.
 
@@ -331,9 +453,9 @@ See `src/features/hours/admin/ui/hours-form.tsx`.
 
 **What.** The form orchestrator (`<HoursForm>`) is the only place that calls `useFieldArray({ control, name: 'recurring' })`. Children receive `fields` and `onAdd`/`onUpdate`/`onRemove`/`onReplace` callbacks.
 
-**Why.** RHF docs are explicit: "If you have multiple `useFieldArray` with the same `name`, only one is effective." Two instances cause silent desyncs — chips that don't update after editing, deletes that vanish from one view but not the other. Centralising also makes the soft-barrier logic possible: only the parent has `formState.isDirty` context to decide commit vs defer.
+**Why.** RHF docs are explicit: "If you have multiple `useFieldArray` with the same `name`, only one is effective." Two instances cause silent desyncs — chips that don't update after editing, deletes that vanish from one view but not the other. Centralising también centraliza el commit path por una sola `persist()` (ver § "persist helper").
 
-**How.** Parent invokes `useFieldArray` and passes `fields` (read-only) plus narrow callbacks down. See `src/features/hours/ui/hours-form.tsx:85-86` (canonical instance) and `src/features/hours/ui/week-editor.tsx:60-72` (child API).
+**How.** Parent invokes `useFieldArray` and passes `fields` (read-only) plus narrow callbacks down. See `src/features/hours/admin/ui/hours-form.tsx` (canonical instance) and `src/features/hours/admin/ui/week-editor.tsx` (child API).
 
 **Pitfalls.**
 
@@ -342,13 +464,13 @@ See `src/features/hours/admin/ui/hours-form.tsx`.
 
 ## `onReplace` callback for bulk transforms
 
-**What.** Bulk operations (copy-to-all, copy-to-weekdays, sort) call a single `onReplace(nextArray)` rather than dispatching N `onAdd` + M `onRemove`.
+**What.** Bulk operations (copy-to-all, copy-to-weekdays, sort, switch día ON→OFF que borra todas las ventanas) call a single `onReplace(nextArray)` rather than dispatching N `onAdd` + M `onRemove`.
 
-**Why.** N+M sequential callbacks generate N+M autosave requests, introduce race conditions if the DB serialises differently than dispatch order, and produce N+M toasts spamming the user. `onReplace` is one mutation — and the soft barrier ensures it doesn't autosave.
+**Why.** N+M sequential callbacks dispatch N+M re-renders + N+M `formState.isDirty` flips. Una sola `replace()` es UNA mutación — el snapshot final es lo que el user va a confirmar con "Guardar cambios".
 
-**How.** See `src/features/hours/ui/week-editor.tsx:103-126` (`copyTo` computes `kept + additions` in one pass) and `src/features/hours/ui/hours-form.tsx:200-202` (`handleReplaceRecurring` just calls `recurring.replace(next)` — no autosave).
+**How.** See `src/features/hours/admin/ui/week-editor.tsx` (`copyTo` computes `kept + additions` in one pass + `toggleDayOff`) and `src/features/hours/admin/ui/hours-form.tsx` (`handleReplaceRecurring` just calls `recurring.replace(next)`).
 
-**Pitfalls.** `recurring.replace(next)` does flip `isDirty` to true (good — the Save button enables) but does NOT autosave. Document this in the handler so future contributors don't "fix" it by adding `commitOrDefer`.
+**Pitfalls.** `recurring.replace(next)` flips `isDirty` to true — el botón Save se enciende inmediato, esperando confirm explícito.
 
 ## Locale-aware time formatting + hydration safety
 
@@ -358,13 +480,13 @@ See `src/features/hours/admin/ui/hours-form.tsx`.
 
 The reason to format at all: `<input type="time">` renders according to browser/OS locale and isn't reliably overridable. If the input shows `9:00 AM` and the chip shows `09:00`, the user sees an inconsistency.
 
-**How.** See `src/features/hours/ui/format-time.ts` and `src/features/hours/ui/week-editor-day-row.tsx:53-69`.
+**How.** See `src/features/hours/ui/format-time.ts` and `src/features/hours/admin/ui/week-editor-day-card.tsx`.
 
 **Pitfalls.**
 
 - `suppressHydrationWarning` doesn't propagate from a parent — wrap the specific span.
 - Don't use `formatTime()` inside `aria-label` — attribute mismatches can't be suppressed.
-- For dates, parse `YYYY-MM-DD` manually (split on `-`) rather than `new Date(date)` — the latter assumes UTC midnight and shifts a day in non-UTC locales. See `formatDateLong` in `src/features/hours/ui/exceptions-editor.tsx:148-170`.
+- For dates, parse `YYYY-MM-DD` manually (split on `-`) rather than `new Date(date)` — the latter assumes UTC midnight and shifts a day in non-UTC locales. See `formatDateLong` in `src/features/hours/admin/ui/exceptions-editor.tsx`.
 
 ## Always-on toggle pattern with stashed data
 
@@ -372,7 +494,7 @@ The reason to format at all: `<input type="time">` renders according to browser/
 
 **Why.** The user might want the convenience of "always open" without losing the schedule they spent time configuring. Naive impl: clear the arrays when `alwaysOpen=true`. Failure mode: user toggles on, then off, and discovers their week vanished. Solution: persist `recurring` + `exceptions` even when `kind === 'always_open'` — they're "stashed". `parseOpeningHours` re-inflates them on next load.
 
-**How.** See `src/features/hours/ui/hours-form.tsx:283-315` (toggle + conditional render) and `src/app/[placeSlug]/settings/hours/page.tsx:71-83` (re-inflation in `hoursToFormDefaults`).
+**How.** See `src/features/hours/admin/ui/hours-form.tsx` (toggle + conditional render) and `src/app/[placeSlug]/settings/hours/page.tsx` (re-inflation in `hoursToFormDefaults`).
 
 **Pitfalls.** The server action must persist stashed arrays even when they don't apply to the active mode. The schema should validate them only when `kind === 'scheduled'` — otherwise a stashed-but-invalid window blocks toggling on.
 
@@ -382,7 +504,7 @@ The reason to format at all: `<input type="time">` renders according to browser/
 
 **Why.** When a deploy hashes a new ID for a Server Action, any open tab with the old ID gets this opaque error on submit. In dev it fires after every HMR of the form; in prod it can hit any user with a tab open during deploy. The default message is technical English — surfacing it directly looks like a bug.
 
-**How.** See `src/features/hours/ui/hours-form.tsx:357-381`.
+**How.** See `src/features/hours/admin/ui/hours-form.tsx` (`friendlyMessage` helper).
 
 **Pitfalls.** Don't auto-refresh on this error — the user might have unsaved local form state. Tell them to refresh.
 
@@ -392,7 +514,7 @@ The reason to format at all: `<input type="time">` renders according to browser/
 
 **Why.** Apple HIG and Material both standardise on 44px / 48dp minimum touch targets. iOS Safari zooms inputs <16px on focus, scrolling the page unexpectedly.
 
-**How.** `min-h-11` for chips/buttons in lists, `min-h-12` for the primary CTA in a sheet footer, `min-h-[44px]` on `<input type="time">` / `<input type="date">`. See examples throughout `src/features/hours/ui/week-editor-window-sheet.tsx`.
+**How.** `min-h-11` for chips/buttons in lists, `min-h-12` for the primary CTA in a sheet footer, `min-h-[44px]` on `<input type="time">` / `<input type="date">`. See examples throughout `src/features/hours/admin/ui/week-editor-window-sheet.tsx`.
 
 **Pitfalls.** Don't pad text and forget the height — a 12px-padded button with 14px text is still under 44px. For `<input type="number">`, also set `inputMode="numeric"` to surface the numeric keypad.
 
@@ -407,8 +529,10 @@ These were rejected in the hours redesign. Don't reintroduce them.
 - **A separate "Estado actual" / preview panel above the editor.** Duplicates data the editor already shows; gets out of sync if the editor mutates locally before save. The editor _is_ the WYSIWYG. Communicate "what's saved" via the success toast.
 - **Inline forms with a row of horizontal time inputs at 360px.** Causes horizontal scroll. Use `<BottomSheet>`.
 - **Cards around every section.** Visual weight, doesn't scale on mobile. Border-b under a serif `<h2>` is enough rhythm.
-- **Per-chip pencil/trash icons.** Pushes chips past 360px. Use the chip-as-dropdown-trigger pattern.
-- **`window.confirm('¿Eliminar?')`.** Browser-native, ignores theming, doesn't fit the calm aesthetic. Use the inline "Eliminar → ¿Sí, eliminar?" toggle in the sheet footer.
+- **`window.confirm('¿Eliminar?')`.** Browser-native, ignores theming, doesn't fit the calm aesthetic. Use the auto confirm dialog del primitive `<RowActions>` (cuando es per-row), o el patrón inline "Eliminar → ¿Sí, eliminar?" en el footer del sheet (cuando es destructive standalone dentro de un form).
+- **Botones full-width "+ Agregar X" o similares en el body de cards de scroll.** Tap accidental durante scroll vertical mobile. Las acciones del card viven en su 3-dots header. Ver § "Acciones fuera del scroll path".
+- **Autosave por gesto en forms con múltiples concerns.** Cualquier mutación queda dirty; persist explicit con "Guardar cambios" page-level. Un mismo gesto no puede tener 2 comportamientos (autosavear si limpio, defer si dirty) — eso confunde.
+- **`<button>` con `onClick={onSelect}` directo cuando la action es destructive.** Usar el primitive `<RowActions>` con `destructive: true` — fuerza confirm dialog automático.
 - **Duplicate `useFieldArray` instances for the same `name`.** Silent desyncs.
 - **N `onAdd` + M `onRemove` for bulk operations.** Race conditions, autosave spam. Use `onReplace`.
 - **Inline success banner at form-top after save.** User scrolled to Save at form-bottom — they will never see it. Use `toast`.
@@ -425,20 +549,246 @@ These were rejected in the hours redesign. Don't reintroduce them.
 
 ## Migration checklist for an existing settings page
 
-When redesigning a settings page (next: `/settings/library`), apply in order:
+When redesigning a settings page, apply in order:
 
-1. **Standardise page padding** to `<div className="space-y-6 px-3 py-6 md:px-4 md:py-8">`.
+1. **Standardise page padding** to `<div className="space-y-6 px-3 py-6 md:px-4 md:py-8">`. (O `mx-auto max-w-screen-md` para forms simples; usar full-width para master-detail).
 2. **Replace the manual header** with `<PageHeader title="..." description="..." />`. Drop "Settings · ${placeName}" / breadcrumbs / back-button noise.
-3. **Group controls into `<section aria-labelledby="...">` + `<h2>` (border-b, font-serif text-xl).** No cards, no accordions, no tabs.
-4. **Apply the canonical color palette.** All settings chrome uses raw Tailwind neutral classes (`bg-neutral-900`, `text-neutral-600`, `border-neutral-300`, `divide-neutral-200`). CSS custom properties stay outside settings. See "Color palette & button styles".
-5. **Identify "row + edit/delete" patterns.** Migrate the row to a `<DropdownMenu>` triggered by the row itself; put `Editar` / `Eliminar` in the menu. Move row-level operations into a per-row `...` overflow menu.
-6. **Identify "add/edit" forms.** If they have ≥2 inputs and live on a settings list, migrate to `<BottomSheet>` with the 3-modes pattern.
-7. **Identify bulk transforms.** If a single user action changes many array items at once, expose `onReplace(next)` and compute the new array in one pass — never N `onAdd` + M `onRemove`.
-8. **Lift `useFieldArray` to the form orchestrator.** Children take `fields` + callbacks. Audit for any duplicate `useFieldArray` with the same `name`.
-9. **Apply autosave + soft barrier in the orchestrator.** Single-item commits autosave when `formState.isDirty === false` at the moment of action; if dirty, defer with `toast.info(DEFER_HINT)`. Bulk transforms never autosave. All commits go through one `persist(snapshot, opts)` helper that validates, calls the action, and `methods.reset(snapshot)`.
-10. **Wire the dirty indicator + Save button.** `disabled={pending || !formState.isDirty}` on the button; `<span aria-live="polite">• Cambios sin guardar</span>` next to it.
-11. **Replace inline save feedback with `toast`.** Reserve inline banners for client-side Zod validation errors only.
-12. **Audit `<input type="time">` / `<input type="date">` / `<input type="number">`.** Ensure `text-base` (16px) and `min-h-[44px]`. Wrap visible time/date strings derived via `Intl.*` in `<span suppressHydrationWarning>` and keep `aria-label` raw-canonical.
-13. **Add the friendly Server Action error mapper.** Reuse the shape of `friendlyMessage(err)` in `hours-form.tsx`.
-14. **Place "+ Add another" affordance below the list.** Dashed-border full-width neutral. Never top-right filled accent.
-15. **Validate at 360px.** No horizontal scroll, no clipped CTAs, no chip rows wider than viewport. Validate the bottom sheet footer respects `safe-area-inset-bottom` on iOS.
+3. **Eliminar paneles "Estado actual" / preview redundantes** (anti-pattern). El editor ES la WYSIWYG.
+4. **Group controls into `<section aria-labelledby="...">` + `<h2>` (border-b, font-serif text-xl).** No cards, no accordions, no tabs.
+5. **Apply the canonical color palette.** All settings chrome uses raw Tailwind neutral classes (`bg-neutral-900`, `text-neutral-600`, `border-neutral-300`, `divide-neutral-200`). CSS custom properties stay outside settings.
+6. **Identify "items con estado on/off + sub-data".** Aplicar el patrón **Card-per-item** (§ "Card-per-item con header + body + switch on/off"): card con border, header (nombre + estado + 3-dots + switch), body (chips de info cuando ON).
+7. **Identify "row + edit/delete" patterns.** Migrate cada chip de info al primitive `<RowActions>` con `actions={[edit, delete]}` y `destructive: true` en delete.
+8. **Identify "add/edit" forms.** If they have ≥2 inputs and live on a settings list, migrate to `<BottomSheet>` con la 2-modes pattern. Botón del sheet copy = **"Listo"** (NO "Guardar" — eso es page-level).
+9. **Identify bulk transforms.** If a single user action changes many array items at once, expose `onReplace(next)` and compute the new array in one pass — never N `onAdd` + M `onRemove`. Switch ON→OFF de un card = bulk delete via `onReplace`.
+10. **Lift `useFieldArray` to the form orchestrator.** Children take `fields` + callbacks. Audit for any duplicate `useFieldArray` with the same `name`.
+11. **Apply el modelo "todo manual" en el orchestrator.** Cualquier mutación queda local + dirty. UN único path de commit: `persist(snapshot)` invocado por `onSubmit` del botón "Guardar cambios" page-level. Sin autosave, sin `commitOrDefer`, sin toasts por mutation.
+12. **Wire the dirty indicator + Save button.** `disabled={pending || !formState.isDirty}` on the button; `<span aria-live="polite">• Cambios sin guardar</span>` next to it.
+13. **Replace inline save feedback with `toast`.** Reserve inline banners for client-side Zod validation errors only.
+14. **Audit `<input type="time">` / `<input type="date">` / `<input type="number">`.** Ensure `text-base` (16px) and `min-h-[44px]`. Wrap visible time/date strings derived via `Intl.*` in `<span suppressHydrationWarning>` and keep `aria-label` raw-canonical.
+15. **Add the friendly Server Action error mapper.** Reuse the shape of `friendlyMessage(err)` in `hours-form.tsx`.
+16. **"+ add another" placement:** dentro del 3-dots header del card cuando es per-card add. Dashed-border full-width bottom-of-list cuando es flat list (e.g. excepciones, invitaciones). Nunca top-right filled accent.
+17. **Verificá scroll-safe actions:** cero botones full-width en el body de cards (§ "Acciones fuera del scroll path").
+18. **Verificá confirm dialog en destructives:** todas las actions con `destructive: true` en `<RowActions>` usan el confirm automático. Para destructives standalone, `<Dialog>` propio.
+19. **Validate at 360px.** No horizontal scroll, no clipped CTAs. Validate the bottom sheet footer respects `safe-area-inset-bottom` on iOS.
+
+---
+
+## Per-feature application matrix
+
+Mini-spec por cada `/settings/*` sub-page para guiar el rediseño. Cada uno cita qué del patrón canónico aplica directo + qué necesita extension específica del dominio.
+
+### `/settings/access` — invitaciones
+
+**Estructura propuesta:**
+
+- `<PageHeader title="Acceso" description="Invitá miembros al place." />`
+- Section "Invitar": form simple (email + checkbox admin) → server action `inviteMemberAction`. Botón "Invitar miembro" (no es BottomSheet — es form inline corto, ≤2 inputs).
+- Section "Invitaciones pendientes": lista plana `<ul divide-y border-y>` (no cards — flat list). Cada row: email + fecha + `<RowActions>` con [Reenviar, Revocar (destructive)].
+
+**Patrón aplicado:**
+
+| Patrón                               | Aplica                                                                                       |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Page padding                         | ✓                                                                                            |
+| `<PageHeader>`                       | ✓                                                                                            |
+| Sections con `aria-labelledby`       | ✓ ("Invitar", "Pendientes")                                                                  |
+| Color palette neutrals               | ✓                                                                                            |
+| `<RowActions>` per pending invite    | ✓                                                                                            |
+| Confirm dialog destructive (revocar) | ✓                                                                                            |
+| Card-per-item                        | ✗ (lista plana)                                                                              |
+| `<BottomSheet>`                      | ✗ (form inline)                                                                              |
+| Save model "todo manual"             | ✗ (cada acción es discreta — invitar, reenviar, revocar persisten directo, no hay form bulk) |
+
+**Extension específica:** invitar es acción discreta — botón "Invitar miembro" persiste directo sin "Guardar cambios" page-level.
+
+**Files actuales:** `src/app/[placeSlug]/settings/access/page.tsx`.
+
+### `/settings/editor` — identidad visual del place
+
+**Estructura propuesta:**
+
+- `<PageHeader title="Identidad visual" description="..." />`
+- Section "Colores": color pickers (background, accent, text, border, surface, muted). Preview live al lado o debajo.
+- Section "Tipografía" si aplica.
+- Section "Plugins del editor": lista de plugins (YouTube, Vimeo, Spotify, etc) como cards con switch on/off — **patrón Card-per-item** sin sub-data en body (header simple).
+- Botón "Guardar cambios" page-level.
+
+**Patrón aplicado:**
+
+| Patrón                           | Aplica                                        |
+| -------------------------------- | --------------------------------------------- |
+| Page padding + header + sections | ✓                                             |
+| Card-per-item (plugin toggles)   | ✓ — header simple sin body                    |
+| Color pickers                    | Inputs especiales (extension)                 |
+| Save model "todo manual"         | ✓                                             |
+| `<RowActions>`                   | ✗ (no hay per-item actions más que el switch) |
+
+**Extension específica:** color pickers — input type=color o picker custom. Considerar preview en tiempo real (sin save).
+
+**Files actuales:** `src/app/[placeSlug]/settings/editor/page.tsx`.
+
+### `/settings/members` — la compleja
+
+Ver § "Settings/members — extension del patrón" abajo (sección dedicada por la complejidad).
+
+### `/settings/groups` — ya rediseñada
+
+**Patrón aplicado (referencia):** Master-detail layout (§ "Master-detail layout (lista + detalle)"). No requiere rediseño — ya canoniza el patrón. Si emerge UX feedback similar a hours (acciones full-width en el detail), aplicar las mismas reglas (acciones fuera del scroll path).
+
+**Files:** `src/app/[placeSlug]/settings/groups/{layout,page,_group-detail-content,[groupId]/page}.tsx`.
+
+### `/settings/tiers` — lista de tiers
+
+**Estructura propuesta:**
+
+Decidir entre 2 enfoques según count típico:
+
+- **N≤8 tiers:** Card-per-item (igual a hours days). Cada tier = card con header (nombre + count members + 3-dots + switch on/off "activo"). Body cuando expandido: lista de members con ese tier (chips con `<RowActions>` para "Quitar").
+- **N>8 tiers:** master-detail (igual a groups). Lista compacta + detail page por tier.
+
+**Patrón aplicado:**
+
+| Patrón                           | Aplica                           |
+| -------------------------------- | -------------------------------- |
+| Page padding + header + sections | ✓                                |
+| Card-per-item (si N≤8)           | ✓                                |
+| Master-detail (si N>8)           | ✓                                |
+| `<RowActions>` per member chip   | ✓                                |
+| Confirm dialog destructive       | ✓ (eliminar tier, quitar member) |
+| Save model "todo manual"         | ✓                                |
+
+**Extension específica:** orden de tiers (drag handle? botones up/down?). Si se permite reordenar, `onReplace(reorderedArray)` mantiene el patrón bulk.
+
+**Files actuales:** `src/app/[placeSlug]/settings/tiers/page.tsx`.
+
+### `/settings/library` — categorías + items + permisos
+
+**Estructura propuesta:** Master-detail layout (igual a groups).
+
+- Master pane: lista de categorías como cards con switch on/off (visible/oculta) + count items.
+- Detail pane (`/settings/library/[categoryId]`): título de categoría + tabs internas o sections para [Items, Contributors, Permisos]. Permisos = "quien puede leer esta categoría" (groups, tiers, users).
+
+**Patrón aplicado:**
+
+| Patrón                                | Aplica |
+| ------------------------------------- | ------ |
+| Master-detail layout                  | ✓      |
+| Card-per-item en master pane          | ✓      |
+| `<RowActions>` per item / contributor | ✓      |
+| Confirm dialog destructive            | ✓      |
+| Save model "todo manual"              | ✓      |
+
+**Extension específica:** sub-tabs/sections en detail pane (Items vs Contributors vs Permisos) — no usar tabs si las 3 caben en sections con border-b. Si no, considerar segmented control (no tabs hidden).
+
+**Files actuales:** `src/app/[placeSlug]/settings/library/page.tsx`.
+
+### `/settings/flags` — feature flags por place
+
+**Estructura propuesta:** lista de cards on/off (igual a hours days, sin sub-data en body).
+
+- Cada flag = card con header (nombre humano del flag + descripción corta + switch on/off). Body vacío — los flags no tienen sub-data.
+- Sin sections — todos los flags juntos.
+- Botón "Guardar cambios" page-level (puede ser solo "Guardar" si no hay sub-forms).
+
+**Patrón aplicado:**
+
+| Patrón                                 | Aplica          |
+| -------------------------------------- | --------------- |
+| Card-per-item (header simple sin body) | ✓               |
+| Save model "todo manual"               | ✓               |
+| Color palette neutrals                 | ✓               |
+| `<RowActions>`                         | ✗ (solo switch) |
+
+**Extension específica:** mostrar quién/cuándo activó cada flag (audit trail) si aplica. Tooltip con descripción larga del flag.
+
+**Files actuales:** `src/app/[placeSlug]/settings/flags/page.tsx`.
+
+---
+
+## Settings/members — extension del patrón
+
+La página más compleja del set. Hoy mezcla 5 concerns en 1 page (lista, invitar, pending, transfer, leave) + sub-page detail por userId con N sub-sections.
+
+### Análisis del estado actual
+
+`src/app/[placeSlug]/settings/members/page.tsx` (122 LOC):
+
+- Section "Lista": `members.map(...)` con role chips (owner/admin/miembro). Sin per-row actions, sin search, sin filter.
+- Section "Invitar": `<InviteMemberForm>` (form inline).
+- Section "Invitaciones pendientes": `<PendingInvitationsList>` (component externo).
+- Section "Transferir ownership" (si owner).
+- Section "Salir del place".
+
+Sub-page `[userId]/page.tsx` (148 LOC) tiene:
+
+- Header con avatar + name + roles
+- Section "Grupos": asignar/quitar member de groups
+- Section "Tiers": asignar/quitar tiers
+- Section "Bloqueo": block / unblock
+- Section "Expulsar": expel member
+
+Search bar + filters ya implementados (`member-search-bar.tsx`, `member-filters.tsx`).
+
+### Propuesta de rediseño
+
+**Layout: Master-detail** (igual a groups + library). Razones:
+
+- Members tiene detail page rica (groups, tiers, block, expel) que merece pane propio en desktop.
+- Search/filter en master pane reduce ruido.
+- Master pane reusa la lista — sub-page navigation no recarga.
+
+**Master pane** (`/settings/members`):
+
+- `<PageHeader title="Miembros" description="N miembros activos." actions={<button>Invitar</button>} />`
+- Sticky search bar + filter chips (role, group, tier).
+- `<ul divide-y>` de rows planas (no cards) — 150 items pueden ser mucho para cards individuales con border. Cada row:
+  - Avatar + displayName + handle + role chips
+  - `<RowActions>` con [Ver detalle (link → `[userId]`), Cambiar rol, Expulsar (destructive)]
+- Botón "Invitar miembro" en `<PageHeader>` actions slot — abre BottomSheet con form invitar (email + checkbox admin).
+
+**Detail pane** (`/settings/members/[userId]`):
+
+- Header con avatar grande + name + roles + back link (md:hidden).
+- Sub-sections con `<h2>` border-b: Grupos, Tiers, Bloqueo, Expulsar.
+- Cada sub-section usa el patrón canónico — `<RowActions>` para chips de groups/tiers, `<Dialog>` para expel/block.
+
+**Sub-pages separadas (no en página de members):**
+
+- "Invitaciones pendientes" → mover a `/settings/access` (eso ya existe — tiene más sentido ahí, "access" es el concept paraguas).
+- "Transferir ownership" → mover a `/settings/access` también, o a su propia sub-page si crece.
+- "Salir del place" → mover al `/settings/profile` (cuando exista) o al `/settings` root como acción global del user. NO debería estar en una página de admin de members — no es admin action.
+
+### Patrón aplicado + extensions
+
+| Patrón canónico                    | Aplica directo |
+| ---------------------------------- | -------------- |
+| Master-detail layout               | ✓              |
+| `<PageHeader>` con actions slot    | ✓              |
+| `<RowActions>` per member row      | ✓              |
+| Confirm dialog destructive (expel) | ✓              |
+| `<BottomSheet>` para invitar       | ✓              |
+| Color palette neutrals             | ✓              |
+
+**Extensions específicas del dominio:**
+
+1. **Sticky search bar** en master pane. `<MemberSearchBar>` ya existe — verificar que sea sticky en mobile y desktop, y que no compita con `<PageHeader>`.
+2. **Filter chips** (role, group, tier). `<MemberFilters>` ya existe — verificar accesibilidad y que se rendericen below la search bar, sin esconder.
+3. **Counts derivados:** mostrar "5 de 150 miembros" cuando hay filtros activos — ayuda al user a saber que está filtrando.
+4. **Cambiar rol como action en `<RowActions>`** — pero "rol" tiene 3 valores (owner/admin/miembro), no es destructive ni 1-tap. Considerar:
+   - Opción A: `<RowActions>` con sub-action "Cambiar rol" → abre BottomSheet con radio selector.
+   - Opción B: Si el role chip mismo es tappeable (tap "miembro" → BottomSheet "Cambiar rol"), no necesita estar en `<RowActions>`. Más descubrible.
+5. **Bulk actions opcional:** si emerge necesidad ("seleccionar N members para asignar tier X"), agregar selección con checkboxes + footer toolbar de bulk actions. **NO incluir en V1** — sumar cuando emerja caso real.
+6. **Virtualización con 150 items:** probablemente NO necesaria — 150 rows con `divide-y` es performante. Solo considerar si se rompe scroll en mobile (mediar con DevTools antes de optimizar).
+7. **Avatares:** comp `<Avatar>` shared (verificar que existe). En el master pane pueden ser pequeños (h-8 w-8); en detail pane grandes (h-16 w-16).
+
+### Sesiones recomendadas para rediseñar members
+
+Por size + complejidad del feature, dividir en sesiones:
+
+1. **Sesión 1 — extracciones de páginas:** mover "Invitaciones pendientes" + "Transferir" a `/settings/access`; mover "Salir del place" a `/settings/profile` (o root). Members queda solo con Lista + Invitar.
+2. **Sesión 2 — master-detail base:** layout.tsx con master pane + detail children (igual a groups).
+3. **Sesión 3 — master pane + RowActions:** integrar search/filter existentes + RowActions per row.
+4. **Sesión 4 — detail pane:** rediseñar sub-sections (Grupos, Tiers, Block, Expel) aplicando el patrón.
+5. **Sesión 5 — invitar BottomSheet:** mover form invitar de inline a BottomSheet desde el actions slot del header.
+
+Cada sesión: typecheck + tests + lint + commit + push antes de pasar a la siguiente.
