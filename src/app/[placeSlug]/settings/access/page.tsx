@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getCurrentAuthUser } from '@/shared/lib/auth-user'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
-import { clientEnv } from '@/shared/config/env'
 import { PageHeader } from '@/shared/ui/page-header'
 import { OwnersAccessPanel } from '@/features/members/access/public'
 import {
@@ -82,13 +81,12 @@ export default async function SettingsAccessPage({ params }: Props) {
     <div className="mx-auto max-w-screen-md space-y-6 px-3 py-6 md:px-4 md:py-8">
       <PageHeader
         title="Acceso"
-        description="Owners activos y pendientes, transferencia de ownership y salida del place."
+        description="Owners activos y pendientes, transferencia de ownership."
       />
 
       <OwnersAccessPanel
         placeSlug={place.slug}
         isOwner={perms.isOwner}
-        appUrl={clientEnv.NEXT_PUBLIC_APP_URL}
         activeOwners={activeOwners}
         pendingOwnerInvites={pendingOwnerInvites}
         transferCandidates={transferCandidates}

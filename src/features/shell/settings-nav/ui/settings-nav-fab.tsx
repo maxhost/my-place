@@ -7,6 +7,7 @@ import {
   Clock,
   Flag,
   KeyRound,
+  LogOut,
   Menu,
   PenLine,
   Shield,
@@ -57,6 +58,7 @@ const SECTION_ICON: Record<SettingsSectionSlug, React.ComponentType<{ size?: num
   groups: Shield,
   tiers: Tag,
   editor: PenLine,
+  system: LogOut,
 }
 
 type Props = {

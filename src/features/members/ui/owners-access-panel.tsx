@@ -1,11 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+import { Mail, Trash2 } from 'lucide-react'
 import { MemberAvatar } from './member-avatar'
-import { ResendInvitationButton } from '@/features/members/invitations/public'
 import { InviteOwnerSheet } from '@/features/members/invitations/public'
-import { LeavePlaceDialog } from '@/features/members/profile/public'
+import {
+  resendInvitationAction,
+  revokeInvitationAction,
+} from '@/features/members/invitations/public'
 import { TransferOwnershipSheet } from '@/features/places/public'
+import { RowActions } from '@/shared/ui/row-actions'
+import { toast } from '@/shared/ui/toaster'
+import { isDomainError } from '@/shared/errors/domain-error'
 import type { PendingInvitation } from '../domain/types'
 
 /**
@@ -13,16 +19,24 @@ import type { PendingInvitation } from '../domain/types'
  *
  * Estructura: una sección **"Owners"** que combina owners activos +
  * invitaciones pendientes con `asOwner=true` en una única lista con chips
- * (`activo` / `pendiente`). Action buttons abren overlays:
+ * (`activo` / `pendiente`). Cada pending invite tiene `<RowActions>` con
+ * [Reenviar, Revocar (destructive)]. Action buttons globales abren overlays:
  * - "+ Invitar owner" → `<InviteOwnerSheet>` (force `asOwner=true`).
  * - "Transferir ownership" (solo owners) → `<TransferOwnershipSheet>`.
- * - "Salir del place" → `<LeavePlaceDialog>` (confirm modal).
  *
- * Decisión 2026-05-03: `/settings/access` es exclusivamente sobre ownership.
- * Member/admin invites se moverán a `/settings/members` en un flow futuro;
- * acá ya no se exponen.
+ * **Cambios 2026-05-12 (sesión 2 del rediseño access):**
+ * - Sección "Salir del place" MOVIDA a `/settings/system` (ADR
+ *   `docs/decisions/2026-05-12-settings-system-for-lifecycle.md`).
+ * - `<ResendInvitationButton>` inline reemplazado por `<RowActions>`
+ *   canónico con [Reenviar, Revocar destructive]. Confirm dialog
+ *   automático al revocar.
+ * - Locale del formatDate: `'es-AR'` → `undefined` (viewer locale).
  *
- * Client Component porque mantiene state para los 3 overlays. El page padre
+ * Decisión histórica 2026-05-03: `/settings/access` es exclusivamente sobre
+ * ownership. Member/admin invites se moverán a `/settings/members` en un flow
+ * futuro; acá ya no se exponen.
+ *
+ * Client Component porque mantiene state para los 2 overlays. El page padre
  * sigue siendo Server Component que carga data y se la pasa por props.
  */
 
@@ -44,7 +58,6 @@ type OwnerCandidate = {
 type Props = {
   placeSlug: string
   isOwner: boolean
-  appUrl: string
   /** Owners activos del place (members con `isOwner=true`). */
   activeOwners: OwnerActive[]
   /** Invitaciones pendientes con `asOwner=true` (filtradas en el page). */
@@ -54,12 +67,11 @@ type Props = {
   transferCandidates: OwnerCandidate[]
 }
 
-type SheetState = { kind: 'closed' } | { kind: 'invite' } | { kind: 'transfer' } | { kind: 'leave' }
+type SheetState = { kind: 'closed' } | { kind: 'invite' } | { kind: 'transfer' }
 
 export function OwnersAccessPanel({
   placeSlug,
   isOwner,
-  appUrl,
   activeOwners,
   pendingOwnerInvites,
   transferCandidates,
@@ -136,26 +148,7 @@ export function OwnersAccessPanel({
             ))}
 
             {pendingOwnerInvites.map((inv) => (
-              <li key={inv.id} className="flex min-h-[56px] items-center gap-3 py-2 text-sm">
-                <div
-                  aria-hidden
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs text-neutral-500"
-                >
-                  {inv.email.slice(0, 1).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium">{inv.email}</div>
-                  <div className="truncate text-xs text-neutral-600">
-                    Invitado por {inv.inviter.displayName} · vence {formatDate(inv.expiresAt)}
-                  </div>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <span className="rounded-full border border-amber-300 px-2 py-0.5 text-[11px] text-amber-700">
-                    pendiente
-                  </span>
-                  <ResendInvitationButton invitationId={inv.id} />
-                </div>
-              </li>
+              <PendingInviteRow key={inv.id} invitation={inv} />
             ))}
           </ul>
         )}
@@ -185,29 +178,6 @@ export function OwnersAccessPanel({
         </section>
       ) : null}
 
-      <section aria-labelledby="access-leave-heading" className="space-y-3">
-        <div>
-          <h2
-            id="access-leave-heading"
-            className="border-b pb-2 font-serif text-xl"
-            style={{ borderColor: 'var(--border)' }}
-          >
-            Salir del place
-          </h2>
-          <p className="mt-1 text-sm text-neutral-600">
-            Tu acceso se cierra y tu contenido queda atribuido 365 días antes de anonimizarse. Si
-            sos el único owner, transferí ownership primero.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setSheet({ kind: 'leave' })}
-          className="inline-flex min-h-12 w-full items-center justify-center rounded-md px-4 text-sm font-medium text-red-600 hover:bg-red-50"
-        >
-          Salir de este place
-        </button>
-      </section>
-
       <InviteOwnerSheet
         open={sheet.kind === 'invite'}
         onOpenChange={(next) => {
@@ -224,19 +194,109 @@ export function OwnersAccessPanel({
         placeSlug={placeSlug}
         candidates={transferCandidates}
       />
-
-      <LeavePlaceDialog
-        open={sheet.kind === 'leave'}
-        onOpenChange={(next) => {
-          if (!next) close()
-        }}
-        placeSlug={placeSlug}
-        appUrl={appUrl}
-      />
     </>
   )
 }
 
+/**
+ * Row de invitación pendiente con `<RowActions>` para [Reenviar, Revocar].
+ * Aislado en sub-component para tener `useTransition` propio por row (el
+ * pending state de UN reenvío no bloquea otros).
+ *
+ * Feedback de las acciones: toast (sonner) — alineado con el patrón canónico
+ * `ux-patterns.md` § "Toast over inline banner". El previo
+ * `<ResendInvitationButton>` mostraba feedback inline en el row; ese widget
+ * sigue exportado para otros consumers (e.g. `<PendingInvitationsList>` que
+ * todavía lo usa), pero acá usamos toast.
+ */
+function PendingInviteRow({ invitation }: { invitation: PendingInvitation }): React.ReactNode {
+  const [, startTransition] = useTransition()
+
+  function handleResend(): void {
+    startTransition(async () => {
+      try {
+        await resendInvitationAction({ invitationId: invitation.id })
+        toast.success('Invitación reenviada.')
+      } catch (err) {
+        toast.error(friendlyMessage(err))
+      }
+    })
+  }
+
+  function handleRevoke(): void {
+    startTransition(async () => {
+      try {
+        await revokeInvitationAction({ invitationId: invitation.id })
+        toast.success('Invitación revocada.')
+      } catch (err) {
+        toast.error(friendlyMessage(err))
+      }
+    })
+  }
+
+  return (
+    <li className="flex min-h-[56px] items-center gap-3 py-2 text-sm">
+      <div
+        aria-hidden
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs text-neutral-500"
+      >
+        {invitation.email.slice(0, 1).toUpperCase()}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-medium">{invitation.email}</div>
+        <div className="truncate text-xs text-neutral-600">
+          Invitado por {invitation.inviter.displayName} · vence {formatDate(invitation.expiresAt)}
+        </div>
+      </div>
+      <RowActions
+        triggerLabel={`Acciones para invitación a ${invitation.email}`}
+        chipClassName="rounded-full border border-amber-300 px-2 py-0.5 text-[11px] text-amber-700"
+        actions={[
+          {
+            icon: <Mail className="h-4 w-4" aria-hidden="true" />,
+            label: 'Reenviar',
+            onSelect: handleResend,
+          },
+          {
+            icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+            label: 'Revocar',
+            onSelect: handleRevoke,
+            destructive: true,
+            confirmTitle: `¿Revocar invitación a ${invitation.email}?`,
+            confirmDescription: 'El link enviado dejará de funcionar. El receptor no podrá usarlo.',
+            confirmActionLabel: 'Sí, revocar',
+          },
+        ]}
+      >
+        pendiente
+      </RowActions>
+    </li>
+  )
+}
+
+function friendlyMessage(err: unknown): string {
+  if (isDomainError(err)) {
+    switch (err.code) {
+      case 'AUTHORIZATION':
+        return 'No tenés permisos.'
+      case 'NOT_FOUND':
+        return 'La invitación ya no existe.'
+      case 'CONFLICT':
+        return err.message
+      case 'VALIDATION':
+        return err.message
+      default:
+        return 'La acción falló.'
+    }
+  }
+  return 'Error inesperado.'
+}
+
+/**
+ * Formato corto de fecha. `undefined` locale = viewer's browser locale
+ * (anchor principle #6 del `ux-patterns.md`). El previo hardcodeaba
+ * `'es-AR'` — corregido en sesión 2.
+ */
 function formatDate(d: Date): string {
-  return new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' }).format(d)
+  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(d)
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildSettingsShellSections } from '../domain/sections'
 
 describe('buildSettingsShellSections', () => {
-  it('admin (no owner): incluye Place + Contenido sin items owner-only', () => {
+  it('admin (no owner): incluye Place + Contenido + Lugar sin items owner-only', () => {
     const result = buildSettingsShellSections({ isOwner: false })
     const slugSet = new Set(result.flatMap((g) => g.items.map((i) => i.href)))
 
@@ -11,6 +11,7 @@ describe('buildSettingsShellSections', () => {
     expect(slugSet).toContain('/settings/access')
     expect(slugSet).toContain('/settings/library')
     expect(slugSet).toContain('/settings/flags')
+    expect(slugSet).toContain('/settings/system')
 
     // Items owner-only NO visibles para admin
     expect(slugSet).not.toContain('/settings/members')
@@ -19,7 +20,7 @@ describe('buildSettingsShellSections', () => {
     expect(slugSet).not.toContain('/settings/editor')
   })
 
-  it('owner: incluye TODOS los items (Place + Comunidad + Contenido)', () => {
+  it('owner: incluye TODOS los items (Place + Comunidad + Contenido + Lugar)', () => {
     const result = buildSettingsShellSections({ isOwner: true })
     const slugSet = new Set(result.flatMap((g) => g.items.map((i) => i.href)))
 
@@ -31,6 +32,7 @@ describe('buildSettingsShellSections', () => {
     expect(slugSet).toContain('/settings/tiers')
     expect(slugSet).toContain('/settings/library')
     expect(slugSet).toContain('/settings/flags')
+    expect(slugSet).toContain('/settings/system')
   })
 
   it('NO incluye el slug "" (general / dashboard) — futuro', () => {
@@ -64,14 +66,15 @@ describe('buildSettingsShellSections', () => {
     const result = buildSettingsShellSections({ isOwner: false })
     const groupIds = result.map((g) => g.id)
     expect(groupIds).not.toContain('comunidad')
-    // Pero Place y Contenido sí (tienen items visibles para admin)
+    // Pero Place, Contenido y Sistema sí (tienen items visibles para admin)
     expect(groupIds).toContain('place')
     expect(groupIds).toContain('contenido')
+    expect(groupIds).toContain('sistema')
   })
 
-  it('respeta el orden de groups (Place → Comunidad → Contenido) y de items dentro de cada group', () => {
+  it('respeta el orden de groups (Place → Comunidad → Contenido → Sistema) y de items dentro de cada group', () => {
     const result = buildSettingsShellSections({ isOwner: true })
-    expect(result.map((g) => g.id)).toEqual(['place', 'comunidad', 'contenido'])
+    expect(result.map((g) => g.id)).toEqual(['place', 'comunidad', 'contenido', 'sistema'])
     // Orden dentro de Place: hours, access, editor
     const place = result.find((g) => g.id === 'place')
     expect(place?.items.map((i) => i.href)).toEqual([
@@ -79,5 +82,10 @@ describe('buildSettingsShellSections', () => {
       '/settings/access',
       '/settings/editor',
     ])
+    // Sistema (ADR 2026-05-12): único item 'system' (label "Permanencia")
+    // por ahora; archivar se sumará en el futuro.
+    const sistema = result.find((g) => g.id === 'sistema')
+    expect(sistema?.items.map((i) => i.href)).toEqual(['/settings/system'])
+    expect(sistema?.items.map((i) => i.label)).toEqual(['Permanencia'])
   })
 })

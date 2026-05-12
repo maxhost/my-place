@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { BookOpen, Clock, Flag, KeyRound, PenLine, Shield, Tag, Users } from 'lucide-react'
+import { BookOpen, Clock, Flag, KeyRound, LogOut, PenLine, Shield, Tag, Users } from 'lucide-react'
 import {
   deriveVisibleSettingsSections,
   type SettingsSectionSlug,
@@ -39,6 +39,7 @@ const ICONS_BY_SLUG: Record<string, ReactNode> = {
   tiers: <Tag className="h-4 w-4" />,
   library: <BookOpen className="h-4 w-4" />,
   flags: <Flag className="h-4 w-4" />,
+  system: <LogOut className="h-4 w-4" />,
 }
 
 type GroupDefinition = {
@@ -57,6 +58,13 @@ const GROUPS: ReadonlyArray<GroupDefinition> = [
   { id: 'place', label: 'Place', slugs: ['hours', 'access', 'editor'] },
   { id: 'comunidad', label: 'Comunidad', slugs: ['members', 'groups', 'tiers'] },
   { id: 'contenido', label: 'Contenido', slugs: ['library', 'flags'] },
+  // 'Sistema' agrupa decisiones de ciclo de vida del place. El item dentro
+  // se llama "Permanencia" (settings-nav/domain/settings-sections.ts) y lleva
+  // a /settings/system donde el user puede salir del place (futuro: archivar).
+  // Visible para TODOS los miembros (no owner-gated) — cualquier miembro
+  // puede salir; el LeavePlaceDialog valida "único owner sin transfer previo".
+  // ADR 2026-05-12.
+  { id: 'sistema', label: 'Sistema', slugs: ['system'] },
 ]
 
 /**

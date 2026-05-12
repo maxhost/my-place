@@ -39,6 +39,14 @@ export const SETTINGS_SECTIONS = [
   // 'editor' (F.5 plan rich-text): owner-only toggles de los 4 plugins de
   // embed (YouTube, Spotify, Apple Podcasts, iVoox) que ofrece el composer.
   { slug: 'editor', label: 'Editor', requiredRole: 'owner' },
+  // 'system' (2026-05-12 ADR settings-system-for-lifecycle): decisiones
+  // de ciclo de vida del place. Label "Permanencia" comunica al user que
+  // entrando ahí ejecuta acciones sobre su permanencia en el place (salir
+  // hoy; archivar el place futuro). El GRUPO del sidebar se llama
+  // "Sistema" (ver settings-shell/domain/sections.tsx).
+  // NO requiere owner — cualquier miembro puede salir; el LeavePlaceDialog
+  // valida internamente "único owner sin transfer previo".
+  { slug: 'system', label: 'Permanencia' },
 ] as const
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
