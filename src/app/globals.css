@@ -205,3 +205,96 @@ h3,
 .rich-text-mention-token {
   @apply font-medium text-neutral-900;
 }
+
+/*
+ * `<EditPanel>` animation keyframes (2026-05-12 v3).
+ *
+ * Bug previo: tailwindcss-animate `animate-in / animate-out / slide-*`
+ * funcionaba al abrir (animationName: 'enter' resuelto correctamente),
+ * pero al cerrar Radix Dialog desmontaba el elemento sin esperar la
+ * animation. Causa: Radix evalúa si hay exit animation ANTES de aplicar
+ * `data-state="closed"`. Las CSS vars (--tw-exit-translate-*) que el
+ * plugin setea via clases data-[state=closed]:slide-out-* aún no están
+ * activas en ese momento — Radix ve "no exit animation" → unmount inmediato.
+ *
+ * Fix: keyframes propios con selector `[data-state]` directo. CSS puro,
+ * no depende del cycle del plugin. animation-fill-mode: forwards mantiene
+ * el estado final del keyframe (off-screen) hasta que Radix unmount.
+ *
+ * Mobile (default): slide bottom→top abrir, top→bottom cerrar.
+ * Desktop (md:, ≥768px): slide right→left abrir, left→right cerrar.
+ *
+ * Durations asimétricas (300/200): abrir es invitacional (más lento),
+ * cerrar es responsivo. Easing distinto: ease-out abrir (decel),
+ * ease-in cerrar (accel).
+ */
+@keyframes edit-panel-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes edit-panel-slide-down {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+@keyframes edit-panel-slide-from-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes edit-panel-slide-to-right {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes edit-panel-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes edit-panel-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.edit-panel-content[data-state='open'] {
+  animation: edit-panel-slide-up 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.edit-panel-content[data-state='closed'] {
+  animation: edit-panel-slide-down 200ms cubic-bezier(0.7, 0, 0.84, 0) forwards;
+}
+.edit-panel-overlay[data-state='open'] {
+  animation: edit-panel-fade-in 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.edit-panel-overlay[data-state='closed'] {
+  animation: edit-panel-fade-out 200ms cubic-bezier(0.7, 0, 0.84, 0) forwards;
+}
+
+@media (min-width: 768px) {
+  .edit-panel-content[data-state='open'] {
+    animation-name: edit-panel-slide-from-right;
+  }
+  .edit-panel-content[data-state='closed'] {
+    animation-name: edit-panel-slide-to-right;
+  }
+}

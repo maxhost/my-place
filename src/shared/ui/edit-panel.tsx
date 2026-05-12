@@ -1,7 +1,7 @@
 'use client'
 
 import * as RadixDialog from '@radix-ui/react-dialog'
-import { useEffect, type ComponentPropsWithoutRef, type ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 
 /**
  * Panel responsive de edit/add. Hereda mobile-first del `<BottomSheet>` y
@@ -25,6 +25,15 @@ import { useEffect, type ComponentPropsWithoutRef, type ReactNode } from 'react'
  * Z-index: 50 (mismo que `<Dialog>` y `<BottomSheet>`). `<Toaster />` queda
  * en 60 — sigue siendo el top.
  *
+ * **Animations (2026-05-12 v3, post-bug-fix close):** keyframes definidos en
+ * `globals.css` con selector `[data-state]` directo (NO via tailwindcss-animate
+ * plugin). Razón: el plugin setea las CSS vars del exit (`--tw-exit-translate-*`)
+ * via clases `data-[state=closed]:slide-out-*`, pero Radix Dialog evalúa si hay
+ * exit animation ANTES de aplicar `data-state="closed"` al DOM — el plugin's
+ * vars aún no están activas → Radix concluye "no exit animation" → unmount
+ * instantáneo sin animar. Los keyframes propios con `animation: name duration
+ * easing forwards` aplicados via class CSS estática evitan ese race.
+ *
  * Ver `docs/research/2026-05-10-settings-desktop-ux-research.md` § "Edit
  * forms desktop" y `docs/plans/2026-05-10-settings-desktop-redesign.md`
  * § "Sesión 2".
@@ -39,7 +48,7 @@ function EditPanelOverlay(props: ComponentPropsWithoutRef<typeof RadixDialog.Ove
   const { className = '', ...rest } = props
   return (
     <RadixDialog.Overlay
-      className={`fixed inset-0 z-50 bg-black/40 data-[state=closed]:duration-200 data-[state=open]:duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 ${className}`}
+      className={`edit-panel-overlay fixed inset-0 z-50 bg-black/40 ${className}`}
       {...rest}
     />
   )
@@ -53,66 +62,22 @@ type EditPanelContentProps = ComponentPropsWithoutRef<typeof RadixDialog.Content
  * Container del panel.
  *
  * - **Mobile (default)**: anchored bottom, max-h 85vh, rounded-top, slide
- *   from bottom (translateY 100% → 0).
+ *   bottom → top abrir / top → bottom cerrar.
  * - **Desktop (`md:`)**: anchored right, full height, fixed width 520px,
- *   slide from right (translateX 100% → 0).
+ *   slide right → left abrir / left → right cerrar.
+ *
+ * Las animations vienen de la clase `edit-panel-content` definida en
+ * `globals.css` (ver doc del módulo arriba).
  *
  * Children deben estructurarse con `<EditPanelHeader>`, `<EditPanelBody>`,
  * `<EditPanelFooter>`.
  */
 export function EditPanelContent({ children, className = '', ...rest }: EditPanelContentProps) {
-  // DEBUG TEMPORAL (2026-05-12 v2): monitorear el cambio de data-state via
-  // MutationObserver para capturar la transición open→closed. Buscamos:
-  //   - animation-name en estado closed (debe ser "exit", no "none")
-  //   - si Radix dispara el unmount antes de que la animation termine
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    requestAnimationFrame(() => {
-      const content = document.querySelector('[role="dialog"][data-state]') as HTMLElement | null
-      if (!content) return
-
-      function logState(label: string, el: HTMLElement): void {
-        const computed = window.getComputedStyle(el)
-        console.log(`[EditPanel ${label}]`, {
-          dataState: el.getAttribute('data-state'),
-          animationName: computed.animationName,
-          animationDuration: computed.animationDuration,
-          animationFillMode: computed.animationFillMode,
-          animationPlayState: computed.animationPlayState,
-          transform: computed.transform,
-        })
-      }
-
-      logState('open initial', content)
-
-      const observer = new MutationObserver((mutations) => {
-        for (const m of mutations) {
-          if (m.type === 'attributes' && m.attributeName === 'data-state') {
-            logState('state-change', content)
-            content.addEventListener(
-              'animationstart',
-              (e) => console.log('[EditPanel] animationstart:', e.animationName),
-              { once: true },
-            )
-            content.addEventListener(
-              'animationend',
-              (e) => console.log('[EditPanel] animationend:', e.animationName),
-              { once: true },
-            )
-          }
-        }
-      })
-      observer.observe(content, { attributes: true, attributeFilter: ['data-state'] })
-
-      return () => observer.disconnect()
-    })
-  }, [])
-
   return (
     <EditPanelPortal>
       <EditPanelOverlay />
       <RadixDialog.Content
-        className={`fixed bottom-0 left-0 right-0 z-50 flex max-h-[85vh] flex-col rounded-t-2xl border-t shadow-2xl outline-none [animation-fill-mode:forwards] data-[state=closed]:duration-200 data-[state=open]:duration-300 data-[state=closed]:ease-in data-[state=open]:ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom md:bottom-0 md:left-auto md:right-0 md:top-0 md:h-screen md:max-h-screen md:w-[520px] md:rounded-none md:border-l md:border-t-0 md:data-[state=closed]:slide-out-to-bottom-0 md:data-[state=closed]:slide-out-to-right md:data-[state=open]:slide-in-from-bottom-0 md:data-[state=open]:slide-in-from-right ${className}`}
+        className={`edit-panel-content fixed bottom-0 left-0 right-0 z-50 flex max-h-[85vh] flex-col rounded-t-2xl border-t shadow-2xl outline-none md:bottom-0 md:left-auto md:right-0 md:top-0 md:h-screen md:max-h-screen md:w-[520px] md:rounded-none md:border-l md:border-t-0 ${className}`}
         style={{
           backgroundColor: 'var(--surface)',
           borderColor: 'var(--border)',
