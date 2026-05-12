@@ -64,8 +64,13 @@ describe('<EditPanel> primitive', () => {
       expect(dialog.className).toMatch(/left-0/)
       expect(dialog.className).toMatch(/right-0/)
       expect(dialog.className).toMatch(/max-h-\[85vh\]/)
-      // Slide-from-bottom data attribute classes
-      expect(dialog.className).toMatch(/data-\[state=closed\]:translate-y-full/)
+      // Animación slide-in-from-bottom (tailwindcss-animate). Reemplaza el
+      // approach previo `data-[state=closed]:translate-y-full` que no
+      // funcionaba — Radix Dialog monta directo en state=open sin frame
+      // previo `closed`, así que el browser pintaba el estado final sin
+      // transitar. `animate-in / slide-in-from-*` SÍ ejecuta keyframes
+      // al mount (2026-05-12).
+      expect(dialog.className).toMatch(/data-\[state=open\]:slide-in-from-bottom/)
     })
 
     it('content tiene clases desktop md: que cambian a side drawer', () => {
@@ -76,8 +81,9 @@ describe('<EditPanel> primitive', () => {
       expect(dialog.className).toMatch(/md:top-0/)
       expect(dialog.className).toMatch(/md:h-screen/)
       expect(dialog.className).toMatch(/md:w-\[520px\]/)
-      // Slide-from-right data attribute en desktop
-      expect(dialog.className).toMatch(/md:data-\[state=closed\]:translate-x-full/)
+      // Animación slide-in-from-right en desktop (sustituye al
+      // bottom slide del mobile en md:).
+      expect(dialog.className).toMatch(/md:data-\[state=open\]:slide-in-from-right/)
     })
 
     it('drag handle visible solo en mobile (md:hidden)', () => {

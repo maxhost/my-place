@@ -1,7 +1,7 @@
 'use client'
 
 import * as RadixDialog from '@radix-ui/react-dialog'
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+import { useEffect, type ComponentPropsWithoutRef, type ReactNode } from 'react'
 
 /**
  * Panel responsive de edit/add. Hereda mobile-first del `<BottomSheet>` y
@@ -39,7 +39,7 @@ function EditPanelOverlay(props: ComponentPropsWithoutRef<typeof RadixDialog.Ove
   const { className = '', ...rest } = props
   return (
     <RadixDialog.Overlay
-      className={`fixed inset-0 z-50 bg-black/40 transition-opacity duration-300 ease-out data-[state=closed]:opacity-0 data-[state=open]:opacity-100 ${className}`}
+      className={`fixed inset-0 z-50 bg-black/40 data-[state=closed]:duration-200 data-[state=open]:duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 ${className}`}
       {...rest}
     />
   )
@@ -61,11 +61,36 @@ type EditPanelContentProps = ComponentPropsWithoutRef<typeof RadixDialog.Content
  * `<EditPanelFooter>`.
  */
 export function EditPanelContent({ children, className = '', ...rest }: EditPanelContentProps) {
+  // DEBUG TEMPORAL (2026-05-12): logs para validar que las animaciones del
+  // EditPanel se aplican correctamente. Ver pre-launch-checklist.md.
+  useEffect(() => {
+    // Solo loggea en client + cuando hay debug flag (evita ruido en producción).
+    if (typeof window === 'undefined') return
+    console.log('[EditPanel] mount — verificando animation classes en próximo paint')
+    // RAF para que Radix haya seteado data-state="open" en el DOM.
+    requestAnimationFrame(() => {
+      const content = document.querySelector('[role="dialog"][data-state]') as HTMLElement | null
+      if (!content) {
+        console.warn('[EditPanel] no encontré el content dialog en el DOM')
+        return
+      }
+      const computed = window.getComputedStyle(content)
+      console.log('[EditPanel] data-state:', content.getAttribute('data-state'))
+      console.log('[EditPanel] animation-name:', computed.animationName)
+      console.log('[EditPanel] animation-duration:', computed.animationDuration)
+      console.log('[EditPanel] animation-timing-function:', computed.animationTimingFunction)
+      console.log('[EditPanel] classes:', content.className)
+    })
+    return () => {
+      console.log('[EditPanel] unmount')
+    }
+  }, [])
+
   return (
     <EditPanelPortal>
       <EditPanelOverlay />
       <RadixDialog.Content
-        className={`fixed bottom-0 left-0 right-0 z-50 flex max-h-[85vh] flex-col rounded-t-2xl border-t shadow-2xl outline-none transition-transform duration-300 ease-out data-[state=closed]:translate-y-full data-[state=open]:translate-y-0 md:bottom-0 md:left-auto md:right-0 md:top-0 md:h-screen md:max-h-screen md:w-[520px] md:rounded-none md:border-l md:border-t-0 md:data-[state=closed]:translate-x-full md:data-[state=closed]:translate-y-0 md:data-[state=open]:translate-x-0 ${className}`}
+        className={`fixed bottom-0 left-0 right-0 z-50 flex max-h-[85vh] flex-col rounded-t-2xl border-t shadow-2xl outline-none data-[state=closed]:duration-200 data-[state=open]:duration-300 data-[state=closed]:ease-in data-[state=open]:ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom md:bottom-0 md:left-auto md:right-0 md:top-0 md:h-screen md:max-h-screen md:w-[520px] md:rounded-none md:border-l md:border-t-0 md:data-[state=closed]:slide-out-to-bottom-0 md:data-[state=closed]:slide-out-to-right md:data-[state=open]:slide-in-from-bottom-0 md:data-[state=open]:slide-in-from-right ${className}`}
         style={{
           backgroundColor: 'var(--surface)',
           borderColor: 'var(--border)',

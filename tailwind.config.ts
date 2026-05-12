@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss'
+import tailwindcssAnimate from 'tailwindcss-animate'
 
 /**
  * Tailwind solo para layout/spacing/typography.
@@ -69,7 +70,16 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // tailwindcss-animate (2026-05-12): activa utilities `animate-in`,
+    // `animate-out`, `slide-in-from-*`, `fade-in/out`, etc. usadas por:
+    //  - `<EditPanel>` (slide-in-from-right desktop, slide-in-from-bottom mobile)
+    //  - `<DropdownMenu>` (fade-in/out)
+    //  - `<CommunitySwitcher>` (slide-in-from-top + fade-in)
+    // Pre-2026-05-12 estas clases eran no-op silenciosas — los componentes
+    // aparecían sin animación.
+    tailwindcssAnimate,
+  ],
 }
 
 export default config
