@@ -61,36 +61,58 @@ type EditPanelContentProps = ComponentPropsWithoutRef<typeof RadixDialog.Content
  * `<EditPanelFooter>`.
  */
 export function EditPanelContent({ children, className = '', ...rest }: EditPanelContentProps) {
-  // DEBUG TEMPORAL (2026-05-12): logs para validar que las animaciones del
-  // EditPanel se aplican correctamente. Ver pre-launch-checklist.md.
+  // DEBUG TEMPORAL (2026-05-12 v2): monitorear el cambio de data-state via
+  // MutationObserver para capturar la transición open→closed. Buscamos:
+  //   - animation-name en estado closed (debe ser "exit", no "none")
+  //   - si Radix dispara el unmount antes de que la animation termine
   useEffect(() => {
-    // Solo loggea en client + cuando hay debug flag (evita ruido en producción).
     if (typeof window === 'undefined') return
-    console.log('[EditPanel] mount — verificando animation classes en próximo paint')
-    // RAF para que Radix haya seteado data-state="open" en el DOM.
     requestAnimationFrame(() => {
       const content = document.querySelector('[role="dialog"][data-state]') as HTMLElement | null
-      if (!content) {
-        console.warn('[EditPanel] no encontré el content dialog en el DOM')
-        return
+      if (!content) return
+
+      function logState(label: string, el: HTMLElement): void {
+        const computed = window.getComputedStyle(el)
+        console.log(`[EditPanel ${label}]`, {
+          dataState: el.getAttribute('data-state'),
+          animationName: computed.animationName,
+          animationDuration: computed.animationDuration,
+          animationFillMode: computed.animationFillMode,
+          animationPlayState: computed.animationPlayState,
+          transform: computed.transform,
+        })
       }
-      const computed = window.getComputedStyle(content)
-      console.log('[EditPanel] data-state:', content.getAttribute('data-state'))
-      console.log('[EditPanel] animation-name:', computed.animationName)
-      console.log('[EditPanel] animation-duration:', computed.animationDuration)
-      console.log('[EditPanel] animation-timing-function:', computed.animationTimingFunction)
-      console.log('[EditPanel] classes:', content.className)
+
+      logState('open initial', content)
+
+      const observer = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          if (m.type === 'attributes' && m.attributeName === 'data-state') {
+            logState('state-change', content)
+            content.addEventListener(
+              'animationstart',
+              (e) => console.log('[EditPanel] animationstart:', e.animationName),
+              { once: true },
+            )
+            content.addEventListener(
+              'animationend',
+              (e) => console.log('[EditPanel] animationend:', e.animationName),
+              { once: true },
+            )
+          }
+        }
+      })
+      observer.observe(content, { attributes: true, attributeFilter: ['data-state'] })
+
+      return () => observer.disconnect()
     })
-    return () => {
-      console.log('[EditPanel] unmount')
-    }
   }, [])
 
   return (
     <EditPanelPortal>
       <EditPanelOverlay />
       <RadixDialog.Content
-        className={`fixed bottom-0 left-0 right-0 z-50 flex max-h-[85vh] flex-col rounded-t-2xl border-t shadow-2xl outline-none data-[state=closed]:duration-200 data-[state=open]:duration-300 data-[state=closed]:ease-in data-[state=open]:ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom md:bottom-0 md:left-auto md:right-0 md:top-0 md:h-screen md:max-h-screen md:w-[520px] md:rounded-none md:border-l md:border-t-0 md:data-[state=closed]:slide-out-to-bottom-0 md:data-[state=closed]:slide-out-to-right md:data-[state=open]:slide-in-from-bottom-0 md:data-[state=open]:slide-in-from-right ${className}`}
+        className={`fixed bottom-0 left-0 right-0 z-50 flex max-h-[85vh] flex-col rounded-t-2xl border-t shadow-2xl outline-none [animation-fill-mode:forwards] data-[state=closed]:duration-200 data-[state=open]:duration-300 data-[state=closed]:ease-in data-[state=open]:ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom md:bottom-0 md:left-auto md:right-0 md:top-0 md:h-screen md:max-h-screen md:w-[520px] md:rounded-none md:border-l md:border-t-0 md:data-[state=closed]:slide-out-to-bottom-0 md:data-[state=closed]:slide-out-to-right md:data-[state=open]:slide-in-from-bottom-0 md:data-[state=open]:slide-in-from-right ${className}`}
         style={{
           backgroundColor: 'var(--surface)',
           borderColor: 'var(--border)',
