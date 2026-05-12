@@ -1,7 +1,7 @@
 'use client'
 
 import * as RadixDialog from '@radix-ui/react-dialog'
-import { useEffect, type ComponentPropsWithoutRef, type ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 
 /**
  * Panel responsive de edit/add. Hereda mobile-first del `<BottomSheet>` y
@@ -78,122 +78,6 @@ type EditPanelContentProps = ComponentPropsWithoutRef<typeof RadixDialog.Content
  * `<EditPanelFooter>`.
  */
 export function EditPanelContent({ children, className = '', ...rest }: EditPanelContentProps) {
-  // DEBUG TEMPORAL (2026-05-12 v5): logs granulares para diagnosticar el
-  // bug del close. Mantener hasta que el user confirme que las animations
-  // open + close funcionan visualmente en mobile y desktop.
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const ts = () => `+${performance.now() | 0}ms`
-
-    console.log(`[EditPanel ${ts()}] mount useEffect`)
-
-    function snapshot(label: string, el: HTMLElement | null): void {
-      if (!el) {
-        console.warn(`[EditPanel ${ts()}] ${label}: el is null`)
-        return
-      }
-      const cs = window.getComputedStyle(el)
-      console.log(`[EditPanel ${ts()}] ${label}:`, {
-        dataState: el.getAttribute('data-state'),
-        animationName: cs.animationName,
-        animationDuration: cs.animationDuration,
-        animationFillMode: cs.animationFillMode,
-        animationPlayState: cs.animationPlayState,
-        transform: cs.transform,
-        opacity: cs.opacity,
-        classList: Array.from(el.classList),
-      })
-    }
-
-    function onAnimStart(e: AnimationEvent): void {
-      const target = e.target as HTMLElement
-      if (
-        !target.classList?.contains('edit-panel-content') &&
-        !target.classList?.contains('edit-panel-overlay')
-      ) {
-        return
-      }
-      console.log(`[EditPanel ${ts()}] animationstart:`, {
-        name: e.animationName,
-        target: target.className.slice(0, 80),
-        dataState: target.getAttribute('data-state'),
-      })
-    }
-    function onAnimEnd(e: AnimationEvent): void {
-      const target = e.target as HTMLElement
-      if (
-        !target.classList?.contains('edit-panel-content') &&
-        !target.classList?.contains('edit-panel-overlay')
-      ) {
-        return
-      }
-      console.log(`[EditPanel ${ts()}] animationend:`, {
-        name: e.animationName,
-        target: target.className.slice(0, 80),
-        dataState: target.getAttribute('data-state'),
-      })
-    }
-    function onAnimCancel(e: AnimationEvent): void {
-      const target = e.target as HTMLElement
-      console.warn(`[EditPanel ${ts()}] animationcancel:`, {
-        name: e.animationName,
-        target: target.className?.slice(0, 80),
-        dataState: target.getAttribute('data-state'),
-      })
-    }
-    document.addEventListener('animationstart', onAnimStart, true)
-    document.addEventListener('animationend', onAnimEnd, true)
-    document.addEventListener('animationcancel', onAnimCancel, true)
-
-    const bodyObserver = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        if (m.type !== 'childList') continue
-        m.removedNodes.forEach((n) => {
-          if (n instanceof HTMLElement && n.classList.contains('edit-panel-content')) {
-            console.log(`[EditPanel ${ts()}] REMOVED edit-panel-content from DOM`, {
-              dataState: n.getAttribute('data-state'),
-            })
-          }
-        })
-        m.addedNodes.forEach((n) => {
-          if (n instanceof HTMLElement && n.classList.contains('edit-panel-content')) {
-            console.log(`[EditPanel ${ts()}] ADDED edit-panel-content to DOM`, {
-              dataState: n.getAttribute('data-state'),
-            })
-            // Observar data-state changes en este elemento
-            const attrObserver = new MutationObserver((muts) => {
-              for (const mut of muts) {
-                if (mut.type === 'attributes' && mut.attributeName === 'data-state') {
-                  console.log(
-                    `[EditPanel ${ts()}] data-state CHANGED on:`,
-                    n.className.slice(0, 50),
-                  )
-                  snapshot('post state-change', n)
-                }
-              }
-            })
-            attrObserver.observe(n, { attributes: true, attributeFilter: ['data-state'] })
-          }
-        })
-      }
-    })
-    bodyObserver.observe(document.body, { childList: true, subtree: true })
-
-    // Snapshot inicial: buscar el elemento si ya existe
-    requestAnimationFrame(() => {
-      const el = document.querySelector('.edit-panel-content[data-state]') as HTMLElement | null
-      if (el) snapshot('initial (after RAF)', el)
-    })
-
-    return () => {
-      console.log(`[EditPanel ${ts()}] cleanup useEffect`)
-      document.removeEventListener('animationstart', onAnimStart, true)
-      document.removeEventListener('animationend', onAnimEnd, true)
-      document.removeEventListener('animationcancel', onAnimCancel, true)
-      bodyObserver.disconnect()
-    }
-  }, [])
-
   return (
     <EditPanelPortal>
       <EditPanelOverlay />
