@@ -167,4 +167,151 @@ describe('<RowActions> adaptive primitive', () => {
       expect(btn.className).toMatch(/min-w-11/)
     })
   })
+
+  describe('destructive ⇒ confirm dialog (contrato fuerte)', () => {
+    it('action destructive NO ejecuta onSelect directo al hacer click', () => {
+      const onRemove = vi.fn()
+      render(
+        <RowActions
+          triggerLabel="x"
+          actions={[
+            {
+              icon: <span>🗑</span>,
+              label: 'Eliminar',
+              onSelect: onRemove,
+              destructive: true,
+            },
+          ]}
+        >
+          chip
+        </RowActions>,
+      )
+      // Desktop icon button con destructive
+      const removeBtn = screen.getAllByRole('button', { name: 'Eliminar' })[0]!
+      fireEvent.click(removeBtn)
+      // El handler NO se llamó — está esperando confirm
+      expect(onRemove).not.toHaveBeenCalled()
+    })
+
+    it('al click destructive aparece el dialog con título y descripción default', () => {
+      render(
+        <RowActions
+          triggerLabel="x"
+          actions={[
+            {
+              icon: <span>🗑</span>,
+              label: 'Eliminar',
+              onSelect: vi.fn(),
+              destructive: true,
+            },
+          ]}
+        >
+          chip
+        </RowActions>,
+      )
+      fireEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]!)
+      // Dialog abierto
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      // Título default deriva del label
+      expect(screen.getByText('¿Eliminar?')).toBeInTheDocument()
+      // Descripción default
+      expect(screen.getByText(/no se puede deshacer/i)).toBeInTheDocument()
+      // Botones Cancelar + acción confirmar
+      expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /sí, eliminar/i })).toBeInTheDocument()
+    })
+
+    it('confirmTitle/Description/ActionLabel custom override defaults', () => {
+      render(
+        <RowActions
+          triggerLabel="x"
+          actions={[
+            {
+              icon: <span>🗑</span>,
+              label: 'Eliminar',
+              onSelect: vi.fn(),
+              destructive: true,
+              confirmTitle: '¿Borrar ventana 09:00–17:00?',
+              confirmDescription: 'Custom warning.',
+              confirmActionLabel: 'Borrar ya',
+            },
+          ]}
+        >
+          chip
+        </RowActions>,
+      )
+      fireEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]!)
+      expect(screen.getByText('¿Borrar ventana 09:00–17:00?')).toBeInTheDocument()
+      expect(screen.getByText('Custom warning.')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Borrar ya' })).toBeInTheDocument()
+    })
+
+    it('Cancelar cierra el dialog SIN ejecutar onSelect', () => {
+      const onRemove = vi.fn()
+      render(
+        <RowActions
+          triggerLabel="x"
+          actions={[
+            {
+              icon: <span>🗑</span>,
+              label: 'Eliminar',
+              onSelect: onRemove,
+              destructive: true,
+            },
+          ]}
+        >
+          chip
+        </RowActions>,
+      )
+      fireEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]!)
+      fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+      expect(onRemove).not.toHaveBeenCalled()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('Confirmar ejecuta onSelect y cierra el dialog', () => {
+      const onRemove = vi.fn()
+      render(
+        <RowActions
+          triggerLabel="x"
+          actions={[
+            {
+              icon: <span>🗑</span>,
+              label: 'Eliminar',
+              onSelect: onRemove,
+              destructive: true,
+            },
+          ]}
+        >
+          chip
+        </RowActions>,
+      )
+      fireEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]!)
+      fireEvent.click(screen.getByRole('button', { name: /sí, eliminar/i }))
+      expect(onRemove).toHaveBeenCalledTimes(1)
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('action NO destructive ejecuta onSelect directo (sin confirm)', () => {
+      const onEdit = vi.fn()
+      render(
+        <RowActions
+          triggerLabel="x"
+          actions={[
+            {
+              icon: <span>✏️</span>,
+              label: 'Editar',
+              onSelect: onEdit,
+              // sin destructive
+            },
+          ]}
+        >
+          chip
+        </RowActions>,
+      )
+      fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[0]!)
+      expect(onEdit).toHaveBeenCalledTimes(1)
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+  })
 })

@@ -122,6 +122,9 @@ export function DayCard({
                   label: 'Eliminar',
                   onSelect: () => onRemoveWindow(w.index),
                   destructive: true,
+                  confirmTitle: `¿Eliminar ventana ${formatTime(w.start)} → ${formatTime(w.end)}?`,
+                  confirmDescription: `Se eliminará del ${dayName}. Podés agregarla de nuevo después.`,
+                  confirmActionLabel: 'Sí, eliminar',
                 },
               ]}
             >
