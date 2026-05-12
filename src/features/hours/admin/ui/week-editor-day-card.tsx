@@ -101,8 +101,9 @@ export function DayCard({
       </div>
 
       {/* Body solo se renderea cuando hay ventanas. Layout horizontal con
-          flex-wrap: chips de ventanas + chip "+ Agregar" como último item
-          inline. Cero botones full-width — body 100% safe to scroll. */}
+          flex-wrap: chips de ventanas únicamente. "Agregar ventana" vive
+          en el menú 3-dots del header — no duplicamos affordance.
+          Body 100% safe to scroll (zero botones full-width). */}
       {isOn ? (
         <div className="flex flex-wrap items-center gap-2 px-3 py-3">
           {windows.map((w) => (
@@ -129,20 +130,6 @@ export function DayCard({
               </span>
             </RowActions>
           ))}
-
-          {/* Chip "+ Agregar" inline. Visualmente diferenciado vía
-              border-dashed (en vez de solid) para no confundirse con
-              ventanas existentes. Mantiene min-h-11 (44px) de touch
-              target sin ocupar full-width. */}
-          <button
-            type="button"
-            onClick={onAddWindow}
-            className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-600 hover:border-neutral-500"
-            aria-label={`Agregar ventana al ${dayName}`}
-          >
-            <span aria-hidden="true">+</span>
-            <span>Agregar</span>
-          </button>
         </div>
       ) : null}
     </div>
