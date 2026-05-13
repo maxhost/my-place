@@ -37,6 +37,12 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
  *  - Click only para seleccionar (no arrow keys / enter en v1 —
  *    suficiente para typical Settings flow donde el user busca por
  *    texto y clickea).
+ *
+ * **Cierre explícito en mobile (S5.2, 2026-05-13):** botón "Listo"
+ * sticky al final del dropdown. En mobile bottom sheet, el dropdown
+ * llena la mayoría del viewport y no hay área tappable fuera del
+ * fieldset wrapper — el listener `click outside` queda sin target
+ * útil. El "Listo" garantiza un affordance de cierre siempre visible.
  */
 
 export type MultiSelectOption = {
@@ -246,11 +252,16 @@ export function SearchableMultiSelect({
         />
 
         {open ? (
-          <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-64 overflow-y-auto rounded-md border border-neutral-300 bg-white shadow-lg">
+          <div className="absolute left-0 right-0 top-full z-10 mt-1 flex max-h-64 flex-col overflow-hidden rounded-md border border-neutral-300 bg-white shadow-lg">
             {filtered.length === 0 ? (
               <p className="px-3 py-2 text-sm italic text-neutral-500">{emptyLabel}</p>
             ) : (
-              <ul id={listboxId} role="listbox" aria-multiselectable="true">
+              <ul
+                id={listboxId}
+                role="listbox"
+                aria-multiselectable="true"
+                className="flex-1 overflow-y-auto"
+              >
                 {filtered.map((opt) => {
                   const isForced = forcedSet.has(opt.id)
                   const isChecked = isForced || selectedSet.has(opt.id)
@@ -301,6 +312,16 @@ export function SearchableMultiSelect({
                 })}
               </ul>
             )}
+            {/* Footer sticky con CTA explícito de cierre. Crítico en mobile
+                bottom sheet donde el dropdown llena casi todo el viewport
+                y no hay área tappable fuera del fieldset. */}
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="shrink-0 border-t border-neutral-200 bg-neutral-50 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+            >
+              Listo
+            </button>
           </div>
         ) : null}
       </div>
