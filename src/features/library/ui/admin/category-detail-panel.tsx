@@ -5,7 +5,6 @@ import {
   EditPanel,
   EditPanelBody,
   EditPanelContent,
-  EditPanelDescription,
   EditPanelFooter,
   EditPanelHeader,
   EditPanelTitle,
@@ -146,7 +145,8 @@ export function CategoryDetailPanel({
               </span>
               {displayCategory.title}
             </EditPanelTitle>
-            <EditPanelDescription>/library/{displayCategory.slug}</EditPanelDescription>
+            {/* Sin EditPanelDescription — el slug y otros meta viven en
+                la sección "Detalles" del body, no en el header. */}
           </EditPanelHeader>
 
           <EditPanelBody>

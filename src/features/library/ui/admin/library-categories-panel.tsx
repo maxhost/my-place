@@ -186,7 +186,6 @@ export function LibraryCategoriesPanel({
         ) : (
           <ul className="divide-y divide-neutral-200 border-y border-neutral-200">
             {categories.map((c) => {
-              const scope = scopesByCategoryId.get(c.id)
               return (
                 <li key={c.id} className="flex min-h-[56px] items-center gap-2">
                   <button
@@ -200,13 +199,6 @@ export function LibraryCategoriesPanel({
                     </span>
                     <div className="min-w-0 flex-1">
                       <h3 className="truncate font-serif text-base">{c.title}</h3>
-                      <p className="truncate text-xs text-neutral-600">
-                        <span>{writeAccessChipLabel(scope?.write.kind ?? 'OWNER_ONLY')}</span>
-                        <span aria-hidden className="mx-1.5 text-neutral-300">
-                          ·
-                        </span>
-                        <span>{readAccessChipLabel(scope?.read.kind ?? 'PUBLIC')}</span>
-                      </p>
                     </div>
                   </button>
                   <div className="shrink-0 pr-2">
@@ -304,30 +296,4 @@ export function LibraryCategoriesPanel({
       ) : null}
     </>
   )
-}
-
-function writeAccessChipLabel(kind: WriteAccessKind): string {
-  switch (kind) {
-    case 'OWNER_ONLY':
-      return 'Escribe: owner'
-    case 'GROUPS':
-      return 'Escribe: grupos'
-    case 'TIERS':
-      return 'Escribe: tiers'
-    case 'USERS':
-      return 'Escribe: personas'
-  }
-}
-
-function readAccessChipLabel(kind: LibraryReadAccessKind): string {
-  switch (kind) {
-    case 'PUBLIC':
-      return 'Lee: todos'
-    case 'GROUPS':
-      return 'Lee: grupos'
-    case 'TIERS':
-      return 'Lee: tiers'
-    case 'USERS':
-      return 'Lee: personas'
-  }
 }
