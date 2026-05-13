@@ -494,6 +494,8 @@ md:data-[state=open]:slide-in-from-right md:data-[state=closed]:slide-out-to-rig
 - **NO superpongas dos EditPanels** abriendo edit mientras detail está abierto. Cerrá el detail primero (`onOpenChange(false)`) y el caller decide cuándo abrir el edit. La animation de cierre dura 200ms — el wizard que abre después aparece tras esa transición sin solape visible.
 - **NO duplicar acciones**: si el kebab ya tiene Editar/Archivar y el detalle también, asegurarse de que ambos invocan el mismo handler (no duplicar logic).
 - **`chipClassName="hidden"`** para casos donde el chip de RowActions no se renderiza (solo querés el kebab puro). El primitive requiere `children` no-vacío — pasar `<span aria-hidden />` como placeholder.
+- **NO desmontes el wrapper component vía `{data ? <Panel/> : null}` en el parent** — Radix Presence necesita que el `<EditPanelContent>` siga en el árbol durante el exit animation. Si el parent desmonta el wrapper completo al cerrar, la animation de cierre se skipea (el panel desaparece instantáneo). Patrón correcto: mantener el wrapper SIEMPRE montado, pasarle `category={data ?? null}` + `open={isOpen}`, y dentro del wrapper **latchear el último valor non-null** via `useEffect` para preservar el contenido durante la animation. Ver `<CategoryDetailPanel>` § "Latch interno para close animation".
+- **`unstable_cache` serializa Date → string.** Si la query Prisma devuelve `createdAt: Date` envuelta en `unstable_cache`, al leer del cache se hidrata como `string` (ISO). Defensive wrap: `new Date(category.createdAt).toLocaleDateString(...)`. No es un bug del cache — es JSON serialization estándar; el alternativo sería pre-formatear server-side y pasar string al cliente.
 
 ## Save model — todo manual (consistente)
 

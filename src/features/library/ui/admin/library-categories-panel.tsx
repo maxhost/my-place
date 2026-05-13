@@ -111,8 +111,11 @@ export function LibraryCategoriesPanel({
     })
   }
 
+  // Para detail: pasamos los props directamente, el panel se mantiene
+  // siempre montado y latchea internamente el último valor non-null para
+  // que Radix Presence anime el exit cuando `open` flipea a false.
   const detailCategory =
-    sheet.kind === 'detail' ? categories.find((c) => c.id === sheet.categoryId) : null
+    sheet.kind === 'detail' ? (categories.find((c) => c.id === sheet.categoryId) ?? null) : null
   const detailScope =
     sheet.kind === 'detail' ? (scopesByCategoryId.get(sheet.categoryId) ?? null) : null
 
@@ -228,21 +231,23 @@ export function LibraryCategoriesPanel({
         tiers={tiers}
       />
 
-      {detailCategory && detailScope ? (
-        <CategoryDetailPanel
-          open={true}
-          onOpenChange={(next) => {
-            if (!next) close()
-          }}
-          category={detailCategory}
-          scope={detailScope}
-          groupsById={groupsById}
-          tiersById={tiersById}
-          membersById={membersById}
-          onEdit={() => setSheet({ kind: 'edit', categoryId: detailCategory.id })}
-          onArchive={() => handleArchive(detailCategory)}
-        />
-      ) : null}
+      <CategoryDetailPanel
+        open={sheet.kind === 'detail'}
+        onOpenChange={(next) => {
+          if (!next) close()
+        }}
+        category={detailCategory}
+        scope={detailScope}
+        groupsById={groupsById}
+        tiersById={tiersById}
+        membersById={membersById}
+        onEdit={() => {
+          if (detailCategory) setSheet({ kind: 'edit', categoryId: detailCategory.id })
+        }}
+        onArchive={() => {
+          if (detailCategory) handleArchive(detailCategory)
+        }}
+      />
 
       {editingCategory && editingScope ? (
         <CategoryFormSheet

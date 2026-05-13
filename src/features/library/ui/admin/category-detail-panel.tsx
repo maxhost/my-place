@@ -11,7 +11,7 @@ import {
   EditPanelTitle,
 } from '@/shared/ui/edit-panel'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/shared/ui/dialog'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type {
   LibraryCategory,
   LibraryReadAccessKind,
@@ -38,8 +38,15 @@ type LabeledId = { id: string; label: string }
 type Props = {
   open: boolean
   onOpenChange: (next: boolean) => void
-  category: LibraryCategory
-  scope: CategoryScope
+  /**
+   * Categoría a mostrar. `null` cuando el panel está cerrado y nunca se
+   * abrió. Internamente latcheamos el último valor non-null para que el
+   * contenido sobreviva la animación de cierre (Radix Presence necesita
+   * el subtree presente para animar el exit — si el parent desmonta vía
+   * `{category ? ... : null}`, la animation se skipea).
+   */
+  category: LibraryCategory | null
+  scope: CategoryScope | null
   /** Catalogs para mostrar nombres legibles en lugar de IDs. */
   groupsById: ReadonlyMap<string, string>
   tiersById: ReadonlyMap<string, string>
@@ -84,8 +91,35 @@ export function CategoryDetailPanel({
 }: Props): React.ReactNode {
   const [confirmArchive, setConfirmArchive] = useState(false)
 
-  const writeEntries = resolveScopeEntries(scope.write, { groupsById, tiersById, membersById })
-  const readEntries = resolveScopeEntries(scope.read, { groupsById, tiersById, membersById })
+  // Latch: preservamos el último `{category, scope}` non-null para que
+  // Radix Presence pueda animar el exit del Content cuando `open` flipea
+  // a false (el parent envía `category=null` post-close, pero el Content
+  // necesita seguir en el árbol hasta `animationend`).
+  const [latched, setLatched] = useState<{
+    category: LibraryCategory
+    scope: CategoryScope
+  } | null>(null)
+  useEffect(() => {
+    if (category && scope) setLatched({ category, scope })
+  }, [category, scope])
+
+  const displayCategory = category ?? latched?.category ?? null
+  const displayScope = scope ?? latched?.scope ?? null
+
+  // Antes del primer open, no hay nada que renderear (evita un Portal
+  // huérfano en el DOM al cargar la página).
+  if (!displayCategory || !displayScope) return null
+
+  const writeEntries = resolveScopeEntries(displayScope.write, {
+    groupsById,
+    tiersById,
+    membersById,
+  })
+  const readEntries = resolveScopeEntries(displayScope.read, {
+    groupsById,
+    tiersById,
+    membersById,
+  })
 
   function handleEdit(): void {
     onOpenChange(false)
@@ -108,28 +142,28 @@ export function CategoryDetailPanel({
           <EditPanelHeader>
             <EditPanelTitle>
               <span aria-hidden className="mr-2 text-2xl leading-none">
-                {category.emoji}
+                {displayCategory.emoji}
               </span>
-              {category.title}
+              {displayCategory.title}
             </EditPanelTitle>
-            <EditPanelDescription>/library/{category.slug}</EditPanelDescription>
+            <EditPanelDescription>/library/{displayCategory.slug}</EditPanelDescription>
           </EditPanelHeader>
 
           <EditPanelBody>
             <div className="space-y-5 py-2">
               <DetailSection
                 heading="Quién puede escribir"
-                kindLabel={writeAccessLabel(scope.write.kind)}
-                kindHint={writeAccessHint(scope.write.kind)}
+                kindLabel={writeAccessLabel(displayScope.write.kind)}
+                kindHint={writeAccessHint(displayScope.write.kind)}
                 entries={writeEntries}
               />
               <DetailSection
                 heading="Quién puede leer"
-                kindLabel={readAccessLabel(scope.read.kind)}
-                kindHint={readAccessHint(scope.read.kind)}
+                kindLabel={readAccessLabel(displayScope.read.kind)}
+                kindHint={readAccessHint(displayScope.read.kind)}
                 entries={readEntries}
               />
-              <DetailMeta category={category} />
+              <DetailMeta category={displayCategory} />
             </div>
           </EditPanelBody>
 
@@ -137,7 +171,7 @@ export function CategoryDetailPanel({
             <button
               type="button"
               onClick={handleEdit}
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-neutral-300 px-4 text-sm font-medium hover:bg-neutral-50"
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white"
             >
               <Pencil aria-hidden="true" className="h-4 w-4" />
               Editar
@@ -161,7 +195,7 @@ export function CategoryDetailPanel({
         }}
       >
         <DialogContent>
-          <DialogTitle>{`¿Archivar "${category.title}"?`}</DialogTitle>
+          <DialogTitle>{`¿Archivar "${displayCategory.title}"?`}</DialogTitle>
           <DialogDescription>
             Los items existentes se mantienen pero la categoría se oculta del listado. Reversible
             desde la base de datos.
@@ -223,6 +257,10 @@ function DetailSection({
 }
 
 function DetailMeta({ category }: { category: LibraryCategory }): React.ReactNode {
+  // `category.createdAt` puede ser Date (RSC payload) o string (response
+  // de `unstable_cache` que serializa via JSON). Defensive wrap a Date
+  // antes de `.toLocaleDateString()` para que ambos cases funcionen.
+  const createdAt = new Date(category.createdAt)
   return (
     <section className="space-y-2">
       <h3 className="border-b pb-2 font-serif text-base" style={{ borderColor: 'var(--border)' }}>
@@ -240,7 +278,7 @@ function DetailMeta({ category }: { category: LibraryCategory }): React.ReactNod
         <div className="flex justify-between gap-3">
           <dt className="text-neutral-600">Creada</dt>
           <dd className="text-neutral-900">
-            {category.createdAt.toLocaleDateString(undefined, {
+            {createdAt.toLocaleDateString(undefined, {
               year: 'numeric',
               month: 'short',
               day: 'numeric',
