@@ -73,6 +73,31 @@ export const LIBRARY_READ_ACCESS_KIND_VALUES: ReadonlyArray<LibraryReadAccessKin
 ]
 
 /**
+ * Discriminator del scope de ESCRITURA (S1a, 2026-05-12).
+ *
+ * - `OWNER_ONLY`: sólo owner del place puede crear items (default
+ *   restrictivo).
+ * - `GROUPS`: sólo users en alguno de los `PermissionGroup` listados en
+ *   `LibraryCategoryGroupWriteScope` para esta categoría.
+ * - `TIERS`: sólo users con `TierMembership` activa a alguno de los tiers
+ *   listados en `LibraryCategoryTierWriteScope`.
+ * - `USERS`: sólo los users individuales listados en
+ *   `LibraryCategoryUserWriteScope`.
+ *
+ * Reemplaza al legacy `ContributionPolicy`. Mapea 1:1 al enum Postgres
+ * `WriteAccessKind`. Ver ADR
+ * `docs/decisions/2026-05-12-library-permissions-model.md`.
+ */
+export type WriteAccessKind = 'OWNER_ONLY' | 'GROUPS' | 'TIERS' | 'USERS'
+
+export const WRITE_ACCESS_KIND_VALUES: ReadonlyArray<WriteAccessKind> = [
+  'OWNER_ONLY',
+  'GROUPS',
+  'TIERS',
+  'USERS',
+]
+
+/**
  * Categoría de la biblioteca. Aparece en el grid de la zona root y
  * como destino de `/library/[categorySlug]`.
  *
@@ -95,19 +120,24 @@ export type LibraryCategory = {
   /** Posición manual. NULL hasta que admin reordena. La query ordena
    *  COALESCE(position, +Infinity) → createdAt como fallback. */
   position: number | null
+  /** LEGACY (a eliminar en S1b): reemplazado por `writeAccessKind`. */
   contributionPolicy: ContributionPolicy
   /** G.1 (2026-05-04): tipo de categoría. Default GENERAL. */
   kind: LibraryCategoryKind
   /** G.1 (2026-05-04): discriminator del scope de lectura. Default PUBLIC. */
   readAccessKind: LibraryReadAccessKind
+  /** S1a (2026-05-12): discriminator del scope de escritura. Default
+   *  OWNER_ONLY. Reemplaza a `contributionPolicy`. */
+  writeAccessKind: WriteAccessKind
   archivedAt: Date | null
   createdAt: Date
   updatedAt: Date
   /** Cantidad de items activos. Calculado por la query (sub-count).
    *  R.7.2 retorna 0; cuando R.7.5+ sume LibraryItem, refleja el real. */
   docCount: number
-  /** Group ids con scope a esta categoría (via `GroupCategoryScope`).
-   *  Vacío salvo cuando `contributionPolicy === 'SELECTED_GROUPS'`. */
+  /** LEGACY (a eliminar en S1b): group ids con scope a esta categoría
+   *  (via `GroupCategoryScope`). Vacío salvo cuando
+   *  `contributionPolicy === 'SELECTED_GROUPS'`. */
   groupScopeIds: string[]
 }
 

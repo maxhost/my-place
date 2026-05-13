@@ -23,12 +23,14 @@ export type {
   LibraryItemDetailView,
   LibraryItemListView,
   LibraryReadAccessKind,
+  WriteAccessKind,
 } from './domain/types'
 
 export {
   CONTRIBUTION_POLICY_VALUES,
   LIBRARY_CATEGORY_KIND_VALUES,
   LIBRARY_READ_ACCESS_KIND_VALUES,
+  WRITE_ACCESS_KIND_VALUES,
 } from './domain/types'
 
 // ---------------------------------------------------------------

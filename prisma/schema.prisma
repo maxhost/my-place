@@ -35,12 +35,14 @@ model User {
   // `include: { inviter }` en queries de listado pendientes.
   invitationsSent Invitation[]     @relation("InvitationInviter")
 
-  libraryContributions        LibraryCategoryContributor[]   @relation("LibraryContributor")
-  libraryContributionsInvited LibraryCategoryContributor[]   @relation("LibraryContributorInvitedBy")
-  libraryItemsAuthored        LibraryItem[]                  @relation("LibraryItemAuthor")
+  libraryContributions        LibraryCategoryContributor[]    @relation("LibraryContributor")
+  libraryContributionsInvited LibraryCategoryContributor[]    @relation("LibraryContributorInvitedBy")
+  libraryItemsAuthored        LibraryItem[]                   @relation("LibraryItemAuthor")
   // G.1 (2026-05-04): completion privada por user + scope de lectura por user.
-  libraryItemCompletions      LibraryItemCompletion[]        @relation("LibraryItemCompletion")
-  libraryCategoryReadScopes   LibraryCategoryUserReadScope[] @relation("LibraryCategoryUserReadScope")
+  libraryItemCompletions      LibraryItemCompletion[]         @relation("LibraryItemCompletion")
+  libraryCategoryReadScopes   LibraryCategoryUserReadScope[]  @relation("LibraryCategoryUserReadScope")
+  // S1a (2026-05-12): scope de escritura library por user — relación inversa.
+  libraryCategoryWriteScopes  LibraryCategoryUserWriteScope[] @relation("LibraryCategoryUserWriteScope")
 
   // Tier-memberships: ambas direcciones (asignaciones recibidas + asignaciones hechas).
   tierMemberships         TierMembership[] @relation("TierMembershipsAsUser")
@@ -497,10 +499,29 @@ enum RSVPState {
 // R.7.1: solo categorías + contributors. Items (LibraryItem) se suman en
 // R.7.5 como FK opcional desde Post (Post.libraryItemId).
 
+// LEGACY (a eliminar en S1b — 2026-05-12): reemplazado por
+// `WriteAccessKind`. Ver ADR `2026-05-12-library-permissions-model.md`.
 enum ContributionPolicy {
   DESIGNATED
   MEMBERS_OPEN
   SELECTED_GROUPS
+}
+
+// S1a (2026-05-12): discriminator del scope de escritura. `OWNER_ONLY` =
+// sólo owner del place puede crear items (default restrictivo).
+// `GROUPS|TIERS|USERS` = sólo quien matchea el set correspondiente puede
+// escribir. Simétrico con `LibraryReadAccessKind` — las 3 write scope
+// tables son independientes, sólo aplica la que corresponde al `kind`
+// actual.
+//
+// Reemplaza a `ContributionPolicy` (DESIGNATED|MEMBERS_OPEN|SELECTED_GROUPS).
+// Coexisten temporalmente — `ContributionPolicy` se elimina en S1b.
+// Ver ADR `docs/decisions/2026-05-12-library-permissions-model.md`.
+enum WriteAccessKind {
+  OWNER_ONLY
+  GROUPS
+  TIERS
+  USERS
 }
 
 // G.1 (2026-05-04): tipo de categoría — `GENERAL` (default, content
@@ -534,27 +555,37 @@ model LibraryCategory {
   // Orden manual del admin (drag & drop en R.7.3). NULL = "sin posición";
   // queries ordenan COALESCE(position, MAX+1) → createdAt como fallback.
   position           Int?
+  // LEGACY (a eliminar en S1b): reemplazado por `writeAccessKind` +
+  // 3 nuevas pivots write. Coexiste temporalmente.
   contributionPolicy ContributionPolicy    @default(MEMBERS_OPEN)
   // G.1 (2026-05-04): tipo de categoría. Default GENERAL — el flag
   // COURSE es opt-in del owner cuando crea/edita la categoría.
   kind               LibraryCategoryKind   @default(GENERAL)
   // G.1 (2026-05-04): discriminator del read access scope. Default PUBLIC.
   readAccessKind     LibraryReadAccessKind @default(PUBLIC)
+  // S1a (2026-05-12): discriminator del write access scope. Default
+  // OWNER_ONLY (restrictivo). Reemplaza a `contributionPolicy`.
+  writeAccessKind    WriteAccessKind       @default(OWNER_ONLY)
   archivedAt         DateTime?
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
 
-  place           Place                           @relation(fields: [placeId], references: [id], onDelete: Cascade)
-  contributors    LibraryCategoryContributor[]
-  items           LibraryItem[]
-  // GroupCategoryScope (plan permission-groups G.x): grupos cuyos
-  // permisos library:* están scopados a esta categoría.
-  groupScopes     GroupCategoryScope[]
+  place            Place                            @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  contributors     LibraryCategoryContributor[]
+  items            LibraryItem[]
+  // LEGACY (a eliminar en S1b): grupos cuyos permisos library:* estaban
+  // scopados a esta categoría. Reemplazado por `writeGroupScopes`.
+  groupScopes      GroupCategoryScope[]
   // G.1 (2026-05-04): read scopes por tipo (groups | tiers | users).
   // Sólo aplica el set que corresponde al `readAccessKind` actual.
-  readGroupScopes LibraryCategoryGroupReadScope[]
-  readTierScopes  LibraryCategoryTierReadScope[]
-  readUserScopes  LibraryCategoryUserReadScope[]
+  readGroupScopes  LibraryCategoryGroupReadScope[]
+  readTierScopes   LibraryCategoryTierReadScope[]
+  readUserScopes   LibraryCategoryUserReadScope[]
+  // S1a (2026-05-12): write scopes por tipo (groups | tiers | users).
+  // Sólo aplica el set que corresponde al `writeAccessKind` actual.
+  writeGroupScopes LibraryCategoryGroupWriteScope[]
+  writeTierScopes  LibraryCategoryTierWriteScope[]
+  writeUserScopes  LibraryCategoryUserWriteScope[]
 
   @@unique([placeId, slug])
   @@index([placeId, archivedAt])
@@ -600,6 +631,49 @@ model LibraryCategoryUserReadScope {
 
   category LibraryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   user     User            @relation("LibraryCategoryUserReadScope", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, userId])
+  @@index([userId])
+}
+
+// S1a (2026-05-12): scope de escritura por permission group. Cuando
+// `LibraryCategory.writeAccessKind === 'GROUPS'`, sólo users con
+// `GroupMembership` a alguno de estos grupos pueden crear items. ON
+// DELETE CASCADE de ambos lados.
+model LibraryCategoryGroupWriteScope {
+  categoryId String
+  groupId    String
+
+  category LibraryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  group    PermissionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, groupId])
+  @@index([groupId])
+}
+
+// S1a (2026-05-12): scope de escritura por tier. Mismo patrón que
+// GroupWriteScope. Cuando `writeAccessKind === 'TIERS'`, sólo users con
+// `TierMembership` activa a alguno de estos tiers escriben.
+model LibraryCategoryTierWriteScope {
+  categoryId String
+  tierId     String
+
+  category LibraryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  tier     Tier            @relation(fields: [tierId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, tierId])
+  @@index([tierId])
+}
+
+// S1a (2026-05-12): scope de escritura por usuario individual. Mismo
+// patrón. Cuando `writeAccessKind === 'USERS'`, sólo los users listados
+// pueden crear items en la categoría.
+model LibraryCategoryUserWriteScope {
+  categoryId String
+  userId     String
+
+  category LibraryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  user     User            @relation("LibraryCategoryUserWriteScope", fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([categoryId, userId])
   @@index([userId])
@@ -712,10 +786,12 @@ model Tier {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  place             Place                          @relation(fields: [placeId], references: [id], onDelete: Cascade)
-  tierMemberships   TierMembership[]
+  place              Place                           @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  tierMemberships    TierMembership[]
   // G.1 (2026-05-04): scope de lectura library por tier — relación inversa.
-  libraryReadScopes LibraryCategoryTierReadScope[]
+  libraryReadScopes  LibraryCategoryTierReadScope[]
+  // S1a (2026-05-12): scope de escritura library por tier — relación inversa.
+  libraryWriteScopes LibraryCategoryTierWriteScope[]
 
   @@index([placeId, visibility])
   @@index([placeId, createdAt])
@@ -817,11 +893,13 @@ model PermissionGroup {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  place             Place                           @relation(fields: [placeId], references: [id], onDelete: Cascade)
-  groupMemberships  GroupMembership[]
-  categoryScopes    GroupCategoryScope[]
+  place              Place                            @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  groupMemberships   GroupMembership[]
+  categoryScopes     GroupCategoryScope[]
   // G.1 (2026-05-04): scope de lectura library por grupo — relación inversa.
-  libraryReadScopes LibraryCategoryGroupReadScope[]
+  libraryReadScopes  LibraryCategoryGroupReadScope[]
+  // S1a (2026-05-12): scope de escritura library por grupo — relación inversa.
+  libraryWriteScopes LibraryCategoryGroupWriteScope[]
 
   @@index([placeId])
 }

@@ -31,6 +31,7 @@ const baseCategory: LibraryCategory = {
   contributionPolicy: 'DESIGNATED',
   kind: 'GENERAL',
   readAccessKind: 'PUBLIC',
+  writeAccessKind: 'OWNER_ONLY',
   groupScopeIds: [],
   archivedAt: null,
   createdAt: new Date('2026-04-01'),

@@ -34,11 +34,12 @@ type CategoryRow = {
   contributionPolicy: ContributionPolicy
   kind: 'GENERAL' | 'COURSE'
   readAccessKind: 'PUBLIC' | 'GROUPS' | 'TIERS' | 'USERS'
+  writeAccessKind: 'OWNER_ONLY' | 'GROUPS' | 'TIERS' | 'USERS'
   archivedAt: Date | null
   createdAt: Date
   updatedAt: Date
   _count?: { items: number }
-  /** JOIN con GroupCategoryScope. Vacío salvo policy=SELECTED_GROUPS. */
+  /** LEGACY: JOIN con GroupCategoryScope. Vacío salvo policy=SELECTED_GROUPS. */
   groupScopes?: ReadonlyArray<{ groupId: string }>
 }
 
@@ -53,6 +54,7 @@ function mapCategoryRow(row: CategoryRow, docCount: number): LibraryCategory {
     contributionPolicy: row.contributionPolicy,
     kind: row.kind,
     readAccessKind: row.readAccessKind,
+    writeAccessKind: row.writeAccessKind,
     archivedAt: row.archivedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -75,8 +77,9 @@ const CATEGORY_SELECT = {
   updatedAt: true,
   kind: true,
   readAccessKind: true,
+  writeAccessKind: true,
   _count: { select: { items: { where: { archivedAt: null } } } },
-  /** Sin N+1 — JOIN inline con GroupCategoryScope (cap ≤ 50 entries). */
+  /** LEGACY: JOIN inline con GroupCategoryScope (cap ≤ 50 entries). */
   groupScopes: { select: { groupId: true } },
 } as const
 
