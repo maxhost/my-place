@@ -14,10 +14,13 @@ import {
   updateLibraryCategoryAction,
   type LibraryCategoryKind,
   type LibraryReadAccessKind,
+  type WriteAccessKind,
 } from '@/features/library/public'
 import { setLibraryCategoryReadScopeAction } from '@/features/library/access/public'
+import { setLibraryCategoryWriteScopeAction } from '@/features/library/contribution/public'
 import { friendlyLibraryErrorMessage } from '@/features/library/public'
 import { CategoryFormStepIdentity } from './wizard/category-form-step-identity'
+import { CategoryFormStepWriteAccess } from './wizard/category-form-step-write-access'
 import { CategoryFormStepReadAccess } from './wizard/category-form-step-read-access'
 import { CategoryFormStepCourse } from './wizard/category-form-step-course'
 import {
@@ -48,6 +51,10 @@ type EditMode = {
   initialReadGroupIds: ReadonlyArray<string>
   initialReadTierIds: ReadonlyArray<string>
   initialReadUserIds: ReadonlyArray<string>
+  initialWriteAccessKind: WriteAccessKind
+  initialWriteGroupIds: ReadonlyArray<string>
+  initialWriteTierIds: ReadonlyArray<string>
+  initialWriteUserIds: ReadonlyArray<string>
 }
 
 type Props = {
@@ -64,6 +71,10 @@ function initialFormValueFor(mode: CreateMode | EditMode): CategoryFormValue {
     return {
       emoji: '',
       title: '',
+      writeAccessKind: 'OWNER_ONLY',
+      writeAccessGroupIds: [],
+      writeAccessTierIds: [],
+      writeAccessUserIds: [],
       readAccessKind: 'PUBLIC',
       readAccessGroupIds: [],
       readAccessTierIds: [],
@@ -74,6 +85,10 @@ function initialFormValueFor(mode: CreateMode | EditMode): CategoryFormValue {
   return {
     emoji: mode.initialEmoji,
     title: mode.initialTitle,
+    writeAccessKind: mode.initialWriteAccessKind,
+    writeAccessGroupIds: mode.initialWriteGroupIds,
+    writeAccessTierIds: mode.initialWriteTierIds,
+    writeAccessUserIds: mode.initialWriteUserIds,
     readAccessKind: mode.initialReadAccessKind,
     readAccessGroupIds: mode.initialReadGroupIds,
     readAccessTierIds: mode.initialReadTierIds,
@@ -84,27 +99,26 @@ function initialFormValueFor(mode: CreateMode | EditMode): CategoryFormValue {
 
 const STEPS: ReadonlyArray<WizardStep<CategoryFormValue>> = [
   { id: 'identity', label: 'Identidad', Component: CategoryFormStepIdentity },
+  { id: 'write-access', label: 'Escritura', Component: CategoryFormStepWriteAccess },
   { id: 'read-access', label: 'Lectura', Component: CategoryFormStepReadAccess },
   { id: 'course', label: 'Tipo', Component: CategoryFormStepCourse },
 ]
 
 /**
- * BottomSheet con wizard 3-step para crear o editar una categoría
- * de library.
+ * BottomSheet con wizard 4-step para crear o editar una categoría de library.
  *
- * Steps:
+ * Steps (S2, 2026-05-13):
  *  1. Identidad — emoji + título.
- *  2. Lectura — read access discriminator + sub-picker (groups/tiers/users).
- *  3. Tipo — toggle GENERAL/COURSE.
+ *  2. Escritura — write access discriminator + sub-picker (groups/tiers/users).
+ *  3. Lectura — read access discriminator + sub-picker (con pre-check de
+ *     write-implica-read cuando los kinds coinciden).
+ *  4. Tipo — toggle GENERAL/COURSE.
  *
- * **S2 (pendiente):** sumar step "Escritura" con write access
- * discriminator (OWNER_ONLY/GROUPS/TIERS/USERS). El action
- * `setLibraryCategoryWriteScopeAction` ya está disponible en el
- * sub-slice `library/contribution`.
- *
- * Submit final atomic: create/update categoría → set read scope (si
- * readAccessKind ≠ PUBLIC). Si algún paso intermedio post-create falla,
- * toast con motivo + categoría queda creada (consistente con patrón F.5).
+ * Submit final atomic:
+ *  - create/update categoría → setWriteScope → setReadScope.
+ *  - Owner siempre puede escribir (bypass implícito en backend).
+ *  - Si algún paso intermedio post-create falla, toast con motivo +
+ *    categoría queda creada (consistente con patrón F.5).
  *
  * Cierre = pierde progreso (sin draft persistence).
  */
@@ -142,7 +156,37 @@ export function CategoryFormSheet({
               kind: value.kind,
             }).then(() => mode.categoryId)
 
-      // Step 2: persistir scope de lectura. Discriminated input.
+      // Step 2: persistir scope de escritura. Discriminated input.
+      const writeScopeInput =
+        value.writeAccessKind === 'OWNER_ONLY'
+          ? { categoryId: targetCategoryId, kind: 'OWNER_ONLY' as const }
+          : value.writeAccessKind === 'GROUPS'
+            ? {
+                categoryId: targetCategoryId,
+                kind: 'GROUPS' as const,
+                groupIds: [...value.writeAccessGroupIds],
+              }
+            : value.writeAccessKind === 'TIERS'
+              ? {
+                  categoryId: targetCategoryId,
+                  kind: 'TIERS' as const,
+                  tierIds: [...value.writeAccessTierIds],
+                }
+              : {
+                  categoryId: targetCategoryId,
+                  kind: 'USERS' as const,
+                  userIds: [...value.writeAccessUserIds],
+                }
+      const writeResult = await setLibraryCategoryWriteScopeAction(writeScopeInput)
+      if (!writeResult.ok) {
+        toast.error(
+          'Categoría guardada pero la asignación de acceso de escritura falló. Probá desde "Editar".',
+        )
+        onOpenChange(false)
+        return
+      }
+
+      // Step 3: persistir scope de lectura. Discriminated input.
       const readScopeInput =
         value.readAccessKind === 'PUBLIC'
           ? { categoryId: targetCategoryId, kind: 'PUBLIC' as const }
@@ -166,7 +210,7 @@ export function CategoryFormSheet({
       const readResult = await setLibraryCategoryReadScopeAction(readScopeInput)
       if (!readResult.ok) {
         toast.error(
-          'Categoría guardada pero la asignación de acceso de lectura falló. Probá desde el menú "Acceso de lectura".',
+          'Categoría guardada pero la asignación de acceso de lectura falló. Probá desde "Editar".',
         )
         onOpenChange(false)
         return
@@ -190,7 +234,7 @@ export function CategoryFormSheet({
             chrome. */}
         <BottomSheetTitle className="sr-only">{titleText}</BottomSheetTitle>
         <BottomSheetDescription className="sr-only">
-          Configurá la categoría en 3 pasos.
+          Configurá la categoría en 4 pasos.
         </BottomSheetDescription>
 
         {open ? (

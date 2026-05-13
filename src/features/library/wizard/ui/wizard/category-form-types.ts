@@ -1,7 +1,11 @@
 'use client'
 
 import { createContext, useContext } from 'react'
-import type { LibraryCategoryKind, LibraryReadAccessKind } from '@/features/library/public'
+import type {
+  LibraryCategoryKind,
+  LibraryReadAccessKind,
+  WriteAccessKind,
+} from '@/features/library/public'
 
 /**
  * Tipos compartidos del wizard de creación/edición de categoría library.
@@ -42,12 +46,20 @@ export type CategoryFormValue = {
   // Step 1 — identidad
   emoji: string
   title: string
-  // Step 2 — acceso de lectura (S2 sumará step write access)
+  // Step 2 — acceso de escritura (S2, 2026-05-13)
+  writeAccessKind: WriteAccessKind
+  writeAccessGroupIds: ReadonlyArray<string>
+  writeAccessTierIds: ReadonlyArray<string>
+  writeAccessUserIds: ReadonlyArray<string>
+  // Step 3 — acceso de lectura. Write implica read: el step Lectura
+  // pre-checkea los IDs del scope de escritura (sólo aplica si el kind
+  // matchea entre los 2 steps; ej: si escritura=USERS y lectura=USERS,
+  // los users del write set aparecen pre-checked en read).
   readAccessKind: LibraryReadAccessKind
   readAccessGroupIds: ReadonlyArray<string>
   readAccessTierIds: ReadonlyArray<string>
   readAccessUserIds: ReadonlyArray<string>
-  // Step 3 — tipo de categoría
+  // Step 4 — tipo de categoría
   kind: LibraryCategoryKind
 }
 
