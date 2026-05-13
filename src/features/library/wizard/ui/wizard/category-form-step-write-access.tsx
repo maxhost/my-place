@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { WRITE_ACCESS_KIND_VALUES, type WriteAccessKind } from '@/features/library/public'
 import type { WizardStepProps } from '@/shared/ui/wizard'
+import { SearchableMultiSelect } from '@/shared/ui/searchable-multi-select'
 import { useCategoryFormCatalogs, type CategoryFormValue } from './category-form-types'
 
 /**
@@ -65,13 +66,6 @@ export function CategoryFormStepWriteAccess({
     onChange({ ...value, writeAccessKind: next })
   }
 
-  function toggleId(set: ReadonlyArray<string>, id: string): string[] {
-    const s = new Set(set)
-    if (s.has(id)) s.delete(id)
-    else s.add(id)
-    return Array.from(s)
-  }
-
   return (
     <div className="space-y-4 py-2">
       <label className="block">
@@ -94,7 +88,7 @@ export function CategoryFormStepWriteAccess({
       </label>
 
       {value.writeAccessKind === 'GROUPS' ? (
-        <ScopeFieldset
+        <SearchableMultiSelect
           label="Grupos con permiso para crear"
           options={sortedGroups.map((g) => ({
             id: g.id,
@@ -102,92 +96,38 @@ export function CategoryFormStepWriteAccess({
             badge: g.isPreset ? 'preset' : null,
           }))}
           selected={value.writeAccessGroupIds}
-          empty="Este place no tiene grupos creados todavía."
-          onToggle={(id) =>
-            onChange({ ...value, writeAccessGroupIds: toggleId(value.writeAccessGroupIds, id) })
-          }
+          onChange={(next) => onChange({ ...value, writeAccessGroupIds: next })}
+          placeholder="Buscar grupo…"
+          noOptionsLabel="Este place no tiene grupos creados todavía."
         />
       ) : null}
 
       {value.writeAccessKind === 'TIERS' ? (
-        <ScopeFieldset
+        <SearchableMultiSelect
           label="Tiers con permiso para crear"
-          options={sortedTiers.map((t) => ({ id: t.id, label: t.name, badge: null }))}
+          options={sortedTiers.map((t) => ({ id: t.id, label: t.name }))}
           selected={value.writeAccessTierIds}
-          empty="Este place no tiene tiers creados todavía."
-          onToggle={(id) =>
-            onChange({ ...value, writeAccessTierIds: toggleId(value.writeAccessTierIds, id) })
-          }
+          onChange={(next) => onChange({ ...value, writeAccessTierIds: next })}
+          placeholder="Buscar tier…"
+          noOptionsLabel="Este place no tiene tiers creados todavía."
         />
       ) : null}
 
       {value.writeAccessKind === 'USERS' ? (
-        <ScopeFieldset
+        <SearchableMultiSelect
           label="Personas con permiso para crear"
           options={sortedMembers.map((m) => ({
             id: m.userId,
-            label: m.handle ? `${m.displayName} · @${m.handle}` : m.displayName,
-            badge: null,
+            label: m.displayName,
+            sublabel: m.handle ? `@${m.handle}` : null,
+            searchable: m.handle ? `${m.displayName} @${m.handle}` : m.displayName,
           }))}
           selected={value.writeAccessUserIds}
-          empty="Este place no tiene miembros activos todavía."
-          onToggle={(id) =>
-            onChange({ ...value, writeAccessUserIds: toggleId(value.writeAccessUserIds, id) })
-          }
+          onChange={(next) => onChange({ ...value, writeAccessUserIds: next })}
+          placeholder="Buscar por nombre o handle…"
+          noOptionsLabel="Este place no tiene miembros activos todavía."
         />
       ) : null}
     </div>
-  )
-}
-
-type ScopeOption = { id: string; label: string; badge: string | null }
-
-function ScopeFieldset({
-  label,
-  options,
-  selected,
-  empty,
-  onToggle,
-}: {
-  label: string
-  options: ReadonlyArray<ScopeOption>
-  selected: ReadonlyArray<string>
-  empty: string
-  onToggle: (id: string) => void
-}): React.ReactNode {
-  const set = new Set(selected)
-  return (
-    <fieldset className="space-y-2">
-      <legend className="mb-1 block text-sm text-neutral-600">
-        {label} ({set.size} seleccionados)
-      </legend>
-      {options.length === 0 ? (
-        <p className="text-sm italic text-neutral-500">{empty}</p>
-      ) : (
-        <div className="divide-y divide-neutral-200 border-y border-neutral-200">
-          {options.map((o) => {
-            const checked = set.has(o.id)
-            return (
-              <label key={o.id} className="flex min-h-11 cursor-pointer items-center gap-3 py-2">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => onToggle(o.id)}
-                  className="h-4 w-4"
-                />
-                <span className="flex-1 text-sm">
-                  {o.label}
-                  {o.badge ? (
-                    <span className="ml-2 rounded-full border border-amber-300 px-2 py-0.5 text-[11px] text-amber-700">
-                      {o.badge}
-                    </span>
-                  ) : null}
-                </span>
-              </label>
-            )
-          })}
-        </div>
-      )}
-    </fieldset>
   )
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, fireEvent } from '@testing-library/react'
 
 vi.mock('@/shared/config/env', () => ({
   serverEnv: { NODE_ENV: 'test' },
@@ -20,16 +20,13 @@ import {
 } from '../ui/wizard/category-form-types'
 
 /**
- * Tests del step "Lectura" — verifica el feature `write implica read`
- * sumado en S2 (decisión user 2026-05-12).
+ * Tests del step "Lectura" — verifica el feature `write implica read`.
  *
  * Regla: cuando `readAccessKind === writeAccessKind` y el write scope
- * tiene IDs, esos IDs aparecen pre-checked + disabled en el picker de
- * read (forzados — owner no puede destildar). Hint visual "X tiene
- * acceso por escritura".
+ * tiene IDs, esos IDs aparecen como chips con candado (forced) en el
+ * picker de read. Picker = `<SearchableMultiSelect>` combobox.
  *
- * Cuando los kinds NO coinciden, el pre-check NO aplica (read tiene su
- * propio set independiente).
+ * Cuando los kinds NO coinciden, el pre-check NO aplica.
  */
 
 const CATALOG_FIXTURE: CategoryFormCatalogs = {
@@ -78,7 +75,7 @@ function renderStep(value: CategoryFormValue) {
 afterEach(() => cleanup())
 
 describe('CategoryFormStepReadAccess — write implica read (USERS = USERS)', () => {
-  it('writeAccessKind=USERS con u-alice + readAccessKind=USERS: u-alice forzado checked+disabled', () => {
+  it('writeAccessKind=USERS con u-alice + readAccessKind=USERS: u-alice aparece como chip forced (lock)', () => {
     renderStep(
       baseValue({
         writeAccessKind: 'USERS',
@@ -87,16 +84,13 @@ describe('CategoryFormStepReadAccess — write implica read (USERS = USERS)', ()
         readAccessUserIds: [],
       }),
     )
-    const aliceCheckbox = screen.getByRole('checkbox', { name: /Alice/i }) as HTMLInputElement
-    expect(aliceCheckbox.checked).toBe(true)
-    expect(aliceCheckbox.disabled).toBe(true)
-
-    // Hint visible: "por escritura" badge sobre Alice.
-    const aliceLabel = aliceCheckbox.closest('label')!
-    expect(within(aliceLabel).getByText(/por escritura/i)).toBeInTheDocument()
+    // El chip de Alice debe aparecer con LockIcon (aria-label).
+    expect(screen.getByLabelText(/Bloqueado por permiso de escritura/i)).toBeInTheDocument()
+    // NO debe haber botón "Quitar Alice" — está forced.
+    expect(screen.queryByRole('button', { name: /Quitar Alice/i })).not.toBeInTheDocument()
   })
 
-  it('write USERS + read GROUPS (kinds distintos): u-alice NO forzado en el step read', () => {
+  it('write USERS + read GROUPS (kinds distintos): u-alice NO forzado en read step', () => {
     renderStep(
       baseValue({
         writeAccessKind: 'USERS',
@@ -104,27 +98,12 @@ describe('CategoryFormStepReadAccess — write implica read (USERS = USERS)', ()
         readAccessKind: 'GROUPS',
       }),
     )
-    // El picker visible es Grupos — los user-forced no aplican acá.
-    expect(screen.getByText(/Grupos con acceso/i)).toBeInTheDocument()
-    // Ningún checkbox debe estar disabled (no hay forced en groups).
-    const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[]
-    expect(checkboxes.every((c) => !c.disabled)).toBe(true)
+    // El picker visible es Grupos — no debe haber chips de Alice ni lock icon.
+    expect(screen.getByRole('combobox', { name: /Grupos con acceso/i })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Bloqueado por permiso de escritura/i)).not.toBeInTheDocument()
   })
 
-  it('user en el read set además del write set: muestra contador "con acceso" único', () => {
-    renderStep(
-      baseValue({
-        writeAccessKind: 'USERS',
-        writeAccessUserIds: ['u-alice'],
-        readAccessKind: 'USERS',
-        readAccessUserIds: ['u-bob'],
-      }),
-    )
-    // Alice (write) + Bob (read explicito) = 2 con acceso.
-    expect(screen.getByText(/2 con acceso/i)).toBeInTheDocument()
-  })
-
-  it('user en AMBOS sets: dedupe (no se cuenta 2 veces)', () => {
+  it('legend dedup: write + read incluyen mismo user → cuenta 1, no 2', () => {
     renderStep(
       baseValue({
         writeAccessKind: 'USERS',
@@ -133,7 +112,7 @@ describe('CategoryFormStepReadAccess — write implica read (USERS = USERS)', ()
         readAccessUserIds: ['u-alice', 'u-bob'],
       }),
     )
-    // Alice (en write + read) + Bob (read) = 2 únicos.
+    // Alice (write+read) + Bob (read solo) = 2 únicos.
     expect(screen.getByText(/2 con acceso/i)).toBeInTheDocument()
   })
 })
@@ -148,12 +127,11 @@ describe('CategoryFormStepReadAccess — write implica read (GROUPS = GROUPS)', 
         readAccessGroupIds: [],
       }),
     )
-    const modsCheckbox = screen.getByRole('checkbox', { name: /Mods/i }) as HTMLInputElement
-    expect(modsCheckbox.checked).toBe(true)
-    expect(modsCheckbox.disabled).toBe(true)
+    // Chip de Mods aparece con candado.
+    expect(screen.getByLabelText(/Bloqueado por permiso de escritura/i)).toBeInTheDocument()
   })
 
-  it('hint visible: "N entradas con acceso de escritura"', () => {
+  it('forcedHint visible cuando hay forced IDs', () => {
     renderStep(
       baseValue({
         writeAccessKind: 'GROUPS',
@@ -161,11 +139,14 @@ describe('CategoryFormStepReadAccess — write implica read (GROUPS = GROUPS)', 
         readAccessKind: 'GROUPS',
       }),
     )
-    expect(screen.getByText(/2 entradas con\s+acceso de escritura/i)).toBeInTheDocument()
+    // Hint canónico del primitive.
+    expect(
+      screen.getByText(/acceso de escritura ya tienen lectura automáticamente/i),
+    ).toBeInTheDocument()
   })
 })
 
-describe('CategoryFormStepReadAccess — sin write scope, sin pre-check', () => {
+describe('CategoryFormStepReadAccess — sin write scope, sin forced', () => {
   it('writeAccessKind=OWNER_ONLY: no afecta read step (no forced)', () => {
     renderStep(
       baseValue({
@@ -174,9 +155,9 @@ describe('CategoryFormStepReadAccess — sin write scope, sin pre-check', () => 
         readAccessUserIds: ['u-alice'],
       }),
     )
-    const aliceCheckbox = screen.getByRole('checkbox', { name: /Alice/i }) as HTMLInputElement
-    expect(aliceCheckbox.checked).toBe(true)
-    expect(aliceCheckbox.disabled).toBe(false)
+    // Alice aparece como chip removable (botón Quitar), no como forced.
+    expect(screen.getByRole('button', { name: /Quitar Alice/i })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Bloqueado por permiso de escritura/i)).not.toBeInTheDocument()
   })
 
   it('write GROUPS con set vacío + read GROUPS: no hay forced', () => {
@@ -187,7 +168,26 @@ describe('CategoryFormStepReadAccess — sin write scope, sin pre-check', () => 
         readAccessKind: 'GROUPS',
       }),
     )
-    // El hint "por escritura" no aparece en ningún checkbox.
-    expect(screen.queryByText(/por escritura/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/Bloqueado por permiso de escritura/i)).not.toBeInTheDocument()
+    // No hay hint visible cuando forced.length=0.
+    expect(
+      screen.queryByText(/acceso de escritura ya tienen lectura automáticamente/i),
+    ).not.toBeInTheDocument()
+  })
+})
+
+describe('CategoryFormStepReadAccess — toggle via dropdown click', () => {
+  it('USERS: click en opción Bob (no seleccionada) agrega al set', () => {
+    const { onChange } = renderStep(
+      baseValue({
+        readAccessKind: 'USERS',
+        readAccessUserIds: ['u-alice'],
+      }),
+    )
+    const input = screen.getByRole('combobox', { name: /Personas con acceso/i })
+    fireEvent.focus(input)
+    fireEvent.click(screen.getByRole('option', { name: /Bob/i }))
+    const next = onChange.mock.calls[0]![0] as CategoryFormValue
+    expect(next.readAccessUserIds).toEqual(['u-alice', 'u-bob'])
   })
 })

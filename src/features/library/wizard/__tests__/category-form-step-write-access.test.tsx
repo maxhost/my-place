@@ -20,13 +20,15 @@ import {
 } from '../ui/wizard/category-form-types'
 
 /**
- * Tests del step "Escritura" del wizard de categoría (S2, 2026-05-13).
+ * Tests del step "Escritura" del wizard de categoría.
  *
  * Cubre:
  *  - 4 opciones del enum WriteAccessKind aparecen en el select.
- *  - Sub-picker condicional según el kind (OWNER_ONLY sin picker;
- *    GROUPS/TIERS/USERS con picker del catalog respectivo).
- *  - Toggle individual de IDs del scope (add + remove + dedupe).
+ *  - Sub-picker condicional según el kind. Picker = `<SearchableMultiSelect>`
+ *    (combobox). Opciones aparecen en el dropdown al hacer focus en el
+ *    input.
+ *  - Toggle vía click en option del dropdown.
+ *  - Remove vía click en X del chip.
  *
  * No testea owner bypass — eso vive en `canWriteCategory` (sub-slice
  * contribution). Acá sólo UI puro.
@@ -85,59 +87,82 @@ describe('CategoryFormStepWriteAccess — discriminator', () => {
     expect(options).toEqual(['OWNER_ONLY', 'GROUPS', 'TIERS', 'USERS'])
   })
 
-  it('OWNER_ONLY: NO renderiza picker', () => {
+  it('OWNER_ONLY: NO renderiza combobox de scope', () => {
     renderStep(baseValue({ writeAccessKind: 'OWNER_ONLY' }))
-    expect(screen.queryByText(/Grupos con permiso/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Tiers con permiso/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Personas con permiso/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /Grupos con permiso/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /Tiers con permiso/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('combobox', { name: /Personas con permiso/i }),
+    ).not.toBeInTheDocument()
   })
 
-  it('GROUPS: renderiza picker de grupos con preset arriba', () => {
+  it('GROUPS: renderiza combobox de grupos; focus muestra opciones (preset arriba)', () => {
     renderStep(baseValue({ writeAccessKind: 'GROUPS' }))
-    expect(screen.getByText(/Grupos con permiso para crear/i)).toBeInTheDocument()
-    expect(screen.getByText('Administradores')).toBeInTheDocument()
-    expect(screen.getByText('Mods')).toBeInTheDocument()
+    const input = screen.getByRole('combobox', { name: /Grupos con permiso para crear/i })
+    expect(input).toBeInTheDocument()
+    fireEvent.focus(input)
+    expect(screen.getByRole('option', { name: /Administradores/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Mods/i })).toBeInTheDocument()
   })
 
-  it('TIERS: renderiza picker de tiers', () => {
+  it('TIERS: renderiza combobox de tiers; focus muestra opciones', () => {
     renderStep(baseValue({ writeAccessKind: 'TIERS' }))
-    expect(screen.getByText(/Tiers con permiso para crear/i)).toBeInTheDocument()
-    expect(screen.getByText('Pro')).toBeInTheDocument()
-    expect(screen.getByText('Basic')).toBeInTheDocument()
+    const input = screen.getByRole('combobox', { name: /Tiers con permiso para crear/i })
+    fireEvent.focus(input)
+    expect(screen.getByRole('option', { name: /Pro/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Basic/i })).toBeInTheDocument()
   })
 
-  it('USERS: renderiza picker con displayName + handle si existe', () => {
+  it('USERS: renderiza combobox de personas con displayName + handle visible en opciones', () => {
     renderStep(baseValue({ writeAccessKind: 'USERS' }))
-    expect(screen.getByText(/Personas con permiso para crear/i)).toBeInTheDocument()
-    expect(screen.getByText(/Alice.*@alice/i)).toBeInTheDocument()
-    expect(screen.getByText('Bob')).toBeInTheDocument()
+    const input = screen.getByRole('combobox', { name: /Personas con permiso para crear/i })
+    fireEvent.focus(input)
+    const aliceOption = screen.getByRole('option', { name: /Alice/i })
+    expect(aliceOption).toBeInTheDocument()
+    expect(aliceOption.textContent).toMatch(/@alice/)
+    expect(screen.getByRole('option', { name: /Bob/i })).toBeInTheDocument()
   })
 })
 
-describe('CategoryFormStepWriteAccess — toggle de scope', () => {
-  it('toggle GROUPS: agrega + remueve correctamente', () => {
+describe('CategoryFormStepWriteAccess — toggle via dropdown click', () => {
+  it('GROUPS: click en opción del dropdown agrega al set', () => {
     const { onChange } = renderStep(baseValue({ writeAccessKind: 'GROUPS' }))
-    const adminCheckbox = screen.getByRole('checkbox', { name: /Administradores/i })
-    fireEvent.click(adminCheckbox)
-    expect(onChange).toHaveBeenCalledTimes(1)
+    const input = screen.getByRole('combobox', { name: /Grupos con permiso para crear/i })
+    fireEvent.focus(input)
+    fireEvent.click(screen.getByRole('option', { name: /Administradores/i }))
     const next = onChange.mock.calls[0]![0] as CategoryFormValue
     expect(next.writeAccessGroupIds).toEqual(['g-admin'])
   })
 
-  it('toggle TIERS: agrega un tier al set', () => {
+  it('TIERS: click en opción agrega el tier al set', () => {
     const { onChange } = renderStep(baseValue({ writeAccessKind: 'TIERS' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: /Pro/i }))
+    const input = screen.getByRole('combobox', { name: /Tiers con permiso para crear/i })
+    fireEvent.focus(input)
+    fireEvent.click(screen.getByRole('option', { name: /Pro/i }))
     const next = onChange.mock.calls[0]![0] as CategoryFormValue
     expect(next.writeAccessTierIds).toEqual(['t-pro'])
   })
 
-  it('toggle USERS: remueve un user del set', () => {
+  it('USERS: click en opción ya seleccionada la remueve del set', () => {
     const { onChange } = renderStep(
       baseValue({ writeAccessKind: 'USERS', writeAccessUserIds: ['u-alice', 'u-bob'] }),
     )
-    fireEvent.click(screen.getByRole('checkbox', { name: /Alice/i }))
+    const input = screen.getByRole('combobox', { name: /Personas con permiso para crear/i })
+    fireEvent.focus(input)
+    fireEvent.click(screen.getByRole('option', { name: /Alice/i }))
     const next = onChange.mock.calls[0]![0] as CategoryFormValue
     expect(next.writeAccessUserIds).toEqual(['u-bob'])
+  })
+})
+
+describe('CategoryFormStepWriteAccess — remove via chip X', () => {
+  it('USERS: click en X del chip remueve al user', () => {
+    const { onChange } = renderStep(
+      baseValue({ writeAccessKind: 'USERS', writeAccessUserIds: ['u-alice'] }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Quitar Alice/i }))
+    const next = onChange.mock.calls[0]![0] as CategoryFormValue
+    expect(next.writeAccessUserIds).toEqual([])
   })
 })
 

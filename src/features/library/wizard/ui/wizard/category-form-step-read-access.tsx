@@ -6,6 +6,7 @@ import {
   type LibraryReadAccessKind,
 } from '@/features/library/public'
 import type { WizardStepProps } from '@/shared/ui/wizard'
+import { SearchableMultiSelect } from '@/shared/ui/searchable-multi-select'
 import { useCategoryFormCatalogs, type CategoryFormValue } from './category-form-types'
 
 /**
@@ -70,13 +71,6 @@ export function CategoryFormStepReadAccess({
     onChange({ ...value, readAccessKind: next })
   }
 
-  function toggleId(set: ReadonlyArray<string>, id: string): string[] {
-    const s = new Set(set)
-    if (s.has(id)) s.delete(id)
-    else s.add(id)
-    return Array.from(s)
-  }
-
   return (
     <div className="space-y-4 py-2">
       <label className="block">
@@ -99,7 +93,7 @@ export function CategoryFormStepReadAccess({
       </label>
 
       {value.readAccessKind === 'GROUPS' ? (
-        <ScopeFieldset
+        <SearchableMultiSelect
           label="Grupos con acceso"
           options={sortedGroups.map((g) => ({
             id: g.id,
@@ -108,120 +102,43 @@ export function CategoryFormStepReadAccess({
           }))}
           selected={value.readAccessGroupIds}
           forced={value.writeAccessKind === 'GROUPS' ? value.writeAccessGroupIds : []}
-          empty="Este place no tiene grupos creados todavía."
-          onToggle={(id) =>
-            onChange({ ...value, readAccessGroupIds: toggleId(value.readAccessGroupIds, id) })
-          }
+          forcedHint="Las entradas con acceso de escritura ya tienen lectura automáticamente."
+          onChange={(next) => onChange({ ...value, readAccessGroupIds: next })}
+          placeholder="Buscar grupo…"
+          noOptionsLabel="Este place no tiene grupos creados todavía."
         />
       ) : null}
 
       {value.readAccessKind === 'TIERS' ? (
-        <ScopeFieldset
+        <SearchableMultiSelect
           label="Tiers con acceso"
-          options={sortedTiers.map((t) => ({ id: t.id, label: t.name, badge: null }))}
+          options={sortedTiers.map((t) => ({ id: t.id, label: t.name }))}
           selected={value.readAccessTierIds}
           forced={value.writeAccessKind === 'TIERS' ? value.writeAccessTierIds : []}
-          empty="Este place no tiene tiers creados todavía."
-          onToggle={(id) =>
-            onChange({ ...value, readAccessTierIds: toggleId(value.readAccessTierIds, id) })
-          }
+          forcedHint="Los tiers con acceso de escritura ya tienen lectura automáticamente."
+          onChange={(next) => onChange({ ...value, readAccessTierIds: next })}
+          placeholder="Buscar tier…"
+          noOptionsLabel="Este place no tiene tiers creados todavía."
         />
       ) : null}
 
       {value.readAccessKind === 'USERS' ? (
-        <ScopeFieldset
+        <SearchableMultiSelect
           label="Personas con acceso"
           options={sortedMembers.map((m) => ({
             id: m.userId,
-            label: m.handle ? `${m.displayName} · @${m.handle}` : m.displayName,
-            badge: null,
+            label: m.displayName,
+            sublabel: m.handle ? `@${m.handle}` : null,
+            searchable: m.handle ? `${m.displayName} @${m.handle}` : m.displayName,
           }))}
           selected={value.readAccessUserIds}
           forced={value.writeAccessKind === 'USERS' ? value.writeAccessUserIds : []}
-          empty="Este place no tiene miembros activos todavía."
-          onToggle={(id) =>
-            onChange({ ...value, readAccessUserIds: toggleId(value.readAccessUserIds, id) })
-          }
+          forcedHint="Las personas con acceso de escritura ya tienen lectura automáticamente."
+          onChange={(next) => onChange({ ...value, readAccessUserIds: next })}
+          placeholder="Buscar por nombre o handle…"
+          noOptionsLabel="Este place no tiene miembros activos todavía."
         />
       ) : null}
     </div>
-  )
-}
-
-type ScopeOption = { id: string; label: string; badge: string | null }
-
-function ScopeFieldset({
-  label,
-  options,
-  selected,
-  forced,
-  empty,
-  onToggle,
-}: {
-  label: string
-  options: ReadonlyArray<ScopeOption>
-  selected: ReadonlyArray<string>
-  /**
-   * IDs forzados como checked + disabled. Provienen del write scope del
-   * mismo kind — write implica read, no se permite destildar.
-   */
-  forced: ReadonlyArray<string>
-  empty: string
-  onToggle: (id: string) => void
-}): React.ReactNode {
-  const set = new Set(selected)
-  const forcedSet = new Set(forced)
-  const effectiveCount = new Set([...set, ...forcedSet]).size
-  return (
-    <fieldset className="space-y-2">
-      <legend className="mb-1 block text-sm text-neutral-600">
-        {label} ({effectiveCount} con acceso)
-      </legend>
-      {forcedSet.size > 0 ? (
-        <p className="text-xs italic text-neutral-500">
-          {forcedSet.size === 1 ? '1 entrada con' : `${forcedSet.size} entradas con`} acceso de
-          escritura — ya tienen lectura automáticamente.
-        </p>
-      ) : null}
-      {options.length === 0 ? (
-        <p className="text-sm italic text-neutral-500">{empty}</p>
-      ) : (
-        <div className="divide-y divide-neutral-200 border-y border-neutral-200">
-          {options.map((o) => {
-            const isForced = forcedSet.has(o.id)
-            const checked = isForced || set.has(o.id)
-            return (
-              <label
-                key={o.id}
-                className={`flex min-h-11 items-center gap-3 py-2 ${
-                  isForced ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={isForced}
-                  onChange={() => onToggle(o.id)}
-                  className="h-4 w-4"
-                />
-                <span className="flex-1 text-sm">
-                  {o.label}
-                  {o.badge ? (
-                    <span className="ml-2 rounded-full border border-amber-300 px-2 py-0.5 text-[11px] text-amber-700">
-                      {o.badge}
-                    </span>
-                  ) : null}
-                  {isForced ? (
-                    <span className="ml-2 rounded-full border border-neutral-300 px-2 py-0.5 text-[11px] text-neutral-600">
-                      por escritura
-                    </span>
-                  ) : null}
-                </span>
-              </label>
-            )
-          })}
-        </div>
-      )}
-    </fieldset>
   )
 }
