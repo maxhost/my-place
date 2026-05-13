@@ -19,8 +19,6 @@ type Props = {
   tiers: ReadonlyArray<Tier>
 }
 
-/** SheetState pattern como `<LibraryCategoriesPanel>`. v1 no borra tiers
- *  (decisión #3 ADR — sin archivedAt). HIDDEN inline sin confirm modal. */
 type SheetState =
   | { kind: 'closed' }
   | { kind: 'create' }
@@ -37,30 +35,116 @@ type SheetState =
 /**
  * Listado + orquestador de overlays para `/settings/tiers`.
  *
- * **Layout canon (post 2026-05-12):** cada tier = card individual con border
- * + header h-[56px] (nombre + meta + status chip + 3-dots + switch on/off
- * visibility). Patrón canónico § "Card-per-item con header + body + switch
- * on/off" en `docs/ux-patterns.md`.
+ * **Save model — todo manual (S6, 2026-05-13):**
  *
- * Visibility (PUBLISHED ↔ HIDDEN) se controla por **el switch del header**
- * — affordance prominente, no escondido en el menú overflow. El 3-dots
- * dropdown queda solo con "Editar" (abre TierFormSheet).
+ * El switch de visibility (PUBLISHED ↔ HIDDEN) en cada row NO ejecuta
+ * action inmediato — solo registra el cambio en state local
+ * (`pendingChanges` Map). El user persiste TODOS los cambios pendientes
+ * con UN tap en el botón "Guardar cambios" page-level. Patrón alineado
+ * con `/settings/editor` y `/settings/hours` ("todo manual",
+ * `docs/ux-patterns.md` § "Save model").
  *
- * Iter previa usaba `<ul><li>` con menuitems "Publicar tier" / "Ocultar
- * tier" en el dropdown. Migrado a switch por canon UX (decisión 2026-05-12).
+ * Edit individual via `<TierFormSheet>` sigue con su propio submit
+ * (sheet-level "Listo" persiste solo ese tier). Solo el toggle de
+ * visibility se acumula en pending — eso es lo que mutaba en single-tap
+ * con la iteración previa.
+ *
+ * Si el bulk save falla en algún tier (e.g. `name_already_published`),
+ * los exitosos se persisten + los fallidos quedan en pending para retry.
+ * Toast con resumen del resultado.
+ *
+ * Iter previa (2026-05-12): switch del header disparaba
+ * `setTierVisibilityAction` directo en `startTransition`. Migrado a
+ * pending state por feedback user 2026-05-13.
  */
 export function TiersListAdmin({ placeSlug, tiers }: Props): React.ReactNode {
   const [sheet, setSheet] = useState<SheetState>({ kind: 'closed' })
+  const [pendingChanges, setPendingChanges] = useState<Map<string, TierVisibility>>(new Map())
+  const [savingAll, startSavingAll] = useTransition()
+
+  const isDirty = pendingChanges.size > 0
 
   function close(): void {
     setSheet({ kind: 'closed' })
   }
 
-  // Mode estable para `<TierFormSheet>` — cuando el sheet no está abierto en
-  // create/edit, igual hay que pasarle un `mode` válido (la prop es required).
-  // Bake un valor sensible: `placeSlug` para create, o el payload de edit si
-  // está activo. Como `open=false` en esos casos, el contenido del form no se
-  // renderiza (Radix Dialog no monta el portal).
+  function handleVisibilityToggle(tier: Tier, next: TierVisibility): void {
+    setPendingChanges((prev) => {
+      const m = new Map(prev)
+      if (next === tier.visibility) {
+        // Volver al valor original = sin cambio pendiente.
+        m.delete(tier.id)
+      } else {
+        m.set(tier.id, next)
+      }
+      return m
+    })
+  }
+
+  function handleSaveAll(): void {
+    if (!isDirty || savingAll) return
+    const entries = Array.from(pendingChanges.entries())
+    startSavingAll(async () => {
+      const results = await Promise.allSettled(
+        entries.map(([tierId, visibility]) =>
+          setTierVisibilityAction({ tierId, visibility }).catch((err) => {
+            throw err
+          }),
+        ),
+      )
+
+      const failed: Array<{ tierName: string; reason: string }> = []
+      let successCount = 0
+
+      results.forEach((r, idx) => {
+        const [tierId] = entries[idx]!
+        const tier = tiers.find((t) => t.id === tierId)
+        const tierName = tier?.name ?? tierId
+
+        if (r.status === 'fulfilled') {
+          if (r.value.ok) {
+            successCount += 1
+          } else {
+            const reason =
+              r.value.error === 'name_already_published'
+                ? 'ya hay otro publicado con ese nombre'
+                : 'error desconocido'
+            failed.push({ tierName, reason })
+          }
+        } else {
+          failed.push({ tierName, reason: friendlyTierErrorMessage(r.reason) })
+        }
+      })
+
+      if (failed.length === 0) {
+        toast.success(
+          `${successCount} ${successCount === 1 ? 'tier guardado' : 'tiers guardados'}.`,
+        )
+        setPendingChanges(new Map())
+      } else {
+        const failedSummary = failed.map((f) => `${f.tierName} (${f.reason})`).join(', ')
+        toast.error(
+          successCount > 0
+            ? `Guardados: ${successCount}. Falló: ${failedSummary}.`
+            : `Falló: ${failedSummary}.`,
+        )
+        // Mantener en pending solo los fallidos.
+        const failedIds = new Set(
+          failed
+            .map((f) => tiers.find((t) => t.name === f.tierName)?.id)
+            .filter((x): x is string => Boolean(x)),
+        )
+        setPendingChanges((prev) => {
+          const m = new Map<string, TierVisibility>()
+          for (const [tierId, vis] of prev) {
+            if (failedIds.has(tierId)) m.set(tierId, vis)
+          }
+          return m
+        })
+      }
+    })
+  }
+
   const formSheetOpen = sheet.kind === 'create' || sheet.kind === 'edit'
   const formSheetMode =
     sheet.kind === 'edit'
@@ -96,23 +180,31 @@ export function TiersListAdmin({ placeSlug, tiers }: Props): React.ReactNode {
         </p>
       ) : (
         <div className="space-y-3">
-          {tiers.map((tier) => (
-            <TierCard
-              key={tier.id}
-              tier={tier}
-              onEdit={() =>
-                setSheet({
-                  kind: 'edit',
-                  tierId: tier.id,
-                  initialName: tier.name,
-                  initialDescription: tier.description,
-                  initialPriceCents: tier.priceCents,
-                  initialCurrency: tier.currency,
-                  initialDuration: tier.duration,
-                })
-              }
-            />
-          ))}
+          {tiers.map((tier) => {
+            const pendingVisibility = pendingChanges.get(tier.id)
+            const effectiveVisibility = pendingVisibility ?? tier.visibility
+            return (
+              <TierCard
+                key={tier.id}
+                tier={tier}
+                effectiveVisibility={effectiveVisibility}
+                hasPendingChange={pendingVisibility !== undefined}
+                disabled={savingAll}
+                onEdit={() =>
+                  setSheet({
+                    kind: 'edit',
+                    tierId: tier.id,
+                    initialName: tier.name,
+                    initialDescription: tier.description,
+                    initialPriceCents: tier.priceCents,
+                    initialCurrency: tier.currency,
+                    initialDuration: tier.duration,
+                  })
+                }
+                onToggleVisibility={(next) => handleVisibilityToggle(tier, next)}
+              />
+            )
+          })}
         </div>
       )}
 
@@ -123,6 +215,29 @@ export function TiersListAdmin({ placeSlug, tiers }: Props): React.ReactNode {
       >
         <span aria-hidden="true">+</span> Nuevo tier
       </button>
+
+      {/* Save bar page-level. Visible siempre; el botón se habilita cuando
+          hay cambios pendientes. Mismo patrón que `<EditorConfigForm>`. */}
+      <div className="flex items-center justify-between gap-3 pt-2">
+        <span
+          aria-live="polite"
+          className={
+            isDirty && !savingAll ? 'text-xs text-neutral-500' : 'text-xs text-transparent'
+          }
+        >
+          {isDirty && !savingAll
+            ? `• ${pendingChanges.size} ${pendingChanges.size === 1 ? 'cambio sin guardar' : 'cambios sin guardar'}`
+            : ' '}
+        </span>
+        <button
+          type="button"
+          onClick={handleSaveAll}
+          disabled={!isDirty || savingAll}
+          className="inline-flex min-h-11 items-center justify-center rounded-md bg-neutral-900 px-4 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {savingAll ? 'Guardando…' : 'Guardar cambios'}
+        </button>
+      </div>
 
       <TierFormSheet
         open={formSheetOpen}
@@ -137,46 +252,33 @@ export function TiersListAdmin({ placeSlug, tiers }: Props): React.ReactNode {
 
 // ---------------------------------------------------------------
 // TierCard internal — card con header (nombre + meta + chip + 3-dots +
-// switch). Vive en el mismo archivo para mantener el orquestador
-// autocontenido y evitar prop drilling.
+// switch). Switch ahora es controlled por effectiveVisibility +
+// onToggleVisibility (NO ejecuta action inmediato).
 // ---------------------------------------------------------------
 
 type TierCardProps = {
   tier: Tier
+  effectiveVisibility: TierVisibility
+  hasPendingChange: boolean
+  disabled: boolean
   onEdit: () => void
+  onToggleVisibility: (next: TierVisibility) => void
 }
 
-function TierCard({ tier, onEdit }: TierCardProps): React.ReactNode {
-  const [pending, startTransition] = useTransition()
-  const isPublished = tier.visibility === 'PUBLISHED'
+function TierCard({
+  tier,
+  effectiveVisibility,
+  hasPendingChange,
+  disabled,
+  onEdit,
+  onToggleVisibility,
+}: TierCardProps): React.ReactNode {
+  const isPublished = effectiveVisibility === 'PUBLISHED'
   const targetVisibility: TierVisibility = isPublished ? 'HIDDEN' : 'PUBLISHED'
 
-  function handleVisibilityToggle(): void {
-    startTransition(async () => {
-      try {
-        const result = await setTierVisibilityAction({
-          tierId: tier.id,
-          visibility: targetVisibility,
-        })
-        if (!result.ok) {
-          // Intento de publicar mientras otro tier PUBLISHED tiene el mismo
-          // nombre case-insensitive (decisión #11 ADR + partial unique).
-          if (result.error === 'name_already_published') {
-            toast.error(
-              'Ya hay otro tier publicado con ese nombre. Ocultalo antes de publicar este.',
-            )
-          }
-          return
-        }
-        toast.success(targetVisibility === 'PUBLISHED' ? 'Tier publicado.' : 'Tier oculto.')
-      } catch (err) {
-        toast.error(friendlyTierErrorMessage(err))
-      }
-    })
-  }
-
-  // Chip canónico: neutral si publicado (estado "normal"), amber si oculto
-  // (estado "retirado, requiere acción del owner para volverse visible").
+  // Chip canónico: neutral si publicado, amber si oculto. Si hay cambio
+  // pendiente, sumamos un dot indicator entre el título y el chip para
+  // que el user vea qué tiers están dirty antes de save.
   const chipClass = isPublished
     ? 'rounded-full border border-neutral-300 px-2 py-0.5 text-[11px] text-neutral-600'
     : 'rounded-full border border-amber-300 px-2 py-0.5 text-[11px] text-amber-700'
@@ -184,7 +286,6 @@ function TierCard({ tier, onEdit }: TierCardProps): React.ReactNode {
 
   return (
     <div className="rounded-md border border-neutral-200">
-      {/* Header: name + meta + chip + 3-dots + switch. Siempre visible. */}
       <div
         className={`flex min-h-[56px] items-center gap-2 px-3 py-3 ${tier.description ? 'border-b border-neutral-200' : ''}`}
       >
@@ -192,6 +293,13 @@ function TierCard({ tier, onEdit }: TierCardProps): React.ReactNode {
           <div className="flex items-center gap-2">
             <h3 className="truncate font-serif text-base">{tier.name}</h3>
             <span className={chipClass}>{chipLabel}</span>
+            {hasPendingChange ? (
+              <span
+                aria-label="Cambio sin guardar"
+                title="Cambio sin guardar"
+                className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
+              />
+            ) : null}
           </div>
           <p className="mt-0.5 text-xs text-neutral-600">
             <span>{formatPrice(tier.priceCents, tier.currency)}</span>
@@ -206,7 +314,7 @@ function TierCard({ tier, onEdit }: TierCardProps): React.ReactNode {
               type="button"
               className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100"
               aria-label={`Opciones para ${tier.name}`}
-              disabled={pending}
+              disabled={disabled}
             >
               <svg
                 aria-hidden="true"
@@ -232,13 +340,11 @@ function TierCard({ tier, onEdit }: TierCardProps): React.ReactNode {
         <TierVisibilitySwitch
           tierName={tier.name}
           isPublished={isPublished}
-          disabled={pending}
-          onToggle={handleVisibilityToggle}
+          disabled={disabled}
+          onToggle={() => onToggleVisibility(targetVisibility)}
         />
       </div>
 
-      {/* Body opcional: solo si tier tiene description. Sin description, el
-          card colapsa al header simple. */}
       {tier.description ? (
         <div className="px-3 py-2">
           <p className="line-clamp-2 text-xs text-neutral-600">{tier.description}</p>
@@ -249,16 +355,9 @@ function TierCard({ tier, onEdit }: TierCardProps): React.ReactNode {
 }
 
 /**
- * Switch on/off para visibility del tier. PUBLISHED → ON (negro), HIDDEN →
- * OFF (gris). Tap dispara la action sin confirm modal — la operación es
- * reversible (toggle al otro state). Si publicar colisiona con name unique,
- * el handler muestra toast.error y el switch revierte al estado real
- * (revalidatePath del action sincroniza la lista).
- *
- * aria-label específico para que E2E tests puedan encontrarlo:
- * "{Name}: publicado, tocá para ocultar" o "{Name}: oculto, tocá para publicar".
- * Reemplaza los E2E selectors previos que buscaban menuitems "Publicar tier"
- * / "Ocultar tier" (2026-05-12).
+ * Switch on/off para visibility del tier. PUBLISHED → ON (negro), HIDDEN
+ * → OFF (gris). Tap solo emite `onToggle` — el parent decide si lo guarda
+ * en pending state o persiste inmediato.
  */
 function TierVisibilitySwitch({
   tierName,

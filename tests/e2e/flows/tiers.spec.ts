@@ -95,21 +95,25 @@ test.describe('Tiers — owner CRUD (T.4)', () => {
     await expect(card).toBeVisible({ timeout: 10_000 })
     await expect(card.getByText('Oculto')).toBeVisible()
 
-    // PUBLISH — switch on/off en el header del card. aria-label específico
-    // (post 2026-05-12 rediseño Card-per-item):
-    // `{name}: oculto, tocá para publicar` o `publicado, tocá para ocultar`.
+    // PUBLISH — save model "todo manual" (S6, 2026-05-13): el switch cambia
+    // estado local + dirty indicator; el botón "Guardar cambios" page-level
+    // persiste todos los pendientes. Toast es agregado ("N tier guardado").
     await page
       .getByRole('switch', { name: new RegExp(`^${escapeRegex(uniqueName)}: oculto`) })
       .click()
-    await expect(page.getByText(/Tier publicado/i).first()).toBeVisible({ timeout: 10_000 })
-    await expect(card.getByText('Publicado')).toBeVisible({ timeout: 10_000 })
+    // Chip refleja el estado effective inmediato (sin esperar persist).
+    await expect(card.getByText('Publicado')).toBeVisible()
+    // Click Guardar para persistir.
+    await page.getByRole('button', { name: 'Guardar cambios' }).click()
+    await expect(page.getByText(/tier guardado/i).first()).toBeVisible({ timeout: 10_000 })
 
-    // HIDE de vuelta — mismo switch, ahora el aria-label cambió a "publicado".
+    // HIDE de vuelta — mismo flow.
     await page
       .getByRole('switch', { name: new RegExp(`^${escapeRegex(uniqueName)}: publicado`) })
       .click()
-    await expect(page.getByText(/Tier oculto/i).first()).toBeVisible({ timeout: 10_000 })
-    await expect(card.getByText('Oculto')).toBeVisible({ timeout: 10_000 })
+    await expect(card.getByText('Oculto')).toBeVisible()
+    await page.getByRole('button', { name: 'Guardar cambios' }).click()
+    await expect(page.getByText(/tier guardado/i).first()).toBeVisible({ timeout: 10_000 })
   })
 
   test('crear N tiers con mismo nombre HIDDEN coexisten — sin error', async ({
@@ -173,23 +177,26 @@ test.describe('Tiers — owner CRUD (T.4)', () => {
     await expect(page.getByText(/Tier creado/i).first()).toBeVisible({ timeout: 10_000 })
     await expect(page.getByRole('dialog')).toBeHidden({ timeout: 10_000 })
 
-    // Publicar via switch on/off del card (post 2026-05-12 redesign).
-    // Ambos tiers están HIDDEN al crearse — ambos switches dicen
-    // "{name}: oculto, tocá para publicar". Tocamos el primero, debería
-    // pasar a PUBLISHED.
+    // Publicar via switch on/off + save manual (S6, 2026-05-13).
+    // Ambos tiers están HIDDEN al crearse. Tocamos el primer switch +
+    // Guardar cambios → debería pasar a PUBLISHED.
     const hiddenSwitches = page.getByRole('switch', {
       name: new RegExp(`^${escapeRegex(sharedName)}: oculto`, 'i'),
     })
     await expect(hiddenSwitches).toHaveCount(2, { timeout: 10_000 })
     await hiddenSwitches.first().click()
-    await expect(page.getByText(/Tier publicado/i).first()).toBeVisible({ timeout: 10_000 })
+    await page.getByRole('button', { name: 'Guardar cambios' }).click()
+    await expect(page.getByText(/tier guardado/i).first()).toBeVisible({ timeout: 10_000 })
 
-    // Intentar publicar tier #2 — debería fallar (otro PUBLISHED con mismo
-    // name). El switch que queda en "oculto" es el del segundo tier.
+    // Intentar publicar tier #2 + Guardar — debería fallar (otro PUBLISHED
+    // con mismo name). El switch que queda en "oculto" es el del segundo.
     await page
       .getByRole('switch', { name: new RegExp(`^${escapeRegex(sharedName)}: oculto`, 'i') })
       .click()
-    await expect(page.getByText(/Ya hay otro tier publicado con ese nombre/i).first()).toBeVisible({
+    await page.getByRole('button', { name: 'Guardar cambios' }).click()
+    // El bulk save reporta failure con resumen. Buscamos el copy "ya hay
+    // otro publicado con ese nombre" que viene del action mapping.
+    await expect(page.getByText(/ya hay otro publicado con ese nombre/i).first()).toBeVisible({
       timeout: 10_000,
     })
   })
