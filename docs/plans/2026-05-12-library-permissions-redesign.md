@@ -322,9 +322,17 @@ Total: **4 sesiones independientes**, ~950 LOC. Riesgo decreciente (S1 alto, S4 
 - ✅ Robusto para producción: schema breaking pero contained a dev (decisión user); RLS coordinada en S1; tests cubren todas las dimensiones.
 - ✅ Si uso agentes: solo en S1 (queries + actions + RLS pueden paralelizarse en archivos distintos), pero asegurar cero overlap.
 
-## Open questions
+## Decisiones cerradas (2026-05-12)
 
-1. **Naming**: `WriteAccessKind` vs `ContributionAccessKind` vs `EditAccessKind`. Recomendación: `WriteAccessKind` por simetría con `ReadAccessKind` y simplicidad. Confirmar.
-2. **Audit trail**: hoy `LibraryCategoryContributor` tenía `invitedAt + invitedByUserId`. Las nuevas tablas pivote NO los incluyen. ¿Vale la pena mantener audit? Recomendación: NO en v1, sumar columns si emerge requirement.
-3. **Owner del place que cambia**: si el owner transfiere ownership a otro user, las categorías con `writeAccessKind: OWNER_ONLY` siguen siendo accesibles solo por el owner ACTUAL (porque el check es runtime contra `PlaceOwnership`). ¿Confirma el comportamiento esperado?
-4. **S3 layout final**: revertir master-detail a EditPanel es mi recomendación por consistencia. ¿Confirmás o preferís discutirlo cuando lleguemos a S3?
+Las 4 open questions del plan fueron resueltas por el user:
+
+1. **Naming**: `WriteAccessKind` (simetría con `ReadAccessKind`).
+2. **Audit trail en pivots write**: SIN metadata
+   (`invitedAt`/`invitedByUserId`). Las 6 tablas pivote son
+   `{ categoryId, subjectId }` puras. Si emerge requirement futuro, se
+   suman columns sin breaking change.
+3. **Owner del place que cambia**: el bypass `OWNER_ONLY` sigue al
+   NUEVO owner (chequeo runtime contra `PlaceOwnership`, no contra el
+   owner original que creó la categoría).
+4. **S3 layout final**: revertir master-detail a EditPanel + lista
+   plana. Consistencia con `/settings/hours` y `/settings/access`.
