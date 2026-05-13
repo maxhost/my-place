@@ -111,22 +111,21 @@ test.describe('Permission Groups — owner ve baseline groups', () => {
 
   test('owner ve los 3 grupos baseline en /settings/groups', async ({ page }) => {
     await page.goto(placeUrl(palermoSlug, '/settings/groups'))
-    // Refactor mayo 2026 (`docs/ux-patterns.md`): cada grupo es ahora un
-    // `<Link aria-label="Abrir detalle del grupo X">` minimalista; el
-    // <h3> por grupo desapareció. Asertamos por aria-label del link.
+    // S7 (2026-05-13): rows ahora son `<button aria-label="Ver detalle
+    // del grupo X">` (tap-to-detail pattern). Antes eran `<Link>`.
     await expect(
-      page.getByRole('link', {
-        name: `Abrir detalle del grupo ${E2E_GROUPS.adminPreset.name}`,
+      page.getByRole('button', {
+        name: `Ver detalle del grupo ${E2E_GROUPS.adminPreset.name}`,
       }),
     ).toBeVisible({ timeout: 10_000 })
     await expect(
-      page.getByRole('link', {
-        name: `Abrir detalle del grupo ${E2E_GROUPS.moderators.name}`,
+      page.getByRole('button', {
+        name: `Ver detalle del grupo ${E2E_GROUPS.moderators.name}`,
       }),
     ).toBeVisible()
     await expect(
-      page.getByRole('link', {
-        name: `Abrir detalle del grupo ${E2E_GROUPS.libraryMods.name}`,
+      page.getByRole('button', {
+        name: `Ver detalle del grupo ${E2E_GROUPS.libraryMods.name}`,
       }),
     ).toBeVisible()
   })
@@ -135,35 +134,28 @@ test.describe('Permission Groups — owner ve baseline groups', () => {
 test.describe('Permission Groups — preset "Administradores" no se puede eliminar', () => {
   test.use({ storageState: storageStateFor('owner') })
 
-  test('UI deshabilita el delete del preset (botón "Eliminar grupo" con aria-label "No se puede eliminar …" en el detalle)', async ({
+  test('preset Administradores: delete bloqueado en el detail panel (botón "Eliminar" disabled)', async ({
     page,
   }) => {
-    // Refactor mayo 2026: el botón Eliminar vive en la page detalle
-    // del grupo (`/settings/groups/[groupId]`), no en la lista. Para el
-    // preset, el botón existe pero está `disabled` con aria-label
-    // `No se puede eliminar Administradores`. Defense in depth con el
-    // server action que también retorna `cannot_delete_preset` si se
-    // invoca.
+    // S7 (2026-05-13): el detail vive ahora en un EditPanel inline (no
+    // page separada). Tap-row → panel abre con footer. Para el preset,
+    // el botón "Eliminar" aparece disabled con aria-label
+    // `No se puede eliminar Administradores`.
     await page.goto(placeUrl(palermoSlug, '/settings/groups'))
 
-    // Click en la row del preset → navega al detalle.
+    // Tap-row → abre detail panel.
     await page
-      .getByRole('link', {
-        name: `Abrir detalle del grupo ${E2E_GROUPS.adminPreset.name}`,
+      .getByRole('button', {
+        name: `Ver detalle del grupo ${E2E_GROUPS.adminPreset.name}`,
       })
       .click()
 
-    // No hay botón habilitado de delete del preset.
-    await expect(
-      page.getByRole('button', {
-        name: `Eliminar grupo ${E2E_GROUPS.adminPreset.name}`,
-      }),
-    ).toHaveCount(0, { timeout: 10_000 })
-
+    // El detail panel renderea el footer. Para preset, "Eliminar" está
+    // disabled con aria-label específico.
     const blockedDeleteButton = page.getByRole('button', {
       name: `No se puede eliminar ${E2E_GROUPS.adminPreset.name}`,
     })
-    await expect(blockedDeleteButton).toBeVisible()
+    await expect(blockedDeleteButton).toBeVisible({ timeout: 10_000 })
     await expect(blockedDeleteButton).toBeDisabled()
   })
 })
@@ -196,9 +188,9 @@ test.describe('Permission Groups — owner CRUD atómico de grupo temporal', () 
   test('crear → editar → eliminar grupo temp (atómico end-to-end)', async ({ page }) => {
     await page.goto(placeUrl(palermoSlug, '/settings/groups'))
 
-    // CREATE — el trigger "Nuevo grupo" es un dashed-border button DEBAJO
-    // de la lista (refactor mayo 2026, `docs/ux-patterns.md`). Abre un
-    // BottomSheet (Radix Dialog → role="dialog").
+    // CREATE — trigger "Nuevo grupo" dashed-border button DEBAJO de la
+    // lista (canon ux-patterns.md). Abre EditPanel responsive (sidebar
+    // desktop / bottom sheet mobile) → role="dialog".
     await page.getByRole('button', { name: 'Nuevo grupo' }).first().click()
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 })
     await page.getByLabel('Nombre').fill(tempGroupName)
@@ -208,15 +200,15 @@ test.describe('Permission Groups — owner CRUD atómico de grupo temporal', () 
     await expect(page.getByText(/Grupo creado/i).first()).toBeVisible({ timeout: 10_000 })
     await expect(page.getByRole('dialog')).toBeHidden({ timeout: 10_000 })
 
-    const tempLink = page.getByRole('link', {
-      name: `Abrir detalle del grupo ${tempGroupName}`,
+    const tempRowButton = page.getByRole('button', {
+      name: `Ver detalle del grupo ${tempGroupName}`,
     })
-    await expect(tempLink).toBeVisible({ timeout: 10_000 })
+    await expect(tempRowButton).toBeVisible({ timeout: 10_000 })
 
-    // EDIT — navegar al detalle del grupo, abrir el sheet "Editar grupo"
-    // y cambiar la descripción.
-    await tempLink.click()
-    await page.getByRole('button', { name: 'Editar grupo' }).click()
+    // EDIT — tap-row abre detail panel. Click "Editar" del footer → cierra
+    // detail + abre form sheet (EditPanel) con prefill.
+    await tempRowButton.click()
+    await page.getByRole('button', { name: 'Editar', exact: true }).click()
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 })
     const newDescription = `Descripción actualizada — ${Date.now()}`
     const descriptionInput = page.getByLabel(/Descripción/i)
@@ -226,20 +218,17 @@ test.describe('Permission Groups — owner CRUD atómico de grupo temporal', () 
     await expect(page.getByText(/Grupo actualizado/i).first()).toBeVisible({ timeout: 10_000 })
     await expect(page.getByRole('dialog')).toBeHidden({ timeout: 10_000 })
 
-    // DELETE — el grupo no tiene miembros, así que el botón "Eliminar
-    // grupo" del detalle está habilitado (aria-label `Eliminar grupo
-    // <name>`). Click → confirm dialog (modal) → "Sí, eliminar".
-    await page.getByRole('button', { name: `Eliminar grupo ${tempGroupName}` }).click()
-
+    // DELETE — tap-row de nuevo, abre detail. Click "Eliminar" → confirm
+    // dialog interno → "Sí, eliminar" → group desaparece de la lista.
+    await tempRowButton.click()
+    await page.getByRole('button', { name: 'Eliminar', exact: true }).click()
     await page.getByRole('button', { name: 'Sí, eliminar' }).click()
-    await expect(page.getByText(/Grupo eliminado/i).first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText(/eliminado/i).first()).toBeVisible({ timeout: 10_000 })
 
-    // Tras delete, redirigimos a `/settings/groups` y el grupo desaparece
-    // de la lista.
-    await page.waitForURL(/\/settings\/groups$/, { timeout: 10_000 })
+    // Lista refresh: el grupo ya no aparece.
     await expect(
-      page.getByRole('link', {
-        name: `Abrir detalle del grupo ${tempGroupName}`,
+      page.getByRole('button', {
+        name: `Ver detalle del grupo ${tempGroupName}`,
       }),
     ).toHaveCount(0, { timeout: 10_000 })
   })

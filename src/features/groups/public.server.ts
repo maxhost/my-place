@@ -24,4 +24,5 @@ export {
   listGroupsByPlace,
   listGroupsForUser,
   listMembershipsByGroup,
+  listMembershipsByGroupIds,
 } from './server/queries'

@@ -2,15 +2,15 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import {
-  BottomSheet,
-  BottomSheetBody,
-  BottomSheetClose,
-  BottomSheetContent,
-  BottomSheetDescription,
-  BottomSheetFooter,
-  BottomSheetHeader,
-  BottomSheetTitle,
-} from '@/shared/ui/bottom-sheet'
+  EditPanel,
+  EditPanelBody,
+  EditPanelClose,
+  EditPanelContent,
+  EditPanelDescription,
+  EditPanelFooter,
+  EditPanelHeader,
+  EditPanelTitle,
+} from '@/shared/ui/edit-panel'
 import { toast } from '@/shared/ui/toaster'
 import {
   GROUP_DESCRIPTION_MAX_LENGTH,
@@ -47,11 +47,15 @@ type Props = {
 }
 
 /**
- * BottomSheet con form para crear o editar un grupo de permisos.
+ * EditPanel responsive con form para crear o editar un grupo de permisos.
+ *
+ * **Migración a `<EditPanel>` (S7, 2026-05-13):** antes usaba
+ * `<BottomSheet>` plano (mobile-only). Ahora el primitive `<EditPanel>`
+ * responsive lo extiende a desktop como side drawer derecho 520px.
  *
  * API totalmente controlada: el padre maneja `open` + `onOpenChange` +
  * `mode`. Sigue el patrón canónico de `<CategoryFormSheet>` del slice
- * `library` (`docs/ux-patterns.md` → "BottomSheet for add / edit forms").
+ * `library` (`docs/ux-patterns.md` § "Side drawer responsive").
  *
  * Submit dispara `createGroupAction` o `updateGroupAction` según modo.
  * Pending state via `useTransition`. Toast por outcome (Sonner).
@@ -172,15 +176,15 @@ export function GroupFormSheet({ open, onOpenChange, mode }: Props): React.React
         : 'Guardar cambios'
 
   return (
-    <BottomSheet open={open} onOpenChange={onOpenChange}>
-      <BottomSheetContent aria-describedby={undefined}>
-        <BottomSheetHeader>
-          <BottomSheetTitle>{titleText}</BottomSheetTitle>
-          <BottomSheetDescription>{descriptionText}</BottomSheetDescription>
-        </BottomSheetHeader>
+    <EditPanel open={open} onOpenChange={onOpenChange}>
+      <EditPanelContent aria-describedby={undefined}>
+        <EditPanelHeader>
+          <EditPanelTitle>{titleText}</EditPanelTitle>
+          <EditPanelDescription>{descriptionText}</EditPanelDescription>
+        </EditPanelHeader>
 
-        <form onSubmit={handleSubmit} noValidate>
-          <BottomSheetBody>
+        <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
+          <EditPanelBody>
             <div className="space-y-4 py-2">
               <label className="block">
                 <span className="mb-1 block text-sm text-neutral-600">Nombre</span>
@@ -222,9 +226,9 @@ export function GroupFormSheet({ open, onOpenChange, mode }: Props): React.React
                 )}
               </div>
             </div>
-          </BottomSheetBody>
+          </EditPanelBody>
 
-          <BottomSheetFooter>
+          <EditPanelFooter>
             <button
               type="submit"
               disabled={pending}
@@ -232,7 +236,7 @@ export function GroupFormSheet({ open, onOpenChange, mode }: Props): React.React
             >
               {submitText}
             </button>
-            <BottomSheetClose asChild>
+            <EditPanelClose asChild>
               <button
                 type="button"
                 disabled={pending}
@@ -240,10 +244,10 @@ export function GroupFormSheet({ open, onOpenChange, mode }: Props): React.React
               >
                 Cancelar
               </button>
-            </BottomSheetClose>
-          </BottomSheetFooter>
+            </EditPanelClose>
+          </EditPanelFooter>
         </form>
-      </BottomSheetContent>
-    </BottomSheet>
+      </EditPanelContent>
+    </EditPanel>
   )
 }

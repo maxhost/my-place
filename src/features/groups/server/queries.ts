@@ -154,3 +154,57 @@ export async function listMembershipsByGroup(groupId: string): Promise<GroupMemb
     },
   }))
 }
+
+/**
+ * Batch query: memberships de N groups en 1 round-trip al pooler.
+ * Retorna `Map<groupId, GroupMembership[]>`. Groups sin miembros NO
+ * aparecen en el Map.
+ *
+ * Usado por `/settings/groups/page.tsx` para precargar todos los
+ * memberships y que el detail panel abra instant (sin extra fetch al
+ * tap-row). N=20 groups × 150 max members = 3000 rows worst-case;
+ * típicamente bien por debajo.
+ *
+ * Patrón análogo a `listCategoryScopesByPlace` del slice library
+ * (`docs/plans/2026-05-12-library-permissions-redesign.md` § S3).
+ */
+export async function listMembershipsByGroupIds(
+  groupIds: ReadonlyArray<string>,
+): Promise<Map<string, GroupMembership[]>> {
+  if (groupIds.length === 0) return new Map()
+  const rows = await prisma.groupMembership.findMany({
+    where: { groupId: { in: [...groupIds] } },
+    orderBy: { addedAt: 'asc' },
+    select: {
+      id: true,
+      groupId: true,
+      userId: true,
+      placeId: true,
+      addedAt: true,
+      addedByUserId: true,
+      user: {
+        select: { displayName: true, handle: true, avatarUrl: true },
+      },
+    },
+  })
+  const byGroupId = new Map<string, GroupMembership[]>()
+  for (const row of rows) {
+    const membership: GroupMembership = {
+      id: row.id,
+      groupId: row.groupId,
+      userId: row.userId,
+      placeId: row.placeId,
+      addedAt: row.addedAt,
+      addedByUserId: row.addedByUserId,
+      user: {
+        displayName: row.user.displayName,
+        handle: row.user.handle,
+        avatarUrl: row.user.avatarUrl,
+      },
+    }
+    const list = byGroupId.get(row.groupId)
+    if (list) list.push(membership)
+    else byGroupId.set(row.groupId, [membership])
+  }
+  return byGroupId
+}

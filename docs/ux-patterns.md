@@ -486,7 +486,10 @@ md:data-[state=open]:slide-in-from-right md:data-[state=closed]:slide-out-to-rig
 4. **State del listado**: discriminated union `'closed' | 'create' | 'detail' | 'edit'`. Click row → `detail`. Editar dentro del detalle → cierra detail + abre `edit` (cierra el panel actual ANTES de abrir el siguiente para no superponer dos EditPanels).
 5. **Resolver IDs a nombres legibles**: el detalle muestra "Grupo Mods" en lugar de `grp-mods-abc123`. Pasar `Map<id, label>` desde el page server al panel.
 
-**Reference implementation.** `features/library/ui/admin/category-detail-panel.tsx` + `library-categories-panel.tsx`. Patrón análogo aplicable a `/settings/groups/*` y `/settings/tiers/*` cuando se rediseñen.
+**Reference implementations.**
+
+- `features/library/ui/admin/category-detail-panel.tsx` + `library-categories-panel.tsx` (canon original, S5).
+- `features/groups/admin/ui/group-detail-panel.tsx` + `groups-admin-panel.tsx` (S7, 2026-05-13). Suma sub-sheet pattern (Gestionar miembros): el detail-panel cierra antes de abrir el members sheet — evita stack de 2 EditPanels y mantiene latch en parent para ambos.
 
 **Pitfalls.**
 

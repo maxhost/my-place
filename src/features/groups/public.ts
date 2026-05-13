@@ -77,13 +77,12 @@ export {
   removeMemberFromGroupAction,
 } from './memberships/public'
 
-// Sub-slice admin/
+// Sub-slice admin/ (post-S7 2026-05-13: detail-from-list pattern)
 export {
-  DeleteGroupConfirm,
-  GroupDetailView,
+  GroupDetailPanel,
   GroupFormSheet,
   GroupMembersSheet,
-  GroupsListAdmin,
+  GroupsAdminPanel,
 } from './admin/public'
 
 // UI primitives raíz

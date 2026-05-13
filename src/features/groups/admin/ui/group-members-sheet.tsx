@@ -2,15 +2,15 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import {
-  BottomSheet,
-  BottomSheetBody,
-  BottomSheetClose,
-  BottomSheetContent,
-  BottomSheetDescription,
-  BottomSheetFooter,
-  BottomSheetHeader,
-  BottomSheetTitle,
-} from '@/shared/ui/bottom-sheet'
+  EditPanel,
+  EditPanelBody,
+  EditPanelClose,
+  EditPanelContent,
+  EditPanelDescription,
+  EditPanelFooter,
+  EditPanelHeader,
+  EditPanelTitle,
+} from '@/shared/ui/edit-panel'
 import { toast } from '@/shared/ui/toaster'
 import { MemberAvatar } from '@/features/members/public'
 import {
@@ -39,7 +39,7 @@ type Props = {
 }
 
 /**
- * BottomSheet de gestión de miembros de un grupo. Owner-only.
+ * EditPanel de gestión de miembros de un grupo. Owner-only.
  *
  * UX (modelado en `<ContributorsSheet>` del slice `library`, canónico):
  *  - Lista de miembros actuales con avatar + nombre + handle + botón
@@ -167,16 +167,16 @@ export function GroupMembersSheet({
   }
 
   return (
-    <BottomSheet open={open} onOpenChange={onOpenChange}>
-      <BottomSheetContent aria-describedby={undefined}>
-        <BottomSheetHeader>
-          <BottomSheetTitle>Miembros de “{groupName}”</BottomSheetTitle>
-          <BottomSheetDescription>
+    <EditPanel open={open} onOpenChange={onOpenChange}>
+      <EditPanelContent aria-describedby={undefined}>
+        <EditPanelHeader>
+          <EditPanelTitle>Miembros de “{groupName}”</EditPanelTitle>
+          <EditPanelDescription>
             Agregá o quitá miembros del grupo. Los cambios aplican inmediatamente.
-          </BottomSheetDescription>
-        </BottomSheetHeader>
+          </EditPanelDescription>
+        </EditPanelHeader>
 
-        <BottomSheetBody>
+        <EditPanelBody>
           <div className="space-y-4 py-2">
             {list.length === 0 ? (
               <p className="text-sm italic text-neutral-500">
@@ -264,19 +264,19 @@ export function GroupMembersSheet({
               ) : null}
             </div>
           </div>
-        </BottomSheetBody>
+        </EditPanelBody>
 
-        <BottomSheetFooter>
-          <BottomSheetClose asChild>
+        <EditPanelFooter>
+          <EditPanelClose asChild>
             <button
               type="button"
               className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-neutral-900 px-4 text-sm font-medium text-white"
             >
               Listo
             </button>
-          </BottomSheetClose>
-        </BottomSheetFooter>
-      </BottomSheetContent>
-    </BottomSheet>
+          </EditPanelClose>
+        </EditPanelFooter>
+      </EditPanelContent>
+    </EditPanel>
   )
 }

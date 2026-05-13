@@ -1,5 +1,21 @@
 # PermissionGroups + Block/Expel — Especificación
 
+> **Actualización v3 (2026-05-13, S7)**: rediseño de `/settings/groups`
+> admin UI al patrón canónico `detail-from-list` (ver
+> `docs/ux-patterns.md`). Drop del master-detail con page detalle full
+>
+> - URL `/settings/groups/[groupId]`. Reemplazado por flat page +
+>   `<GroupsAdminPanel>` (orquestador) + `<GroupDetailPanel>` (read-only
+>   en EditPanel responsive: sidebar desktop / bottomsheet mobile).
+>   Sub-sheets `<GroupFormSheet>` y `<GroupMembersSheet>` migrados de
+>   BottomSheet legacy a EditPanel responsive. Mirror exacto del slice
+>   library admin post-S5. Spec sections § 4.7 + § 6 quedan parcialmente
+>   obsoletas (componentes legacy listados); el código es la fuente.
+>
+> **Library scope por categoría**: eliminado en S1b del rediseño library
+> (2026-05-13). Los permisos `library:*` aplican globalmente al place
+> ahora. Ver ADR `docs/decisions/2026-05-12-library-permissions-model.md`.
+
 > **Alcance v1 (G.x, 2026-05-02)**: sistema de grupos con permisos
 > atómicos para delegar moderación. Reemplaza el rol `ADMIN` del
 > enum por un grupo preset "Administradores" auto-generado. Suma
