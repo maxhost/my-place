@@ -275,6 +275,14 @@ export function GroupMembersSheet({
               Listo
             </button>
           </EditPanelClose>
+          <EditPanelClose asChild>
+            <button
+              type="button"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-neutral-300 px-4 text-sm"
+            >
+              Cancelar
+            </button>
+          </EditPanelClose>
         </EditPanelFooter>
       </EditPanelContent>
     </EditPanel>

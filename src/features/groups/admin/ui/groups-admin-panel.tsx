@@ -38,7 +38,12 @@ type SheetState =
   | { kind: 'closed' }
   | { kind: 'create' }
   | { kind: 'detail'; groupId: string }
-  | { kind: 'edit'; groupId: string }
+  /** `returnTo` rastrea desde dónde se abrió el edit. Al cerrar (Cancelar
+   *  o Submit), el user vuelve al detail panel si entró desde ahí; o al
+   *  listing si abrió el edit directo desde el kebab del row. */
+  | { kind: 'edit'; groupId: string; returnTo: 'closed' | 'detail' }
+  /** Members siempre se abre desde el detail panel. Al cerrar vuelve
+   *  siempre al detail con la lista actualizada. */
   | { kind: 'members'; groupId: string }
 
 /**
@@ -70,8 +75,23 @@ export function GroupsAdminPanel({
 }: Props): React.ReactNode {
   const [sheet, setSheet] = useState<SheetState>({ kind: 'closed' })
 
+  /**
+   * Cerrar un sub-sheet (edit o members). Si el sub-sheet se abrió desde
+   * el detail panel (`returnTo === 'detail'` para edit; siempre para
+   * members), volvemos al detail con los datos actualizados (Radix
+   * Presence anima el cierre del sub-sheet → al frame siguiente abre el
+   * detail). Si abrió desde el listing (kebab), volvemos a `closed`.
+   */
   function close(): void {
-    setSheet({ kind: 'closed' })
+    setSheet((current) => {
+      if (current.kind === 'edit' && current.returnTo === 'detail') {
+        return { kind: 'detail', groupId: current.groupId }
+      }
+      if (current.kind === 'members') {
+        return { kind: 'detail', groupId: current.groupId }
+      }
+      return { kind: 'closed' }
+    })
   }
 
   // Active state derivations.
@@ -208,7 +228,8 @@ export function GroupsAdminPanel({
                               {
                                 icon: <Pencil aria-hidden="true" className="h-4 w-4" />,
                                 label: 'Editar',
-                                onSelect: () => setSheet({ kind: 'edit', groupId: g.id }),
+                                onSelect: () =>
+                                  setSheet({ kind: 'edit', groupId: g.id, returnTo: 'closed' }),
                               },
                               {
                                 icon: <Trash2 aria-hidden="true" className="h-4 w-4" />,
@@ -225,7 +246,8 @@ export function GroupsAdminPanel({
                               {
                                 icon: <Pencil aria-hidden="true" className="h-4 w-4" />,
                                 label: 'Editar',
-                                onSelect: () => setSheet({ kind: 'edit', groupId: g.id }),
+                                onSelect: () =>
+                                  setSheet({ kind: 'edit', groupId: g.id, returnTo: 'closed' }),
                               },
                             ]
                       }
@@ -265,7 +287,7 @@ export function GroupsAdminPanel({
         members={detailMembers}
         placeSlug={placeSlug}
         onEdit={() => {
-          if (detailGroup) setSheet({ kind: 'edit', groupId: detailGroup.id })
+          if (detailGroup) setSheet({ kind: 'edit', groupId: detailGroup.id, returnTo: 'detail' })
         }}
         onManageMembers={() => {
           if (detailGroup) setSheet({ kind: 'members', groupId: detailGroup.id })
