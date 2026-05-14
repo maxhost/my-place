@@ -491,6 +491,7 @@ md:data-[state=open]:slide-in-from-right md:data-[state=closed]:slide-out-to-rig
 - `features/library/ui/admin/category-detail-panel.tsx` + `library-categories-panel.tsx` (canon original, S5).
 - `features/groups/admin/ui/group-detail-panel.tsx` + `groups-admin-panel.tsx` (S7, 2026-05-13). Suma sub-sheet pattern (Gestionar miembros): el detail-panel cierra antes de abrir el members sheet — evita stack de 2 EditPanels y mantiene latch en parent para ambos.
 - `features/members/admin/ui/{member-detail-panel,members-admin-panel}.tsx` (2026-05-14). Extiende el patrón con **2 listados intercambiables** (Activos / Invitados con tab chips URL-based), search bar paginada y **2 sub-sheets paralelos** (Gestionar tiers + Gestionar grupos) que abren desde el detail-panel con `returnTo: 'detail-member'`. Detail panel embebe `<BlockMemberDialog>` + `<ExpelMemberDialog>` del sub-slice `moderation/` con el patrón `trigger=` self-controlled — sin duplicar la lógica de los dialogs canónicos.
+- `features/flags/admin/ui/{flag-detail-panel,flags-admin-panel}.tsx` (2026-05-14). Mirror simplificado del members admin: state machine sólo `closed | detail` (sin invite/sub-sheets). Suma **filter chips secundarios** (`<TargetTypeFilter>` URL-based) below los tabs Pendientes/Resueltos para filtrar por POST/COMMENT/EVENT. Acciones de moderación (Ignorar/Ocultar/Eliminar) viven en el footer del detail panel + atajos kebab en el row; `router.refresh()` post-action garantiza repaint inmediato del listado (la action ya hace `revalidatePath` server-side).
 
 **Pitfalls.**
 

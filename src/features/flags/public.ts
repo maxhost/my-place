@@ -37,4 +37,3 @@ export {
 } from './schemas'
 
 export { FlagButton } from './ui/flag-button'
-export { FlagQueueItem } from './ui/flag-queue-item'
