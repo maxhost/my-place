@@ -1,19 +1,22 @@
 import { BackLink } from '@/shared/ui/back-button'
 
 /**
- * Header bar sticky del item detail (R.7.9).
+ * Header bar sticky de pages de item: detail (R.7.9), new (R.7.8) y
+ * edit (R.7.9).
  *
  * Análogo a `<ThreadHeaderBar>` de discussions pero específico para
  * library. El back button es siempre un `<BackLink>` (server,
  * navegación directa) — nunca `router.back()` — para evitar el loop
  * con el redirect 308 desde `/conversations/[slug]` y porque el
- * destino canónico es la categoría, no la entry previa del history.
+ * destino canónico es la categoría (o el item, en edit), no la entry
+ * previa del history.
  *
  * Destinos:
- *  - `backHref` definido (computado SSR desde `?from=conversations` →
- *    `/conversations`) tiene precedencia.
+ *  - `backHref` definido tiene precedencia. Casos:
+ *    - Detail con `?from=conversations` → `/conversations`.
+ *    - Edit page → `/library/[cat]/[itemSlug]` (volver al detail).
  *  - Default: `/library/[categorySlug]` — el contexto natural del
- *    item es su categoría.
+ *    item es su categoría. New page usa este default.
  *
  * El item es accesible vía 2 caminos:
  *  1. `/library/[cat]/[itemSlug]` (canónica).

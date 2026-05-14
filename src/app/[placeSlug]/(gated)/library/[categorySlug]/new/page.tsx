@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
-import { BackLink } from '@/shared/ui/back-button'
-import { createLibraryItemAction } from '@/features/library/public'
+import { createLibraryItemAction, LibraryItemHeaderBar } from '@/features/library/public'
 import { findLibraryCategoryBySlug, resolveLibraryViewer } from '@/features/library/public.server'
 import { canWriteCategory } from '@/features/library/contribution/public'
 import { findWriteScope } from '@/features/library/contribution/public.server'
@@ -60,38 +59,40 @@ export default async function NewLibraryItemPage({ params }: Props) {
     category.kind === 'COURSE' ? await listCategoryItemsForPrereqLookup(category.id, place.id) : []
 
   return (
-    <div className="px-3 py-6">
-      <header className="mb-5 flex items-center gap-3">
-        <BackLink href={`/library/${category.slug}`} label={`Volver a ${category.title}`} />
-        <span aria-hidden className="text-3xl leading-none">
-          {category.emoji}
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm text-muted">Biblioteca · {category.title}</p>
-          <h1 className="font-title text-[26px] font-bold tracking-[-0.6px] text-text">
-            Nuevo recurso
-          </h1>
-        </div>
-      </header>
+    <div>
+      <LibraryItemHeaderBar categorySlug={category.slug} />
+      <div className="px-3 py-6">
+        <header className="mb-5 flex items-center gap-3">
+          <span aria-hidden className="text-3xl leading-none">
+            {category.emoji}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm text-muted">Biblioteca · {category.title}</p>
+            <h1 className="font-title text-[26px] font-bold tracking-[-0.6px] text-text">
+              Nuevo recurso
+            </h1>
+          </div>
+        </header>
 
-      <LibraryItemComposerForm
-        mode={{
-          kind: 'create',
-          placeId: place.id,
-          categoryId: category.id,
-          categorySlug: category.slug,
-          onCreate: createLibraryItemAction,
-        }}
-        enabledEmbeds={enabledEmbeds}
-        {...(category.kind === 'COURSE'
-          ? {
-              prereqMode: {
-                options: prereqOptions.map((opt) => ({ id: opt.id, title: opt.title })),
-                initialPrereqId: null,
-              },
-            }
-          : {})}
-      />
+        <LibraryItemComposerForm
+          mode={{
+            kind: 'create',
+            placeId: place.id,
+            categoryId: category.id,
+            categorySlug: category.slug,
+            onCreate: createLibraryItemAction,
+          }}
+          enabledEmbeds={enabledEmbeds}
+          {...(category.kind === 'COURSE'
+            ? {
+                prereqMode: {
+                  options: prereqOptions.map((opt) => ({ id: opt.id, title: opt.title })),
+                  initialPrereqId: null,
+                },
+              }
+            : {})}
+        />
+      </div>
     </div>
   )
 }
