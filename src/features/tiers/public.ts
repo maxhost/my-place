@@ -58,6 +58,7 @@ export { updateTierAction } from './server/actions/update-tier'
 //    documenta que el sheet es la primitive — el orchestrator es la
 //    composición canónica).
 
+export { TierDetailPanel } from './ui/tier-detail-panel'
 export { TierFormSheet } from './ui/tier-form-sheet'
 export { TiersListAdmin } from './ui/tiers-list-admin'
 export { friendlyTierErrorMessage } from './ui/errors'

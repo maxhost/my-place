@@ -1,17 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/shared/ui/dropdown-menu'
+import { useEffect, useState, useTransition } from 'react'
 import { toast } from '@/shared/ui/toaster'
-import { formatPrice } from '@/shared/lib/format-price'
-import { setTierVisibilityAction, tierDurationLabel } from '@/features/tiers/public'
+import { setTierVisibilityAction } from '@/features/tiers/public'
 import type { Tier, TierCurrency, TierDuration, TierVisibility } from '@/features/tiers/public'
 import { friendlyTierErrorMessage } from './errors'
+import { TierCard } from './tier-card'
+import { TierDetailPanel } from './tier-detail-panel'
 import { TierFormSheet } from './tier-form-sheet'
 
 type Props = {
@@ -22,9 +17,13 @@ type Props = {
 type SheetState =
   | { kind: 'closed' }
   | { kind: 'create' }
+  | { kind: 'detail'; tierId: string }
   | {
       kind: 'edit'
       tierId: string
+      /** Determina al cerrar si volvemos al detail (cuando entró desde ahí)
+       *  o al listing (cuando entró por el kebab). */
+      returnTo: 'closed' | 'detail'
       initialName: string
       initialDescription: string | null
       initialPriceCents: number
@@ -35,27 +34,14 @@ type SheetState =
 /**
  * Listado + orquestador de overlays para `/settings/tiers`.
  *
- * **Save model — todo manual (S6, 2026-05-13):**
+ * Detail-from-list (`docs/ux-patterns.md`): row tappable → `<TierDetailPanel>`
+ * read-only; kebab y switch viven fuera del button principal para que su
+ * tap no abra el detail.
  *
- * El switch de visibility (PUBLISHED ↔ HIDDEN) en cada row NO ejecuta
- * action inmediato — solo registra el cambio en state local
- * (`pendingChanges` Map). El user persiste TODOS los cambios pendientes
- * con UN tap en el botón "Guardar cambios" page-level. Patrón alineado
- * con `/settings/editor` y `/settings/hours` ("todo manual",
- * `docs/ux-patterns.md` § "Save model").
- *
- * Edit individual via `<TierFormSheet>` sigue con su propio submit
- * (sheet-level "Listo" persiste solo ese tier). Solo el toggle de
- * visibility se acumula en pending — eso es lo que mutaba en single-tap
- * con la iteración previa.
- *
- * Si el bulk save falla en algún tier (e.g. `name_already_published`),
- * los exitosos se persisten + los fallidos quedan en pending para retry.
- * Toast con resumen del resultado.
- *
- * Iter previa (2026-05-12): switch del header disparaba
- * `setTierVisibilityAction` directo en `startTransition`. Migrado a
- * pending state por feedback user 2026-05-13.
+ * Save model — todo manual (S6, 2026-05-13): el switch solo registra
+ * pending changes en state local; el botón page-level "Guardar cambios"
+ * persiste todos via `Promise.allSettled` (parciales se mantienen en
+ * pending para retry). Edit individual sigue con submit propio en el sheet.
  */
 export function TiersListAdmin({ placeSlug, tiers }: Props): React.ReactNode {
   const [sheet, setSheet] = useState<SheetState>({ kind: 'closed' })
@@ -65,7 +51,38 @@ export function TiersListAdmin({ placeSlug, tiers }: Props): React.ReactNode {
   const isDirty = pendingChanges.size > 0
 
   function close(): void {
-    setSheet({ kind: 'closed' })
+    setSheet((current) => {
+      if (current.kind === 'edit' && current.returnTo === 'detail') {
+        return { kind: 'detail', tierId: current.tierId }
+      }
+      return { kind: 'closed' }
+    })
+  }
+
+  function openEditFromList(tier: Tier): void {
+    setSheet({
+      kind: 'edit',
+      tierId: tier.id,
+      returnTo: 'closed',
+      initialName: tier.name,
+      initialDescription: tier.description,
+      initialPriceCents: tier.priceCents,
+      initialCurrency: tier.currency,
+      initialDuration: tier.duration,
+    })
+  }
+
+  function openEditFromDetail(tier: Tier): void {
+    setSheet({
+      kind: 'edit',
+      tierId: tier.id,
+      returnTo: 'detail',
+      initialName: tier.name,
+      initialDescription: tier.description,
+      initialPriceCents: tier.priceCents,
+      initialCurrency: tier.currency,
+      initialDuration: tier.duration,
+    })
   }
 
   function handleVisibilityToggle(tier: Tier, next: TierVisibility): void {
@@ -145,19 +162,33 @@ export function TiersListAdmin({ placeSlug, tiers }: Props): React.ReactNode {
     })
   }
 
-  const formSheetOpen = sheet.kind === 'create' || sheet.kind === 'edit'
-  const formSheetMode =
-    sheet.kind === 'edit'
-      ? {
-          kind: 'edit' as const,
-          tierId: sheet.tierId,
-          initialName: sheet.initialName,
-          initialDescription: sheet.initialDescription,
-          initialPriceCents: sheet.initialPriceCents,
-          initialCurrency: sheet.initialCurrency,
-          initialDuration: sheet.initialDuration,
-        }
-      : { kind: 'create' as const, placeSlug }
+  const detailTier =
+    sheet.kind === 'detail' ? (tiers.find((t) => t.id === sheet.tierId) ?? null) : null
+
+  // Latch del último edit mode → preserva Radix Presence exit anim.
+  type LatchedEditMode = {
+    kind: 'edit'
+    tierId: string
+    initialName: string
+    initialDescription: string | null
+    initialPriceCents: number
+    initialCurrency: TierCurrency
+    initialDuration: TierDuration
+  }
+  const [latchedEditMode, setLatchedEditMode] = useState<LatchedEditMode | null>(null)
+  useEffect(() => {
+    if (sheet.kind === 'edit') {
+      setLatchedEditMode({
+        kind: 'edit',
+        tierId: sheet.tierId,
+        initialName: sheet.initialName,
+        initialDescription: sheet.initialDescription,
+        initialPriceCents: sheet.initialPriceCents,
+        initialCurrency: sheet.initialCurrency,
+        initialDuration: sheet.initialDuration,
+      })
+    }
+  }, [sheet])
 
   return (
     <section aria-labelledby="tiers-list-heading" className="space-y-3">
@@ -190,17 +221,8 @@ export function TiersListAdmin({ placeSlug, tiers }: Props): React.ReactNode {
                 effectiveVisibility={effectiveVisibility}
                 hasPendingChange={pendingVisibility !== undefined}
                 disabled={savingAll}
-                onEdit={() =>
-                  setSheet({
-                    kind: 'edit',
-                    tierId: tier.id,
-                    initialName: tier.name,
-                    initialDescription: tier.description,
-                    initialPriceCents: tier.priceCents,
-                    initialCurrency: tier.currency,
-                    initialDuration: tier.duration,
-                  })
-                }
+                onSelect={() => setSheet({ kind: 'detail', tierId: tier.id })}
+                onEdit={() => openEditFromList(tier)}
                 onToggleVisibility={(next) => handleVisibilityToggle(tier, next)}
               />
             )
@@ -216,8 +238,6 @@ export function TiersListAdmin({ placeSlug, tiers }: Props): React.ReactNode {
         <span aria-hidden="true">+</span> Nuevo tier
       </button>
 
-      {/* Save bar page-level. Visible siempre; el botón se habilita cuando
-          hay cambios pendientes. Mismo patrón que `<EditorConfigForm>`. */}
       <div className="flex items-center justify-between gap-3 pt-2">
         <span
           aria-live="polite"
@@ -239,155 +259,35 @@ export function TiersListAdmin({ placeSlug, tiers }: Props): React.ReactNode {
         </button>
       </div>
 
-      <TierFormSheet
-        open={formSheetOpen}
+      <TierDetailPanel
+        open={sheet.kind === 'detail'}
         onOpenChange={(next) => {
           if (!next) close()
         }}
-        mode={formSheetMode}
+        tier={detailTier}
+        pendingVisibility={detailTier ? (pendingChanges.get(detailTier.id) ?? null) : null}
+        onEdit={() => {
+          if (detailTier) openEditFromDetail(detailTier)
+        }}
       />
-    </section>
-  )
-}
 
-// ---------------------------------------------------------------
-// TierCard internal — card con header (nombre + meta + chip + 3-dots +
-// switch). Switch ahora es controlled por effectiveVisibility +
-// onToggleVisibility (NO ejecuta action inmediato).
-// ---------------------------------------------------------------
+      <TierFormSheet
+        open={sheet.kind === 'create'}
+        onOpenChange={(next) => {
+          if (!next) close()
+        }}
+        mode={{ kind: 'create', placeSlug }}
+      />
 
-type TierCardProps = {
-  tier: Tier
-  effectiveVisibility: TierVisibility
-  hasPendingChange: boolean
-  disabled: boolean
-  onEdit: () => void
-  onToggleVisibility: (next: TierVisibility) => void
-}
-
-function TierCard({
-  tier,
-  effectiveVisibility,
-  hasPendingChange,
-  disabled,
-  onEdit,
-  onToggleVisibility,
-}: TierCardProps): React.ReactNode {
-  const isPublished = effectiveVisibility === 'PUBLISHED'
-  const targetVisibility: TierVisibility = isPublished ? 'HIDDEN' : 'PUBLISHED'
-
-  // Chip canónico: neutral si publicado, amber si oculto. Si hay cambio
-  // pendiente, sumamos un dot indicator entre el título y el chip para
-  // que el user vea qué tiers están dirty antes de save.
-  const chipClass = isPublished
-    ? 'rounded-full border border-neutral-300 px-2 py-0.5 text-[11px] text-neutral-600'
-    : 'rounded-full border border-amber-300 px-2 py-0.5 text-[11px] text-amber-700'
-  const chipLabel = isPublished ? 'Publicado' : 'Oculto'
-
-  return (
-    <div className="rounded-md border border-neutral-200">
-      <div
-        className={`flex min-h-[56px] items-center gap-2 px-3 py-3 ${tier.description ? 'border-b border-neutral-200' : ''}`}
-      >
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="truncate font-serif text-base">{tier.name}</h3>
-            <span className={chipClass}>{chipLabel}</span>
-            {hasPendingChange ? (
-              <span
-                aria-label="Cambio sin guardar"
-                title="Cambio sin guardar"
-                className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
-              />
-            ) : null}
-          </div>
-          <p className="mt-0.5 text-xs text-neutral-600">
-            <span>{formatPrice(tier.priceCents, tier.currency)}</span>
-            <span className="mx-1.5">·</span>
-            <span>{tierDurationLabel(tier.duration)}</span>
-          </p>
-        </div>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100"
-              aria-label={`Opciones para ${tier.name}`}
-              disabled={disabled}
-            >
-              <svg
-                aria-hidden="true"
-                className="h-5 w-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="5" r="1" />
-                <circle cx="12" cy="12" r="1" />
-                <circle cx="12" cy="19" r="1" />
-              </svg>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onSelect={onEdit}>Editar</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <TierVisibilitySwitch
-          tierName={tier.name}
-          isPublished={isPublished}
-          disabled={disabled}
-          onToggle={() => onToggleVisibility(targetVisibility)}
+      {latchedEditMode ? (
+        <TierFormSheet
+          open={sheet.kind === 'edit'}
+          onOpenChange={(next) => {
+            if (!next) close()
+          }}
+          mode={latchedEditMode}
         />
-      </div>
-
-      {tier.description ? (
-        <div className="px-3 py-2">
-          <p className="line-clamp-2 text-xs text-neutral-600">{tier.description}</p>
-        </div>
       ) : null}
-    </div>
-  )
-}
-
-/**
- * Switch on/off para visibility del tier. PUBLISHED → ON (negro), HIDDEN
- * → OFF (gris). Tap solo emite `onToggle` — el parent decide si lo guarda
- * en pending state o persiste inmediato.
- */
-function TierVisibilitySwitch({
-  tierName,
-  isPublished,
-  disabled,
-  onToggle,
-}: {
-  tierName: string
-  isPublished: boolean
-  disabled: boolean
-  onToggle: () => void
-}): React.ReactNode {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={isPublished}
-      aria-label={`${tierName}: ${isPublished ? 'publicado, tocá para ocultar' : 'oculto, tocá para publicar'}`}
-      disabled={disabled}
-      onClick={onToggle}
-      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 disabled:cursor-not-allowed disabled:opacity-60 ${
-        isPublished ? 'bg-neutral-900' : 'bg-neutral-300'
-      }`}
-    >
-      <span
-        aria-hidden="true"
-        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-          isPublished ? 'translate-x-5' : 'translate-x-0.5'
-        }`}
-      />
-    </button>
+    </section>
   )
 }
