@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
+import { BackLink } from '@/shared/ui/back-button'
 import { createLibraryItemAction } from '@/features/library/public'
 import { findLibraryCategoryBySlug, resolveLibraryViewer } from '@/features/library/public.server'
 import { canWriteCategory } from '@/features/library/contribution/public'
@@ -54,11 +55,12 @@ export default async function NewLibraryItemPage({ params }: Props) {
   return (
     <div className="px-3 py-6">
       <header className="mb-5 flex items-center gap-3">
+        <BackLink href={`/library/${category.slug}`} label={`Volver a ${category.title}`} />
         <span aria-hidden className="text-3xl leading-none">
           {category.emoji}
         </span>
-        <div>
-          <p className="text-sm text-muted">Biblioteca · {category.title}</p>
+        <div className="min-w-0">
+          <p className="truncate text-sm text-muted">Biblioteca · {category.title}</p>
           <h1 className="font-title text-[26px] font-bold tracking-[-0.6px] text-text">
             Nuevo recurso
           </h1>

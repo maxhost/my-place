@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
+import { BackLink } from '@/shared/ui/back-button'
 import { canEditItem, updateLibraryItemAction } from '@/features/library/public'
 import {
   findItemBySlug,
@@ -61,11 +62,15 @@ export default async function EditLibraryItemPage({ params }: Props) {
   return (
     <div className="px-3 py-6">
       <header className="mb-5 flex items-center gap-3">
+        <BackLink
+          href={`/library/${item.categorySlug}/${item.postSlug}`}
+          label={`Volver a ${item.title}`}
+        />
         <span aria-hidden className="text-3xl leading-none">
           {item.categoryEmoji}
         </span>
-        <div>
-          <p className="text-sm text-muted">Biblioteca · {item.categoryTitle}</p>
+        <div className="min-w-0">
+          <p className="truncate text-sm text-muted">Biblioteca · {item.categoryTitle}</p>
           <h1 className="font-title text-[26px] font-bold tracking-[-0.6px] text-text">
             Editar recurso
           </h1>
