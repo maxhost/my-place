@@ -122,6 +122,31 @@ describe('AppShell', () => {
     expect(root.className).toContain('bg-bg')
   })
 
+  it('dentro de /settings/* renderiza TopBar pero NO SectionDots', () => {
+    usePathnameMock.mockReturnValue('/settings/members')
+    render(
+      <AppShell places={places} currentSlug="the-company" apexUrl="http://lvh.me:3000" wide>
+        <p>x</p>
+      </AppShell>,
+    )
+    // TopBar sigue (switcher + search visibles)
+    expect(screen.getByRole('button', { name: /the company/i })).toBeInTheDocument()
+    expect(screen.getByLabelText('Buscar')).toBeInTheDocument()
+    // SectionDots NO renderiza dentro de settings (los dots son navegación
+    // entre las 4 zonas y no aplican al admin chrome).
+    expect(screen.queryByLabelText('Zonas del place')).not.toBeInTheDocument()
+  })
+
+  it('en /settings raíz tampoco renderiza SectionDots', () => {
+    usePathnameMock.mockReturnValue('/settings')
+    render(
+      <AppShell places={places} currentSlug="the-company" apexUrl="http://lvh.me:3000" wide>
+        <p>x</p>
+      </AppShell>,
+    )
+    expect(screen.queryByLabelText('Zonas del place')).not.toBeInTheDocument()
+  })
+
   it('layout root con wide=true: NO tiene max-w-[420px] (libera viewport para sidebar settings desktop)', () => {
     usePathnameMock.mockReturnValue('/settings/hours')
     const { container } = render(

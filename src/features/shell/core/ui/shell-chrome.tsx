@@ -9,16 +9,19 @@ import { SectionDots, ZONES, shouldShowShellChrome } from '@/features/shell/zone
  * Chrome del shell (TopBar + SectionDots) con visibilidad condicional
  * según el pathname actual.
  *
- * - **SÍ renderiza** en zonas root (`/`, `/conversations`, `/events`)
- *   y en `/settings/*` (admin necesita el community switcher).
- * - **NO renderiza** en sub-pages (thread detail, /m/[userId], formularios
- *   de creación, edit forms). La page tiene su propio header
- *   (`<ThreadHeaderBar>`, h1 del form, etc.) y el chrome del shell
- *   suma ruido visual sin valor.
+ * - **TopBar** renderiza en zonas root (`/`, `/conversations`, `/events`,
+ *   `/library`) y en `/settings/*` (admin necesita el community switcher).
+ * - **SectionDots** renderiza SOLO en zonas root — son navegación entre
+ *   las 4 zonas (Inicio/Conversaciones/Eventos/Biblioteca) y NO tienen
+ *   sentido dentro de `/settings/*` (el user está en admin chrome con
+ *   sidebar propio + FAB mobile). Saparlas también en sub-pages donde
+ *   `shouldShowShellChrome` retorna false (todo el chrome se oculta).
  *
  * Client Component porque depende de `usePathname` para reaccionar al
- * cambio de ruta. La gating logic vive en `shouldShowShellChrome`
- * (pure function, testeable sin DOM).
+ * cambio de ruta. La gating logic del chrome completo vive en
+ * `shouldShowShellChrome` (pure function, testeable sin DOM). El gate
+ * adicional para SectionDots-en-settings vive inline acá (es UI policy,
+ * no domain logic).
  *
  * Ver `docs/features/shell/spec.md` § 4.1 (chrome conditional).
  */
@@ -35,10 +38,12 @@ export function ShellChrome({ places, currentSlug, apexUrl, placeClosed }: Props
   const pathname = usePathname()
   if (!shouldShowShellChrome(pathname, ZONE_PATHS)) return null
 
+  const inSettings = pathname === '/settings' || pathname.startsWith('/settings/')
+
   return (
     <>
       <TopBar places={places} currentSlug={currentSlug} apexUrl={apexUrl} />
-      <SectionDots disabled={placeClosed} />
+      {inSettings ? null : <SectionDots disabled={placeClosed} />}
     </>
   )
 }
