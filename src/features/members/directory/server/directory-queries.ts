@@ -29,7 +29,20 @@ export type MemberSearchParams = {
   groupId?: string
   tierId?: string
   joinedSince?: '7d' | '30d' | '90d' | '1y'
+  /** 1-based. Default 1. Clamped a ≥ 1. */
+  page?: number
+  /** Tamaño de página. Default 20. Clamped a [1, 50]. */
+  limit?: number
 }
+
+export type MemberDirectoryPage = {
+  rows: MemberSummary[]
+  totalCount: number
+  hasMore: boolean
+}
+
+const DIRECTORY_LIMIT_DEFAULT_INTERNAL = 20
+const DIRECTORY_LIMIT_MAX_INTERNAL = 50
 
 export type MemberSummary = {
   userId: string
@@ -64,27 +77,37 @@ const JOINED_SINCE_DAYS: Record<NonNullable<MemberSearchParams['joinedSince']>, 
  * con `OR ILIKE` sobre `User.displayName` y `User.handle`. NO email
  * (privacidad — decisión #6 del ADR).
  *
- * **Connection-limit gotcha (CLAUDE.md)**: 1 query Prisma para memberships +
- * 1 para PlaceOwnership (derivar `isOwner`). Sin N+1 — las relaciones
- * `user._count.tierMemberships` viajan en el mismo SELECT vía `_count`.
+ * **Paginación** (2026-05-14): retorna `MemberDirectoryPage` con `rows`,
+ * `totalCount` y `hasMore`. `page` 1-based, `limit` con cap [1, 50] para
+ * proteger memoria. URL params traducen 1:1 al shape de `params`.
+ *
+ * **Connection-limit gotcha (CLAUDE.md)**: 4 queries Prisma paralelas
+ * (memberships, count, ownerships, preset memberships). Sin N+1 — las
+ * relaciones `user._count.tierMemberships` viajan en el mismo SELECT.
+ * Sobre pooler `connection_limit=1` corren serializadas, pero siguen
+ * siendo 4 round-trips fijos en lugar de N por iteración.
  *
  * Ordenado por `joinedAt: 'asc'` — primer miembro es el más antiguo.
  */
 export async function searchMembers(
   placeId: string,
   params: MemberSearchParams,
-): Promise<MemberSummary[]> {
+): Promise<MemberDirectoryPage> {
   const userWhere = buildUserWhere(placeId, params)
   const joinedAtFilter = buildJoinedAtFilter(params.joinedSince)
+  const limit = clampLimit(params.limit)
+  const page = clampPage(params.page)
+  const skip = (page - 1) * limit
+  const membershipWhere = {
+    placeId,
+    leftAt: null,
+    ...(userWhere ? { user: userWhere } : {}),
+    ...(joinedAtFilter ? { joinedAt: joinedAtFilter } : {}),
+  }
 
-  const [memberships, ownerships, presetMemberships] = await Promise.all([
+  const [memberships, totalCount, ownerships, presetMemberships] = await Promise.all([
     prisma.membership.findMany({
-      where: {
-        placeId,
-        leftAt: null,
-        ...(userWhere ? { user: userWhere } : {}),
-        ...(joinedAtFilter ? { joinedAt: joinedAtFilter } : {}),
-      },
+      where: membershipWhere,
       include: {
         user: {
           select: {
@@ -102,14 +125,14 @@ export async function searchMembers(
         },
       },
       orderBy: { joinedAt: 'asc' },
+      take: limit,
+      skip,
     }),
+    prisma.membership.count({ where: membershipWhere }),
     prisma.placeOwnership.findMany({
       where: { placeId },
       select: { userId: true },
     }),
-    // 3ra query: usuarios del place que están en el grupo preset
-    // "Administradores" (deriva `isAdmin`). Filtro por place + group.isPreset,
-    // sólo trae el `userId`. 1 round-trip plano.
     prisma.groupMembership.findMany({
       where: { placeId, group: { isPreset: true } },
       select: { userId: true },
@@ -117,7 +140,7 @@ export async function searchMembers(
   ])
   const ownerIds = new Set(ownerships.map((o) => o.userId))
   const adminUserIds = new Set(presetMemberships.map((g) => g.userId))
-  return memberships.map((m) => {
+  const rows: MemberSummary[] = memberships.map((m) => {
     const isOwner = ownerIds.has(m.userId)
     return {
       userId: m.userId,
@@ -133,6 +156,21 @@ export async function searchMembers(
       tierCount: m.user._count.tierMemberships,
     }
   })
+  return {
+    rows,
+    totalCount,
+    hasMore: skip + rows.length < totalCount,
+  }
+}
+
+function clampLimit(limit: number | undefined): number {
+  if (!limit || !Number.isFinite(limit)) return DIRECTORY_LIMIT_DEFAULT_INTERNAL
+  return Math.max(1, Math.min(DIRECTORY_LIMIT_MAX_INTERNAL, Math.floor(limit)))
+}
+
+function clampPage(page: number | undefined): number {
+  if (!page || !Number.isFinite(page)) return 1
+  return Math.max(1, Math.floor(page))
 }
 
 /**

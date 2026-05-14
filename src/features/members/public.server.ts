@@ -40,6 +40,8 @@ export {
   type InvitationWithDelivery,
   type InvitationWithPlace,
   type MemberProfile,
+  type PendingInvitationsPage,
+  type PendingInvitationsParams,
 } from './server/queries'
 
 // Invitation accept core (server-only) — invocado desde el server action
@@ -58,6 +60,8 @@ export {
   searchMembers,
   type MemberBlockInfo,
   type MemberDetail,
+  type MemberDirectoryPage,
+  type MemberSearchParams,
   type MemberSummary,
 } from './directory/server/directory-queries'
 

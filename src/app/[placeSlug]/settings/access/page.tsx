@@ -48,11 +48,15 @@ export default async function SettingsAccessPage({ params }: Props) {
     notFound()
   }
 
-  const [perms, members, pendingAll] = await Promise.all([
+  const [perms, members, pendingPage] = await Promise.all([
     findMemberPermissions(actorId, place.id),
     listActiveMembers(place.id),
+    // Sin params → trae primera page con cap default. Para `/settings/access`
+    // alcanza con la primera page de invitaciones owner (raro tener > 20
+    // owners pendientes simultáneos en un place con 150 miembros cap).
     listPendingInvitationsByPlace(place.id),
   ])
+  const pendingAll = pendingPage.rows
 
   const activeOwners = members
     .filter((m) => m.isOwner)

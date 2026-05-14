@@ -137,44 +137,82 @@ export async function findInvitationById(
   })
 }
 
+export type PendingInvitationsPage = {
+  rows: PendingInvitation[]
+  totalCount: number
+  hasMore: boolean
+}
+
+export type PendingInvitationsParams = {
+  /** Búsqueda por email (ILIKE %q%). Vacío ⇒ sin filtro. */
+  q?: string
+  /** 1-based. Default 1. */
+  page?: number
+  /** Default 20. Clamped a [1, 50]. */
+  limit?: number
+  /** Inyectable solo para tests — default `new Date()`. */
+  now?: Date
+}
+
+const PENDING_INVITATIONS_LIMIT_DEFAULT = 20
+const PENDING_INVITATIONS_LIMIT_MAX = 50
+
 /**
  * Lista invitaciones abiertas (no aceptadas, no vencidas) de un place, con el
- * `displayName` del inviter para renderizar la row. Se usa en la sección
- * "Invitaciones pendientes" de `/settings/members`.
+ * `displayName` del inviter para renderizar la row. Usado en `/settings/members`
+ * tab "Invitados".
  *
- * Ahora con `include: { inviter }` (relación declarativa en el schema): un
- * solo round-trip a la DB en lugar de dos serializadas (`findMany` invitations
- * + `findMany` users por batch de IDs).
+ * **Paginación + search por email** (2026-05-14): retorna
+ * `PendingInvitationsPage` con `rows`, `totalCount` y `hasMore`. `q` aplica
+ * `ILIKE %q%` sobre `email` server-side. `page` 1-based, `limit` clamped.
+ *
+ * **Connection-limit gotcha**: 2 queries Prisma paralelas (findMany + count).
+ * El `include: { inviter }` evita N+1 — sigue siendo 1 round-trip por query.
  */
 export async function listPendingInvitationsByPlace(
   placeId: string,
-  now: Date = new Date(),
-): Promise<PendingInvitation[]> {
-  const rows = await prisma.invitation.findMany({
-    where: {
-      placeId,
-      acceptedAt: null,
-      expiresAt: { gt: now },
-    },
-    select: {
-      id: true,
-      placeId: true,
-      email: true,
-      invitedBy: true,
-      asAdmin: true,
-      asOwner: true,
-      acceptedAt: true,
-      expiresAt: true,
-      token: true,
-      deliveryStatus: true,
-      providerMessageId: true,
-      lastDeliveryError: true,
-      lastSentAt: true,
-      inviter: { select: { displayName: true } },
-    },
-    orderBy: { expiresAt: 'asc' },
-  })
-  return rows.map((r) => ({
+  params: PendingInvitationsParams = {},
+): Promise<PendingInvitationsPage> {
+  const now = params.now ?? new Date()
+  const limit = clampInvitationsLimit(params.limit)
+  const page = clampInvitationsPage(params.page)
+  const skip = (page - 1) * limit
+  const trimmed = params.q?.trim()
+  const where = {
+    placeId,
+    acceptedAt: null,
+    expiresAt: { gt: now },
+    ...(trimmed && trimmed.length > 0
+      ? { email: { contains: trimmed, mode: 'insensitive' as const } }
+      : {}),
+  }
+
+  const [rows, totalCount] = await Promise.all([
+    prisma.invitation.findMany({
+      where,
+      select: {
+        id: true,
+        placeId: true,
+        email: true,
+        invitedBy: true,
+        asAdmin: true,
+        asOwner: true,
+        acceptedAt: true,
+        expiresAt: true,
+        token: true,
+        deliveryStatus: true,
+        providerMessageId: true,
+        lastDeliveryError: true,
+        lastSentAt: true,
+        inviter: { select: { displayName: true } },
+      },
+      orderBy: { expiresAt: 'asc' },
+      take: limit,
+      skip,
+    }),
+    prisma.invitation.count({ where }),
+  ])
+  const mapped: PendingInvitation[] = rows.map((r) => ({
     id: r.id,
     placeId: r.placeId,
     email: r.email,
@@ -190,6 +228,21 @@ export async function listPendingInvitationsByPlace(
     lastSentAt: r.lastSentAt,
     inviter: { displayName: r.inviter.displayName },
   }))
+  return {
+    rows: mapped,
+    totalCount,
+    hasMore: skip + mapped.length < totalCount,
+  }
+}
+
+function clampInvitationsLimit(limit: number | undefined): number {
+  if (!limit || !Number.isFinite(limit)) return PENDING_INVITATIONS_LIMIT_DEFAULT
+  return Math.max(1, Math.min(PENDING_INVITATIONS_LIMIT_MAX, Math.floor(limit)))
+}
+
+function clampInvitationsPage(page: number | undefined): number {
+  if (!page || !Number.isFinite(page)) return 1
+  return Math.max(1, Math.floor(page))
 }
 
 /**

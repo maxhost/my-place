@@ -142,3 +142,22 @@ export const expelMemberInputSchema = z.object({
 })
 
 export type ExpelMemberInput = z.infer<typeof expelMemberInputSchema>
+
+// ---------------------------------------------------------------
+// Directory query params — para `/settings/members` (search + paginación).
+// `tab` discrimina entre listado de activos y de invitaciones pendientes.
+// `q` busca por displayName+handle en active; por email en pending.
+// `page` 1-based para que el URL sea legible. `limit` con cap defensivo.
+// ---------------------------------------------------------------
+export const DIRECTORY_LIMIT_DEFAULT = 20
+export const DIRECTORY_LIMIT_MAX = 50
+export const DIRECTORY_QUERY_MAX_LENGTH = 100
+
+export const directoryQueryParamsSchema = z.object({
+  tab: z.enum(['active', 'pending']).default('active'),
+  q: z.string().trim().max(DIRECTORY_QUERY_MAX_LENGTH, 'Búsqueda demasiado larga.').default(''),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(DIRECTORY_LIMIT_MAX).default(DIRECTORY_LIMIT_DEFAULT),
+})
+
+export type DirectoryQueryParams = z.infer<typeof directoryQueryParamsSchema>

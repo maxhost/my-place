@@ -43,38 +43,42 @@ afterEach(() => {
 
 describe('PendingInvitationsList', () => {
   it('empty state cuando no hay pending', async () => {
-    listPendingInvitationsByPlace.mockResolvedValue([])
+    listPendingInvitationsByPlace.mockResolvedValue({ rows: [], totalCount: 0, hasMore: false })
     const ui = await PendingInvitationsList({ placeId: 'place-1' })
     render(ui)
     expect(screen.getByText(/no hay invitaciones pendientes/i)).toBeTruthy()
   })
 
   it('renderiza rows con email, inviter, fecha, badge y botón reenviar', async () => {
-    listPendingInvitationsByPlace.mockResolvedValue([
-      {
-        ...baseInvitation,
-        id: 'inv-1',
-        email: 'ana@example.com',
-        expiresAt: new Date('2026-05-01T12:00:00Z'),
-        deliveryStatus: 'SENT',
-      },
-      {
-        ...baseInvitation,
-        id: 'inv-2',
-        email: 'juan@example.com',
-        expiresAt: new Date('2026-04-28T12:00:00Z'),
-        deliveryStatus: 'BOUNCED',
-        lastDeliveryError: 'mailer: bounce — invalid mailbox',
-      },
-      {
-        ...baseInvitation,
-        id: 'inv-3',
-        email: 'owner@example.com',
-        expiresAt: new Date('2026-05-02T12:00:00Z'),
-        deliveryStatus: 'PENDING',
-        asAdmin: true,
-      },
-    ])
+    listPendingInvitationsByPlace.mockResolvedValue({
+      rows: [
+        {
+          ...baseInvitation,
+          id: 'inv-1',
+          email: 'ana@example.com',
+          expiresAt: new Date('2026-05-01T12:00:00Z'),
+          deliveryStatus: 'SENT',
+        },
+        {
+          ...baseInvitation,
+          id: 'inv-2',
+          email: 'juan@example.com',
+          expiresAt: new Date('2026-04-28T12:00:00Z'),
+          deliveryStatus: 'BOUNCED',
+          lastDeliveryError: 'mailer: bounce — invalid mailbox',
+        },
+        {
+          ...baseInvitation,
+          id: 'inv-3',
+          email: 'owner@example.com',
+          expiresAt: new Date('2026-05-02T12:00:00Z'),
+          deliveryStatus: 'PENDING',
+          asAdmin: true,
+        },
+      ],
+      totalCount: 3,
+      hasMore: false,
+    })
 
     const ui = await PendingInvitationsList({ placeId: 'place-1' })
     render(ui)

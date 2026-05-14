@@ -13,7 +13,7 @@ import { ResendInvitationButton } from './resend-invitation-button'
  * grita" en `CLAUDE.md`.
  */
 export async function PendingInvitationsList({ placeId }: { placeId: string }) {
-  const pending = await listPendingInvitationsByPlace(placeId)
+  const { rows: pending } = await listPendingInvitationsByPlace(placeId)
 
   if (pending.length === 0) {
     return <p className="text-sm text-neutral-500">No hay invitaciones pendientes.</p>

@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * Tests de `searchMembers` (M.3).
+ * Tests de `searchMembers` (M.3 + paginación 2026-05-14).
  *
  * Foco:
  *  - WHERE compuesto correcto según `MemberSearchParams`.
- *  - 1 query a `membership` + 1 query a `placeOwnership` en paralelo (sin N+1).
+ *  - 4 queries paralelas (findMany + count + ownerships + preset memberships).
+ *    Sin N+1 — `_count.tierMemberships` viaja en el SELECT.
+ *  - Paginación: take/skip aplicados, totalCount + hasMore calculados.
  *  - Mapping correcto de `tierCount` desde `_count.tierMemberships`.
  *  - Filtro `q` aplica `OR` sobre `displayName` y `handle` con
  *    `mode: 'insensitive'`.
@@ -13,15 +15,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 
 const membershipFindMany = vi.fn()
+const membershipCount = vi.fn()
 const ownershipFindMany = vi.fn()
 // C.1: `searchMembers` agrega 3ra query a `groupMembership.findMany` para
 // derivar `isAdmin`. Default = `[]` (ningún miembro es admin).
-const groupMembershipFindMany = vi.fn(async (..._a: unknown[]) => [] as { userId: string }[])
+const groupMembershipFindMany = vi.fn()
 
 vi.mock('@/db/client', () => ({
   prisma: {
     membership: {
       findMany: (...a: unknown[]) => membershipFindMany(...a),
+      count: (...a: unknown[]) => membershipCount(...a),
     },
     placeOwnership: {
       findMany: (...a: unknown[]) => ownershipFindMany(...a),
@@ -53,9 +57,11 @@ const PLACE_ID = 'place-1'
 
 beforeEach(() => {
   membershipFindMany.mockReset()
+  membershipCount.mockReset()
   ownershipFindMany.mockReset()
   groupMembershipFindMany.mockReset()
   membershipFindMany.mockResolvedValue([])
+  membershipCount.mockResolvedValue(0)
   ownershipFindMany.mockResolvedValue([])
   groupMembershipFindMany.mockResolvedValue([])
 })
@@ -65,14 +71,25 @@ describe('searchMembers — query shape', () => {
     await searchMembers(PLACE_ID, {})
 
     expect(membershipFindMany).toHaveBeenCalledTimes(1)
+    expect(membershipCount).toHaveBeenCalledTimes(1)
     expect(ownershipFindMany).toHaveBeenCalledTimes(1)
+    expect(groupMembershipFindMany).toHaveBeenCalledTimes(1)
 
     const call = membershipFindMany.mock.calls[0]?.[0] as {
       where: Record<string, unknown>
       orderBy: Record<string, unknown>
+      take: number
+      skip: number
     }
     expect(call.where).toEqual({ placeId: PLACE_ID, leftAt: null })
     expect(call.orderBy).toEqual({ joinedAt: 'asc' })
+    // Default limit=20, page=1 → take=20, skip=0.
+    expect(call.take).toBe(20)
+    expect(call.skip).toBe(0)
+
+    // count usa MISMO where que findMany (sin take/skip/orderBy).
+    const countCall = membershipCount.mock.calls[0]?.[0] as { where: Record<string, unknown> }
+    expect(countCall.where).toEqual({ placeId: PLACE_ID, leftAt: null })
   })
 
   it('con q: agrega OR sobre displayName y handle con mode insensitive', async () => {
@@ -236,11 +253,14 @@ describe('searchMembers — mapping del resultado', () => {
         },
       },
     ])
+    membershipCount.mockResolvedValue(2)
     ownershipFindMany.mockResolvedValue([{ userId: 'user-owner' }])
 
     const result = await searchMembers(PLACE_ID, {})
 
-    expect(result).toEqual([
+    expect(result.totalCount).toBe(2)
+    expect(result.hasMore).toBe(false)
+    expect(result.rows).toEqual([
       {
         userId: 'user-owner',
         membershipId: 'mem-1',
@@ -266,8 +286,86 @@ describe('searchMembers — mapping del resultado', () => {
 
   it('lista vacía si no hay miembros', async () => {
     membershipFindMany.mockResolvedValue([])
+    membershipCount.mockResolvedValue(0)
     ownershipFindMany.mockResolvedValue([])
     const result = await searchMembers(PLACE_ID, {})
-    expect(result).toEqual([])
+    expect(result).toEqual({ rows: [], totalCount: 0, hasMore: false })
+  })
+})
+
+describe('searchMembers — paginación', () => {
+  it('page=2 limit=10 → skip=10, take=10', async () => {
+    await searchMembers(PLACE_ID, { page: 2, limit: 10 })
+
+    const call = membershipFindMany.mock.calls[0]?.[0] as { take: number; skip: number }
+    expect(call.take).toBe(10)
+    expect(call.skip).toBe(10)
+  })
+
+  it('limit clamp: limit=200 → 50 (cap)', async () => {
+    await searchMembers(PLACE_ID, { limit: 200 })
+
+    const call = membershipFindMany.mock.calls[0]?.[0] as { take: number }
+    expect(call.take).toBe(50)
+  })
+
+  it('page clamp: page=0 → page=1 (skip=0)', async () => {
+    await searchMembers(PLACE_ID, { page: 0 })
+
+    const call = membershipFindMany.mock.calls[0]?.[0] as { skip: number }
+    expect(call.skip).toBe(0)
+  })
+
+  it('limit no entero: limit=10.7 → 10 (floor)', async () => {
+    await searchMembers(PLACE_ID, { limit: 10.7 })
+
+    const call = membershipFindMany.mock.calls[0]?.[0] as { take: number }
+    expect(call.take).toBe(10)
+  })
+
+  it('hasMore=true cuando totalCount > skip + rows.length', async () => {
+    membershipFindMany.mockResolvedValue(
+      Array.from({ length: 20 }, (_, i) => ({
+        id: `mem-${i}`,
+        userId: `user-${i}`,
+        joinedAt: new Date(),
+        user: {
+          displayName: `U${i}`,
+          handle: null,
+          avatarUrl: null,
+          _count: { tierMemberships: 0 },
+        },
+      })),
+    )
+    membershipCount.mockResolvedValue(45)
+    ownershipFindMany.mockResolvedValue([])
+
+    const result = await searchMembers(PLACE_ID, { page: 1, limit: 20 })
+
+    expect(result.totalCount).toBe(45)
+    expect(result.rows).toHaveLength(20)
+    expect(result.hasMore).toBe(true)
+  })
+
+  it('hasMore=false en última page', async () => {
+    membershipFindMany.mockResolvedValue(
+      Array.from({ length: 5 }, (_, i) => ({
+        id: `mem-${i}`,
+        userId: `user-${i}`,
+        joinedAt: new Date(),
+        user: {
+          displayName: `U${i}`,
+          handle: null,
+          avatarUrl: null,
+          _count: { tierMemberships: 0 },
+        },
+      })),
+    )
+    membershipCount.mockResolvedValue(25)
+    ownershipFindMany.mockResolvedValue([])
+
+    // page=2 limit=20 → skip=20, rows=5 → 20+5=25=totalCount → hasMore=false
+    const result = await searchMembers(PLACE_ID, { page: 2, limit: 20 })
+    expect(result.hasMore).toBe(false)
   })
 })
