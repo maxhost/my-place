@@ -2,34 +2,51 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getCurrentAuthUser } from '@/shared/lib/auth-user'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
-import { clientEnv } from '@/shared/config/env'
-import { InviteMemberForm } from '@/features/members/invitations/public'
-import { LeaveButton } from '@/features/members/profile/public'
+import { PageHeader } from '@/shared/ui/page-header'
+import { MembersAdminPanel, MembersSearchBar } from '@/features/members/admin/public'
 import {
-  PendingInvitationsList,
+  listBlockInfoForUsers,
+  listGroupsForUsers,
+  listTierMembershipsForUsers,
+} from '@/features/members/admin/public.server'
+import { DIRECTORY_LIMIT_DEFAULT, directoryQueryParamsSchema } from '@/features/members/public'
+import {
   findMemberPermissions,
+  hasPermission,
   listActiveMembers,
+  listPendingInvitationsByPlace,
+  searchMembers,
 } from '@/features/members/public.server'
 import { TransferOwnershipForm } from '@/features/places/public'
+import { listGroupsByPlace } from '@/features/groups/public.server'
+import { listTiersByPlace } from '@/features/tiers/public.server'
 
 export const metadata: Metadata = {
   title: 'Miembros · Settings',
 }
 
-type Props = { params: Promise<{ placeSlug: string }> }
+type Props = {
+  params: Promise<{ placeSlug: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
 
 /**
- * Panel de miembros + invitaciones + transferencia de ownership + salida.
+ * `/settings/members` — patrón canónico detail-from-list (rediseño 2026-05-14).
  *
- * El gate admin/owner vive en `settings/layout.tsx` — acá asumimos que el
- * `auth.user` está presente y que es admin u owner. Reejecutamos la query de
- * place/perms igual porque necesitamos sus datos para render (no es un re-gate
- * redundante, es el lookup que el render usa).
+ * Tabs Activos / Invitados con filter chip URL-based (`?tab=`). Search bar
+ * que aplica a displayName+handle en Activos y a email en Invitados. Click
+ * en una row abre el detail panel (EditPanel) con acciones de moderación,
+ * tiers, grupos. Dashed-border "+ Invitar miembro" al final abre InviteMemberSheet.
  *
- * Ver `docs/features/members/spec.md` § "Salir" y "Transferir ownership".
+ * Drop sub-page `[userId]/page.tsx` — toda la info migra al detail panel.
+ * Drop "Salir del place" — ya vive en /settings/system. "Transferir
+ * ownership" se mantiene como sección al final (sin tocar).
+ *
+ * Ver `docs/plans/2026-05-14-redesign-settings-members.md`.
  */
-export default async function SettingsMembersPage({ params }: Props) {
+export default async function SettingsMembersPage({ params, searchParams }: Props) {
   const { placeSlug } = await params
+  const raw = await searchParams
 
   const auth = await getCurrentAuthUser()
   const actorId = auth!.id
@@ -39,10 +56,51 @@ export default async function SettingsMembersPage({ params }: Props) {
     notFound()
   }
 
-  const perms = await findMemberPermissions(actorId, place.id)
-  const members = await listActiveMembers(place.id)
+  const parsed = directoryQueryParamsSchema.safeParse({
+    tab: raw.tab,
+    q: raw.q,
+    page: raw.page,
+    limit: raw.limit,
+  })
+  const queryParams = parsed.success
+    ? parsed.data
+    : { tab: 'active' as const, q: '', page: 1, limit: DIRECTORY_LIMIT_DEFAULT }
+
+  // Cargas comunes en paralelo (gate + page data + invitations + tiers + groups).
+  const [perms, membersPage, invitationsPage, publishedTiers, allGroups, canBlock, canRevoke] =
+    await Promise.all([
+      findMemberPermissions(actorId, place.id),
+      searchMembers(place.id, {
+        q: queryParams.tab === 'active' ? queryParams.q : '',
+        page: queryParams.page,
+        limit: queryParams.limit,
+      }),
+      listPendingInvitationsByPlace(place.id, {
+        q: queryParams.tab === 'pending' ? queryParams.q : '',
+        page: queryParams.page,
+        limit: queryParams.limit,
+      }),
+      listTiersByPlace(place.id, true).then((tiers) =>
+        tiers.filter((t) => t.visibility === 'PUBLISHED'),
+      ),
+      listGroupsByPlace(place.id),
+      hasPermission(actorId, place.id, 'members:block'),
+      hasPermission(actorId, place.id, 'members:revoke-invitation'),
+    ])
+  // Expel es owner-only por decisión #8 ADR (no es delegable a un permission).
+  const canExpel = perms.isOwner
+
+  const visibleUserIds = membersPage.rows.map((m) => m.userId)
+  const [tierMembershipsByUserId, groupsByUserId, blockInfoByUserId] = await Promise.all([
+    listTierMembershipsForUsers(place.id, visibleUserIds),
+    listGroupsForUsers(place.id, visibleUserIds),
+    listBlockInfoForUsers(place.id, visibleUserIds),
+  ])
+
+  // TransferOwnership sigue requiriendo la lista completa de candidatos —
+  // se mantiene la query independiente (sin paginar) sólo si el viewer es owner.
   const transferCandidates = perms.isOwner
-    ? members
+    ? (await listActiveMembers(place.id))
         .filter((m) => m.userId !== actorId)
         .map((m) => ({
           userId: m.userId,
@@ -51,55 +109,68 @@ export default async function SettingsMembersPage({ params }: Props) {
         }))
     : []
 
+  const actorEmail = auth!.email ?? ''
+  const totalMembers = membersPage.totalCount
+
+  function buildHref(next: { tab?: 'active' | 'pending'; q?: string; page?: number }): string {
+    const merged = {
+      tab: next.tab ?? queryParams.tab,
+      q: next.q ?? queryParams.q,
+      page: next.page ?? 1,
+    }
+    const sp = new URLSearchParams()
+    if (merged.tab !== 'active') sp.set('tab', merged.tab)
+    if (merged.q) sp.set('q', merged.q)
+    if (merged.page !== 1) sp.set('page', String(merged.page))
+    const query = sp.toString()
+    return query ? `/settings/members?${query}` : '/settings/members'
+  }
+
   return (
-    <div className="mx-auto max-w-screen-md space-y-10 p-8">
-      <header>
-        <p className="text-sm text-neutral-500">Settings · {place.name}</p>
-        <h1 className="font-serif text-3xl italic">Miembros</h1>
-        <p className="mt-1 text-xs text-neutral-400">
-          {members.length} {members.length === 1 ? 'miembro activo' : 'miembros activos'}
-        </p>
-      </header>
+    <div className="mx-auto max-w-screen-md space-y-6 px-3 py-6 md:px-4 md:py-8">
+      <PageHeader
+        title="Miembros"
+        description={`${totalMembers} ${totalMembers === 1 ? 'miembro activo' : 'miembros activos'} · ${invitationsPage.totalCount} ${invitationsPage.totalCount === 1 ? 'invitación pendiente' : 'invitaciones pendientes'}.`}
+      />
 
-      <section className="space-y-3">
-        <h2 className="font-serif text-xl italic">Lista</h2>
-        <ul className="divide-y divide-neutral-200 border-y border-neutral-200">
-          {members.map((m) => (
-            <li key={m.membershipId} className="flex items-center justify-between py-3 text-sm">
-              <div>
-                <div className="font-medium">{m.user.displayName}</div>
-                {m.user.handle ? (
-                  <div className="text-xs text-neutral-500">@{m.user.handle}</div>
-                ) : null}
-              </div>
-              <div className="flex gap-2 text-xs">
-                {m.isOwner ? (
-                  <span className="rounded-full border border-amber-400 px-2 py-0.5 text-amber-700">
-                    owner
-                  </span>
-                ) : null}
-                <span className="rounded-full border border-neutral-300 px-2 py-0.5 text-neutral-600">
-                  {m.isAdmin && !m.isOwner ? 'admin' : !m.isOwner ? 'miembro' : ''}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <MembersSearchBar tab={queryParams.tab} initialQ={queryParams.q} />
 
-      <section className="space-y-3">
-        <h2 className="font-serif text-xl italic">Invitar</h2>
-        <InviteMemberForm placeSlug={place.slug} />
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="font-serif text-xl italic">Invitaciones pendientes</h2>
-        <PendingInvitationsList placeId={place.id} />
-      </section>
+      <MembersAdminPanel
+        placeSlug={place.slug}
+        placeId={place.id}
+        actorEmail={actorEmail}
+        tab={queryParams.tab}
+        q={queryParams.q}
+        page={queryParams.page}
+        pageSize={queryParams.limit}
+        membersPage={membersPage}
+        invitationsPage={invitationsPage}
+        blockInfoByUserId={blockInfoByUserId}
+        viewerUserId={actorId}
+        canBlock={canBlock}
+        canUnblock={canBlock}
+        canExpel={canExpel}
+        canRevoke={canRevoke}
+        canInviteAsAdmin={perms.isOwner}
+        tierMembershipsByUserId={tierMembershipsByUserId}
+        groupsByUserId={groupsByUserId}
+        publishedTiers={publishedTiers}
+        allGroups={allGroups}
+        buildHref={buildHref}
+      />
 
       {perms.isOwner ? (
-        <section className="space-y-3">
-          <h2 className="font-serif text-xl italic">Transferir ownership</h2>
+        <section
+          aria-labelledby="transfer-ownership-heading"
+          className="space-y-3 border-t border-neutral-200 pt-6"
+        >
+          <h2
+            id="transfer-ownership-heading"
+            className="border-b pb-2 font-serif text-xl"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            Transferir ownership
+          </h2>
           <p className="text-sm text-neutral-600">
             El nuevo owner tiene que ser miembro activo de este place. Si te tildás la opción de
             salir, perdés acceso al place en el mismo paso.
@@ -107,15 +178,6 @@ export default async function SettingsMembersPage({ params }: Props) {
           <TransferOwnershipForm placeSlug={place.slug} candidates={transferCandidates} />
         </section>
       ) : null}
-
-      <section className="space-y-3 border-t border-neutral-200 pt-6">
-        <h2 className="font-serif text-xl italic">Salir del place</h2>
-        <p className="text-sm text-neutral-600">
-          Al salir tu acceso se cierra y tu contenido queda atribuido 365 días antes de
-          anonimizarse. Si sos el único owner, tenés que transferir ownership primero.
-        </p>
-        <LeaveButton placeSlug={place.slug} appUrl={clientEnv.NEXT_PUBLIC_APP_URL} />
-      </section>
     </div>
   )
 }
