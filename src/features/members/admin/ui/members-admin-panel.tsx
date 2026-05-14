@@ -2,23 +2,30 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from '@/shared/ui/toaster'
-import { isDomainError } from '@/shared/errors/domain-error'
 import {
   resendInvitationAction,
   revokeInvitationAction,
 } from '@/features/members/invitations/public'
+import { friendlyInvitationError } from '../lib/friendly-invitation-error'
+import { useSubsheetTargets } from '../lib/use-subsheet-targets'
 import type {
   MemberDirectoryPage,
   MemberSummary,
   PendingInvitationsPage,
 } from '@/features/members/public.server'
 import type { PendingInvitation } from '@/features/members/public'
+import type { GroupSummary } from '@/features/groups/public'
+import type { Tier } from '@/features/tiers/public'
+import type { TierMembershipDetail } from '@/features/tier-memberships/public'
 import { InvitationDetailPanel } from './invitation-detail-panel'
 import { InvitationRow } from './invitation-row'
 import { InviteMemberSheet } from './invite-member-sheet'
 import { MemberDetailPanel, type MemberDetailBlockInfo } from './member-detail-panel'
+import { MemberGroupsSheet } from './member-groups-sheet'
 import { MemberRow } from './member-row'
+import { MemberTiersSheet } from './member-tiers-sheet'
 import { MembersPagination } from './members-pagination'
+import { TabChip } from './tab-chip'
 
 type Tab = 'active' | 'pending'
 
@@ -42,6 +49,14 @@ type Props = {
   canRevoke: boolean
   /** Owner-only puede invitar como admin (decisión #2 ADR groups). */
   canInviteAsAdmin: boolean
+  /** Tier memberships del miembro actualmente abierto en el detail. Map por userId. */
+  tierMembershipsByUserId: ReadonlyMap<string, ReadonlyArray<TierMembershipDetail>>
+  /** Grupos del miembro actualmente abierto en el detail. Map por userId. */
+  groupsByUserId: ReadonlyMap<string, ReadonlyArray<GroupSummary>>
+  /** Tiers PUBLISHED del place — opciones para asignar. */
+  publishedTiers: ReadonlyArray<Tier>
+  /** Todos los grupos del place — usados para derivar `availableGroups` por miembro. */
+  allGroups: ReadonlyArray<GroupSummary>
   /** Builder de URL para paginación + tab switching. Recibe overrides parciales. */
   buildHref: (next: { tab?: Tab; q?: string; page?: number }) => string
 }
@@ -51,27 +66,14 @@ type SheetState =
   | { kind: 'invite' }
   | { kind: 'detail-member'; userId: string }
   | { kind: 'detail-invitation'; invitationId: string }
+  | { kind: 'edit-tiers'; userId: string; returnTo: 'closed' | 'detail-member' }
+  | { kind: 'edit-groups'; userId: string; returnTo: 'closed' | 'detail-member' }
 
 /**
- * Orquestador admin de `/settings/members` (rediseño 2026-05-14).
- *
- * **Patrón canónico `detail-from-list`** (mirror exacto de `<GroupsAdminPanel>`):
- *  - Row entera tappable → abre detail panel (EditPanel).
- *  - Kebab forceOverflow ofrece atajos directos (Expulsar/Bloquear para
- *    miembros; Reenviar/Cancelar para invitaciones).
- *  - Dashed-border "+ Invitar miembro" al final del listado (sesión 3 conecta
- *    al `<InviteMemberSheet>`).
- *
- * **Tabs Activos / Invitados**: chips con counter. Mutuamente excluyentes
- * (URL `?tab=`). Search bar único — aplica a displayName+handle en Activos,
- * a email en Invitados.
- *
- * **Sesión 2 scope**: state machine completa, listados y detail panel de
- * miembros. Sub-sheets (invitar, detalle invitación, gestionar tiers/grupos)
- * llegan en sesión 3 — por eso `onManageTiers/onManageGroups` se pasan como
- * `null` y los handlers de `invite` y `detail-invitation` están stubeados.
- *
- * **Latch interno** para detail panels (Radix Presence exit anim).
+ * Orquestador admin de `/settings/members` — patrón canónico detail-from-list
+ * (mirror de `<GroupsAdminPanel>`). Tabs Activos/Invitados URL-based, listados
+ * con detail panel + kebab atajos. Sub-sheets de tiers/grupos abren desde el
+ * detail (`returnTo: 'detail-member'`).
  */
 export function MembersAdminPanel({
   placeSlug,
@@ -90,12 +92,24 @@ export function MembersAdminPanel({
   canExpel,
   canRevoke,
   canInviteAsAdmin,
+  tierMembershipsByUserId,
+  groupsByUserId,
+  publishedTiers,
+  allGroups,
   buildHref,
 }: Props): React.ReactNode {
   const [sheet, setSheet] = useState<SheetState>({ kind: 'closed' })
 
   function close(): void {
-    setSheet({ kind: 'closed' })
+    setSheet((current) => {
+      if (
+        (current.kind === 'edit-tiers' || current.kind === 'edit-groups') &&
+        current.returnTo === 'detail-member'
+      ) {
+        return { kind: 'detail-member', userId: current.userId }
+      }
+      return { kind: 'closed' }
+    })
   }
 
   // Active state derivations.
@@ -126,6 +140,17 @@ export function MembersAdminPanel({
 
   const [, startResend] = useTransition()
   const [, startRevoke] = useTransition()
+
+  const { tiersSheetData, groupsSheetData } = useSubsheetTargets({
+    activeSheet:
+      sheet.kind === 'edit-tiers' || sheet.kind === 'edit-groups'
+        ? { kind: sheet.kind, userId: sheet.userId }
+        : null,
+    members: membersPage.rows,
+    tierMembershipsByUserId,
+    groupsByUserId,
+    allGroups,
+  })
 
   function handleResendInvitation(inv: PendingInvitation): void {
     startResend(async () => {
@@ -266,9 +291,55 @@ export function MembersAdminPanel({
         canExpel={detailMember ? canExpelTarget(detailMember) : false}
         canBlock={detailMember ? canBlockTarget(detailMember) : false}
         canUnblock={detailMember ? canUnblock && blockInfoByUserId.has(detailMember.userId) : false}
-        onManageTiers={null}
-        onManageGroups={null}
+        onManageTiers={
+          detailMember
+            ? () =>
+                setSheet({
+                  kind: 'edit-tiers',
+                  userId: detailMember.userId,
+                  returnTo: 'detail-member',
+                })
+            : null
+        }
+        onManageGroups={
+          detailMember
+            ? () =>
+                setSheet({
+                  kind: 'edit-groups',
+                  userId: detailMember.userId,
+                  returnTo: 'detail-member',
+                })
+            : null
+        }
       />
+
+      {tiersSheetData ? (
+        <MemberTiersSheet
+          open={sheet.kind === 'edit-tiers'}
+          onOpenChange={(next) => {
+            if (!next) close()
+          }}
+          placeSlug={placeSlug}
+          memberUserId={tiersSheetData.userId}
+          memberDisplayName={tiersSheetData.displayName}
+          tierMemberships={tiersSheetData.tierMemberships}
+          publishedTiers={publishedTiers}
+        />
+      ) : null}
+
+      {groupsSheetData ? (
+        <MemberGroupsSheet
+          open={sheet.kind === 'edit-groups'}
+          onOpenChange={(next) => {
+            if (!next) close()
+          }}
+          placeId={placeId}
+          memberUserId={groupsSheetData.userId}
+          memberDisplayName={groupsSheetData.displayName}
+          currentGroups={groupsSheetData.currentGroups}
+          availableGroups={groupsSheetData.availableGroups}
+        />
+      ) : null}
 
       <InvitationDetailPanel
         open={sheet.kind === 'detail-invitation'}
@@ -289,62 +360,5 @@ export function MembersAdminPanel({
         canInviteAsAdmin={canInviteAsAdmin}
       />
     </section>
-  )
-}
-
-function friendlyInvitationError(err: unknown): string {
-  if (isDomainError(err)) {
-    switch (err.code) {
-      case 'AUTHORIZATION':
-        return 'No tenés permisos.'
-      case 'NOT_FOUND':
-        return 'La invitación ya no existe.'
-      case 'CONFLICT':
-        return err.message
-      case 'VALIDATION':
-        return err.message
-      case 'INVITATION_LINK_GENERATION':
-        return 'No pudimos generar el link. Intentá de nuevo.'
-      case 'INVITATION_EMAIL_FAILED':
-        return 'No pudimos enviar el email. Intentá de nuevo.'
-      default:
-        return 'No se pudo completar la acción.'
-    }
-  }
-  return 'Error inesperado.'
-}
-
-function TabChip({
-  href,
-  active,
-  label,
-  count,
-}: {
-  href: string
-  active: boolean
-  label: string
-  count: number | null
-}): React.ReactNode {
-  const base =
-    'inline-flex min-h-11 items-center rounded-full border px-3 text-sm transition-colors'
-  const activeClass = 'border-neutral-900 bg-neutral-900 text-white'
-  const inactiveClass = 'border-neutral-300 text-neutral-700 hover:bg-neutral-50'
-  return (
-    <a
-      href={href}
-      aria-current={active ? 'page' : undefined}
-      className={`${base} ${active ? activeClass : inactiveClass}`}
-    >
-      <span>{label}</span>
-      {count !== null ? (
-        <span
-          className={`ml-1.5 inline-block min-w-[1.25rem] rounded-full px-1.5 text-center text-[11px] ${
-            active ? 'bg-white/15' : 'bg-neutral-100'
-          }`}
-        >
-          {count}
-        </span>
-      ) : null}
-    </a>
   )
 }

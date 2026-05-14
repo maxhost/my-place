@@ -12,12 +12,12 @@ import {
 } from '@/shared/ui/edit-panel'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/shared/ui/dialog'
 import { toast } from '@/shared/ui/toaster'
-import { isDomainError } from '@/shared/errors/domain-error'
 import {
   resendInvitationAction,
   revokeInvitationAction,
 } from '@/features/members/invitations/public'
 import type { PendingInvitation, InvitationDeliveryStatus } from '@/features/members/public'
+import { friendlyInvitationError } from '../lib/friendly-invitation-error'
 
 type Props = {
   open: boolean
@@ -72,7 +72,7 @@ export function InvitationDetailPanel({
         await resendInvitationAction({ invitationId: displayInv.id })
         toast.success(`Invitación reenviada a ${displayInv.email}.`)
       } catch (err) {
-        toast.error(friendlyMessage(err))
+        toast.error(friendlyInvitationError(err))
       }
     })
   }
@@ -86,7 +86,7 @@ export function InvitationDetailPanel({
         setConfirmRevoke(false)
         onRevoked()
       } catch (err) {
-        toast.error(friendlyMessage(err))
+        toast.error(friendlyInvitationError(err))
         setConfirmRevoke(false)
       }
     })
@@ -270,26 +270,4 @@ function formatDateTime(d: Date): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(d)
-}
-
-function friendlyMessage(err: unknown): string {
-  if (isDomainError(err)) {
-    switch (err.code) {
-      case 'AUTHORIZATION':
-        return 'No tenés permisos.'
-      case 'NOT_FOUND':
-        return 'La invitación ya no existe.'
-      case 'CONFLICT':
-        return err.message
-      case 'VALIDATION':
-        return err.message
-      case 'INVITATION_LINK_GENERATION':
-        return 'No pudimos generar el link. Intentá de nuevo.'
-      case 'INVITATION_EMAIL_FAILED':
-        return 'No pudimos enviar el email. Intentá de nuevo.'
-      default:
-        return 'No se pudo completar la acción.'
-    }
-  }
-  return 'Error inesperado.'
 }

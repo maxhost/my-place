@@ -72,6 +72,10 @@ describe('<MembersAdminPanel> — render según tab', () => {
         placeId="p-1"
         actorEmail="viewer@x.com"
         canInviteAsAdmin={true}
+        tierMembershipsByUserId={new Map()}
+        groupsByUserId={new Map()}
+        publishedTiers={[]}
+        allGroups={[]}
         buildHref={buildHref}
       />,
     )
@@ -97,6 +101,10 @@ describe('<MembersAdminPanel> — render según tab', () => {
         placeId="p-1"
         actorEmail="viewer@x.com"
         canInviteAsAdmin={true}
+        tierMembershipsByUserId={new Map()}
+        groupsByUserId={new Map()}
+        publishedTiers={[]}
+        allGroups={[]}
         buildHref={buildHref}
       />,
     )
@@ -123,6 +131,10 @@ describe('<MembersAdminPanel> — render según tab', () => {
         placeId="p-1"
         actorEmail="viewer@x.com"
         canInviteAsAdmin={true}
+        tierMembershipsByUserId={new Map()}
+        groupsByUserId={new Map()}
+        publishedTiers={[]}
+        allGroups={[]}
         buildHref={buildHref}
       />,
     )
@@ -148,6 +160,10 @@ describe('<MembersAdminPanel> — render según tab', () => {
         placeId="p-1"
         actorEmail="viewer@x.com"
         canInviteAsAdmin={true}
+        tierMembershipsByUserId={new Map()}
+        groupsByUserId={new Map()}
+        publishedTiers={[]}
+        allGroups={[]}
         buildHref={buildHref}
       />,
     )
@@ -178,6 +194,10 @@ describe('<MembersAdminPanel> — interacciones de detail panel', () => {
         placeId="p-1"
         actorEmail="viewer@x.com"
         canInviteAsAdmin={true}
+        tierMembershipsByUserId={new Map()}
+        groupsByUserId={new Map()}
+        publishedTiers={[]}
+        allGroups={[]}
         buildHref={buildHref}
       />,
     )
@@ -207,6 +227,10 @@ describe('<MembersAdminPanel> — interacciones de detail panel', () => {
         placeId="p-1"
         actorEmail="viewer@x.com"
         canInviteAsAdmin={true}
+        tierMembershipsByUserId={new Map()}
+        groupsByUserId={new Map()}
+        publishedTiers={[]}
+        allGroups={[]}
         buildHref={buildHref}
       />,
     )
