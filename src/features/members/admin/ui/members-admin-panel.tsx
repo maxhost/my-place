@@ -15,6 +15,7 @@ import type {
 import type { PendingInvitation } from '@/features/members/public'
 import { InvitationDetailPanel } from './invitation-detail-panel'
 import { InvitationRow } from './invitation-row'
+import { InviteMemberSheet } from './invite-member-sheet'
 import { MemberDetailPanel, type MemberDetailBlockInfo } from './member-detail-panel'
 import { MemberRow } from './member-row'
 import { MembersPagination } from './members-pagination'
@@ -36,6 +37,8 @@ type Props = {
   canUnblock: boolean
   canExpel: boolean
   canRevoke: boolean
+  /** Owner-only puede invitar como admin (decisión #2 ADR groups). */
+  canInviteAsAdmin: boolean
   /** Builder de URL para paginación + tab switching. Recibe overrides parciales. */
   buildHref: (next: { tab?: Tab; q?: string; page?: number }) => string
 }
@@ -68,7 +71,7 @@ type SheetState =
  * **Latch interno** para detail panels (Radix Presence exit anim).
  */
 export function MembersAdminPanel({
-  placeSlug: _placeSlug,
+  placeSlug,
   tab,
   q,
   page,
@@ -81,6 +84,7 @@ export function MembersAdminPanel({
   canUnblock,
   canExpel,
   canRevoke,
+  canInviteAsAdmin,
   buildHref,
 }: Props): React.ReactNode {
   const [sheet, setSheet] = useState<SheetState>({ kind: 'closed' })
@@ -276,6 +280,15 @@ export function MembersAdminPanel({
         invitation={detailInvitation}
         canRevoke={canRevoke}
         onRevoked={close}
+      />
+
+      <InviteMemberSheet
+        open={sheet.kind === 'invite'}
+        onOpenChange={(next) => {
+          if (!next) close()
+        }}
+        placeSlug={placeSlug}
+        canInviteAsAdmin={canInviteAsAdmin}
       />
     </section>
   )

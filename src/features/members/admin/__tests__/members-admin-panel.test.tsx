@@ -69,6 +69,7 @@ describe('<MembersAdminPanel> — render según tab', () => {
         canUnblock={true}
         canExpel={true}
         canRevoke={true}
+        canInviteAsAdmin={true}
         buildHref={buildHref}
       />,
     )
@@ -91,6 +92,7 @@ describe('<MembersAdminPanel> — render según tab', () => {
         canUnblock={true}
         canExpel={true}
         canRevoke={true}
+        canInviteAsAdmin={true}
         buildHref={buildHref}
       />,
     )
@@ -114,6 +116,7 @@ describe('<MembersAdminPanel> — render según tab', () => {
         canUnblock={true}
         canExpel={true}
         canRevoke={true}
+        canInviteAsAdmin={true}
         buildHref={buildHref}
       />,
     )
@@ -136,6 +139,7 @@ describe('<MembersAdminPanel> — render según tab', () => {
         canUnblock={true}
         canExpel={true}
         canRevoke={true}
+        canInviteAsAdmin={true}
         buildHref={buildHref}
       />,
     )
@@ -163,6 +167,7 @@ describe('<MembersAdminPanel> — interacciones de detail panel', () => {
         canUnblock={true}
         canExpel={true}
         canRevoke={true}
+        canInviteAsAdmin={true}
         buildHref={buildHref}
       />,
     )
@@ -189,6 +194,7 @@ describe('<MembersAdminPanel> — interacciones de detail panel', () => {
         canUnblock={true}
         canExpel={true}
         canRevoke={true}
+        canInviteAsAdmin={true}
         buildHref={buildHref}
       />,
     )
