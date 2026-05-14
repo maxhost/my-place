@@ -24,6 +24,9 @@ type Tab = 'active' | 'pending'
 
 type Props = {
   placeSlug: string
+  placeId: string
+  /** Email del viewer — autocompleta el campo `contactEmail` en los dialogs de moderación. */
+  actorEmail: string
   tab: Tab
   q: string
   page: number
@@ -72,6 +75,8 @@ type SheetState =
  */
 export function MembersAdminPanel({
   placeSlug,
+  placeId,
+  actorEmail,
   tab,
   q,
   page,
@@ -256,18 +261,11 @@ export function MembersAdminPanel({
         }}
         member={detailMember}
         blockInfo={detailBlockInfo}
+        placeId={placeId}
+        actorEmail={actorEmail}
         canExpel={detailMember ? canExpelTarget(detailMember) : false}
         canBlock={detailMember ? canBlockTarget(detailMember) : false}
         canUnblock={detailMember ? canUnblock && blockInfoByUserId.has(detailMember.userId) : false}
-        onExpel={() => {
-          // S3 wiring — abre ExpelMemberDialog
-        }}
-        onBlock={() => {
-          // S3 wiring — abre BlockMemberDialog
-        }}
-        onUnblock={() => {
-          // S3 wiring — abre confirm + unblockMemberAction
-        }}
         onManageTiers={null}
         onManageGroups={null}
       />

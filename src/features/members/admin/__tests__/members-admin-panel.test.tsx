@@ -69,6 +69,8 @@ describe('<MembersAdminPanel> — render según tab', () => {
         canUnblock={true}
         canExpel={true}
         canRevoke={true}
+        placeId="p-1"
+        actorEmail="viewer@x.com"
         canInviteAsAdmin={true}
         buildHref={buildHref}
       />,
@@ -92,6 +94,8 @@ describe('<MembersAdminPanel> — render según tab', () => {
         canUnblock={true}
         canExpel={true}
         canRevoke={true}
+        placeId="p-1"
+        actorEmail="viewer@x.com"
         canInviteAsAdmin={true}
         buildHref={buildHref}
       />,
@@ -116,6 +120,8 @@ describe('<MembersAdminPanel> — render según tab', () => {
         canUnblock={true}
         canExpel={true}
         canRevoke={true}
+        placeId="p-1"
+        actorEmail="viewer@x.com"
         canInviteAsAdmin={true}
         buildHref={buildHref}
       />,
@@ -139,6 +145,8 @@ describe('<MembersAdminPanel> — render según tab', () => {
         canUnblock={true}
         canExpel={true}
         canRevoke={true}
+        placeId="p-1"
+        actorEmail="viewer@x.com"
         canInviteAsAdmin={true}
         buildHref={buildHref}
       />,
@@ -167,6 +175,8 @@ describe('<MembersAdminPanel> — interacciones de detail panel', () => {
         canUnblock={true}
         canExpel={true}
         canRevoke={true}
+        placeId="p-1"
+        actorEmail="viewer@x.com"
         canInviteAsAdmin={true}
         buildHref={buildHref}
       />,
@@ -194,6 +204,8 @@ describe('<MembersAdminPanel> — interacciones de detail panel', () => {
         canUnblock={true}
         canExpel={true}
         canRevoke={true}
+        placeId="p-1"
+        actorEmail="viewer@x.com"
         canInviteAsAdmin={true}
         buildHref={buildHref}
       />,

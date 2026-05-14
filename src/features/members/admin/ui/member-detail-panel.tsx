@@ -11,6 +11,7 @@ import {
   EditPanelTitle,
 } from '@/shared/ui/edit-panel'
 import { MemberAvatar } from '@/features/members/public'
+import { BlockMemberDialog, ExpelMemberDialog } from '@/features/members/moderation/public'
 import type { MemberSummary } from '@/features/members/public.server'
 
 export type MemberDetailBlockInfo = {
@@ -27,15 +28,16 @@ type Props = {
   member: MemberSummary | null
   /** Info de bloqueo del target. `null` ⇒ no bloqueado. */
   blockInfo: MemberDetailBlockInfo | null
+  /** placeId requerido por los dialogs de moderación (block/expel/unblock). */
+  placeId: string
+  /** Email del actor — autocompleta el campo `contactEmail` de los dialogs. */
+  actorEmail: string
   /** Si el viewer puede expulsar a este target (deriva permisos + target ≠ owner / self). */
   canExpel: boolean
   /** Si el viewer puede bloquear este target (permiso `members:block` + target ≠ owner / self). */
   canBlock: boolean
   /** Si el viewer puede desbloquear (típicamente mismo permission que block). */
   canUnblock: boolean
-  onExpel: () => void
-  onBlock: () => void
-  onUnblock: () => void
   onManageTiers: (() => void) | null
   onManageGroups: (() => void) | null
 }
@@ -64,12 +66,11 @@ export function MemberDetailPanel({
   onOpenChange,
   member,
   blockInfo,
+  placeId,
+  actorEmail,
   canExpel,
   canBlock,
   canUnblock,
-  onExpel,
-  onBlock,
-  onUnblock,
   onManageTiers,
   onManageGroups,
 }: Props): React.ReactNode {
@@ -217,34 +218,61 @@ export function MemberDetailPanel({
 
         <EditPanelFooter>
           {isBlocked && canUnblock ? (
-            <button
-              type="button"
-              onClick={onUnblock}
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 text-sm font-medium text-amber-900 hover:bg-amber-100"
-            >
-              <ShieldCheck aria-hidden="true" className="h-4 w-4" />
-              Desbloquear
-            </button>
+            <BlockMemberDialog
+              mode={{
+                kind: 'unblock',
+                placeId,
+                memberUserId: displayMember.userId,
+                memberDisplayName: displayMember.user.displayName,
+                actorEmail,
+              }}
+              trigger={
+                <button
+                  type="button"
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 text-sm font-medium text-amber-900 hover:bg-amber-100"
+                >
+                  <ShieldCheck aria-hidden="true" className="h-4 w-4" />
+                  Desbloquear
+                </button>
+              }
+            />
           ) : null}
           {!isBlocked && canBlock ? (
-            <button
-              type="button"
-              onClick={onBlock}
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-            >
-              <UserX aria-hidden="true" className="h-4 w-4" />
-              Bloquear
-            </button>
+            <BlockMemberDialog
+              mode={{
+                kind: 'block',
+                placeId,
+                memberUserId: displayMember.userId,
+                memberDisplayName: displayMember.user.displayName,
+                actorEmail,
+              }}
+              trigger={
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                >
+                  <UserX aria-hidden="true" className="h-4 w-4" />
+                  Bloquear
+                </button>
+              }
+            />
           ) : null}
           {canExpel ? (
-            <button
-              type="button"
-              onClick={onExpel}
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-medium text-red-600 hover:bg-red-50"
-            >
-              <Trash2 aria-hidden="true" className="h-4 w-4" />
-              Expulsar
-            </button>
+            <ExpelMemberDialog
+              placeId={placeId}
+              memberUserId={displayMember.userId}
+              memberDisplayName={displayMember.user.displayName}
+              actorEmail={actorEmail}
+              trigger={
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-medium text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 aria-hidden="true" className="h-4 w-4" />
+                  Expulsar
+                </button>
+              }
+            />
           ) : null}
           {!canExpel && !canBlock && !canUnblock ? (
             <p className="text-xs italic text-neutral-500">

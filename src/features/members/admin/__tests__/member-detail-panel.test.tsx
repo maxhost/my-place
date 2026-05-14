@@ -5,6 +5,18 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
 
+// MemberDetailPanel embebe BlockMemberDialog/ExpelMemberDialog que importan
+// moderation actions → arrastran supabase server-only. Stub env.
+vi.mock('@/shared/config/env', () => ({
+  serverEnv: { NODE_ENV: 'test' },
+  clientEnv: {
+    NEXT_PUBLIC_SUPABASE_URL: 'http://localhost:54321',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: 'anon',
+    NEXT_PUBLIC_APP_URL: 'http://lvh.me:3000',
+    NEXT_PUBLIC_APP_DOMAIN: 'lvh.me:3000',
+  },
+}))
+
 import { MemberDetailPanel } from '../ui/member-detail-panel'
 import type { MemberSummary } from '@/features/members/public.server'
 import type { MemberDetailBlockInfo } from '../ui/member-detail-panel'
@@ -36,12 +48,11 @@ describe('<MemberDetailPanel> — visibility según estado + permisos', () => {
         onOpenChange={() => {}}
         member={{ ...baseMember, isAdmin: true }}
         blockInfo={null}
+        placeId="p-1"
+        actorEmail="viewer@x.com"
         canExpel={true}
         canBlock={true}
         canUnblock={false}
-        onExpel={() => {}}
-        onBlock={() => {}}
-        onUnblock={() => {}}
         onManageTiers={null}
         onManageGroups={null}
       />,
@@ -58,12 +69,11 @@ describe('<MemberDetailPanel> — visibility según estado + permisos', () => {
         onOpenChange={() => {}}
         member={baseMember}
         blockInfo={null}
+        placeId="p-1"
+        actorEmail="viewer@x.com"
         canExpel={true}
         canBlock={true}
         canUnblock={false}
-        onExpel={() => {}}
-        onBlock={() => {}}
-        onUnblock={() => {}}
         onManageTiers={null}
         onManageGroups={null}
       />,
@@ -80,12 +90,11 @@ describe('<MemberDetailPanel> — visibility según estado + permisos', () => {
         onOpenChange={() => {}}
         member={baseMember}
         blockInfo={blockInfo}
+        placeId="p-1"
+        actorEmail="viewer@x.com"
         canExpel={true}
         canBlock={false}
         canUnblock={true}
-        onExpel={() => {}}
-        onBlock={() => {}}
-        onUnblock={() => {}}
         onManageTiers={null}
         onManageGroups={null}
       />,
@@ -102,12 +111,11 @@ describe('<MemberDetailPanel> — visibility según estado + permisos', () => {
         onOpenChange={() => {}}
         member={baseMember}
         blockInfo={null}
+        placeId="p-1"
+        actorEmail="viewer@x.com"
         canExpel={false}
         canBlock={false}
         canUnblock={false}
-        onExpel={() => {}}
-        onBlock={() => {}}
-        onUnblock={() => {}}
         onManageTiers={null}
         onManageGroups={null}
       />,
@@ -122,12 +130,11 @@ describe('<MemberDetailPanel> — visibility según estado + permisos', () => {
         onOpenChange={() => {}}
         member={baseMember}
         blockInfo={null}
+        placeId="p-1"
+        actorEmail="viewer@x.com"
         canExpel={false}
         canBlock={false}
         canUnblock={false}
-        onExpel={() => {}}
-        onBlock={() => {}}
-        onUnblock={() => {}}
         onManageTiers={null}
         onManageGroups={null}
       />,
@@ -142,12 +149,11 @@ describe('<MemberDetailPanel> — visibility según estado + permisos', () => {
         onOpenChange={() => {}}
         member={{ ...baseMember, tierCount: 0 }}
         blockInfo={null}
+        placeId="p-1"
+        actorEmail="viewer@x.com"
         canExpel={false}
         canBlock={false}
         canUnblock={false}
-        onExpel={() => {}}
-        onBlock={() => {}}
-        onUnblock={() => {}}
         onManageTiers={null}
         onManageGroups={null}
       />,
