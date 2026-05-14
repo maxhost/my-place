@@ -6,12 +6,13 @@ import { LeavePlaceDialog } from '@/features/members/profile/public'
 /**
  * Client wrapper que monta `<LeavePlaceDialog>` con state propio del open/close.
  *
- * Vive en `/settings/system` (ADR
+ * Vive en `/settings/danger-zone` (renombre 2026-05-14 del antiguo
+ * `/settings/system`, ADR
  * `docs/decisions/2026-05-12-settings-system-for-lifecycle.md`). El callsite
  * previo en `<OwnersAccessPanel>` se movió acá — la lógica del dialog NO
  * cambia, solo el parent que lo monta.
  *
- * El page padre (`settings/system/page.tsx`) es Server Component. Este wrapper
+ * El page padre (`settings/danger-zone/page.tsx`) es Server Component. Este wrapper
  * Client es necesario para mantener el `useState` del overlay sin contaminar
  * la page con `'use client'`.
  *

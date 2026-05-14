@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 type Props = {
   href: string
   active: boolean
@@ -8,10 +10,14 @@ type Props = {
 /**
  * Chip tab para `MembersAdminPanel` (Activos / Invitados).
  *
- * Server-friendly anchor — la navegación es URL-based (`?tab=`), no client
- * state. `count` opcional para mostrar el total del tab activo solamente
- * (mantenemos los otros tabs sin number para no requerir contar también
- * el otro lado en cada request).
+ * Usa `<Link>` de next/link para navegación **client-side** — Next 15 envía
+ * sólo el RSC payload del segment que cambia (`?tab=` flipea entre Activos
+ * e Invitados), no re-renderea el shell ni el layout. Sin esto, un `<a>`
+ * plano dispararía full page reload, perdiendo el state del orchestrator
+ * (sub-sheets latcheados) y haciendo ruido visual.
+ *
+ * `scroll={false}`: cambiar de tab no debería resetear scroll si el user
+ * estaba leyendo abajo. Match con el patrón del search bar.
  */
 export function TabChip({ href, active, label, count }: Props): React.ReactNode {
   const base =
@@ -19,8 +25,9 @@ export function TabChip({ href, active, label, count }: Props): React.ReactNode 
   const activeClass = 'border-neutral-900 bg-neutral-900 text-white'
   const inactiveClass = 'border-neutral-300 text-neutral-700 hover:bg-neutral-50'
   return (
-    <a
+    <Link
       href={href}
+      scroll={false}
       aria-current={active ? 'page' : undefined}
       className={`${base} ${active ? activeClass : inactiveClass}`}
     >
@@ -34,6 +41,6 @@ export function TabChip({ href, active, label, count }: Props): React.ReactNode 
           {count}
         </span>
       ) : null}
-    </a>
+    </Link>
   )
 }

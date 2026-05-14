@@ -11,7 +11,7 @@ describe('buildSettingsShellSections', () => {
     expect(slugSet).toContain('/settings/access')
     expect(slugSet).toContain('/settings/library')
     expect(slugSet).toContain('/settings/flags')
-    expect(slugSet).toContain('/settings/system')
+    expect(slugSet).toContain('/settings/danger-zone')
 
     // Items owner-only NO visibles para admin
     expect(slugSet).not.toContain('/settings/members')
@@ -32,7 +32,7 @@ describe('buildSettingsShellSections', () => {
     expect(slugSet).toContain('/settings/tiers')
     expect(slugSet).toContain('/settings/library')
     expect(slugSet).toContain('/settings/flags')
-    expect(slugSet).toContain('/settings/system')
+    expect(slugSet).toContain('/settings/danger-zone')
   })
 
   it('NO incluye el slug "" (general / dashboard) — futuro', () => {
@@ -46,7 +46,7 @@ describe('buildSettingsShellSections', () => {
     const result = buildSettingsShellSections({ isOwner: true })
     for (const group of result) {
       for (const item of group.items) {
-        expect(item.href).toMatch(/^\/settings\/[a-z]+$/)
+        expect(item.href).toMatch(/^\/settings\/[a-z-]+$/)
       }
     }
   })
@@ -66,15 +66,15 @@ describe('buildSettingsShellSections', () => {
     const result = buildSettingsShellSections({ isOwner: false })
     const groupIds = result.map((g) => g.id)
     expect(groupIds).not.toContain('comunidad')
-    // Pero Place, Contenido y Sistema sí (tienen items visibles para admin)
+    // Pero Place, Contenido y Danger zone sí (tienen items visibles para admin)
     expect(groupIds).toContain('place')
     expect(groupIds).toContain('contenido')
-    expect(groupIds).toContain('sistema')
+    expect(groupIds).toContain('danger-zone')
   })
 
-  it('respeta el orden de groups (Place → Comunidad → Contenido → Sistema) y de items dentro de cada group', () => {
+  it('respeta el orden de groups (Place → Comunidad → Contenido → Danger zone) y de items', () => {
     const result = buildSettingsShellSections({ isOwner: true })
-    expect(result.map((g) => g.id)).toEqual(['place', 'comunidad', 'contenido', 'sistema'])
+    expect(result.map((g) => g.id)).toEqual(['place', 'comunidad', 'contenido', 'danger-zone'])
     // Orden dentro de Place: hours, access, editor
     const place = result.find((g) => g.id === 'place')
     expect(place?.items.map((i) => i.href)).toEqual([
@@ -82,10 +82,10 @@ describe('buildSettingsShellSections', () => {
       '/settings/access',
       '/settings/editor',
     ])
-    // Sistema (ADR 2026-05-12): único item 'system' (label "Permanencia")
-    // por ahora; archivar se sumará en el futuro.
-    const sistema = result.find((g) => g.id === 'sistema')
-    expect(sistema?.items.map((i) => i.href)).toEqual(['/settings/system'])
-    expect(sistema?.items.map((i) => i.label)).toEqual(['Permanencia'])
+    // Danger zone (renombre 2026-05-14): único item 'danger-zone' (label
+    // "Zona de peligro"). Salir + Transferir ownership.
+    const danger = result.find((g) => g.id === 'danger-zone')
+    expect(danger?.items.map((i) => i.href)).toEqual(['/settings/danger-zone'])
+    expect(danger?.items.map((i) => i.label)).toEqual(['Zona de peligro'])
   })
 })

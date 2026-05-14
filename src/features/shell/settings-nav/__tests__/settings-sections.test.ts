@@ -6,7 +6,7 @@ import {
 } from '../domain/settings-sections'
 
 describe('SETTINGS_SECTIONS', () => {
-  it('expone las 10 secciones canónicas en orden (post ADR 2026-05-12 settings/system)', () => {
+  it('expone las 10 secciones canónicas en orden (post 2026-05-14 system → danger-zone)', () => {
     expect(SETTINGS_SECTIONS.map((s) => s.slug)).toEqual([
       '',
       'hours',
@@ -17,7 +17,7 @@ describe('SETTINGS_SECTIONS', () => {
       'groups',
       'tiers',
       'editor',
-      'system',
+      'danger-zone',
     ])
   })
 
@@ -32,7 +32,7 @@ describe('SETTINGS_SECTIONS', () => {
       'Grupos',
       'Tiers',
       'Editor',
-      'Permanencia',
+      'Zona de peligro',
     ])
   })
 
@@ -78,9 +78,16 @@ describe('deriveVisibleSettingsSections', () => {
     expect(result.map((s) => s.slug)).not.toContain('editor')
   })
 
-  it('non-owner ve los 6 items default (admin baseline incluye access + system)', () => {
+  it('non-owner ve los 6 items default (admin baseline incluye access + danger-zone)', () => {
     const result = deriveVisibleSettingsSections({ isOwner: false })
-    expect(result.map((s) => s.slug)).toEqual(['', 'hours', 'library', 'access', 'flags', 'system'])
+    expect(result.map((s) => s.slug)).toEqual([
+      '',
+      'hours',
+      'library',
+      'access',
+      'flags',
+      'danger-zone',
+    ])
   })
 
   it('preserva el orden original de SETTINGS_SECTIONS para owner', () => {
@@ -107,7 +114,7 @@ describe('deriveActiveSettingsSection', () => {
     expect(deriveActiveSettingsSection('/settings/groups')).toBe('groups')
     expect(deriveActiveSettingsSection('/settings/tiers')).toBe('tiers')
     expect(deriveActiveSettingsSection('/settings/editor')).toBe('editor')
-    expect(deriveActiveSettingsSection('/settings/system')).toBe('system')
+    expect(deriveActiveSettingsSection('/settings/danger-zone')).toBe('danger-zone')
   })
 
   it('tolera trailing slash en sub-pages', () => {

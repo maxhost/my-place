@@ -25,7 +25,8 @@ import type { PendingInvitation } from '../domain/types'
  * - "Transferir ownership" (solo owners) → `<TransferOwnershipSheet>`.
  *
  * **Cambios 2026-05-12 (sesión 2 del rediseño access):**
- * - Sección "Salir del place" MOVIDA a `/settings/system` (ADR
+ * - Sección "Salir del place" MOVIDA a `/settings/danger-zone` (renombre
+ *   2026-05-14 de `/settings/system`, ADR
  *   `docs/decisions/2026-05-12-settings-system-for-lifecycle.md`).
  * - `<ResendInvitationButton>` inline reemplazado por `<RowActions>`
  *   canónico con [Reenviar, Revocar destructive]. Confirm dialog

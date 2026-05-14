@@ -58,7 +58,7 @@ const SECTION_ICON: Record<SettingsSectionSlug, React.ComponentType<{ size?: num
   groups: Shield,
   tiers: Tag,
   editor: PenLine,
-  system: LogOut,
+  'danger-zone': LogOut,
 }
 
 type Props = {

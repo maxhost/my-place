@@ -13,11 +13,9 @@ import { DIRECTORY_LIMIT_DEFAULT, directoryQueryParamsSchema } from '@/features/
 import {
   findMemberPermissions,
   hasPermission,
-  listActiveMembers,
   listPendingInvitationsByPlace,
   searchMembers,
 } from '@/features/members/public.server'
-import { TransferOwnershipForm } from '@/features/places/public'
 import { listGroupsByPlace } from '@/features/groups/public.server'
 import { listTiersByPlace } from '@/features/tiers/public.server'
 
@@ -39,8 +37,8 @@ type Props = {
  * tiers, grupos. Dashed-border "+ Invitar miembro" al final abre InviteMemberSheet.
  *
  * Drop sub-page `[userId]/page.tsx` — toda la info migra al detail panel.
- * Drop "Salir del place" — ya vive en /settings/system. "Transferir
- * ownership" se mantiene como sección al final (sin tocar).
+ * Drop "Salir del place" + "Transferir ownership" — ambas viven en
+ * `/settings/danger-zone` (renombre 2026-05-14 de /settings/system).
  *
  * Ver `docs/plans/2026-05-14-redesign-settings-members.md`.
  */
@@ -96,18 +94,6 @@ export default async function SettingsMembersPage({ params, searchParams }: Prop
     listGroupsForUsers(place.id, visibleUserIds),
     listBlockInfoForUsers(place.id, visibleUserIds),
   ])
-
-  // TransferOwnership sigue requiriendo la lista completa de candidatos —
-  // se mantiene la query independiente (sin paginar) sólo si el viewer es owner.
-  const transferCandidates = perms.isOwner
-    ? (await listActiveMembers(place.id))
-        .filter((m) => m.userId !== actorId)
-        .map((m) => ({
-          userId: m.userId,
-          displayName: m.user.displayName,
-          handle: m.user.handle,
-        }))
-    : []
 
   const actorEmail = auth!.email ?? ''
   const totalMembers = membersPage.totalCount
@@ -167,26 +153,6 @@ export default async function SettingsMembersPage({ params, searchParams }: Prop
         allGroups={allGroups}
         hrefs={hrefs}
       />
-
-      {perms.isOwner ? (
-        <section
-          aria-labelledby="transfer-ownership-heading"
-          className="space-y-3 border-t border-neutral-200 pt-6"
-        >
-          <h2
-            id="transfer-ownership-heading"
-            className="border-b pb-2 font-serif text-xl"
-            style={{ borderColor: 'var(--border)' }}
-          >
-            Transferir ownership
-          </h2>
-          <p className="text-sm text-neutral-600">
-            El nuevo owner tiene que ser miembro activo de este place. Si te tildás la opción de
-            salir, perdés acceso al place en el mismo paso.
-          </p>
-          <TransferOwnershipForm placeSlug={place.slug} candidates={transferCandidates} />
-        </section>
-      ) : null}
     </div>
   )
 }
