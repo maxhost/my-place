@@ -361,6 +361,12 @@ async function main(): Promise<void> {
         body: baselineBody(`${it.title} — baseline E2E.`),
       },
     })
+    // prereqItemId: si está definido en el fixture, lo resolvemos al ID
+    // del item correspondiente. Asume orden de iteración consistente — los
+    // items que son prereq deben aparecer ANTES en E2E_LIBRARY_ITEMS que
+    // los que los referencian (cookingLessonA antes que B antes que C).
+    const prereqItemId =
+      it.prereqItemKey !== undefined ? E2E_LIBRARY_ITEMS[it.prereqItemKey].id : null
     await prisma.libraryItem.create({
       data: {
         id: it.id,
@@ -369,6 +375,7 @@ async function main(): Promise<void> {
         postId: it.postId,
         authorUserId,
         authorSnapshot,
+        prereqItemId,
       },
     })
     console.log(`[e2e-seed] library item ${itemKey} (${it.postSlug}) → ${it.id}`)

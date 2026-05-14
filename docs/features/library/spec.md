@@ -1170,3 +1170,66 @@ Reafirmar lo de § 7 + adiciones de R.7:
   intencionalmente (decisión user 2026-04-30) — biblioteca no
   es archivo muerto, es contenido sobre el que la comunidad
   conversa. El thread documento captura esa pertenencia.
+
+---
+
+## 17. Cursos (kind=COURSE) — wiring 2026-05-14
+
+ADR canónico: `docs/decisions/2026-05-04-library-courses-and-read-access.md` (D1-D12).
+Wiring plan: `docs/plans/2026-05-14-library-courses-wiring.md` (W1-W5).
+
+Una categoría puede declararse `kind: COURSE` en el wizard del admin
+(paso 4: tipo). Esto cambia la semántica:
+
+- Cada item dentro de la categoría es una **lección**.
+- El author/admin puede asignar un **prereq** (otra lección de la misma
+  categoría) al editar el item — `<PrereqSelector>` en
+  `/library/[catSlug]/[itemSlug]/edit`. Single prereq (no DAG, decisión D4).
+- El viewer ve las lecciones en el listado de categoría con candado +
+  badge de prereq incompleto (`<LibraryItemLockedRow>`). Click en
+  bloqueada → toast con CTA "Ir a [prereq]".
+- Owner ve TODAS las lecciones desbloqueadas (bypass — necesita el
+  itinerary map para gestionar).
+- Lección desbloqueada (sin prereq, o prereq completado): viewer ve el
+  body completo + `<MarkCompleteButton>` debajo. Click marca como
+  completada → siguiente lección se desbloquea visualmente al refresh.
+- Lección bloqueada (prereq incompleto, no es owner): viewer ve título
+  - cover via `<LockedItemView>` con copy "Completá [prereq] primero" +
+    CTA al prereq. NO se sirve el body. Decisión D2: visible-but-locked.
+
+### Privacy + sin gamificación
+
+- Completion es **privada por viewer** (tabla `LibraryItemCompletion` con
+  PK `(itemId, userId)`). No se expone al resto del place.
+- Sin contadores públicos ("X de Y completaste"), sin %, sin streaks,
+  sin badges, sin leaderboards. CLAUDE.md "Sin gamificación".
+- El único affordance social del feature es el toast con CTA al prereq
+  — guía sin presión.
+
+### Manual mark complete
+
+Decisión D3: el viewer marca explícitamente. Sin auto-detect por scroll,
+tiempo, o quiz. Mighty Networks + Skool usan este patrón. Auto-detect
+produce false positives (Brightspace's "marked complete on view" como
+crítica clásica).
+
+### Validación de ciclos
+
+`setItemPrereqAction` valida que la elección no cree un ciclo (BFS
+app-layer, max depth 50). Test cubre: ciclo directo (A→A), indirecto
+(A→B→A), profundo, no-ciclo válido. Sin constraint SQL nativa.
+
+### Componentes canónicos
+
+Sub-slice `features/library/courses/`:
+
+- `<PrereqSelector>` — `<select>` con lista de items siblings (form de edit).
+- `<MarkCompleteButton>` — toggle marcar/desmarcar (detail page).
+- `<LibraryItemLockedRow>` — row del listado con candado + toast CTA.
+- `<PrereqLockBadge>` — badge candado al lado del title.
+- `<CourseItemList>` — lista de items lock-aware (categoría kind=COURSE).
+- `<LockedItemView>` — vista del item bloqueado en detail page.
+
+Server actions: `setItemPrereqAction`, `markItemCompletedAction`,
+`unmarkItemCompletedAction`. Server queries: `listCompletedItemIdsByUser`,
+`listCategoryItemsForPrereqLookup`, `findItemPrereqChain`.

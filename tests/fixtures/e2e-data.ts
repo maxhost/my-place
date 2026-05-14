@@ -188,7 +188,7 @@ export const E2E_GROUP_MEMBERSHIPS: Array<{
  * `policy` es el campo Prisma `contributionPolicy`; lo aliasamos a `policy`
  * en la fixture para que los specs queden compactos (`tutorialsCat.policy`).
  */
-export type E2ECategoryKey = 'tutorials' | 'resources' | 'presetOnly'
+export type E2ECategoryKey = 'tutorials' | 'resources' | 'presetOnly' | 'cookingCourse'
 
 export const E2E_LIBRARY_CATEGORIES: Record<
   E2ECategoryKey,
@@ -245,6 +245,21 @@ export const E2E_LIBRARY_CATEGORIES: Record<
     writeUserRoles: [],
     position: 2,
   },
+  // W5 wiring courses (2026-05-14): categoría tipo curso con cadena de
+  // 3 lecciones encadenadas por prereq (A → B → C). Habilita E2E del flow
+  // completo: viewer ve A abierta, B/C lockeadas → marca A → B se desbloquea.
+  cookingCourse: {
+    id: 'cat_e2e_palermo_cooking_course',
+    placeId: `${E2E_PLACE_ID_PREFIX}palermo`,
+    slug: 'cocina',
+    title: 'Lecciones de cocina',
+    emoji: '🍳',
+    kind: 'COURSE',
+    readAccessKind: 'PUBLIC',
+    writeAccessKind: 'OWNER_ONLY',
+    writeUserRoles: [],
+    position: 3,
+  },
 }
 
 // ---------------------------------------------------------------
@@ -265,7 +280,12 @@ export const E2E_LIBRARY_CATEGORIES: Record<
  * Slug del Post se usa para URL canónica `/library/<catSlug>/<postSlug>`;
  * el spec `library-viewer-listing.spec.ts` lo lee como `postSlug`.
  */
-export type E2ELibraryItemKey = 'tutorialsIntro' | 'resourcesDoc'
+export type E2ELibraryItemKey =
+  | 'tutorialsIntro'
+  | 'resourcesDoc'
+  | 'cookingLessonA'
+  | 'cookingLessonB'
+  | 'cookingLessonC'
 
 export const E2E_LIBRARY_ITEMS: Record<
   E2ELibraryItemKey,
@@ -277,6 +297,9 @@ export const E2E_LIBRARY_ITEMS: Record<
     placeId: string
     categoryKey: E2ECategoryKey
     authorRole: E2ERole
+    /** ID del item prereq (clave de E2E_LIBRARY_ITEMS), si aplica. Solo
+     *  para items en categorías kind=COURSE. */
+    prereqItemKey?: E2ELibraryItemKey
   }
 > = {
   tutorialsIntro: {
@@ -296,6 +319,37 @@ export const E2E_LIBRARY_ITEMS: Record<
     placeId: `${E2E_PLACE_ID_PREFIX}palermo`,
     categoryKey: 'resources',
     authorRole: 'memberA',
+  },
+  // W5 wiring courses: cadena A → B → C en cookingCourse. A no tiene
+  // prereq (siempre abierto), B requiere A, C requiere B.
+  cookingLessonA: {
+    id: 'item_e2e_palermo_cooking_lesson_a',
+    postId: 'post_e2e_palermo_lib_cooking_a',
+    postSlug: 'galletas-de-chocolate',
+    title: 'Galletas de chocolate',
+    placeId: `${E2E_PLACE_ID_PREFIX}palermo`,
+    categoryKey: 'cookingCourse',
+    authorRole: 'admin',
+  },
+  cookingLessonB: {
+    id: 'item_e2e_palermo_cooking_lesson_b',
+    postId: 'post_e2e_palermo_lib_cooking_b',
+    postSlug: 'postres-cheesecake',
+    title: 'Postres cheesecake',
+    placeId: `${E2E_PLACE_ID_PREFIX}palermo`,
+    categoryKey: 'cookingCourse',
+    authorRole: 'admin',
+    prereqItemKey: 'cookingLessonA',
+  },
+  cookingLessonC: {
+    id: 'item_e2e_palermo_cooking_lesson_c',
+    postId: 'post_e2e_palermo_lib_cooking_c',
+    postSlug: 'reposteria-francesa',
+    title: 'Repostería francesa',
+    placeId: `${E2E_PLACE_ID_PREFIX}palermo`,
+    categoryKey: 'cookingCourse',
+    authorRole: 'admin',
+    prereqItemKey: 'cookingLessonB',
   },
 }
 

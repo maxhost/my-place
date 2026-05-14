@@ -186,3 +186,19 @@ Cada step tiene su propio Zod schema validado on-blur o on-change. "Siguiente" d
 - `docs/features/library/spec.md` — actualizar en G.7 con todos los conceptos nuevos.
 - `docs/plans/2026-05-04-library-courses-and-read-access.md` — plan de implementación G.1-G.7 (sibling de este ADR).
 - Investigación 2026-05-04: Skool/Circle/LMS general/Frimousse — agentes A/B/C/D, output guardado en transcript de la sesión.
+
+## Wiring follow-up (2026-05-14)
+
+El plan original `2026-05-04-library-courses-and-read-access.md` G.2+3.b prometía cablear el feature end-to-end pero el wiring final de pages quedó incompleto (componentes + actions + queries listos pero sin caller en pages). Audit 2026-05-14 lo identificó.
+
+Plan de wiring ejecutado en 5 sub-fases (W1-W5):
+
+- **W1** — query `listCategoryItemsForPrereqLookup` para alimentar selector + lookup.
+- **W2** — `<PrereqSelector>` cableado en page de edit (el selector existente solo soporta EDIT mode con `itemId` post-create, así que el composer no se tocó). Page de new muestra hint sutil "asigná prereq desde la edición".
+- **W3** — `<MarkCompleteButton>` debajo del body en detail page + `<LockedItemView>` cuando `!canOpenItem` (visible-but-locked, decisión D2).
+- **W4** — `<CourseItemList>` (lock-aware) reemplaza `<ItemList>` plana cuando `category.kind === 'COURSE'`.
+- **W5** — seed E2E con cadena A → B → C en cookingCourse + ADR follow-up.
+
+Plan completo: `docs/plans/2026-05-14-library-courses-wiring.md`.
+
+Cero decisiones nuevas — solo wiring de D1-D12.
