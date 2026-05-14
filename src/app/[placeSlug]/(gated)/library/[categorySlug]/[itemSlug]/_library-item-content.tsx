@@ -6,10 +6,16 @@ import {
   canArchiveItem,
   type LibraryItemDetailView,
 } from '@/features/library/public'
-import { resolveLibraryViewer } from '@/features/library/public.server'
+import { findLibraryCategoryBySlug, resolveLibraryViewer } from '@/features/library/public.server'
+import { canOpenItem, MarkCompleteButton } from '@/features/library/courses/public'
+import {
+  listCategoryItemsForPrereqLookup,
+  listCompletedItemIdsByUser,
+} from '@/features/library/courses/public.server'
 import type { LexicalDocument } from '@/features/rich-text/public'
 import { RichTextRenderer } from '@/features/rich-text/public.server'
 import { buildMentionResolvers } from '@/app/[placeSlug]/(gated)/_mention-resolvers'
+import { LockedItemView } from './_locked-item-view'
 
 type Props = {
   placeSlug: string
@@ -18,20 +24,20 @@ type Props = {
 }
 
 /**
- * Streamed body del library item detail (R.7.9). Este Server Component
- * vive bajo `<Suspense>` en el page para que el shell + LibraryItemHeaderBar
- * pinten en ~150ms post-TTFB. Las queries que requieren viewer happen
- * acá: ~700ms cold (resolveLibraryViewer = actor + groupMemberships +
- * tierMemberships), pero el skeleton del page hace que el user no vea
- * pantalla en blanco.
+ * Streamed body del library item detail (R.7.9). Vive bajo `<Suspense>` en
+ * el page para que el shell + LibraryItemHeaderBar pinten en ~150ms post-TTFB.
  *
  * Maneja:
- *  - Archived item check (admin/author-only): notFound desde Suspense child
- *    causa flicker pero es caso raro de moderación, aceptable.
- *  - Render inline: chip categoría + título + meta autor (`<LibraryItemHeader>`)
- *    + body TipTap (`<RichTextRenderer>`). El item NO usa `<PostDetail>` —
- *    el item ES el thread documento canónico de biblioteca.
- *  - DwellTracker / ThreadPresence client components con viewer info.
+ *  - Archived item check (admin/author-only).
+ *  - Render del body TipTap.
+ *  - DwellTracker / ThreadPresence con viewer info.
+ *  - **Courses (W3 wiring 2026-05-14)**: si la categoría es `kind: COURSE`:
+ *    - Carga `completedItemIds` del viewer.
+ *    - Si `!canOpenItem(...)` (prereq no completado, no es owner), renderea
+ *      `<LockedItemView>` en vez del body. Usa `listCategoryItemsForPrereqLookup`
+ *      para resolver title + slug del prereq y mostrar CTA.
+ *    - Si abierto, suma `<MarkCompleteButton>` debajo del body para que el
+ *      viewer marque/desmarque la lección como completada.
  *
  * `resolveLibraryViewer` está cacheado con React.cache per-request, así
  * que `<LibraryItemHeaderActions>` (sibling Suspense) que también lo pide
@@ -46,10 +52,36 @@ export async function LibraryItemContent({
 }: Props): Promise<React.ReactNode> {
   const { viewer: libraryViewer, actor: viewer } = await resolveLibraryViewer({ placeSlug })
 
-  // Si está archivado: solo admin o author lo ven. Caso raro (item normalmente
-  // se filtra antes de render) — flicker aceptable post-skeleton.
   const itemCtx = { authorUserId: item.authorUserId }
   if (item.archivedAt && !canArchiveItem(itemCtx, libraryViewer)) notFound()
+
+  // Detectar si la categoría es CURSO. La query es cached per-request
+  // (React.cache) así que sibling Suspense la comparten.
+  const category = await findLibraryCategoryBySlug(placeId, item.categorySlug)
+  const isCourse = category?.kind === 'COURSE'
+
+  // Solo cuando es CURSO: chequear si el viewer puede abrir el item +
+  // cargar el set de completados (para el botón Mark Complete).
+  let blocked = false
+  let prereqMeta: { title: string; postSlug: string } | null = null
+  let isCompleted = false
+  if (isCourse) {
+    const completedIds = await listCompletedItemIdsByUser(viewer.actorId, placeId)
+    isCompleted = completedIds.includes(item.id)
+    blocked = !canOpenItem({ prereqItemId: item.prereqItemId }, libraryViewer, completedIds)
+
+    if (blocked && item.prereqItemId !== null) {
+      // Resolver title + slug del prereq desde la lista de items siblings.
+      // 1 query batch — evita findUnique extra del prereq individual.
+      const siblings = await listCategoryItemsForPrereqLookup(item.categoryId, placeId)
+      const prereq = siblings.find((s) => s.id === item.prereqItemId)
+      prereqMeta = prereq ? { title: prereq.title, postSlug: prereq.postSlug } : null
+    }
+  }
+
+  if (blocked) {
+    return <LockedItemView item={item} prereq={prereqMeta} />
+  }
 
   return (
     <>
@@ -76,6 +108,12 @@ export async function LibraryItemContent({
           />
         ) : null}
       </article>
+
+      {isCourse ? (
+        <div className="mx-3 mt-6 flex justify-start">
+          <MarkCompleteButton itemId={item.id} completed={isCompleted} />
+        </div>
+      ) : null}
 
       <div className="mx-3 mt-6 border-t-[0.5px] border-border" />
     </>
