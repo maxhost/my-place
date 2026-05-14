@@ -102,6 +102,41 @@ describe('listFlagsByPlace', () => {
     ])
   })
 
+  it('filtra por targetType cuando se pasa un valor específico', async () => {
+    flagFindMany.mockResolvedValue([])
+    await listFlagsByPlace({ placeId: 'place-1', targetType: 'POST' })
+    expect(flagFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ placeId: 'place-1', targetType: 'POST' }),
+      }),
+    )
+  })
+
+  it('targetType="all" NO aplica filtro (mismo where que omitirlo)', async () => {
+    flagFindMany.mockResolvedValue([])
+    await listFlagsByPlace({ placeId: 'place-1', targetType: 'all' })
+    const call = flagFindMany.mock.calls[0]?.[0] as { where: Record<string, unknown> }
+    expect(call.where.targetType).toBeUndefined()
+  })
+
+  it('combina filtros status + targetType en el mismo where', async () => {
+    flagFindMany.mockResolvedValue([])
+    await listFlagsByPlace({
+      placeId: 'place-1',
+      status: 'OPEN',
+      targetType: 'COMMENT',
+    })
+    expect(flagFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          placeId: 'place-1',
+          status: 'OPEN',
+          targetType: 'COMMENT',
+        }),
+      }),
+    )
+  })
+
   it('mapea las rows de Prisma al dominio Flag', async () => {
     const row = {
       id: 'f-1',

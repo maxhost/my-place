@@ -3,7 +3,13 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/db/client'
 import { assertNever } from '@/shared/lib/assert-never'
 import { FLAG_PAGE_SIZE } from '../domain/invariants'
-import type { Flag, FlagReason, FlagStatus, FlagTargetSnapshot } from '../domain/types'
+import type {
+  ContentTargetKind,
+  Flag,
+  FlagReason,
+  FlagStatus,
+  FlagTargetSnapshot,
+} from '../domain/types'
 
 /**
  * Queries del slice `flags`. Sólo este archivo + `server/actions.ts` tocan Prisma.
@@ -20,6 +26,14 @@ type Cursor = { createdAt: Date; id: string }
 export async function listFlagsByPlace(params: {
   placeId: string
   status?: FlagStatus | readonly FlagStatus[]
+  /**
+   * Filtro por tipo de contenido reportado. `'all'` o undefined → sin filtro.
+   * Específico (`'POST'` / `'COMMENT'` / `'EVENT'`) → WHERE targetType = $param.
+   *
+   * Útil en `/settings/flags` para que el admin filtre la cola según el tipo
+   * de target (workflows distintos según contenido).
+   */
+  targetType?: ContentTargetKind | 'all'
   cursor?: Cursor | null
   pageSize?: number
 }): Promise<{ items: Flag[]; nextCursor: Cursor | null }> {
@@ -29,9 +43,12 @@ export async function listFlagsByPlace(params: {
     : params.status
       ? { status: params.status as FlagStatus }
       : {}
+  const targetTypeFilter =
+    params.targetType && params.targetType !== 'all' ? { targetType: params.targetType } : {}
   const where: Prisma.FlagWhereInput = {
     placeId: params.placeId,
     ...statusFilter,
+    ...targetTypeFilter,
     ...(params.cursor
       ? {
           OR: [
