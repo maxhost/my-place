@@ -41,12 +41,11 @@ const baseMember: MemberSummary = {
   tierCount: 0,
 }
 
-const buildHref = (next: { tab?: 'active' | 'pending'; q?: string; page?: number }): string => {
-  const parts: string[] = []
-  if (next.tab) parts.push(`tab=${next.tab}`)
-  if (next.q !== undefined) parts.push(`q=${encodeURIComponent(next.q)}`)
-  if (next.page !== undefined) parts.push(`page=${next.page}`)
-  return `/settings/members?${parts.join('&')}`
+const hrefs = {
+  activeTab: '/settings/members',
+  pendingTab: '/settings/members?tab=pending',
+  prevPage: null,
+  nextPage: null,
 }
 
 const emptyMembersPage: MemberDirectoryPage = { rows: [], totalCount: 0, hasMore: false }
@@ -76,7 +75,7 @@ describe('<MembersAdminPanel> — render según tab', () => {
         groupsByUserId={new Map()}
         publishedTiers={[]}
         allGroups={[]}
-        buildHref={buildHref}
+        hrefs={hrefs}
       />,
     )
     expect(screen.getByText(/todavía no hay miembros activos/i)).toBeInTheDocument()
@@ -105,7 +104,7 @@ describe('<MembersAdminPanel> — render según tab', () => {
         groupsByUserId={new Map()}
         publishedTiers={[]}
         allGroups={[]}
-        buildHref={buildHref}
+        hrefs={hrefs}
       />,
     )
     expect(screen.getByText('Ana')).toBeInTheDocument()
@@ -135,7 +134,7 @@ describe('<MembersAdminPanel> — render según tab', () => {
         groupsByUserId={new Map()}
         publishedTiers={[]}
         allGroups={[]}
-        buildHref={buildHref}
+        hrefs={hrefs}
       />,
     )
     expect(screen.getByText(/ninguna invitación coincide/i)).toBeInTheDocument()
@@ -164,7 +163,7 @@ describe('<MembersAdminPanel> — render según tab', () => {
         groupsByUserId={new Map()}
         publishedTiers={[]}
         allGroups={[]}
-        buildHref={buildHref}
+        hrefs={hrefs}
       />,
     )
     const activos = screen.getByRole('link', { name: /activos/i })
@@ -198,7 +197,7 @@ describe('<MembersAdminPanel> — interacciones de detail panel', () => {
         groupsByUserId={new Map()}
         publishedTiers={[]}
         allGroups={[]}
-        buildHref={buildHref}
+        hrefs={hrefs}
       />,
     )
     const rowButton = screen.getByRole('button', { name: /ver detalle de ana/i })
@@ -231,7 +230,7 @@ describe('<MembersAdminPanel> — interacciones de detail panel', () => {
         groupsByUserId={new Map()}
         publishedTiers={[]}
         allGroups={[]}
-        buildHref={buildHref}
+        hrefs={hrefs}
       />,
     )
     // No hay kebab (sin acciones para self) → no aparece "Expulsar"

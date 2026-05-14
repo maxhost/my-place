@@ -112,6 +112,7 @@ export default async function SettingsMembersPage({ params, searchParams }: Prop
   const actorEmail = auth!.email ?? ''
   const totalMembers = membersPage.totalCount
 
+  // Hrefs precomputados — no se pueden pasar funciones a Client Components.
   function buildHref(next: { tab?: 'active' | 'pending'; q?: string; page?: number }): string {
     const merged = {
       tab: next.tab ?? queryParams.tab,
@@ -124,6 +125,14 @@ export default async function SettingsMembersPage({ params, searchParams }: Prop
     if (merged.page !== 1) sp.set('page', String(merged.page))
     const query = sp.toString()
     return query ? `/settings/members?${query}` : '/settings/members'
+  }
+  const currentHasMore =
+    queryParams.tab === 'active' ? membersPage.hasMore : invitationsPage.hasMore
+  const hrefs = {
+    activeTab: buildHref({ tab: 'active', page: 1 }),
+    pendingTab: buildHref({ tab: 'pending', page: 1 }),
+    prevPage: queryParams.page > 1 ? buildHref({ page: queryParams.page - 1 }) : null,
+    nextPage: currentHasMore ? buildHref({ page: queryParams.page + 1 }) : null,
   }
 
   return (
@@ -156,7 +165,7 @@ export default async function SettingsMembersPage({ params, searchParams }: Prop
         groupsByUserId={groupsByUserId}
         publishedTiers={publishedTiers}
         allGroups={allGroups}
-        buildHref={buildHref}
+        hrefs={hrefs}
       />
 
       {perms.isOwner ? (

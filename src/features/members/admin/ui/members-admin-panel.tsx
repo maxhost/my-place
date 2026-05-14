@@ -57,8 +57,13 @@ type Props = {
   publishedTiers: ReadonlyArray<Tier>
   /** Todos los grupos del place — usados para derivar `availableGroups` por miembro. */
   allGroups: ReadonlyArray<GroupSummary>
-  /** Builder de URL para paginación + tab switching. Recibe overrides parciales. */
-  buildHref: (next: { tab?: Tab; q?: string; page?: number }) => string
+  /** Hrefs precomputados server-side — funciones no son serializables Server→Client. */
+  hrefs: {
+    activeTab: string
+    pendingTab: string
+    prevPage: string | null
+    nextPage: string | null
+  }
 }
 
 type SheetState =
@@ -96,7 +101,7 @@ export function MembersAdminPanel({
   groupsByUserId,
   publishedTiers,
   allGroups,
-  buildHref,
+  hrefs,
 }: Props): React.ReactNode {
   const [sheet, setSheet] = useState<SheetState>({ kind: 'closed' })
 
@@ -174,12 +179,7 @@ export function MembersAdminPanel({
     })
   }
 
-  // URL builders para tabs y paginación.
-  const activeTabHref = buildHref({ tab: 'active', page: 1 })
-  const pendingTabHref = buildHref({ tab: 'pending', page: 1 })
-  const prevHref = page > 1 ? buildHref({ page: page - 1 }) : null
   const currentPageData = tab === 'active' ? membersPage : invitationsPage
-  const nextHref = currentPageData.hasMore ? buildHref({ page: page + 1 }) : null
 
   return (
     <section aria-labelledby="members-list-heading" className="space-y-3">
@@ -201,13 +201,13 @@ export function MembersAdminPanel({
 
       <div className="flex items-center gap-2">
         <TabChip
-          href={activeTabHref}
+          href={hrefs.activeTab}
           active={tab === 'active'}
           label="Activos"
           count={tab === 'active' ? membersPage.totalCount : null}
         />
         <TabChip
-          href={pendingTabHref}
+          href={hrefs.pendingTab}
           active={tab === 'pending'}
           label="Invitados"
           count={tab === 'pending' ? invitationsPage.totalCount : null}
@@ -262,8 +262,8 @@ export function MembersAdminPanel({
         page={page}
         totalCount={currentPageData.totalCount}
         pageSize={pageSize}
-        prevHref={prevHref}
-        nextHref={nextHref}
+        prevHref={hrefs.prevPage}
+        nextHref={hrefs.nextPage}
         itemLabel={
           tab === 'active'
             ? { singular: 'miembro', plural: 'miembros' }
