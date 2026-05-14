@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
+import { PageHeader } from '@/shared/ui/page-header'
 import { ALLOWED_TIMEZONES, parseOpeningHours, type OpeningHours } from '@/features/hours/public'
 import { HoursForm, type HoursFormDefaults } from '@/features/hours/admin/public'
 
@@ -28,14 +29,11 @@ export default async function SettingsHoursPage({ params }: Props) {
   const defaults = hoursToFormDefaults(hours)
 
   return (
-    <div className="mx-auto max-w-screen-md space-y-8 p-4 md:p-8">
-      <header>
-        <p className="text-sm text-neutral-500">Settings · {place.name}</p>
-        <h1 className="font-serif text-3xl italic">Horario</h1>
-        <p className="mt-1 text-xs text-neutral-400">
-          Un place nace cerrado; configurá ventanas para que los miembros puedan entrar.
-        </p>
-      </header>
+    <div className="mx-auto max-w-screen-md space-y-6 px-3 py-6 md:px-4 md:py-8">
+      <PageHeader
+        title="Horario"
+        description="Un place nace cerrado; configurá ventanas para que los miembros puedan entrar."
+      />
 
       <HoursForm placeSlug={place.slug} defaults={defaults} />
     </div>
