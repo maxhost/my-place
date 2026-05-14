@@ -1,5 +1,13 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
+
+// Sidebar ahora es Client Component que usa usePathname() para resolver
+// active state. En jsdom sin Router context, hay que mockearlo — los tests
+// siguen pasando `currentPath` explícito como override.
+vi.mock('next/navigation', () => ({
+  usePathname: () => null,
+}))
+
 import { Sidebar } from '../sidebar'
 import type { SidebarSections } from '../sidebar.types'
 

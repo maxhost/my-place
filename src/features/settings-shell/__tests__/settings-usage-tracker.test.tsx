@@ -1,5 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
+
+// SettingsUsageTracker ahora usa usePathname() en client. Mock para tests
+// (los tests siguen pasando `currentPath` explícito como override).
+vi.mock('next/navigation', () => ({
+  usePathname: () => null,
+}))
+
 import { SettingsUsageTracker } from '../ui/settings-usage-tracker'
 import { getTopUsage } from '../lib/track-settings-usage'
 

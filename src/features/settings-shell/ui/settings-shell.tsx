@@ -12,22 +12,24 @@ import { SettingsUsageTracker } from './settings-usage-tracker'
  * shell sub-slice (`<SettingsNavFab>`) cubre la navegación mobile —
  * coexisten por viewport, no se reemplazan en JS.
  *
+ * `currentPath`: prop opcional. En producción NO se pasa — el sidebar y
+ * el tracker resuelven el pathname client-side vía `usePathname()` (única
+ * forma de que el active state se actualice en client navigation, ya que
+ * Next preserva el layout entre rutas hermanas y el header server-rendered
+ * queda stale). La prop se mantiene como override para tests.
+ *
  * Ver `docs/features/settings-shell/spec.md` § "Composer `<SettingsShell>`".
  */
 
 type Props = {
   children: React.ReactNode
-  /**
-   * Pathname server-rendered del request (vía `headers()` o segments).
-   * En multi-subdomain place, viene como `/settings/hours` (sin slug — el
-   * slug está en el host).
-   */
-  currentPath: string
   /** Si el viewer es owner — para filtrar items owner-only del sidebar. */
   isOwner: boolean
+  /** Override opcional del active path (tests). En prod se omite. */
+  currentPath?: string
 }
 
-export function SettingsShell({ children, currentPath, isOwner }: Props): React.ReactNode {
+export function SettingsShell({ children, isOwner, currentPath }: Props): React.ReactNode {
   const sections = buildSettingsShellSections({ isOwner })
 
   // Content area: solo flex-1 (toma el resto del grid). **NO aplica padding
@@ -42,16 +44,11 @@ export function SettingsShell({ children, currentPath, isOwner }: Props): React.
   // atrapadas en 768px y el detail pane sería ~408px (insuficiente).
   return (
     <div className="md:flex md:gap-6">
-      {/* Tracker invisible: incrementa contador en localStorage cuando el
-          currentPath cambia. Alimenta el FrequentlyAccessedHub mobile. */}
-      <SettingsUsageTracker currentPath={currentPath} />
-      {/* Cmd+K command palette para navegación entre sub-pages. Hidden
-          en mobile (FAB cubre nav). Listener global keydown — solo activo
-          mientras este shell está montado (= dentro de /settings/*). */}
+      <SettingsUsageTracker {...(currentPath !== undefined ? { currentPath } : {})} />
       <SettingsCommandPalette sections={sections} />
       <Sidebar
         items={sections}
-        currentPath={currentPath}
+        {...(currentPath !== undefined ? { currentPath } : {})}
         ariaLabel="Configuración del place"
         className="hidden md:block"
       />

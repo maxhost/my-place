@@ -1,4 +1,3 @@
-import { headers } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { getCurrentAuthUser } from '@/shared/lib/auth-user'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
@@ -50,19 +49,16 @@ export default async function SettingsLayout({ children, params }: Props) {
   //    visible (wrapper `md:hidden`) como único affordance de navegación.
   //  - Coexisten por viewport, no se reemplazan en JS (sin hydration concerns).
   //
-  // `currentPath` viene del header `x-pathname` que setea el middleware
-  // (server-rendered, sin usePathname client). Usado para resolver el
-  // active state del sidebar.
+  // El active state del sidebar lo resuelve `usePathname()` client-side
+  // (ver `<Sidebar>` primitive). NO pasamos `currentPath` desde acá porque
+  // Next no re-ejecuta este layout en client navigation entre rutas
+  // hermanas — cualquier valor server-rendered queda stale.
   //
   // Ver `docs/features/settings-shell/spec.md`.
-  const headerStore = await headers()
-  const currentPath = headerStore.get('x-pathname') ?? ''
 
   return (
     <>
-      <SettingsShell currentPath={currentPath} isOwner={perms.isOwner}>
-        {children}
-      </SettingsShell>
+      <SettingsShell isOwner={perms.isOwner}>{children}</SettingsShell>
       <div className="md:hidden">
         <SettingsNavFab isOwner={perms.isOwner} />
       </div>

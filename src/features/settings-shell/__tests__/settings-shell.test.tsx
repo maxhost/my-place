@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 
-// SettingsShell ahora monta SettingsCommandPalette que usa useRouter.
-// Mock para que no falle "invariant expected app router to be mounted".
+// SettingsShell ahora monta SettingsCommandPalette que usa useRouter, y
+// Sidebar / SettingsUsageTracker usan usePathname. Mock minimal para que
+// no fallen en jsdom sin Router context.
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => null,
 }))
 
 import { SettingsShell } from '../ui/settings-shell'
