@@ -1,7 +1,8 @@
 # Plan — Habilitar flujo "Editar post" (F.4 cierre) — 4 sesiones
 
 **Fecha**: 2026-05-15
-**Estado**: en ejecución secuencial
+**Estado**: ✅ COMPLETADO (S1–S4 ejecutadas, 4 commits, 417/417 verde,
+cero regresión)
 
 ## Contexto
 
@@ -217,7 +218,27 @@ page funciona; autor → barra 60s → Editar → page funciona.
 
 ---
 
-## Sesión 4 — Docs + ADR + cierre F.4
+## Sesión 4 — Docs + ADR + cierre F.4 ✅ EJECUTADA
+
+**Files realmente tocados**:
+
+- NEW `docs/decisions/2026-05-15-post-edit-flow.md`: ADR completo
+  (5 decisiones + 3 alternativas descartadas + trade-offs + cómo
+  compone con G.3).
+- `docs/features/discussions/spec.md`: nueva sección §8.1 "UI del flujo
+  Editar conversación" — **agregada sin reescribir** la tabla §7 ni el
+  invariante #1 (obsoletos post-G.3 pero su corrección es scope de otro
+  ADR; la sección nueva lo aclara y apunta al ADR G.3).
+- `pre-launch-checklist.md`: sin cambios (su entry de permisos sigue
+  válido — el flujo ahora funciona).
+- Stub F.4 ya removido en S3 (`edit-window-actions.tsx`). Los otros
+  "stub F.1" del repo son de F.2/library (otra fase) — NO se tocaron.
+
+**Verificación final**: `pnpm typecheck` verde. `pnpm vitest run
+src/features/discussions src/features/rich-text` → 417/417 verde (cero
+regresión en toda la ejecución S1–S4).
+
+### Plan original S4 (referencia)
 
 **Files**:
 

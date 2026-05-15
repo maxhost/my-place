@@ -384,6 +384,39 @@ Todas las acciones requieren **place abierto** (`assertPlaceOpenOrThrow`). El ga
 19. **Slug estable.** `Post.slug` se fija al crear (derivado del título) y nunca se regenera al editar. Único por `(placeId, slug)`.
 20. **`Post.lastActivityAt` sólo lo bumpean `createPostAction` y `createCommentAction`.** Ninguna otra acción (reactions, flags, moderación hide/unhide, edits de título/body, reads, soft-delete) toca `lastActivityAt`. Consecuencia: leer un post nunca lo marca como "no leído" para otros; el dot ámbar refleja estrictamente contenido nuevo (comentarios). Lockea el contrato del indicador de §13. Verificado por `__tests__/last-activity-bumps.test.ts`.
 
+## 8.1 UI del flujo "Editar conversación" (F.4, cerrado 2026-05-15)
+
+Hasta 2026-05-15 la capa UI de edición de Post estaba sin cablear: el
+botón "Editar" del kebab navegaba a `/conversations/new?edit=` (ruta que
+nunca leyó el query), dejando el form vacío y arriesgando un post
+duplicado al guardar. La server action (`editPostAction` +
+`openPostEditSession`) ya existía y estaba testeada; solo faltaba el
+consumer UI.
+
+Flujo cerrado:
+
+- **Ruta dedicada** `/conversations/[postSlug]/edit` (page SSR). Reusa
+  `findPostBySlug` (sin query nueva). Gate top-level — defensa en
+  profundidad sobre el de `editPostAction`.
+- **Posts derivados** (`Post.libraryItem` / `Post.event` no nulos)
+  redirigen 308 a su editor canónico (`/library/...` o `/events/...`):
+  editarlos como post crudo perdería el contexto del wrapper dueño.
+- **Gate × `hiddenAt`**: admin/owner/grupo con `discussions:edit-post`
+  edita siempre; autor sin permiso solo dentro de la ventana y con el
+  post no oculto.
+- **Entry points**: kebab admin (`<PostAdminMenu>`, sin límite de
+  ventana) + barra inline del autor (`<EditWindowActions>`, dentro de
+  60s). Dedup: la barra inline omite "Editar" si el viewer es admin.
+- **Embeds**: `BaseComposer` registra siempre los nodos embed para
+  deserializar bodies viejos sin pérdida aunque el toggle del place
+  esté OFF (el toggle solo gatea la _inserción_).
+
+El detalle de permisos delegables (`discussions:edit-post`) vive en
+`docs/decisions/2026-05-09-g3-edit-as-delegable-permission.md`. La
+tabla §7 y el invariante #1 describen el modelo de permisos pre-G.3
+(admin no edita Post ajeno) — G.3 lo revisó; ver ese ADR. Decisión de
+este cierre: `docs/decisions/2026-05-15-post-edit-flow.md`.
+
 ## 9. Contrato de apertura y lectores
 
 ### PlaceOpening lifecycle
