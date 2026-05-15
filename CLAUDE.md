@@ -6,16 +6,22 @@ Place es un lugar digital pequeño e íntimo para hasta 150 personas. Es **cozyt
 
 **Es:** un lugar con miembros, conversaciones, eventos y memoria compartida. Donde cada place tiene su identidad visual propia y su propio ritmo.
 
+## Estado del proyecto
+
+El código fue **reseteado a un scaffold limpio** (Next.js 15 + TS + Tailwind). No hay features implementadas todavía. La capa de datos migra a **Neon (Postgres 17)**; auth, storage, realtime, pagos y el método de acceso a la DB están **TBD**. La historia previa (implementación Prisma+Supabase) queda en `git log`.
+
 ## Documentos de referencia
 
-Para entender el producto y el proyecto en profundidad, leer en este orden:
+Para entender el producto y el proyecto en profundidad:
 
-- `docs/blueprint.md` — visión de producto y modelo mental
-- `docs/architecture.md` — decisiones técnicas, stack, paradigma, schema
-- `docs/ontologia/` — documentos canónicos de cada objeto (discusiones, eventos, miembros)
-- `docs/features/` — especificaciones detalladas por feature
-- `docs/mockups/` — referencia visual viva del producto
-- `docs/pre-launch-checklist.md` — instrumentación `DEBUG TEMPORAL` y otros items que tienen que removerse antes del lanzamiento público; sumar entry acá cuando agregues uno nuevo
+- `docs/architecture.md` — decisiones técnicas, paradigma, índice
+- `docs/stack.md` — stack técnico y variables de entorno (estado de los TBD)
+- `docs/data-model.md` — schema SQL del core e invariantes del dominio
+- `docs/multi-tenancy.md` — routing por subdomain, DNS, middleware
+- `docs/ontologia/` — documentos canónicos de cada objeto (conversaciones, eventos, miembros)
+- `docs/landingpage/` — arquitectura y contenido de la landing pública
+
+Otros docs (blueprint, features, mockups, pre-launch-checklist, gotchas, decisions) se eliminaron en el reset y se reescriben cuando corresponda.
 
 ## Principios no negociables del producto
 
@@ -96,7 +102,7 @@ Cómo trabajamos con Claude Code en este proyecto.
 - **NUNCA exponer API keys, passwords, ni service-role tokens en GitHub** — ni siquiera en repos pre-producción / privados / de desarrollo. Los secrets viven SOLO en `.env.local` (gitignored), Vercel env vars, o secret managers.
 - **NUNCA usar `git add -A` o `git add .`** — siempre stagear archivos por path explícito. Esos comandos atrapan untracked sensibles (backups de `.env`, dumps, credentials.json, tokens) que pueden no estar en `.gitignore`.
 - **Antes de cualquier `git commit`:** verificar `git status --short` y leer la lista de archivos a stagear. Si aparece algo que matchea `\.env`, `*-backup*`, `*credentials*`, `*token*`, `*.pem`, `*.key`, `*secret*` — STOP y consultar.
-- **Si se expone un secret accidentalmente:** rotar inmediatamente (Supabase Dashboard, Resend Dashboard, etc.), después limpiar historial Git. La rotación es prioridad sobre la limpieza.
+- **Si se expone un secret accidentalmente:** rotar inmediatamente en el dashboard del proveedor correspondiente (Neon, etc.), después limpiar historial Git. La rotación es prioridad sobre la limpieza.
 
 ## Límites de tamaño
 
@@ -125,11 +131,11 @@ Si algo supera estos límites, se divide antes de continuar.
 
 ## Gotchas
 
-Problemas operativos sutiles (rompen silenciosamente, sin signal claro en código o logs) viven en `docs/gotchas/` — un archivo por entry, índice en `docs/gotchas/README.md`.
+Los gotchas del proyecto previo se eliminaron en el reset. Se reconstruyen a medida que aparezcan.
 
-**Antes de tocar áreas como CSP, RLS, Vercel Cron, Supabase pooler/Realtime, Resend, env vars del logger, Prisma connection settings, o E2E/CI:** revisar el índice y abrir los gotchas relevantes.
+**Cuándo agregar uno nuevo:** cuando descubrís un comportamiento que (a) no es derivable del código, (b) tiene un síntoma confuso, y (c) volvería a morder a alguien en el futuro. Crear `docs/gotchas/<topic-slug>.md` (creando el directorio si hace falta) y sumarlo a un índice en `docs/gotchas/README.md`.
 
-**Cuándo agregar uno nuevo:** cuando descubrís un comportamiento que (a) no es derivable del código, (b) tiene un síntoma confuso, y (c) volvería a morder a alguien en el futuro. Crear `docs/gotchas/<topic-slug>.md` y sumarlo al índice.
+**Gotcha vigente heredado:** `next build` falla con un error falso de `<Html> should not be imported outside of pages/_document` si el shell tiene `NODE_ENV=development`. Por eso el script `build` usa `cross-env NODE_ENV=production next build`.
 
 ## Qué hacer cuando tengas dudas
 

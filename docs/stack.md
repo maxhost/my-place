@@ -2,57 +2,55 @@
 
 Elecciones tecnológicas de Place y justificación de cada una. Cualquier cambio de stack se registra acá antes de implementarse.
 
+> **Estado:** post reset a scaffold limpio. La capa de datos migra a **Neon (Postgres)**. Auth, Storage, Realtime, Pagos y método de acceso a la DB (ORM/driver) están **por definir (TBD)** — se deciden en sesiones futuras antes de implementarse.
+
 ## Piezas
 
-| Pieza          | Elección                                        | Razón                                                                                                                                                                                                                                       |
-| -------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Framework      | Next.js 15 con App Router                       | Multi-tenant nativo con middleware, Server Components, Server Actions, integración directa con Vercel                                                                                                                                       |
-| Lenguaje       | TypeScript strict mode                          | Seguridad de tipos en modelos de dominio complejos                                                                                                                                                                                          |
-| UI library     | React 19                                        | Estándar                                                                                                                                                                                                                                    |
-| Base de datos  | PostgreSQL gestionado por Supabase              | Relacional denso, row-level security para aislar places                                                                                                                                                                                     |
-| ORM            | Prisma                                          | Tipos TypeScript auto-generados, velocidad de desarrollo                                                                                                                                                                                    |
-| Auth           | Supabase Auth                                   | Magic links, OAuth, integrado con el resto del stack                                                                                                                                                                                        |
-| Storage        | Supabase Storage                                | Avatares, fotos de eventos, assets del place                                                                                                                                                                                                |
-| Realtime       | Supabase Realtime                               | Ver `realtime.md` para uso acotado                                                                                                                                                                                                          |
-| Pagos          | Stripe + Stripe Connect Express                 | Los tres modos de billing del producto                                                                                                                                                                                                      |
-| CSS            | Tailwind (solo utilidades core) + CSS variables | Layout rápido + temas configurables por place                                                                                                                                                                                               |
-| Estado cliente | Zustand                                         | Simple, sin boilerplate. Uso mínimo — preferir URL y server state                                                                                                                                                                           |
-| Data fetching  | Server Components + TanStack Query              | Server-first para datos estables, TanStack Query para mutations y realtime                                                                                                                                                                  |
-| Forms          | React Hook Form + Zod                           | Validación tipada server + client                                                                                                                                                                                                           |
-| Testing        | Vitest + Playwright                             | Unit/integration con Vitest (jsdom), RLS directos con Vitest (node + `pg` + `SET LOCAL request.jwt.claims`), E2E con Playwright sobre `my-place` Cloud (dev) / branch efímera (CI). Ver ADR `2026-04-22-e2e-rls-testing-cloud-branches.md`. |
-| Hosting        | Vercel                                          | Wildcard subdomains nativos, edge middleware, deploy automático                                                                                                                                                                             |
+| Pieza          | Elección                                        | Razón                                                                                              |
+| -------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Framework      | Next.js 15 con App Router                       | Multi-tenant nativo con middleware, Server Components, Server Actions, integración directa con Vercel |
+| Lenguaje       | TypeScript strict mode                          | Seguridad de tipos en modelos de dominio complejos                                                 |
+| UI library     | React 19                                        | Estándar                                                                                           |
+| Base de datos  | PostgreSQL 17 gestionado por **Neon**           | Postgres serverless con branching; relacional denso; aislamiento de places vía RLS de Postgres     |
+| Acceso a datos | **TBD**                                         | ORM vs query builder vs SQL plano sin decidir. NO se vuelve a Prisma.                               |
+| Auth           | **TBD**                                         | Sin proveedor de auth elegido. Decisión de producto + técnica pendiente.                           |
+| Storage        | **TBD**                                         | Avatares / assets del place: proveedor pendiente.                                                  |
+| Realtime       | **TBD**                                         | Si se necesita, se decide acotadamente cuando aparezca el caso de uso.                             |
+| Pagos          | **TBD**                                         | Los modos de billing del producto requieren decisión antes de implementar.                         |
+| CSS            | Tailwind (solo utilidades core) + CSS variables | Layout rápido + temas configurables por place                                                      |
+| Estado cliente | Zustand                                         | Simple, sin boilerplate. Uso mínimo — preferir URL y server state                                  |
+| Data fetching  | Server Components (server-first)                | Datos estables vía RSC. Mutations vía Server Actions. Capa de cliente para mutations/realtime: TBD |
+| Forms          | React Hook Form + Zod                           | Validación tipada server + client                                                                  |
+| Testing        | Vitest + Playwright                             | Unit/integration con Vitest (jsdom); E2E con Playwright                                            |
+| Hosting        | Vercel                                          | Wildcard subdomains nativos, edge middleware, deploy automático                                    |
+
+## Región e infraestructura
+
+- **Vercel:** proyecto `my-place` (team `maxhost27-6230s-projects`), dominio prod `place.community` (+ `*.place.community`).
+- **Neon:** misma nube y región que las Functions de Vercel para minimizar latencia DB↔app. Provider **AWS** (Vercel corre sobre AWS). Región a fijar según la *Function Region* de Vercel (Settings → Functions). Default Vercel `iad1` → Neon **AWS `us-east-1` (N. Virginia)**. Confirmar y anotar la región definitiva acá.
 
 ## Razones estructurales
 
-**Supabase como proveedor único** de auth + db + storage + realtime. Reduce complejidad operacional al mínimo para un solo founder. La alternativa (Neon + Clerk + Uploadthing + Pusher) fragmenta responsabilidades que conviene tener juntas.
+**Neon como base de datos.** Postgres gestionado serverless, con branching de DB (útil para entornos efímeros de test/preview) y escalado a cero. Reemplaza al Postgres de Supabase. El aislamiento entre places se sigue modelando con RLS de Postgres (es feature del motor, no de Supabase).
 
-**Vercel** para hosting. Next.js está hecho por Vercel, la integración con wildcard subdomains es directa, SSL automático para todos los subdomains. Alternativas son portables pero agregan fricción.
+**Stack desacoplado por decidir.** A diferencia del modelo previo de proveedor único, ahora auth/storage/realtime/pagos se eligen pieza por pieza cuando el producto lo requiera. Cada elección se registra en este documento y, si amerita, en `docs/decisions/`.
 
-**Prisma sobre Drizzle.** Drizzle es más liviano pero Prisma tiene mejor DX para refactors de schema y velocidad de desarrollo en solitario.
+**Vercel** para hosting. Next.js está hecho por Vercel, la integración con wildcard subdomains es directa, SSL automático para todos los subdomains.
 
 ## Variables de entorno
 
-Archivo `.env.local`:
+Archivo `.env.local` (gitignored — nunca se commitea):
 
 ```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-
-# Database (connection string de Supabase)
+# Database (connection string de Neon, pooled)
 DATABASE_URL=
 
-# Stripe
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
-STRIPE_CONNECT_CLIENT_ID=
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
-
 # App
-NEXT_PUBLIC_APP_URL=https://place.app
-NEXT_PUBLIC_APP_DOMAIN=place.app
+NEXT_PUBLIC_APP_URL=https://place.community
+NEXT_PUBLIC_APP_DOMAIN=place.community
 ```
+
+Las variables de auth/storage/realtime/pagos se agregan acá cuando se decida cada pieza.
 
 ## Package manager
 
@@ -60,25 +58,13 @@ NEXT_PUBLIC_APP_DOMAIN=place.app
 
 ## Versión de Node
 
-Node LTS (20.x o superior). Definida en `.nvmrc` y en `package.json` via `engines`.
+Node LTS (22.x o superior). Vercel corre el proyecto en Node 24.x. Fijar en `.nvmrc` y en `package.json` via `engines` cuando se reintroduzcan.
 
-## Request-scoped caching (patrón)
+## Request-scoped caching (patrón a reimplementar)
 
-Dentro del render de un RSC tree, evitamos queries duplicadas a la misma fila
-mediante primitives cacheados por request. Dos capas:
+Patrón arquitectónico para cuando se reconstruya la capa de datos. Dentro del render de un RSC tree, evitar queries duplicadas a la misma fila mediante primitives cacheados por request:
 
-- **`React.cache`** para primitives con clave única: `getCurrentAuthUser`,
-  `findActiveMembership(userId, placeId)`, `findPlaceOwnership(userId, placeId)`,
-  `findUserProfile(userId)`. Viven en `src/shared/lib/`.
-- **Maps compartidos cross-key** cuando una misma entidad se accede por más de
-  una clave natural. Hoy aplica a `Place` (slug + id) en
-  `src/shared/lib/place-loader.ts`. `React.cache` no dedupea entre funciones
-  distintas, así que hacemos cross-population manual: al resolver por una key,
-  sembramos la otra con el mismo `Promise`.
+- **`React.cache`** para primitives con clave única (ej. usuario actual, membership activa, ownership, perfil de usuario). Viven en `src/shared/lib/`.
+- **Maps compartidos cross-key** cuando una misma entidad se accede por más de una clave natural (ej. `Place` por slug y por id). `React.cache` no dedupea entre funciones distintas, así que se hace cross-population manual: al resolver por una key, se siembra la otra con el mismo `Promise`.
 
-Ver ADRs:
-
-- `docs/decisions/2026-04-20-request-scoped-identity-cache.md` — patrón base.
-- `docs/decisions/2026-04-21-unified-place-cache.md` — extensión cross-key.
-- Pointer en `CLAUDE.md` § Gotchas sobre pgbouncer explica por qué cada query
-  redundante cuesta caro en dev.
+Cuando se reimplemente, documentar la decisión en `docs/decisions/`.

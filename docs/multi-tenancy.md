@@ -34,8 +34,7 @@ src/app/
 │       ├── [zone]/page.tsx
 │       ├── thread/[id]/page.tsx
 │       └── settings/page.tsx
-├── api/
-│   └── webhooks/stripe/route.ts
+├── api/              Route handlers (webhooks, cron, etc.) — a definir
 └── middleware.ts
 ```
 

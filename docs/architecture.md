@@ -29,7 +29,7 @@ src/
 ├── app/          Next.js App Router (delgado, delega a features)
 ├── features/     Un directorio por vertical slice
 ├── shared/       Primitivos agnósticos al dominio (ui, lib, hooks, config)
-└── db/           Schema Prisma, migraciones, cliente
+└── db/           Esquema Neon (Postgres), migraciones, cliente (acceso TBD)
 ```
 
 ## Límites de tamaño
@@ -41,15 +41,13 @@ src/
 
 Superar un límite es señal de que hay que dividir.
 
-## Cookies de sesión Supabase (Domain)
+## Cookies de sesión cross-subdomain (regla a reinstaurar)
 
-**Regla:** TODA `Set-Cookie` para `sb-*-auth-token` (cookies de sesión Supabase) DEBE setear `Domain=<apex>` explícito. En código se hace via el helper `cookieDomain(NEXT_PUBLIC_APP_DOMAIN)` (resuelve a `place.community` en prod, sin domain en dev local).
+> El proveedor de auth es **TBD**. Cuando se elija, esta regla se reescribe con los detalles concretos. Se conserva el principio porque la arquitectura multi-tenant por subdomain lo va a requerir igual.
 
-**Por qué:** cookies host-only (sin `Domain` attribute) en subdomains place sobrescriben las del apex y rompen `getSession()` del SDK. Por **RFC 6265 § 5.3 step 6**, las host-only tienen precedencia y aparecen primero en el Cookie header → el SDK lee la cookie host-only (potencialmente invalidada) en lugar de la apex correcta. Bug reproducido y documentado en `docs/decisions/2026-05-10-cookie-residual-host-only-cleanup.md`.
+**Principio:** cualquier cookie de sesión compartida entre el apex y los subdomains de place DEBE setear `Domain=<apex>` explícito (resuelto desde `NEXT_PUBLIC_APP_DOMAIN`; `place.community` en prod, sin domain en dev local).
 
-**Excepción única:** cleanup defensivo `Max-Age=0` en `shared/lib/supabase/middleware.ts` y `shared/lib/supabase/cookie-cleanup.ts` emite cookies host-only intencionalmente para LIMPIAR residuales históricas. Estas son las únicas dos ubicaciones whitelisted.
-
-**Test guard:** `tests/boundaries.test.ts` valida estáticamente que cualquier `.cookies.set('sb-...`, `cookieStore.set('sb-...`, o `headers.append('Set-Cookie', 'sb-...` en `src/` esté en una ventana de ±5 líneas con un `domain`/`Domain=`/`cookieDomain` referenciado. Falla el build si alguien introduce un emisor sin Domain.
+**Por qué:** cookies host-only (sin `Domain`) en un subdomain place sobrescriben las del apex. Por **RFC 6265 § 5.3 step 6** las host-only tienen precedencia y aparecen primero en el `Cookie` header, así que el código de sesión puede leer una cookie host-only (potencialmente inválida) en vez de la apex correcta. Cuando se reimplemente auth, agregar un test guard estático que falle el build si se emite una cookie de sesión sin `Domain`.
 
 ## Streaming agresivo del shell
 
@@ -126,10 +124,7 @@ Los 3 Suspense children del page suelen compartir queries (ej: `resolveViewerFor
 
 ### Implementaciones de referencia
 
-- `src/app/[placeSlug]/(gated)/conversations/[postSlug]/` — patrón canónico. Phase 1 del refactor.
-- `src/app/[placeSlug]/(gated)/library/[categorySlug]/[itemSlug]/` — replica del patrón.
-
-Para nuevas pages de detalle, copiar la estructura de cualquiera de los dos antes de improvisar.
+Aún no existen (reset a scaffold limpio). La primera page de detalle que se construya con este patrón queda como implementación canónica y se referencia acá.
 
 ## Regla de sesiones
 
@@ -142,15 +137,13 @@ Para nuevas pages de detalle, copiar la estructura de cualquiera de los dos ante
 
 Cada área técnica tiene su propio documento. Leer el relevante antes de implementar.
 
-- [`docs/stack.md`](docs/stack.md) — stack técnico completo y variables de entorno
-- [`docs/multi-tenancy.md`](docs/multi-tenancy.md) — routing por subdomain, DNS, middleware
-- [`docs/data-model.md`](docs/data-model.md) — schema Prisma e invariantes del dominio
-- [`docs/feature-flags.md`](docs/feature-flags.md) — registro central y activación por place
-- [`docs/billing.md`](docs/billing.md) — los tres modos de pago y estados del place
-- [`docs/realtime.md`](docs/realtime.md) — dónde usamos Supabase Realtime y dónde no
-- [`docs/notifications.md`](docs/notifications.md) — qué sí y qué no hay en el MVP
-- [`docs/theming.md`](docs/theming.md) — CSS variables configurables por place
-- [`docs/roadmap.md`](docs/roadmap.md) — orden de construcción del MVP y lo que no construimos
+- [`docs/stack.md`](stack.md) — stack técnico completo y variables de entorno
+- [`docs/multi-tenancy.md`](multi-tenancy.md) — routing por subdomain, DNS, middleware
+- [`docs/data-model.md`](data-model.md) — schema SQL del core e invariantes del dominio
+- [`docs/ontologia/`](ontologia/) — documentos canónicos de cada objeto (conversaciones, eventos, miembros)
+- [`docs/landingpage/`](landingpage/) — arquitectura y contenido de la landing pública
+
+Otros docs (feature-flags, billing, realtime, notifications, theming, roadmap) se eliminaron en el reset y se reescriben cuando la feature correspondiente se reconstruya.
 
 ## Checklist de validación por feature
 

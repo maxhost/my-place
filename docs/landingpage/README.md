@@ -4,10 +4,12 @@
 > accionable: un dev debe poder construir la landing leyendo estos 4
 > archivos sin inventar nada. NO hay código en `src/` todavía.
 >
-> **Corresponde a:** `docs/roadmap.md` § "Fase 8 — Landing + onboarding"
-> (primer bullet: "Landing pública en `place.app`"). Reemplaza el
-> placeholder actual de `src/app/page.tsx` ("Landing placeholder · Fase 8
-> del roadmap").
+> ⚠️ **Pre-reset:** estos 4 archivos son anteriores al reset a scaffold
+> limpio. Referencian docs eliminados (`blueprint.md`, `roadmap.md`,
+> `theming.md`, `docs/features/*`) y `architecture.md` (de esta carpeta)
+> describe el stack viejo (Supabase/Prisma). Tomar la **intención de
+> diseño/contenido** como válida; ignorar los detalles de stack y los
+> links a docs borrados hasta una pasada de actualización dedicada.
 
 ## Objetivo
 
