@@ -1,8 +1,11 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
 import { EDIT_WINDOW_MS, openPostEditSession, ThreadHeaderBar } from '@/features/discussions/public'
+import { PostComposerWrapper } from '@/features/discussions/composers/public'
 import { findPostBySlug, resolveViewerForPlace } from '@/features/discussions/public.server'
 import { hasPermission } from '@/features/members/public.server'
+import { getEditorConfigForPlace } from '@/features/editor-config/public.server'
+import type { LexicalDocument } from '@/features/rich-text/public'
 
 type Props = {
   params: Promise<{ placeSlug: string; postSlug: string }>
@@ -68,6 +71,8 @@ export default async function EditPostPage({ params }: Props) {
     }
   }
 
+  const enabledEmbeds = await getEditorConfigForPlace(place.id)
+
   return (
     <div className="pb-32">
       <ThreadHeaderBar backHref={`/conversations/${post.slug}?from=conversations`} />
@@ -76,9 +81,19 @@ export default async function EditPostPage({ params }: Props) {
           <h1 className="font-serif text-2xl italic text-text">Editar conversación</h1>
           <p className="mt-1 text-sm text-muted">Sin apuro. Guardá cuando tenga sentido.</p>
         </header>
-        <div data-testid="post-edit-composer-placeholder" data-has-session={session !== null}>
-          {/* S2 reemplaza esto por <PostComposerWrapper mode="edit" />. */}
-        </div>
+        <PostComposerWrapper
+          mode={{
+            kind: 'edit',
+            postId: post.id,
+            postSlug: post.slug,
+            expectedVersion: post.version,
+            initialTitle: post.title,
+            initialDocument: post.body as LexicalDocument | null,
+            session,
+          }}
+          placeId={place.id}
+          enabledEmbeds={enabledEmbeds}
+        />
       </div>
     </div>
   )

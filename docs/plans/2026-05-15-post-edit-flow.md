@@ -83,7 +83,39 @@ hasta S3).
 
 ---
 
-## Sesión 2 — Wrapper discriminated mode + embed-safe load
+## Sesión 2 — Wrapper discriminated mode + embed-safe load ✅ EJECUTADA
+
+**Decisión de ejecución (tests)**: el repo NO testea composer-form
+wrappers (no existe `discussions/ui/__tests__/`) ni hace tests de
+integración Lexical con node registration. Son thin glue sobre server
+actions que SÍ están testeadas (`editPostAction` →
+`server/actions/posts/__tests__/edit.test.ts`: gate G.3 + optimistic
+lock + session token). No se introducen patrones de test ausentes
+(coherente con S1 y la regla de oro). El cambio `buildNodes` es
+**aditivo** (registra más node klasses, nunca menos) → no puede romper
+deserialización; cubierto por la suite existente (renderer + schemas).
+
+**Files realmente tocados**:
+
+- `src/features/rich-text/composers/ui/base-composer.tsx`: `buildNodes`
+  ahora registra SIEMPRE los 4 embed nodes en surfaces con embeds
+  (independiente de `enabledEmbeds`). Firma simplificada a
+  `buildNodes(surface)`. Plugins de inserción siguen gateados por
+  `enabledEmbeds` (sin cambios). Comentario explica el round-trip.
+- `src/features/discussions/ui/post-composer-form.tsx`: discriminated
+  union `CreateMode | EditMode`. Edit → `editPostAction({ postId,
+title, body, expectedVersion, session? })`; errores via
+  `friendlyErrorMessage` (reuso, no se reinventa copy). initialDocument
+  nullable (espeja `<LibraryItemComposerForm>`).
+- `src/app/.../conversations/new/page.tsx`: pasa `mode={{kind:'create'}}`.
+- `src/app/.../conversations/[postSlug]/edit/page.tsx`: monta el wrapper
+  en mode edit (reemplaza placeholder de S1) + `getEditorConfigForPlace`.
+
+**Verificación S2**: `pnpm typecheck` verde. `pnpm vitest run
+src/features/discussions src/features/rich-text` → 417/417 verde (cero
+regresión). LOC real: ~150. Riesgo deploy: bajo.
+
+### Plan original S2 (referencia)
 
 **Goal**: `<PostComposerWrapper>` soporta `CreateMode | EditMode`. Edit
 carga initial title+body, dispara `editPostAction` con `session`, maneja

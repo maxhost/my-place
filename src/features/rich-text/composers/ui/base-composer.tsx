@@ -70,17 +70,22 @@ function surfaceAllowsEmbeds(surface: ComposerSurface): boolean {
   return surface === 'post' || surface === 'library-item'
 }
 
-function buildNodes(
-  surface: ComposerSurface,
-  enabledEmbeds?: EnabledEmbeds,
-): ReadonlyArray<LexicalNodeKlass> {
+/**
+ * Nodos registrados en el editor. En surfaces que admiten embeds se
+ * registran SIEMPRE los 4 embed nodes — independiente del toggle
+ * `enabledEmbeds` del place.
+ *
+ * Por qué: el toggle controla si el usuario *inserta* embeds nuevos
+ * (gate en los plugins de inserción), NO si el editor *entiende* nodos
+ * embed ya persistidos. Si un body viejo tiene `{type:'youtube'}` y el
+ * place luego apaga el toggle, sin el node registrado Lexical descarta
+ * el nodo desconocido al hidratar y al re-guardar se pierde el video
+ * sin aviso. Registrar siempre el klass hace el round-trip seguro.
+ */
+function buildNodes(surface: ComposerSurface): ReadonlyArray<LexicalNodeKlass> {
   const base = [...SURFACE_NODES[surface]]
-  if (!surfaceAllowsEmbeds(surface) || !enabledEmbeds) return base
-  if (enabledEmbeds.youtube) base.push(YouTubeNode)
-  if (enabledEmbeds.spotify) base.push(SpotifyNode)
-  if (enabledEmbeds.applePodcasts) base.push(ApplePodcastNode)
-  if (enabledEmbeds.ivoox) base.push(IvooxNode)
-  return base
+  if (!surfaceAllowsEmbeds(surface)) return base
+  return [...base, YouTubeNode, SpotifyNode, ApplePodcastNode, IvooxNode]
 }
 
 export type BaseComposerProps = {
@@ -148,7 +153,7 @@ export function BaseComposer({
 
   const initialConfig: InitialConfigType = {
     namespace: `place-${surface}`,
-    nodes: buildNodes(surface, enabledEmbeds),
+    nodes: buildNodes(surface),
     onError: (error: Error) => {
       // El editor nunca debería propagar errores al render tree principal —
       // los logueamos en consola para diagnóstico y dejamos que LexicalErrorBoundary

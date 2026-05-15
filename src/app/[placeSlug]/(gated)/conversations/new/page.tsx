@@ -41,7 +41,11 @@ export default async function NewPostPage({ params }: Props) {
           Sin apuro. Escribí y publicá cuando tenga sentido.
         </p>
       </header>
-      <PostComposerWrapper placeId={place.id} enabledEmbeds={enabledEmbeds} />
+      <PostComposerWrapper
+        mode={{ kind: 'create' }}
+        placeId={place.id}
+        enabledEmbeds={enabledEmbeds}
+      />
     </div>
   )
 }
