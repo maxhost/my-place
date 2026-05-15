@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { loadPlaceBySlug } from '@/shared/lib/place-loader'
 import { resolveViewerForPlace } from '@/features/discussions/public.server'
+import { ThreadHeaderBar } from '@/features/discussions/public'
 import { ALLOWED_TIMEZONES } from '@/features/hours/public'
 import { EventForm } from '@/features/events/forms/public'
 import { getEvent } from '@/features/events/public.server'
@@ -54,28 +55,31 @@ export default async function EditEventPage({ params }: Props) {
   const initialDescription = extractLexicalDescription(event.description)
 
   return (
-    <div className="space-y-6 p-4 md:p-8">
-      <header>
-        <h1 className="font-serif text-2xl italic text-text">Editar evento</h1>
-        <p className="mt-1 text-sm text-muted">
-          Los cambios no se reflejan en el thread asociado (la conversación queda intacta).
-        </p>
-      </header>
-      <EventForm
-        mode={{
-          kind: 'edit',
-          eventId: event.id,
-          initialTitle: event.title,
-          initialDescription,
-          initialStartsAt: toDatetimeLocal(event.startsAt),
-          initialEndsAt: event.endsAt ? toDatetimeLocal(event.endsAt) : '',
-          initialTimezone: event.timezone,
-          initialLocation: event.location ?? '',
-          postSlug: event.postSlug,
-        }}
-        placeId={place.id}
-        allowedTimezones={ALLOWED_TIMEZONES}
-      />
+    <div className="pb-32">
+      <ThreadHeaderBar backHref={fallbackUrl} />
+      <div className="space-y-6 p-4 md:p-8">
+        <header>
+          <h1 className="font-serif text-2xl italic text-text">Editar evento</h1>
+          <p className="mt-1 text-sm text-muted">
+            Los cambios no se reflejan en el thread asociado (la conversación queda intacta).
+          </p>
+        </header>
+        <EventForm
+          mode={{
+            kind: 'edit',
+            eventId: event.id,
+            initialTitle: event.title,
+            initialDescription,
+            initialStartsAt: toDatetimeLocal(event.startsAt),
+            initialEndsAt: event.endsAt ? toDatetimeLocal(event.endsAt) : '',
+            initialTimezone: event.timezone,
+            initialLocation: event.location ?? '',
+            postSlug: event.postSlug,
+          }}
+          placeId={place.id}
+          allowedTimezones={ALLOWED_TIMEZONES}
+        />
+      </div>
     </div>
   )
 }
