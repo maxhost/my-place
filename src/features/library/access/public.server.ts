@@ -17,3 +17,9 @@ import 'server-only'
 // ---------------------------------------------------------------
 
 export { findReadScope, type LibraryCategoryReadScope } from './server/queries'
+
+// ---------------------------------------------------------------
+// Gate de lectura — punto único de verdad (Plan A, Hallazgo #2)
+// ---------------------------------------------------------------
+
+export { assertCategoryReadable, canViewCategory } from './server/assert-readable'

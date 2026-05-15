@@ -51,7 +51,19 @@ la existencia del nombre de categoría).
 
 ## Sesiones
 
-### S1 — Helper compartido + tests (sin cablear)
+### S1 — Helper compartido + tests (sin cablear) ✅ EJECUTADA
+
+**Resultado**: NEW `access/server/assert-readable.ts` (~95 LOC):
+`canViewCategory` (boolean, UI) + `assertCategoryReadable`
+(NotFoundError si no existe / AuthorizationError si denegado). Núcleo
+`resolveAccess` aplica `canReadCategory || canWriteCategory` (decisión
+B). Reusa `findReadScope` + `findWriteScope` (cacheados). Exportado en
+`access/public.server.ts`. NEW test `__tests__/assert-readable.test.ts`
+(10 tests TDD red→green): PUBLIC, owner bypass, admin-no-owner NO
+bypassa, GROUPS match/no-match, write-implica-read, inexistente.
+Typecheck verde, library 307/307 (cero regresión). Nada cableado aún.
+
+### S1 — Plan original (referencia)
 
 - NEW `src/features/library/access/server/assert-readable.ts` (~70 LOC):
   `assertCategoryReadable({ categoryId, viewer })` → resuelve
