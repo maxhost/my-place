@@ -20,6 +20,12 @@ Schema del core del producto, expresado en **SQL (Postgres) ORM-agnóstico**. El
 -- removieron del core hasta decidir proveedor de pagos.
 CREATE TYPE billing_mode AS ENUM ('OWNER_PAYS', 'OWNER_PAYS_AND_CHARGES', 'SPLIT_AMONG_MEMBERS');
 
+-- Lifecycle del place por la suscripción del owner (ver ADR-0003). El borrado
+-- a los 12m es purga física, no un estado. Mecanismo de cobro: Pagos TBD.
+CREATE TYPE place_subscription_status AS ENUM (
+  'ACTIVE', 'PAYMENT_PENDING', 'INACTIVATION_PROCESS', 'INACTIVE'
+);
+
 CREATE TABLE app_user (
   id           TEXT PRIMARY KEY,
   -- 1:1 con la identidad de login de Better Auth. Referencia lógica (sin FK
@@ -33,6 +39,12 @@ CREATE TABLE app_user (
   -- reuso SOLO al borrar la cuenta — salir de un place no lo libera.
   handle       TEXT NOT NULL UNIQUE,
   avatar_url   TEXT,
+  -- Resetea con cualquier login. Driver de la escala de inactividad de cuenta
+  -- (6m inactivo / 12m eliminación) — solo aplica si NO exento (ver invariantes).
+  last_active_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Fin irreversible: scrub de PII + handle liberado; la fila queda como cáscara
+  -- "ex-miembro" para preservar FKs de contenido (tombstone, ver ADR-0003).
+  tombstoned_at  TIMESTAMPTZ,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -44,6 +56,10 @@ CREATE TABLE place (
   theme_config     JSONB NOT NULL DEFAULT '{}',
   opening_hours    JSONB NOT NULL DEFAULT '{}',
   billing_mode     billing_mode NOT NULL,
+  -- Suscripción del owner → plataforma (ver ADR-0003). ACTIVE por default;
+  -- al impago avanza por los estados. La eliminación a 12m es purga física.
+  subscription_status   place_subscription_status NOT NULL DEFAULT 'ACTIVE',
+  subscription_past_due_at TIMESTAMPTZ,  -- vencimiento impago que abrió el ciclo
   enabled_features JSONB NOT NULL DEFAULT '["conversations","events","members"]',
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   archived_at      TIMESTAMPTZ
@@ -109,6 +125,8 @@ Reglas que el código debe enforzar. No son validaciones UI — son invariantes 
 - **Un humano = un `app_user`.** Relación 1:1 con la identidad de login de Better Auth (`app_user.auth_user_id UNIQUE`), sin importar por qué dominio entró. El SSO cross-domain no crea identidades nuevas.
 - **Rol derivado, no almacenado.** Un usuario es owner de un place si existe fila en `place_ownership`; si solo tiene `membership`, es miembro. No existe rol `admin`: la administración delegada será una feature futura de grupos con permisos granulares.
 - **Handle obligatorio y único global.** `app_user.handle NOT NULL UNIQUE`. Auto-asignado random no-usado al crear la cuenta, editable por el usuario, liberado para reuso **solo al borrar la cuenta** (no al salir de un place).
+- **Exención de la escala de inactividad.** La escala 6m/12m de cuenta NO corre mientras el usuario sea owner de ≥1 place activo O tenga ≥1 pago activo. Es una condición evaluada, no un flag permanente: al dejar de cumplir ambas, la cuenta entra a la escala. Ver ADR-0003.
+- **Place requiere suscripción del owner activa.** Sin pago, el place avanza por `subscription_status` hasta purga a los 12m. La eliminación/tombstone de un usuario que es único owner de un place activo se bloquea: primero transferir ownership o cerrar el place (extiende "mínimo 1 owner").
 
 ## Capas de identidad de un usuario
 
@@ -129,16 +147,20 @@ Place actúa como su propio OIDC Identity Provider. La topología y el flujo SSO
 
 ## Derecho al olvido
 
-Cuando un usuario deja un place (`membership.left_at` se setea):
+Decidido en **ADR-0003** (reemplaza la regla previa de 365 días por-place). Dos lifecycles independientes:
 
-- El contenido que creó (mensajes, temas, eventos) queda en el place
-- Durante 365 días ese contenido sigue atribuido a su nombre (trazabilidad)
-- Pasados los 365 días, un job periódico reemplaza el user reference por un placeholder "ex-miembro"
-- Su presencia, lecturas y actividad se borran inmediatamente al salir
+**Salir de un place** (`membership.left_at`): el contenido que creó queda en el place atribuido a su nombre (es del place); su presencia, lecturas y actividad en ese place se borran inmediatamente. Salir de un place **no** anonimiza ni libera el handle — sigue siendo el mismo `app_user` en los otros places.
 
-**Salir de un place ≠ borrar la cuenta.** Lo de arriba es per-place (`membership.left_at`); el usuario sigue siendo el mismo `app_user` con su handle en los otros places. **Borrar la cuenta** es la operación universal: ahí sí se libera el `handle` para reuso y se desliga la identidad de login (capa universal).
+**Lifecycle de cuenta** (escala de inactividad, basada en `last_active_at`):
 
-Esta política se implementa en `features/members/` con un cron job o scheduled function.
+- **6 meses** sin login → `inactivo` (solo estado derivado; sin efecto adicional).
+- **12 meses** sin login → **tombstone** (`tombstoned_at`): scrub de PII (`email`, `display_name`, `avatar_url`), `handle` liberado, identidad de login de Better Auth borrada; la fila `app_user` queda como cáscara anónima "ex-miembro" para preservar los FKs de contenido. **Irreversible.** Todo su contenido (incluidos DMs) pasa a "ex-miembro"; si ambas partes de un DM están tombstoned, la conversación se elimina.
+- Avisos email 30d/7d/final; login resetea `last_active_at`.
+- **Exención:** la escala NO corre mientras el usuario sea owner de ≥1 place activo O tenga ≥1 pago activo (ver invariante).
+
+**Lifecycle del place** (suscripción del owner, `subscription_status`): `ACTIVE` → `PAYMENT_PENDING` (owner no entra; solo transferir/cerrar/regularizar; avisos d0/+2/+7) → `INACTIVATION_PROCESS` (email a todos los miembros) → 20 días → `INACTIVE` → 12 meses sin regularizar → purga física del place (contenido y memberships; los DMs sobreviven en el inbox universal).
+
+Implementado en `features/members/` y `features/places/` con cron/scheduled functions. El borrado de cuenta es operación de dos sistemas (scrub `app_user` + borrado de identidad Better Auth), ordenada. Schema de tiers por miembro y mecanismo de cobro: diferidos (ver ADR-0003 / Pagos TBD en `stack.md`).
 
 ## Convenciones
 

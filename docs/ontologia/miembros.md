@@ -52,18 +52,14 @@ En Place **no existe esa sección**. Los miembros se manifiestan en los lugares 
 
 Si querés ver el perfil de un miembro específico, tocás su nombre desde donde lo encontraste.
 
-### Cuatro — Derecho al olvido estructurado con ventana de trazabilidad
+### Cuatro — Derecho al olvido estructurado
 
-Un perfil tradicional se borra y desaparece, o queda abandonado como fantasma. No hay política intermedia clara.
+Un perfil tradicional se borra y desaparece, o queda abandonado como fantasma. No hay política intermedia clara. En Place hay dos planos distintos (detalle y plazos en `docs/decisions/0003-lifecycle-cuenta-place-tombstone.md`):
 
-En Place, cuando un miembro sale de un place:
+- **Salir de un place:** el **contenido que creó** (temas, mensajes, eventos, documentos) queda en el place como parte del lugar, atribuido a su nombre — es del place, no del individuo. Su **rastro personal** (presencia, actividad, lecturas) en ese place se borra inmediatamente. Salir de un place no lo anonimiza ni libera su handle: sigue siendo la misma persona en los otros places.
+- **Inactividad de cuenta:** si una cuenta sin pago activo no se usa por mucho tiempo, primero queda `inactivo` y, más adelante, se elimina y **anonimiza de forma irreversible** ("ex-miembro"): se borra su rastro personal, su nombre se desliga de todo su contenido y su handle se libera. Quien es owner de un place o paga está exento de esta escala.
 
-- El **contenido que creó** (temas, mensajes, eventos, documentos) queda en el place como parte del lugar
-- Durante **365 días**, ese contenido sigue atribuido a su nombre (trazabilidad legal si hay conflicto)
-- Pasados los 365 días, pasa a **"ex-miembro"** — su nombre se desliga del contenido
-- Su **rastro personal** (presencia, actividad, lecturas) se borra inmediatamente al salir, sin esperar los 365 días
-
-Esto resuelve dos tensiones que la mayoría de productos no resuelve bien: privacidad real vs trazabilidad legal, y derecho al olvido vs memoria del lugar. El contenido no desaparece (es del place), pero el individuo puede desligarse.
+Esto resuelve dos tensiones que la mayoría de productos no resuelve bien: privacidad real vs memoria del lugar, y olvido del individuo vs permanencia del contenido. El contenido no desaparece (es del place), pero el individuo puede desligarse.
 
 ### Cinco — No existe fuera de los places
 
@@ -157,8 +153,8 @@ Los DMs se inician desde un place, pero viven en un inbox universal del usuario.
 
 Cuando uno de los dos sale del place donde se conocieron:
 
-- Si comparten OTRO place, la conversación sigue normal
-- Si no comparten ningún place, los DMs existentes quedan accesibles pero se aplica la misma regla de los 365 días del contenido: pasado ese período, los mensajes se desligan del nombre del que se fue y quedan atribuidos a "ex-miembro"
+- Compartan o no otro place, la conversación sigue accesible: los DMs viven en el inbox universal, no en el place.
+- Los DMs siguen la **escala de cuenta**, no la de places: si una cuenta se elimina por inactividad (ver § "Derecho al olvido"), sus mensajes pasan a "ex-miembro". Si **ambas** partes quedaron como ex-miembro, la conversación se elimina por completo.
 
 ---
 
@@ -233,7 +229,7 @@ El handle es:
 - Formato: letras, números, algunos caracteres permitidos. Sin espacios.
 - Visible en el perfil contextual como "@max" debajo del nombre.
 - Útil para mencionar a alguien en un mensaje cross-place (si algún día se permite).
-- **Ciclo de vida:** el handle se libera y vuelve a estar disponible **solo al borrar la cuenta**. Salir de un place (volverse "ex-miembro" ahí) NO libera el handle — seguís siendo la misma persona en los otros places. El "ex-miembro" es un estado por-place del contenido (capa 2); el handle es identidad universal (capa 1).
+- **Ciclo de vida:** el handle se libera y vuelve a estar disponible **solo al eliminarse la cuenta** (anonimización irreversible por inactividad, ver § "Derecho al olvido"). Salir de un place NO libera el handle — seguís siendo la misma persona en los otros places. "Ex-miembro" es el estado de la cuenta tombstoned (universal), no un estado por-place.
 
 ---
 
@@ -265,7 +261,7 @@ Se abre perfil contextual con toda su historia en el place. Clara, densa, basada
 Desde el perfil, botón "iniciar conversación". Abre el DM en el inbox universal. Si ya había conversación, continúa; si no, empieza.
 
 **Miembro sale del place**:
-Durante 365 días su contenido sigue con su nombre (trazabilidad). Después se desliga. Su presencia desaparece inmediatamente al salir.
+Su contenido queda en el place con su nombre (es del place); su presencia y rastro personal ahí desaparecen inmediatamente. No se anonimiza ni pierde el handle por salir: eso solo ocurre si la cuenta se elimina por inactividad.
 
 ---
 
