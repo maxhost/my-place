@@ -48,7 +48,7 @@ Inventario de todo lo que Place incluye o quiere incluir. Es el **backlog y mapa
 |---|---|---|---|
 | Suscripción del owner | Pago mensual del place; lifecycle pago-pendiente→inactivo→purga | Core (mecanismo TBD) | ADR-0003 |
 | Tiers de miembro | Monetización de la comunidad: accesos pagados por tier | Roadmap (schema diferido) | ADR-0003 |
-| Planes de plataforma | **Dos planes**: Comunidad (sin/baja comisión — "lo que cobrás es tuyo") y Hobbie (más barato, Place toma comisión para cubrir costos). Modelo = suscripción + comisión por plan. **Precio y % sin decidir.** Extiende ADR-0003 | Decidido en estructura, números TBD | (ADR cuando se fijen números) |
+| Planes de plataforma | **Dos planes** + 30 días gratis. Hobby **$7/mes**, Comunidad **$30/mes**. Comunidad sin/baja comisión ("lo que cobrás es tuyo"); Hobby comisión para cubrir costos. **% de comisión aún sin fijar.** Extiende ADR-0003 | Precios decididos; comisión TBD | (ADR-0004 cuando se fije comisión) |
 | Pagos (proveedores) | Multi-proveedor: Stripe, PayPal, MercadoPago | TBD (proveedores conocidos) | `stack.md` |
 
 ## Transversal / experiencia

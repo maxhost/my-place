@@ -1,130 +1,109 @@
-# Landing pública de Place — spec + plan
+# Landing page · diseño canónico
 
-> **Estado:** spec de diseño (NO implementada). Esto es documentación
-> accionable: un dev debe poder construir la landing leyendo estos 4
-> archivos sin inventar nada. NO hay código en `src/` todavía.
->
-> ⚠️ **Pre-reset:** estos 4 archivos son anteriores al reset a scaffold
-> limpio. Referencian docs eliminados (`blueprint.md`, `roadmap.md`,
-> `theming.md`, `docs/features/*`) y `architecture.md` (de esta carpeta)
-> describe el stack viejo (Supabase/Prisma). Tomar la **intención de
-> diseño/contenido** como válida; ignorar los detalles de stack y los
-> links a docs borrados hasta una pasada de actualización dedicada.
+Diseño de la landing pública de Place (`place.community`). Convergencia de 3 investigaciones 2026: anatomía de alta conversión, UX/UI + performance, y análisis competitivo/posicionamiento. Reemplaza los docs de landing pre-reset (que describían stack viejo Supabase/Prisma y un enfoque "una página → /login").
 
-## Objetivo
+> _Última actualización: 2026-05-16._ Documento vivo de diseño. La implementación en código es una sesión aparte (spec antes de código, `CLAUDE.md`); el push a Vercel requiere autorización explícita.
 
-La landing es **la puerta**. Es lo que ve TODA persona no logueada que
-entra al dominio apex de Place (hoy `lvh.me:3000` en dev; ver
-[decisión D1](#decisiones-abiertas) sobre el apex de producción). Su
-único trabajo es:
+---
 
-1. Explicar **qué es Place** con el tono correcto (cozytech, íntimo, nada
-   grita) sin prometer features que no existen.
-2. Llevar a la persona a **registrarse / entrar** (`/login`), desde donde
-   el flujo de onboarding decide: crear place / unirse vía directorio /
-   aceptar invitación (ver `docs/rls/place-access.md` § "Crear" y
-   `docs/features/places/spec.md`).
+## Objetivos
 
-No es un sitio de marketing extenso. Es una sola página, sobria,
-extremadamente rápida. Referencia de estructura/tono (NO de copia ni de
-estética):
-[wyloapp.com](https://www.wyloapp.com/) — pero **más simple**.
+- **Alta conversión** sin traicionar el DNA (nada grita, sin urgencia, sin FOMO — y en 2026 eso *también* convierte).
+- **Diferenciación**: comunidad no audiencia; lo pequeño como virtud; ritmo/calma; 0% comisión como argumento ético.
+- **Valor claro** para 3 públicos: creadores con comunidad, organizaciones, empresas (intranet-comunidad).
+- **Extremadamente rápida**: TTFB < 200ms, LCP < 1s, CLS ~0, INP < 160ms.
+- **Multi-idioma**: ES day-one; EN/FR/PT después.
 
-## Mapa de los documentos
+## Posicionamiento (el hueco que nadie ocupa)
 
-| Archivo                          | Qué responde                                                                 |
-| -------------------------------- | ---------------------------------------------------------------------------- |
-| `README.md` (este)               | Objetivo, presupuesto de performance, dónde buscar cada cosa, decisiones abiertas |
-| [`architecture.md`](./architecture.md) | Dónde vive la landing en el repo, ruteo apex, estrategia de rendering (SSG/RSC), boundaries, data |
-| [`styles.md`](./styles.md)       | Sistema visual: tipografía, color (CSS vars), escala, espaciado, componentes, tokens |
-| [`content.md`](./content.md)     | Estructura de secciones + copy placeholder en español, marcas `[A DEFINIR]`   |
+La categoría entera (Circle, Skool, Mighty, Heartbeat, Patreon, Discord) vende lo mismo: all-in-one, escala ilimitada, "monetizá tu audiencia", engagement/retención, AI. **Nadie defiende lo pequeño, ni habla del miembro como persona, ni vende calma.** Ese es el territorio de Place.
 
-**Si en el futuro hay que modificar la landing, buscá acá primero:**
+**Línea transversal (ningún competidor puede copiarla sin romper su modelo):**
+> "Las demás plataformas ganan más cuanto más grande y más adicta es tu comunidad. Nosotros ponemos el techo en 150 y no te cobramos comisión por tu gente. Nuestro incentivo es que tu lugar sea bueno, no infinito."
 
-- ¿Cambia el copy / agregar-quitar una sección? → `content.md` + la
-  sección correspondiente del componente (ver `architecture.md` §
-  "Estructura de archivos propuesta").
-- ¿Cambia un color / tipografía / espaciado? → `styles.md` (y los
-  tokens de `globals.css`; la landing NO inventa tokens propios).
-- ¿Cambia dónde vive / cómo se rutea / regresión de performance? →
-  `architecture.md`.
-- ¿Cambia el destino del CTA / el flujo de registro? →
-  `docs/rls/place-access.md` + `docs/features/auth/spec.md`
-  (la landing solo linkea, no implementa el flujo).
+**Voz:** **amistosa y cercana** (no corporativa, no manifiesto). Diferenciación **moderada**: la justa para capturar al potencial cliente, no un sermón contra la competencia. Mostrar la sensación, no predicar; dejar que "150", "cierra a la noche" y "0% comisión" argumenten solos. **No** sonar moralista/anti-tech.
 
-## Presupuesto de performance (objetivo duro: < 200ms)
+## Estructura de secciones
 
-El requisito del owner es **carga < 200ms** entendida como **TTFB +
-render del shell** (el documento usable y pintado, no necesariamente todos
-los assets hidratados). Esto **condiciona la arquitectura**: ver
-`architecture.md` § "Estrategia de rendering" para el CÓMO. Acá va el
-QUÉ se mide y el budget.
+Orden de alta conversión 2026, con qué decir / qué NO:
 
-### Qué se mide
+| # | Sección | Decir | NO decir |
+|---|---|---|---|
+| 1 | **Hero** | "Un lugar para hasta 150 personas que se conocen. Entrás, te ponés al día, participás si querés, y salís." 1 CTA primario. El número **150** acá o inmediatamente debajo. Pasa el 5-second test | "all-in-one", "complete platform", "launch in minutes", "scale", "grow", "AI-powered" |
+| 2 | **Prueba social** | Cita cualitativa de experiencia ("se siente como entrar a un bar donde me conocen"); nº de places | dólares ganados, nº miembros totales, "trusted by 25,000+" |
+| 3 | **Problema** | El dolor: plataformas que te tratan como generador de engagement / a tu gente como audiencia / te cobran comisión | — |
+| 4 | **Solución / cómo funciona** | Mecanismos concretos: conversaciones (turnos, no chat), presencia silenciosa, el place tiene horario y cierra, temas que no mueren, identidad visual propia | "engagement", "retention", "% que vuelven", "courses" como pilar |
+| 5 | **Diferenciación** | Contraste explícito comunidad vs audiencia/feed; 150 = decisión de diseño (Dunbar), no límite de plan | manifiesto acusador a competidores |
+| 6 | **Para quién** (selector) | Creador / organización / empresa — reordena ejemplos y testimonios, 1 CTA por vista | lenguaje SaaS B2B agresivo, "scale your business" |
+| 7 | **Testimonios** | Nombre + foto + cargo + experiencia concreta, cerca de CTA | "hice $3M", calculadora de ingresos |
+| 8 | **Pricing** | Transparencia total; "0% de comisión. Tu comunidad no es nuestro producto" como ancla ética; explicar el techo de 150 | costos ocultos, "monetize your audience", testimonios de revenue |
+| 9 | **FAQ / objeciones** | Privacidad/derecho al olvido, sin lock-in, "¿no se muere sin notificaciones?" (reframe activo), idiomas, qué pasa con >150 | — |
+| 10 | **CTA final** | Invitación calmada: "Creá tu lugar" | countdowns, "join 25,000+", urgencia |
+| 11 | **Footer** | Navegación secundaria, legal, selector de idioma; no compite con el CTA | — |
 
-| Métrica                         | Objetivo            | Cómo se mide                                                                 |
-| ------------------------------- | ------------------- | ---------------------------------------------------------------------------- |
-| TTFB (apex, página fría)        | < 50ms desde CDN    | Vercel Analytics / `curl -w "%{time_starttransfer}"` contra prod             |
-| TTFB + HTML shell render        | **< 200ms**         | WebPageTest / Lighthouse "Speed Index" en perfil cable; budget duro          |
-| FCP                             | < 250ms             | Lighthouse (CI con `@lhci/cli`, ver más abajo)                               |
-| LCP                             | < 800ms             | Lighthouse — el LCP candidato es el `<h1>` del hero (texto, no imagen)       |
-| CLS                             | 0                   | Lighthouse — cero layout shift: dimensiones explícitas en toda imagen        |
-| TBT / JS de cliente             | ~0ms                | La landing es 100% Server Component estático; CERO JS de cliente propio      |
+**CTA:** **una sola acción/mensaje, repetida en varias ubicaciones** (hero + tras solución + cierre, mínimo 3). No es un único botón (eso es una sola oportunidad = riesgo); es el mismo CTA presente varias veces, no CTAs que dicen cosas distintas. Copy de bajo compromiso ("Creá tu place" / "Probá Place", no "Registrate"/"Submit"). Empresa tolera CTA de mayor compromiso ("Solicitá una demo") con self-serve para los otros dos.
 
-### Budget de bytes / requests (página fría, sin caché)
+## Copy — dirección (a refinar con el owner)
 
-| Recurso                    | Budget                | Nota                                                                          |
-| -------------------------- | --------------------- | ----------------------------------------------------------------------------- |
-| HTML (gzip/brotli)         | ≤ 14 KB               | Cabe en la primera ventana de congestión TCP → 1 RTT. Crítico para el <200ms. |
-| CSS                        | ≤ 12 KB (gzip)        | Tailwind con `content` bien acotado + globals.css. Sin CSS de features.       |
-| Fuentes                    | ≤ 2 archivos, ≤ 60 KB | Inter + Fraunces ya self-hosted vía `next/font` (subsetting latin). Reusa el `next/font` del root layout — cero fuentes nuevas. |
-| Imágenes                   | ≤ 1, lazy salvo hero  | Si hay hero image: `next/image`, AVIF/WebP, `priority`, dimensiones explícitas. Preferir NO tener hero image (texto > imagen). |
-| JS de cliente (first load) | ≤ framework runtime   | Sin componentes `'use client'` propios. Solo el runtime mínimo de Next que igual se carga; idealmente `next/script` ausente. |
-| Requests totales (cold)    | ≤ 5                   | HTML + CSS + ≤2 fuentes + (opcional) 1 imagen. Sin terceros, sin analytics-blocking, sin web fonts externas. |
+- **H1 candidatos** (≤8 palabras, outcome, sin jerga): "Un lugar, no una plataforma." · "Tu comunidad, sin la máquina de atención." · "Reuní a tu comunidad, no a una audiencia."
+- **Subhead:** ataca la objeción/diferenciación. Ej.: "Hasta 150 personas que se conocen. Sin FOMO, sin métricas, sin algoritmo."
+- **Pricing subhead:** "0% de comisión en el plan comunidad. Lo que tu comunidad paga, llega a vos."
+- **Pricing concreto (MVP, se muestra):** **30 días gratis** como promesa destacada. Plan **Hobby $7/mes**, plan **Comunidad $30/mes**. (Comisión por plan aún sin fijar — ver índice de features / ADR-0004 pendiente; el copy de comisión 0% aplica al plan Comunidad como dirección, confirmar al cerrar números.)
+- **Reframe anti-objeción** (riesgo "se muere sin notificaciones"): "Los temas dormidos no mueren — cualquier mensaje revive una conversación de hace meses. El horario no apaga la comunidad: la hace un lugar al que se vuelve, no una app que te persigue."
 
-### Cómo se protege en CI (recomendado, ver decisión D5)
+## UX/UI (estética de restraint = tendencia 2026)
 
-- **Lighthouse CI** (`@lhci/cli`) con budget en
-  `lighthouse-budget.json`: falla el PR si HTML > 14 KB, CLS > 0, o
-  Performance score < 99.
-- **`@next/bundle-analyzer`** ya está configurado (`next.config.ts`,
-  `ANALYZE=true`). La ruta de la landing debe aparecer con **0 KB de
-  First Load JS propio** (solo el shared runtime de Next).
-- Estos gates son una propuesta; activarlos requiere decisión del owner
-  (D5) porque toca CI.
+- **Fondo "unbleached"** (papel/piedra cálido, no #FFF puro). 1 color de acento, usado con moderación (CTA).
+- **Tipografía = jerarquía**: máx 2 familias (idealmente 1 variable font), escala modular, titulares grandes pero **quietos** (tamaño = jerarquía, sin animación de entrada). Medida 60-75 caracteres.
+- **Whitespace dirige la atención** al CTA (no pop-ups, no urgencia). Sistema de espaciado 8px. Una idea por sección, max-width ~1100-1200px.
+- **Motion:** solo micro-transiciones de estado (hover/focus, 120-200ms) y siempre respetar `prefers-reduced-motion`. **Cero** parallax, scroll-jacking, auto-play, carruseles, contadores, pop-ups.
+- **WCAG 2.2 AA**: contraste 4.5:1 (cuidado con paleta tenue), targets ≥24px (44 en mobile), `:focus-visible` de alto contraste, HTML semántico (1 `<h1>`, landmarks), `lang` por locale, skip-link, sin info solo-por-color, reflow 320px, texto en `rem`.
+- **Mobile-first**: una columna, CTA sin scroll, cuerpo ≥16px, targets ≥44px, sin depender de hover.
 
-## Decisiones abiertas
+## Performance (cómo se logra el <200ms)
 
-> Marcadas para resolver con el owner antes de implementar. No las
-> resuelve el dev en una sesión de código (regla CLAUDE.md).
+- **SSG puro servido desde el edge de Vercel.** Cero APIs dinámicas (`cookies()`/`headers()`/dinámico) en el árbol → TTFB decenas de ms. (La regla de "streaming agresivo del shell" de `architecture.md` **NO** aplica: es para pages con datos, no para una landing estática — no meter `<Suspense>` artificial.)
+- **`next/font`** self-hosted, subset latin, pesos mínimos, `display:swap` + fallback metrics (CLS ~0.02). Reusar el `next/font` del root layout — cero fuentes nuevas.
+- **`next/image`** AVIF/WebP, `width/height` siempre, `sizes` correcto, `priority` solo en hero — **o** hero tipográfico/SVG (el LCP más rápido es el que no descarga nada; además ahorra 1 request).
+- **~0 KB JS de cliente**: Server Components; `'use client'` solo en hojas diminutas (selector de idioma, menú mobile). **Sin** Framer/GSAP/Lottie. **Cero** scripts de terceros en critical path; analytics solo Vercel Speed Insights o `lazyOnload`.
+- **Budget de bytes (página fría)**: HTML ≤ **14 KB** gzip/brotli (entra en la primera ventana de congestión TCP → 1 RTT, clave para el <200ms) · CSS ≤ 12 KB · fuentes ≤ 2 archivos / 60 KB · imágenes ≤ 1 (o 0) · **requests totales ≤ 5** · 0 KB First Load JS propio.
+- **CI guardrails**: Lighthouse CI (`@lhci/cli`) con `lighthouse-budget.json` (falla el PR si HTML > 14 KB, CLS > 0, Performance < 99) + `@next/bundle-analyzer` (la ruta de la landing debe aparecer con 0 KB de First Load JS propio) + Speed Insights, alertas a 80% de umbrales. Probar con FR/ES (texto largo) y throttling mobile. **Gate bloqueante (decidido):** el PR no mergea si se pasa del budget.
 
-- **D1 — Dominio apex de producción.** El task y el `EMAIL_FROM` de
-  `.env.local` usan `place.community`. Los docs (`multi-tenancy.md`,
-  `host.ts`, `places/spec.md`) usan `place.app` como placeholder. El
-  middleware NO hardcodea el apex: lee `NEXT_PUBLIC_APP_DOMAIN` (env). La
-  landing no necesita saber el apex literal (es relativa). **[A DEFINIR
-  con owner]:** confirmar `place.community` como apex canónico y
-  actualizar los docs que dicen `place.app` (trabajo aparte, no bloquea
-  esta spec).
-- **D2 — Hero image: sí o no.** El budget favorece *no* tener imagen
-  (texto LCP < imagen LCP, y ahorra 1 request). `content.md` propone hero
-  tipográfico. **[A DEFINIR con owner]:** ¿se quiere una imagen/ilustración
-  de marca en el hero? Si sí, define presupuesto y arte.
-- **D3 — Copy real.** Todo el copy de `content.md` es placeholder en
-  español coherente con blueprint. Los claims están limitados a lo que
-  existe en `blueprint.md`/`CLAUDE.md`. **[A DEFINIR con owner]:** copy
-  final, nombre de marca exacto, tagline.
-- **D4 — CTA único vs. dos CTAs.** Propuesta: un solo CTA "Entrar"
-  → `/login` (el onboarding post-login bifurca crear/unirse/invitación,
-  ver `place-access.md`). **[A DEFINIR con owner]:** ¿se quiere además un
-  CTA secundario explícito tipo "Crear un place"? (sigue yendo a
-  `/login` con `?next=`).
-- **D5 — Gates de performance en CI.** Activar Lighthouse CI + budget
-  toca configuración de CI. **[A DEFINIR con owner]:** aprobar el gate
-  (recomendado) o dejar el budget como guía no-bloqueante.
-- **D6 — Legales / footer.** ¿Hay Términos / Privacidad / contacto que
-  deban linkearse en el footer? Place no es red social y no recolecta
-  métricas, pero igual puede necesitar legales mínimos. **[A DEFINIR con
-  owner]:** qué links del footer existen y a dónde apuntan.
-</content>
-</invoke>
+## i18n
+
+- **next-intl** (App Router no tiene i18n nativo). `app/[locale]/...` + middleware/proxy. **`localePrefix: 'always'`** (`/es` `/en` `/fr` `/pt`), default `es` — opción decidida por SEO.
+- **`generateStaticParams(['es','en','fr','pt'])` + `setRequestLocale(locale)` en cada page/layout** — sin esto el SSG se rompe **en prod (no en dev)**: trampa #1.
+- **Selector de idioma**: link real (`<a href>`, crawleable), nombres en su propio idioma (no banderas), discreto (footer/header), override manual de la autodetección (`Accept-Language` solo sugiere + cookie `NEXT_LOCALE`).
+- **SEO**: `hreflang` + `x-default` + canonical por variante; `<html lang>` por locale.
+- **Layout**: ES/FR/PT corren 15-30% más largo que EN — `min-width` no `width` en botones/nav/badges, `text-wrap: balance` en titulares, probar con FR/ES antes de cerrar breakpoints.
+
+## Riesgos de posicionamiento y mitigación
+
+1. **"Comunidad no audiencia" no resuena con el creador en modo growth.** → Segmentar al creador *cansado* del modelo engagement (hartazgo documentado 2026); no negar monetización (0% comisión es el cómo).
+2. **"Sin FOMO / cierra" suena a producto que no usás.** → Reframe activo con el mecanismo concreto (temas dormidos reviven; lugar al que se vuelve).
+3. **Geneva murió con mensaje parecido (cozy sin monetización).** → Dejar claro que es negocio sostenible para el owner (0% comisión, plan comunidad). No esconder la monetización por purismo.
+4. **150 puede leerse como "juguete".** → Enmarcarlo como Dunbar / decisión de diseño deliberada, no límite de plan.
+5. **Sonar moralista.** → Mostrar, no sermonear.
+
+## Decisiones tomadas
+
+1. **`localePrefix` = `always`** (`/es` `/en` `/fr` `/pt`), default `es`, `x-default`→es. Es la opción más limpia para SEO multi-idioma: cada locale con su path canónico explícito, `hreflang` sin ambigüedad, sin el caso raro del default-sin-prefijo.
+2. **Hero = composición tipográfica/SVG** (opción 2: más rápida, coherente con el DNA, sin imagen en el critical path). Si no convence al ver el resultado, se pasa a imagen.
+3. **Voz**: amistosa y cercana; diferenciación moderada (capturar, no sermonear).
+4. **CTA**: una sola acción/mensaje, **repetida ≥3 veces** (hero, tras solución, cierre). No un único botón (riesgo).
+5. **Pricing en la landing (MVP)**: se muestra, con **30 días gratis** como promesa destacada; Hobby **$7/mes**, Comunidad **$30/mes**. Comisión por plan aún sin fijar (ADR-0004 pendiente cuando se cierre).
+6. **Footer/legales**: Términos, Privacidad, Contacto.
+7. **Gate de performance en CI = BLOQUEANTE.** Lighthouse CI frena el PR si se pasa del budget (HTML > 14KB, Performance < 99, CLS > 0). `<200ms` es requisito duro → freno duro.
+
+## Próximos pasos
+
+1. Owner revisa/ajusta este diseño (sobre todo posicionamiento, copy, y las decisiones).
+2. Registrar decisiones en `docs/decisions/`.
+3. Implementación en código — **sesión aparte** (frontend = su propia sesión).
+4. Deploy a Vercel — **requiere autorización explícita** ("push").
+
+---
+
+## Fuentes
+
+Compilado de 3 investigaciones (2025-2026): anatomía de conversión B2B/SaaS, UX/UI + Core Web Vitals + Next.js/next-intl en Vercel, y análisis competitivo (Circle, Skool, Mighty Networks, Heartbeat, Patreon, Discord, Substack, Geneva). URLs completas en el historial de la sesión de investigación.
