@@ -60,7 +60,11 @@ CREATE TABLE place (
   -- al impago avanza por los estados. La eliminación a 12m es purga física.
   subscription_status   place_subscription_status NOT NULL DEFAULT 'ACTIVE',
   subscription_past_due_at TIMESTAMPTZ,  -- vencimiento impago que abrió el ciclo
-  enabled_features JSONB NOT NULL DEFAULT '["conversations","events","members"]',
+  -- Solo lista las zonas OPCIONALES habilitadas. Discusiones está siempre
+  -- activa (es el primitivo, no se puede desactivar) y NO aparece acá.
+  -- Miembros no es una zona toggleable. Valores posibles: "events", "library".
+  -- Default asumido: events on, library off (opt-in) — confirmar.
+  enabled_features JSONB NOT NULL DEFAULT '["events"]',
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   archived_at      TIMESTAMPTZ
 );
@@ -124,6 +128,7 @@ Reglas que el código debe enforzar. No son validaciones UI — son invariantes 
 - **Un dominio mapea a lo sumo a un place.** Enforzado por `place_domain.domain UNIQUE`. El routing por hostname (ver `multi-tenancy.md`) resuelve **solo dominios verificados** (`verified_at IS NOT NULL`, `archived_at IS NULL`).
 - **Un humano = un `app_user`.** Relación 1:1 con la identidad de login de Better Auth (`app_user.auth_user_id UNIQUE`), sin importar por qué dominio entró. El SSO cross-domain no crea identidades nuevas.
 - **Rol derivado, no almacenado.** Un usuario es owner de un place si existe fila en `place_ownership`; si solo tiene `membership`, es miembro. No existe rol `admin`: la administración delegada será una feature futura de grupos con permisos granulares.
+- **Discusiones es la zona no-desactivable.** Es el primitivo del que derivan eventos y biblioteca; siempre está activa. Eventos y Biblioteca son zonas **opcionales** que el owner activa/desactiva desde `/settings/*` (`enabled_features`). Miembros no es una zona toggleable: los miembros existen siempre.
 - **Handle obligatorio y único global.** `app_user.handle NOT NULL UNIQUE`. Auto-asignado random no-usado al crear la cuenta, editable por el usuario, liberado para reuso **solo al borrar la cuenta** (no al salir de un place).
 - **Exención de la escala de inactividad.** La escala 6m/12m de cuenta NO corre mientras el usuario sea owner de ≥1 place activo O tenga ≥1 pago activo. Es una condición evaluada, no un flag permanente: al dejar de cumplir ambas, la cuenta entra a la escala. Ver ADR-0003.
 - **Place requiere suscripción del owner activa.** Sin pago, el place avanza por `subscription_status` hasta purga a los 12m. La eliminación/tombstone de un usuario que es único owner de un place activo se bloquea: primero transferir ownership o cerrar el place (extiende "mínimo 1 owner").

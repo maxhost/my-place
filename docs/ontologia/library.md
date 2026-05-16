@@ -24,7 +24,7 @@ Biblioteca (zona)
     └── Recurso publicado (= una Discusión)
 ```
 
-- **Biblioteca** es una **zona**, igual que Discusiones o Eventos. Cada zona se activa/desactiva desde `/settings/*` (área del owner). Una biblioteca desactivada no aparece en el place.
+- **Biblioteca** es una **zona opcional**: el owner la activa/desactiva desde `/settings/*`. Desactivada no aparece en el place. (Eventos también es opcional; Discusiones es el primitivo y **no se puede desactivar** — ver `docs/data-model.md` invariantes.)
 - **Categoría**: solo el **owner** la crea y configura (tipo, visibilidad, escritura). Es la unidad organizativa.
 - **Recurso**: lo que se publica dentro de una categoría. Es una Discusión.
 

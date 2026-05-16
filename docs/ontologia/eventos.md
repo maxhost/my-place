@@ -12,6 +12,8 @@ El evento en Place no es un ítem aislado de calendario. Es un **momento compart
 
 **Un evento es una Discusión** (la Discusión es el primitivo, ver `docs/ontologia/conversaciones.md`): mismo hilo de mensajes y mismas reglas. Lo único que cambia es la **morfología del mensaje principal** — en vez del cuerpo libre de una discusión normal, es el formulario del evento.
 
+Eventos es una **zona opcional**: el owner la activa/desactiva desde `/settings/*` (a diferencia de Discusiones, que no se puede desactivar).
+
 Dos tipos, mismo objeto en datos, tratamiento narrativo distinto:
 
 - **Único (ocasión)**: especial, con peso individual. "Juntada presencial en Córdoba el 9 de noviembre."

@@ -21,6 +21,8 @@ Dos cosas distintas, no confundir:
 
 **La Discusión es el primitivo del que derivan otros objetos.** Un evento genera una Discusión; un recurso de biblioteca genera una Discusión. Cambia solo la **morfología del mensaje principal** (un evento tiene fecha/lugar/confirmaciones; un documento tiene el archivo) — el hilo de mensajes y todas sus reglas son los mismos.
 
+Por ser el primitivo, la **Zona Discusión no se puede desactivar**. Eventos y Biblioteca son zonas opcionales que el owner activa/desactiva desde `/settings/*`; Discusiones siempre está.
+
 ---
 
 ## En qué se parece y en qué se diferencia a un foro tradicional
