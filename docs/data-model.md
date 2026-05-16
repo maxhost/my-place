@@ -63,8 +63,9 @@ CREATE TABLE place (
   -- Solo lista las zonas OPCIONALES habilitadas. Discusiones está siempre
   -- activa (es el primitivo, no se puede desactivar) y NO aparece acá.
   -- Miembros no es una zona toggleable. Valores posibles: "events", "library".
-  -- Default asumido: events on, library off (opt-in) — confirmar.
-  enabled_features JSONB NOT NULL DEFAULT '["events"]',
+  -- Default: ambas OFF — un place nace solo con Discusiones; el owner
+  -- activa Eventos y/o Biblioteca desde /settings cuando las quiere.
+  enabled_features JSONB NOT NULL DEFAULT '[]',
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   archived_at      TIMESTAMPTZ
 );
