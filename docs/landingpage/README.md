@@ -94,12 +94,14 @@ Orden de alta conversión 2026, con qué decir / qué NO:
 3. **Voz**: amistosa y cercana; diferenciación moderada (capturar, no sermonear).
 3b. **Modo = B (landing de producto)**: CTA → `/login` → onboarding (bifurca crear/unirse/invitación). No es waitlist.
 3c. **Tipografía**: Fraunces (titulares) + Inter (cuerpo), variable, self-hosted `next/font`.
-3d. **Paleta = Papel cálido**: `--bg #FAF7F0` · `--surface #FFFFFF` · `--ink #1C1B22` · `--muted #6B6A73` · `--border #E7E2D6` · `--accent #C4632F` (terracota) · `--accent-ink #FFFFFF`. 1 acento, usado con intención (CTA, kickers).
+3d. **Paleta = Papel cálido**: `--bg #FAF7F0` · `--surface #FFFFFF` · `--ink #1C1B22` · `--muted #6B6A73` · `--border #E7E2D6` · `--accent #C4632F` (terracota) · `--accent-ink #FFFFFF`. 1 acento, usado con intención (CTA, kickers). **Outcome de "validar cada par" (build 2026-05-16):** `--accent #C4632F` no alcanza 4.5:1 como texto (≈3.7:1 sobre papel, ≈3.9:1 blanco-sobre-accent). Se agregó `--accent-strong #A8501E` (terracota más profundo, ≈5.3:1) para TODO accent que sea texto (kickers, links, label/fill del CTA); `--accent` queda para detalles decorativos con umbral 3:1. La dirección de marca (terracota cálido sobre papel) no cambia.
 3e. **Contacto**: `hola@place.community`.
 4. **CTA**: una sola acción/mensaje, **repetida ≥3 veces** (hero, tras solución, cierre). No un único botón (riesgo).
 5. **Pricing en la landing (MVP)**: se muestra, con **30 días gratis** como promesa destacada; Hobby **$7/mes**, Comunidad **$30/mes**. Comisión por plan aún sin fijar (ADR-0004 pendiente cuando se cierre).
 6. **Footer/legales**: Términos, Privacidad, Contacto.
 7. **Gate de performance en CI = BLOQUEANTE.** Lighthouse CI frena el PR si se pasa del budget (HTML > 14KB, Performance < 99, CLS > 0). `<200ms` es requisito duro → freno duro.
+8. **H1 = "Un lugar, no una plataforma."** (build 2026-05-16, elegido por el owner entre los 3 candidatos). Subhead: "Hasta 150 personas que se conocen. Sin FOMO, sin métricas, sin algoritmo."
+9. **Interactividad sin JS de cliente** (build 2026-05-16): el plan preveía hojas `'use client'` (LangSwitcher, MobileMenu, selector). Se implementó todo Server Component + CSS (LangSwitcher = `<a>` server-rendered; MobileMenu = checkbox+`peer`; selector ParaQuién = radios + `:has()`; FAQ = `<details>`). Resultado: **0 `'use client'`, 0 KB First Load JS propio** — supera el budget en vez de solo cumplirlo, sin perder UX. El "First Load JS shared" (~102 KB) es runtime de Next App Router, inherente y fuera de nuestro control; el budget bloqueante real es Lighthouse (HTML/CLS/Perf), que pasa.
 
 ## Próximos pasos
 

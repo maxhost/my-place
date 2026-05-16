@@ -1,40 +1,101 @@
 @import "tailwindcss";
 
+/*
+ * Paleta "Papel cálido" — tokens canónicos en docs/landingpage/README.md
+ * §Decisiones 3d. Colores como CSS custom properties (CLAUDE.md: nunca
+ * clases Tailwind hardcoded).
+ *
+ * --accent (#C4632F) es la dirección de marca pero NO alcanza 4.5:1 como
+ * texto (kickers terracota sobre papel ≈3.7:1; blanco sobre accent ≈3.9:1).
+ * El README manda "validar cada par" en el checklist WCAG → se agrega
+ * --accent-strong (terracota más profundo) para TODO accent que sea texto
+ * (kickers, links, label del CTA). --accent queda para fills/bordes
+ * decorativos donde aplica el umbral 3:1 de UI.
+ */
 :root {
-  --bg: oklch(0.985 0.006 75);
-  --surface: oklch(1 0 0);
-  --soft: oklch(0.95 0.008 75);
-  --text: oklch(0.22 0.008 60);
-  --muted: oklch(0.55 0.012 60);
-  --border: oklch(0.9 0.008 75);
-  --accent: #b5633a;
-  --accent-soft: color-mix(in oklch, var(--accent) 14%, transparent);
+  --bg: #faf7f0;
+  --surface: #ffffff;
+  --ink: #1c1b22;
+  --muted: #6b6a73;
+  --border: #e7e2d6;
+  --accent: #c4632f;
+  --accent-strong: #a8501e;
+  --accent-ink: #ffffff;
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
-  --color-soft: var(--soft);
-  --color-text: var(--text);
+  --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-ink: var(--accent-ink);
   --font-sans: var(--font-inter);
   --font-serif: var(--font-fraunces);
 }
 
 body {
   background: var(--bg);
-  color: var(--text);
+  color: var(--ink);
   font-family: var(--font-inter), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
+/* Titulares quietos: tamaño = jerarquía, sin animación de entrada. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-fraunces), Georgia, serif;
+  text-wrap: balance;
+}
+
+/* CTA: fill terracota profundo + label blanco (≈5.3:1, WCAG AA). */
 .cta {
-  background: var(--accent);
-  color: var(--surface);
+  background: var(--accent-strong);
+  color: var(--accent-ink);
   transition: background-color 150ms ease;
 }
 
 .cta:hover {
-  background: color-mix(in oklch, var(--accent) 88%, black);
+  background: color-mix(in srgb, var(--accent-strong) 88%, black);
+}
+
+/* Foco de alto contraste; nunca outline:none sin reemplazo (WCAG 2.2). */
+:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Skip-link: oculto hasta foco por teclado. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 50;
+}
+
+.skip-link:focus {
+  left: 1rem;
+  top: 1rem;
+  padding: 0.5rem 0.875rem;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* Motion: solo micro-transiciones; respetar prefers-reduced-motion (DNA). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

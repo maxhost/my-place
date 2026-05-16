@@ -1,0 +1,220 @@
+{
+  "meta": {
+    "title": "Place — un lugar, no una plataforma",
+    "description": "Un lugar para hasta 150 personas que se conocen. Entrás, te ponés al día, participás si querés, y salís. Sin FOMO, sin métricas, sin algoritmo."
+  },
+  "a11y": {
+    "skipToContent": "Saltar al contenido",
+    "openMenu": "Abrir menú",
+    "closeMenu": "Cerrar menú",
+    "primaryNav": "Navegación principal",
+    "language": "Idioma"
+  },
+  "nav": {
+    "brand": "Place",
+    "comoFunciona": "Cómo funciona",
+    "diferencia": "Qué lo hace distinto",
+    "precios": "Precios",
+    "faq": "Preguntas",
+    "cta": "Creá tu place"
+  },
+  "hero": {
+    "kicker": "Un lugar, no una plataforma",
+    "title": "Un lugar, no una plataforma.",
+    "subhead": "Hasta 150 personas que se conocen. Sin FOMO, sin métricas, sin algoritmo.",
+    "cta": "Creá tu place",
+    "ctaHint": "30 días gratis. Sin tarjeta para empezar.",
+    "summary": "Entrás, te ponés al día, participás si querés, y salís."
+  },
+  "socialProof": {
+    "text": "Para clubes, talleres, equipos y comunidades de hasta 150 personas."
+  },
+  "problema": {
+    "kicker": "El problema",
+    "title": "Las plataformas de comunidad no están de tu lado.",
+    "points": [
+      {
+        "title": "Te tratan como generador de engagement",
+        "body": "Su negocio mejora cuando vos y tu gente pasan más tiempo adentro. El tuyo, no necesariamente."
+      },
+      {
+        "title": "Tratan a tu gente como audiencia",
+        "body": "Métricas, feeds que no terminan, notificaciones que persiguen. Personas convertidas en números que suben."
+      },
+      {
+        "title": "Te cobran comisión por tu propia comunidad",
+        "body": "Un porcentaje de lo que tu gente paga, que se va antes de llegar a vos."
+      }
+    ]
+  },
+  "comoFunciona": {
+    "kicker": "Cómo funciona",
+    "title": "Un lugar con su propio ritmo.",
+    "intro": "Mecanismos pensados para que sea un lugar, no una máquina de atención.",
+    "mechanisms": [
+      {
+        "title": "Conversaciones por turnos",
+        "body": "Se habla por turnos, no en un chat que corre. Lo dicho queda y se lee con calma."
+      },
+      {
+        "title": "Presencia silenciosa",
+        "body": "Ves quién está por una señal visual discreta. Nunca un texto ansioso ni una animación que reclama."
+      },
+      {
+        "title": "El place tiene horario",
+        "body": "Abre y cierra cuando sus miembros deciden. Fuera de hora, el lugar descansa — y vos también."
+      },
+      {
+        "title": "Los temas no mueren",
+        "body": "Una conversación de hace meses revive con un solo mensaje. Nada caduca por inactividad."
+      },
+      {
+        "title": "Identidad visual propia",
+        "body": "Cada place elige sus colores y su tono. Se siente tuyo, no una plantilla más."
+      }
+    ],
+    "cta": "Creá tu place"
+  },
+  "diferenciacion": {
+    "kicker": "Qué lo hace distinto",
+    "title": "Una comunidad, no una audiencia.",
+    "body": "Las demás plataformas ganan más cuanto más grande y más adicta es tu comunidad. Nosotros ponemos el techo en 150 y no te cobramos comisión por tu gente. Nuestro incentivo es que tu lugar sea bueno, no infinito.",
+    "comparison": {
+      "audienceLabel": "Una audiencia",
+      "communityLabel": "Una comunidad",
+      "rows": [
+        { "audience": "Crece sin techo", "community": "Hasta 150 — todos se conocen" },
+        { "audience": "Feed ordenado por algoritmo", "community": "Conversaciones por turnos, cronológicas" },
+        { "audience": "Métricas y comparación", "community": "Pertenencia y rol, sin ranking" },
+        { "audience": "Te persigue con notificaciones", "community": "Tiene horario y cierra" }
+      ]
+    },
+    "dunbar": "150 no es el límite de un plan: es una decisión de diseño. Es cerca del número de Dunbar — la cantidad de personas con las que alguien sostiene un vínculo real."
+  },
+  "paraQuien": {
+    "kicker": "Para quién",
+    "title": "Tu lugar, sea lo que sea que reúnas.",
+    "tabs": [
+      {
+        "id": "creador",
+        "label": "Creadores",
+        "headline": "Tu comunidad, no tu audiencia.",
+        "body": "Para el creador cansado del modelo de engagement: un lugar para tu gente cercana, donde lo que pagan llega a vos y nadie compite por la atención de nadie.",
+        "cta": "Creá tu place"
+      },
+      {
+        "id": "organizacion",
+        "label": "Organizaciones",
+        "headline": "El club, el taller, el grupo — con un lugar propio.",
+        "body": "Para clubes, talleres y grupos que ya existen y necesitan un lugar tranquilo donde encontrarse, recordar y organizarse, sin que se vuelva otra red social.",
+        "cta": "Creá tu place"
+      },
+      {
+        "id": "empresa",
+        "label": "Empresas",
+        "headline": "Una intranet que se siente como un lugar.",
+        "body": "Para equipos que quieren una comunidad interna calma — no otro canal que grita. Identidad propia, dominio propio, ritmo propio.",
+        "cta": "Solicitá una demo"
+      }
+    ]
+  },
+  "pricing": {
+    "kicker": "Precios",
+    "title": "Transparente, sin costos escondidos.",
+    "subhead": "0% de comisión en el plan Comunidad. Lo que tu comunidad paga, llega a vos.",
+    "freeTrial": "30 días gratis",
+    "freeTrialNote": "Probás el lugar completo. Sin tarjeta para empezar.",
+    "plans": [
+      {
+        "id": "hobby",
+        "name": "Hobby",
+        "price": "$7",
+        "period": "/mes",
+        "description": "Para empezar tu lugar y ver cómo se siente.",
+        "cta": "Empezá gratis"
+      },
+      {
+        "id": "comunidad",
+        "name": "Comunidad",
+        "price": "$30",
+        "period": "/mes",
+        "description": "El lugar completo, con 0% de comisión sobre lo que tu comunidad paga.",
+        "cta": "Creá tu place",
+        "highlight": true
+      }
+    ],
+    "commissionLine": "0% de comisión. Tu comunidad no es nuestro producto.",
+    "footnote": "El techo de 150 no es un límite de plan: es la decisión de diseño que hace que sea un lugar."
+  },
+  "faq": {
+    "kicker": "Preguntas",
+    "title": "Lo que te estás preguntando.",
+    "items": [
+      {
+        "q": "Sin notificaciones agresivas, ¿no se muere?",
+        "a": "Al revés. Los temas dormidos no mueren: cualquier mensaje revive una conversación de hace meses. El horario no apaga la comunidad — la vuelve un lugar al que se vuelve, no una app que te persigue."
+      },
+      {
+        "q": "¿Y si somos más de 150?",
+        "a": "150 es deliberado: cerca del número de Dunbar, la cantidad de vínculos reales que alguien sostiene. Si son más, probablemente sean varias comunidades — podés tener más de un place."
+      },
+      {
+        "q": "¿Mis datos y los de mi gente?",
+        "a": "Sin lock-in y con derecho al olvido: cada persona puede irse y borrar su rastro. Tu comunidad es tuya, no un activo que retenemos."
+      },
+      {
+        "q": "¿En qué idiomas está?",
+        "a": "Español desde el día uno. Inglés, francés y portugués en camino. Lo que escribe tu gente queda en el idioma en que lo escribió: nunca lo traducimos por vos."
+      },
+      {
+        "q": "¿Por qué pago una suscripción?",
+        "a": "Porque así no te cobramos comisión por tu gente. Pagás un precio fijo y transparente; lo que tu comunidad aporta, llega a vos."
+      }
+    ]
+  },
+  "ctaFinal": {
+    "title": "Tu lugar te espera cuando quieras abrirlo.",
+    "subhead": "30 días gratis. Sin apuro, sin tarjeta para empezar.",
+    "cta": "Creá tu place"
+  },
+  "footer": {
+    "tagline": "Un lugar, no una plataforma.",
+    "navTitle": "Producto",
+    "comoFunciona": "Cómo funciona",
+    "precios": "Precios",
+    "faq": "Preguntas",
+    "legalTitle": "Legal",
+    "terminos": "Términos",
+    "privacidad": "Privacidad",
+    "contactoTitle": "Contacto",
+    "contacto": "hola@place.community",
+    "languageTitle": "Idioma",
+    "rights": "Place"
+  },
+  "captures": {
+    "comoFunciona": "[CAPTURA: vista de una conversación por turnos dentro de un place, con la presencia silenciosa de quién está leyendo]",
+    "paraQuien": "[CAPTURA: el mismo place con identidad visual propia — colores y tono configurados por su owner]"
+  },
+  "legal": {
+    "terminos": {
+      "title": "Términos del servicio",
+      "updated": "Última actualización: 16 de mayo de 2026",
+      "body": "Borrador inicial. El contenido legal definitivo se redacta antes del lanzamiento público. Para consultas, escribí a hola@place.community."
+    },
+    "privacidad": {
+      "title": "Privacidad",
+      "updated": "Última actualización: 16 de mayo de 2026",
+      "body": "Borrador inicial. Place se diseña con derecho al olvido y sin lock-in: cada persona puede irse y borrar su rastro. La política definitiva se redacta antes del lanzamiento público. Para consultas, escribí a hola@place.community."
+    }
+  },
+  "notFound": {
+    "title": "Esta página no existe.",
+    "body": "Puede que el enlace esté viejo o que la página se haya movido.",
+    "cta": "Volver al inicio"
+  },
+  "login": {
+    "title": "Place",
+    "body": "El acceso todavía no está disponible. Estamos preparando el lugar.",
+    "back": "Volver"
+  }
+}

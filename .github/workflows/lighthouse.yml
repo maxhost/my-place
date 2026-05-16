@@ -1,0 +1,33 @@
+# Gate de performance BLOQUEANTE (README §Performance, decisión 7).
+# El PR no mergea si se pasa del budget: HTML > 14KB, CLS > 0,
+# Performance < 99. Marcar este job como required check en branch
+# protection para que sea efectivamente bloqueante.
+name: lighthouse-ci
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lhci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - run: pnpm lint
+
+      - run: pnpm build
+
+      - name: Lighthouse CI (assert budget)
+        run: pnpm lhci

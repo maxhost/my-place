@@ -2,7 +2,32 @@
 
 Runway para la sesión de build (fresca, enfocada). El diseño/copy/decisiones son canónicos en `docs/landingpage/README.md`; este doc es el **cómo construirla** sin inventar. Spec antes de código (`CLAUDE.md`).
 
-> _Última actualización: 2026-05-16._ La build es una sesión aparte. El deploy a Vercel requiere autorización explícita ("push").
+> _Última actualización: 2026-05-16._ **Build ejecutada (2026-05-16): landing completa, todas las fases cerradas.** El deploy a Vercel sigue requiriendo autorización explícita ("push") — aún no se hizo.
+
+## Estado de la build (2026-05-16)
+
+Fases 1-8 completas. Verificado en verde: `pnpm typecheck`, `pnpm lint`, `pnpm build` (20/20 páginas estáticas: 5 rutas × 4 locales, todas SSG `●`), `pnpm lhci`.
+
+**Budget medido (ruta `/es`, prod build, servida local):**
+
+| Métrica | Medido | Target | Estado |
+|---|---|---|---|
+| HTML | 9.9 KB gzip / 7.6 KB brotli | ≤ 14 KB | ✅ |
+| CSS | 5.0 KB gzip / 4.4 KB brotli | ≤ 12 KB | ✅ |
+| Fuentes | 2 woff2 subset (preload) | ≤ 2 / 60 KB | ✅ |
+| Imágenes | 0 (SVG inline + placeholders tipográficos) | ≤ 1 | ✅ |
+| First Load JS propio | 0 KB (0 `'use client'`) | ~0 KB | ✅ |
+| Lighthouse Performance | 0.99 (`/es` y `/fr`, mobile throttled) | ≥ 0.99 | ✅ (al filo) |
+| CLS | 0.0000 | 0 | ✅ |
+
+**Notas:**
+- Interactividad sin JS (ver README §Decisiones 9): LangSwitcher server `<a>`, MobileMenu checkbox+CSS, selector ParaQuién radios+`:has()`, FAQ `<details>`. No se crearon hojas `_client/`.
+- Paleta: se sumó `--accent-strong #A8501E` por WCAG (ver README §Decisiones 3d).
+- Legales en `/[locale]/terminos` y `/privacidad` (ruta plana, sin route group `(legal)` — es cosmético, no cambia URL).
+- "First Load JS shared by all" ≈102 KB = runtime de Next App Router, inherente; el gate bloqueante real es Lighthouse y pasa. La regla "requests ≤5" del README se excede solo por chunks de framework de Next (no código propio).
+- Pendiente antes de publicar: comisión % (ADR-0004) y contenido legal definitivo.
+
+> _Lo de abajo es el runway original de la sesión (histórico)._
 
 ## Inputs lockeados (no re-decidir)
 
