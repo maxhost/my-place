@@ -190,7 +190,7 @@ Como los miembros no tienen página dedicada, aparecen en contexto:
 
 - Avatares en el bloque de confirmados
 - Nombre en "traído por [Nombre]" del evento
-- Nombres en los mensajes del thread del evento
+- Nombres en los mensajes de la Discusión del evento
 
 **En la home del place**:
 
@@ -284,4 +284,5 @@ Su contenido queda en el place con su nombre (es del place); su presencia y rast
 - `docs/producto.md` — visión y principios de experiencia (marco general)
 - `docs/ontologia/conversaciones.md` — donde los miembros se manifiestan hablando
 - `docs/ontologia/eventos.md` — donde los miembros se manifiestan confirmando y asistiendo
+- `docs/ontologia/library.md` — donde los miembros se manifiestan publicando/consumiendo recursos
 - `docs/data-model.md` — expresión en schema (capas de identidad, derecho al olvido)

@@ -17,7 +17,7 @@ Cada cosa vive en un solo lugar. Antes de implementar, leé el doc que correspon
 - `docs/stack.md` — stack técnico, variables de entorno, estado de los TBD
 - `docs/data-model.md` — schema SQL del core e invariantes del dominio
 - `docs/multi-tenancy.md` — routing por subdomain, DNS, middleware, slug inmutable
-- `docs/ontologia/` — documentos canónicos de cada objeto del core (`miembros.md`, `conversaciones.md`, `eventos.md`)
+- `docs/ontologia/` — documentos canónicos de cada objeto del core (`miembros.md`, `conversaciones.md`, `eventos.md`, `library.md`)
 - `docs/landingpage/` — arquitectura y contenido de la landing pública
 
 Otros docs (blueprint, features, mockups, pre-launch-checklist, gotchas, decisions) se eliminaron en el reset y se reescriben cuando corresponda.

@@ -21,7 +21,7 @@ Dos tipos, mismo objeto en datos, tratamiento narrativo distinto:
 
 ## Estructura: el mensaje principal del evento
 
-No admite cover (por ahora). Es casi el mismo formulario que un thread:
+No admite cover (por ahora). Es casi el mismo formulario que una Discusión:
 
 - **Título del evento**: texto.
 - **Tipo de evento**: único | recurrente.
@@ -132,6 +132,7 @@ Para proteger el primitivo y no convertirnos en Circle:
 ## Referencias cruzadas
 
 - `docs/ontologia/conversaciones.md` — la Discusión, primitivo del que el evento es una variante
+- `docs/ontologia/library.md` — biblioteca, otro objeto que es una Discusión con mensaje principal distinto
 - `docs/ontologia/miembros.md` — invitados/participantes son miembros del place
 - `docs/producto.md` — principios de experiencia (acumulación colectiva vs vanidad)
 - `docs/architecture.md` § "Gate de horario del place" — regla técnica del gate (excepción owner)

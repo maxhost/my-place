@@ -10,8 +10,10 @@ Cada place tiene su propia URL con subdomain. La estructura de URLs refuerza la 
 | `app.place.community`                | Inbox universal del usuario (DMs, lista de places a los que pertenece) |
 | `{slug}.place.community`             | Portada del place con ese slug                                         |
 | `{slug}.place.community/{zone}`      | Zona del place (conversations, events, etc)                            |
-| `{slug}.place.community/thread/{id}` | Thread individual                                                      |
-| `{slug}.place.community/settings`    | Configuración del place (solo admins)                                  |
+| `{slug}.place.community/thread/{id}` | Discusión individual                                                   |
+| `{slug}.place.community/settings`    | Configuración del place (solo owner)                                   |
+
+> El slug de URL `thread` es **deliberado**: técnico/universal en la ruta, mientras el objeto canónico de producto es **Discusión** (`docs/ontologia/conversaciones.md`). Consistente con "código en inglés, docs/UI en español" (`CLAUDE.md`). Un barrido de consistencia no debe "corregir" esto.
 
 ## Implementación en Next.js
 

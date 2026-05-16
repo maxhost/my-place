@@ -123,7 +123,7 @@ Para proteger el primitivo de Place:
 
 - **Con eventos**: cada evento genera una Discusión (morfología distinta del mensaje principal) que funciona como preparación colectiva, participación durante y memoria post-evento. Ver `docs/ontologia/eventos.md`.
 - **Con miembros**: los nombres son tappeables → perfil contextual del miembro en el place → iniciar DM. Ver `docs/ontologia/miembros.md`.
-- **Con biblioteca** (cuando se implemente): un documento genera una Discusión; los mensajes pueden @referenciar documentos.
+- **Con biblioteca**: un recurso es una Discusión; los mensajes pueden @referenciar recursos. Ontología en `docs/ontologia/library.md` (feature aún no implementada).
 
 ---
 
@@ -153,5 +153,6 @@ Para proteger el primitivo de Place:
 
 - `docs/producto.md` — visión y principios de experiencia (incluye el límite scroll/lazyload)
 - `docs/ontologia/eventos.md` — evento, que es una Discusión con mensaje principal distinto
+- `docs/ontologia/library.md` — recurso de biblioteca, también una Discusión con mensaje principal distinto
 - `docs/ontologia/miembros.md` — perfil del miembro, accesible desde nombres
 - `docs/architecture.md` § "Gate de horario del place" — regla técnica del gate por horario

@@ -69,7 +69,7 @@ Objetivo: una page con sus queries a la DB renderiza y carga en **≤200ms**. Es
 
 ## Streaming agresivo del shell
 
-Patrón **obligatorio** para pages de detalle (thread, library item, member detail, etc.). El objetivo es que el browser pinte skeletons inmediato (~150-300ms FCP) en vez de esperar a que todas las queries del page resuelvan antes de ver algo.
+Patrón **obligatorio** para pages de detalle (discusión, item de biblioteca, detalle de miembro, etc.). El objetivo es que el browser pinte skeletons inmediato (~150-300ms FCP) en vez de esperar a que todas las queries del page resuelvan antes de ver algo.
 
 ### La regla
 
