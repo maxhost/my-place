@@ -2,13 +2,15 @@
 
 Documento canónico de **qué es Place** y de los **principios de experiencia/diseño** que atraviesan todos los objetos. Es la fuente de verdad de producto. Los objetos del core (miembros, conversaciones, eventos) tienen su ontología propia en `docs/ontologia/`; este documento es lo transversal que no pertenece a un objeto único.
 
+> _Última actualización: 2026-05-16._ Documento vivo: si una decisión de producto cambia un principio, se actualiza acá **en la misma sesión**, se ajusta la fecha y se registra en `docs/decisions/`.
+
 ---
 
 ## Qué es Place
 
 Place es un lugar digital pequeño e íntimo para hasta 150 personas. Es **cozytech**: un espacio tranquilo donde entrás, te ponés al día de lo que pasa, participás si querés, y salís. Como entrar a un pub conocido — no como abrir una red social.
 
-**No es:** un feed con scroll infinito, una app que compite por atención, un producto con notificaciones agresivas, un sistema con métricas de engagement, ni una plataforma con gamificación.
+**No es:** un feed con scroll infinito, una app que compite por atención, un producto con notificaciones agresivas, un sistema con métricas de engagement, ni una plataforma que gamifica la atención.
 
 **Es:** un lugar con miembros, conversaciones, eventos y memoria compartida. Donde cada place tiene su identidad visual propia y su propio ritmo.
 
@@ -19,19 +21,19 @@ Place es un lugar digital pequeño e íntimo para hasta 150 personas. Es **cozyt
 Estos principios definen el DNA de Place. Violarlos es violar qué es el producto. Aplican a toda la UI, en todos los objetos.
 
 - **Nada parpadea, nada grita, nada demanda atención.** La información está disponible para el que mire, nunca se impone.
-- **Sin métricas vanidosas.** No se muestran contadores que no aporten al lugar ("47 eventos en memoria", "el más consultado esta semana").
+- **Sin métricas vanidosas ni comparación.** No se muestran contadores enmarcados como estatus ni comparación entre miembros ("el más consultado esta semana", "ranking de activos").
 - **Sin urgencia artificial.** Nada de "EN 2 DÍAS", "ÚLTIMA CHANCE", countdowns o similar.
-- **Sin gamificación.** No hay streaks, badges, puntos, niveles, rankings, achievements.
+- **Reconocimiento de pertenencia y rol, sí. Competencia por estatus, no.** Se permite lo que celebra vínculo, permanencia y *tipo de aporte* como un hecho: antigüedad ("miembro desde marzo 2024"), hitos temporales tranquilos ("hace un año traías tu primer tema", mostrado una vez, no un contador que tictaquea), contribuciones como hechos contextuales, insignias/títulos **cualitativos** que reconocen un rol o forma de participar (conferidos por estructura o por el owner), y acumulación **colectiva** ("este año hicimos 48 misas"). Se prohíbe lo que crea comparación, escasez o FOMO: leaderboards, rankings, "top contributor", comparación entre miembros, streaks que se "rompen", puntos/karma/niveles por volumen, contadores como estatus, e insignias convertidas en colección competitiva o achievement-hunting. **Test:** ¿esto afirma pertenencia/rol, o dispara comparación social o loss-aversion? Lo primero entra; lo segundo no.
 - **Sin push notifications agresivas.** El MVP no tiene push notifications. Sumar notificaciones requiere decisión de producto, no técnica.
 - **Sin infinite scroll.** Los feeds interminables son el paradigma opuesto.
 - **Presencia silenciosa.** Quién está se comunica visualmente (burbuja con borde verde), nunca con texto ansioso ni animaciones.
-- **Customización activa, no algorítmica.** El admin del place configura colores. El orden y la personalización son decisión humana, no del algoritmo.
+- **Customización activa, no algorítmica.** El owner del place configura colores. El orden y la personalización son decisión humana, no del algoritmo.
 
 ---
 
 ## Identidad visual por place
 
-- **Cada place tiene identidad visual propia**, configurable por el admin. El producto provee defaults; cada place los personaliza dentro de límites que protegen usabilidad.
+- **Cada place tiene identidad visual propia**, configurable por el owner. El producto provee defaults; cada place los personaliza dentro de límites que protegen usabilidad.
 - Los colores del place viven como CSS custom properties configurables, no como clases Tailwind hardcoded. El detalle técnico está en `docs/architecture.md` y `docs/stack.md`.
 
 ---

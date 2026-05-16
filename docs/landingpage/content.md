@@ -20,7 +20,7 @@ afirmaciones válidas para construir el copy:
 - Tiene **miembros, conversaciones, eventos y memoria compartida**.
 - **Cada place tiene su propio horario**; fuera de él, el place no está
   accesible.
-- **Cada place tiene identidad visual propia**, configurable por su admin.
+- **Cada place tiene identidad visual propia**, configurable por su owner.
 - **No** es: feed con scroll infinito, métricas de engagement,
   notificaciones agresivas, gamificación, perfil público.
 - **Sin métricas vanidosas, nada grita, sin urgencia artificial.**

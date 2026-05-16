@@ -4,7 +4,7 @@ Paradigma: **Modular Monolith con Vertical Slices**. Priorizamos calma, estabili
 
 Este documento es el índice de las decisiones arquitectónicas. El detalle de cada área vive en `docs/`.
 
-> _Última actualización: 2026-05-15._ Documento vivo: si un cambio de código afecta una decisión de esta página, se actualiza **en la misma sesión** y se ajusta la fecha. Un doc viejo desinforma al agente — los specs stale causan fallos silenciosos.
+> _Última actualización: 2026-05-16._ Documento vivo: si un cambio de código afecta una decisión de esta página, se actualiza **en la misma sesión** y se ajusta la fecha. Un doc viejo desinforma al agente — los specs stale causan fallos silenciosos.
 
 ## Principios de organización
 
@@ -59,7 +59,7 @@ Auth provider: **Neon Auth** (sobre Better Auth) — ver `docs/stack.md`. Place 
 
 ## Gate de horario del place
 
-Fuera del horario, el place no es accesible para contenido: ningún miembro ve foro, eventos, threads ni miembros. Admin/owner mantiene acceso **solo** a `/settings/*` para poder configurar el horario.
+Fuera del horario, el place no es accesible para contenido: ningún miembro ve foro, eventos, threads ni miembros. El **owner** mantiene acceso **solo** a `/settings/*` para poder configurar el horario (no hay rol "admin"; la administración delegada será una feature futura de grupos).
 
 **Regla técnica:** el gate vive a nivel del place en `[placeSlug]/(gated)/layout.tsx`, **no por feature**. Cada feature confía en que el layout ya validó el acceso; no reimplementa la verificación de horario. El comportamiento de producto (qué ve cada rol fuera de horario) es canónico en `docs/ontologia/conversaciones.md`.
 
@@ -125,8 +125,8 @@ export default async function DetailPage({ params }: Props) {
 ### Convenciones de archivos
 
 - `page.tsx` — sólo composición. Top-level await mínimo (validación + redirect). Idealmente ≤80 LOC.
-- `_<entity>-content.tsx` — Server Component async con el body principal. Resuelve viewer + data específica. Throws `notFound()` si la lógica adicional rechaza (ej: post oculto + non-admin).
-- `_<entity>-header-actions.tsx` — Server Component async para el `rightSlot` del header bar (kebab admin, action menus). Suspense fallback es `null` (slot vacío durante loading).
+- `_<entity>-content.tsx` — Server Component async con el body principal. Resuelve viewer + data específica. Throws `notFound()` si la lógica adicional rechaza (ej: post oculto + viewer sin permiso de moderación).
+- `_<entity>-header-actions.tsx` — Server Component async para el `rightSlot` del header bar (kebab de moderación del owner, action menus). Suspense fallback es `null` (slot vacío durante loading).
 - `_skeletons.tsx` — exporta skeletons matched-dimension. Un export por sección streamed. Sin shimmer agresivo (cozytech: nada parpadea).
 - `_comments-section.tsx` (cuando aplica) — Suspense child con la sección de comments + reactions + readers. Firma de props mínima `{ placeId, placeSlug, entityId }`; resuelve internamente viewer + opening (deduped via `React.cache`).
 - `loading.tsx` — **eliminar**. Los skeletons de Suspense lo reemplazan limpio. Mantener `loading.tsx` causa doble transición visual.
@@ -138,7 +138,7 @@ Los 3 Suspense children del page suelen compartir queries (ej: `resolveViewerFor
 ### Manejo de `notFound` y `permanentRedirect`
 
 - **Top-level (síncrono después del await)**: 99% de los casos van acá (entity no existe, redirect cross-zona). UX limpio: el browser nunca ve skeletons antes del 404/308.
-- **Desde Suspense child**: aceptable para casos raros (post oculto + viewer non-admin, item archivado + viewer non-author). Hay flicker (skeleton → 404) pero el caso es marginal.
+- **Desde Suspense child**: aceptable para casos raros (post oculto + viewer sin permiso, item archivado + viewer non-author). Hay flicker (skeleton → 404) pero el caso es marginal.
 
 ### Implementaciones de referencia
 

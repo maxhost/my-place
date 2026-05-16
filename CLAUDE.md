@@ -75,7 +75,7 @@ Superar un límite = dividir antes de continuar. Archivo ≤ 300 líneas · func
 
 ## Estilo de código
 
-- **Tailwind solo para layout y spacing.** Los colores del place son CSS custom properties configurables por el admin, nunca clases Tailwind hardcoded.
+- **Tailwind solo para layout y spacing.** Los colores del place son CSS custom properties configurables por el owner, nunca clases Tailwind hardcoded.
 - **Zod para todo input externo** (forms, API, webhooks).
 - `any`/`@ts-ignore` solo con justificación escrita.
 

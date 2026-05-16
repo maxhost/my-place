@@ -2,7 +2,7 @@
 
 Schema del core del producto, expresado en **SQL (Postgres) ORM-agnóstico**. El método de acceso (ORM/query builder/SQL plano) está TBD; el modelo no depende de esa decisión. Cada feature agrega sus propias tablas respetando este core.
 
-> _Última actualización: 2026-05-15._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
+> _Última actualización: 2026-05-16._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
 
 ## Schema base
 
@@ -10,7 +10,10 @@ Schema del core del producto, expresado en **SQL (Postgres) ORM-agnóstico**. El
 -- IDs opacos no secuenciales (cuid/uuid generado por la app o gen_random_uuid()).
 -- Razón: no exponer conteos de places/users vía URLs secuenciales.
 
-CREATE TYPE membership_role AS ENUM ('MEMBER', 'ADMIN');
+-- No hay ENUM de rol. El rol se deriva: un usuario es OWNER de un place si
+-- existe fila en place_ownership; si solo tiene membership, es MIEMBRO. La
+-- administración delegada (rol "admin") será una feature futura de grupos con
+-- permisos granulares, no un rol en membership.
 
 -- billing_mode: estrategia de pagos TBD. Se conserva el enum como invariante
 -- de dominio (un place tiene un solo modo). Las columnas Stripe-específicas se
@@ -25,7 +28,10 @@ CREATE TABLE app_user (
   auth_user_id TEXT NOT NULL UNIQUE,
   email        TEXT NOT NULL UNIQUE,
   display_name TEXT NOT NULL,
-  handle       TEXT UNIQUE,
+  -- Obligatorio y único global. Se asigna random no-usado al crear la cuenta;
+  -- el usuario puede editarlo (única regla: no colisionar). Se libera para
+  -- reuso SOLO al borrar la cuenta — salir de un place no lo libera.
+  handle       TEXT NOT NULL UNIQUE,
   avatar_url   TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -64,7 +70,7 @@ CREATE TABLE membership (
   id        TEXT PRIMARY KEY,
   user_id   TEXT NOT NULL REFERENCES app_user(id),
   place_id  TEXT NOT NULL REFERENCES place(id),
-  role      membership_role NOT NULL DEFAULT 'MEMBER',
+  -- Sin columna role: owner se deriva de place_ownership; si no, es miembro.
   joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   left_at   TIMESTAMPTZ,
   UNIQUE (user_id, place_id)
@@ -101,13 +107,15 @@ Reglas que el código debe enforzar. No son validaciones UI — son invariantes 
 - **Un usuario no puede tener dos memberships activas en el mismo place.** Enforzado por unique constraint `(user_id, place_id)`.
 - **Un dominio mapea a lo sumo a un place.** Enforzado por `place_domain.domain UNIQUE`. El routing por hostname (ver `multi-tenancy.md`) resuelve **solo dominios verificados** (`verified_at IS NOT NULL`, `archived_at IS NULL`).
 - **Un humano = un `app_user`.** Relación 1:1 con la identidad de login de Better Auth (`app_user.auth_user_id UNIQUE`), sin importar por qué dominio entró. El SSO cross-domain no crea identidades nuevas.
+- **Rol derivado, no almacenado.** Un usuario es owner de un place si existe fila en `place_ownership`; si solo tiene `membership`, es miembro. No existe rol `admin`: la administración delegada será una feature futura de grupos con permisos granulares.
+- **Handle obligatorio y único global.** `app_user.handle NOT NULL UNIQUE`. Auto-asignado random no-usado al crear la cuenta, editable por el usuario, liberado para reuso **solo al borrar la cuenta** (no al salir de un place).
 
 ## Capas de identidad de un usuario
 
 Ver `docs/ontologia/miembros.md` para el detalle ontológico. En el schema:
 
 - **Capa universal** (en `app_user`): email, display_name, handle, avatar_url
-- **Capa contextual** (en `membership` + datos derivados por place): role, fecha de join, contribuciones acumuladas calculadas por feature
+- **Capa contextual** (en `membership` + datos derivados por place): rol derivado (owner/miembro), fecha de join, contribuciones acumuladas calculadas por feature
 - **Capa privada**: settings del usuario, no expuestos a otros
 
 ## Auth y OIDC (Neon Auth / Better Auth)
@@ -127,6 +135,8 @@ Cuando un usuario deja un place (`membership.left_at` se setea):
 - Durante 365 días ese contenido sigue atribuido a su nombre (trazabilidad)
 - Pasados los 365 días, un job periódico reemplaza el user reference por un placeholder "ex-miembro"
 - Su presencia, lecturas y actividad se borran inmediatamente al salir
+
+**Salir de un place ≠ borrar la cuenta.** Lo de arriba es per-place (`membership.left_at`); el usuario sigue siendo el mismo `app_user` con su handle en los otros places. **Borrar la cuenta** es la operación universal: ahí sí se libera el `handle` para reuso y se desliga la identidad de login (capa universal).
 
 Esta política se implementa en `features/members/` con un cron job o scheduled function.
 

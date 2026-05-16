@@ -1,6 +1,8 @@
 # Eventos · objeto consolidado
 
-Documento final del objeto "evento" en Place. Todas las decisiones tomadas. Listo para pasar a UI.
+Documento final del objeto "evento" en Place. Todas las decisiones tomadas.
+
+> _Última actualización: 2026-05-16._ Ontología canónica del dominio. Si una decisión de producto cambia, se actualiza acá **en la misma sesión** y se ajusta la fecha; el schema (`docs/data-model.md`) es su expresión, no su fuente.
 
 ---
 
@@ -130,7 +132,7 @@ En la home del place, no aparecen 47 instancias de "misa del domingo" como lista
 - No hay "streak" que se puede "romper"
 - No hay ansiedad por faltar
 - No hay castigo visual si una instancia se saltea
-- No hay gamificación
+- No hay comparación ni ranking entre miembros ("el más fiel", "el que más asistió")
 
 **Qué SÍ hacemos**:
 
@@ -165,7 +167,7 @@ Para proteger el primitivo y no convertirnos en Circle:
 - **No tiene streaming propio integrado** para el MVP (usa Zoom/Meet/Discord externos)
 - **No tiene moderación algorítmica** del thread (moderación humana, como el resto del place)
 - **No tiene "discover" público** (eventos son del place, no del mundo)
-- **No tiene gamificación de asistencia** (no hay points por asistir ni ranking de asistentes)
+- **No tiene competencia de asistencia** (no hay points por asistir, ni ranking, ni comparación de asistentes; sí puede haber reconocimiento cualitativo de rol tipo "siempre presente en los eventos" — ver principio en `docs/producto.md`)
 
 ---
 

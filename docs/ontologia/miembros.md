@@ -2,6 +2,8 @@
 
 Documento final del objeto "miembros" en Place. Incluye identidad del usuario, perfil contextual, y DMs. Todas las decisiones tomadas. Listo para construir.
 
+> _Última actualización: 2026-05-16._ Ontología canónica del dominio. Si una decisión de producto cambia, se actualiza acá **en la misma sesión** y se ajusta la fecha; el schema (`docs/data-model.md`) es su expresión, no su fuente.
+
 ---
 
 ## El principio
@@ -67,7 +69,7 @@ Esto resuelve dos tensiones que la mayoría de productos no resuelve bien: priva
 
 Un perfil tradicional suele tener una URL pública — yourapp.com/user/max. Cualquiera puede buscarte. Tu perfil es independiente de las comunidades a las que pertenecés.
 
-En Place **no hay perfil público fuera de places**. No existe "max.place.app". Si alguien no comparte un place contigo, no puede verte, buscarte, encontrarte. Place no es red social — es sistema de lugares cerrados.
+En Place **no hay perfil público fuera de places**. No existe "max.place.community". Si alguien no comparte un place contigo, no puede verte, buscarte, encontrarte. Place no es red social — es sistema de lugares cerrados.
 
 Esto tiene una consecuencia fuerte: tu existencia en Place es **siempre situada**. No sos un perfil flotante con comunidades asociadas. Sos una persona en ciertos lugares.
 
@@ -81,7 +83,7 @@ Lo que viaja con vos entre places:
 
 - **Nombre elegido**: cómo te identificás. No es tu legal name. Puede ser "Max", "Max Fernandez", "maxdev", lo que quieras.
 - **Avatar**: imagen o inicial con color. Se muestra en todas partes.
-- **Handle único global**: identificador único en todo el ecosistema de Place. Nadie más puede tener el mismo. Es opcional al registrarte, pero si lo tomás es tuyo. Útil para menciones cross-place y como identidad portable.
+- **Handle único global**: identificador único en todo el ecosistema de Place. Obligatorio: se asigna uno random no usado al crear la cuenta, y el usuario puede modificarlo (única regla: que no exista otro igual). Útil para menciones cross-place y como identidad portable.
 
 **Eso es todo lo universal**. No hay edad, género, ubicación, pronombres, bio universal. Si un place específico necesita saber esas cosas, se resuelve en la capa contextual.
 
@@ -90,7 +92,7 @@ Lo que viaja con vos entre places:
 Lo que vive en cada place, no viaja entre places:
 
 - **Antigüedad**: cuándo te sumaste a este place específico. "Desde marzo 2024".
-- **Rol**: miembro, admin, fundador. Asignado por estructura, no por declaración.
+- **Rol**: owner o miembro. **Owner** = creador del place o quien otro owner designe; **miembro** = todo el resto. No hay rol "admin": la administración delegada será una feature futura de *grupos con permisos granulares* que el owner crea (un grupo "admin" con miembros elegidos). Asignado por estructura, no por declaración.
 - **Contribuciones**: temas que trajiste, mensajes que escribiste, documentos que subiste, eventos que creaste. Métricas de actividad real, no vanidad. Se muestran como hechos, no como puntaje.
 - **Actividad reciente**: última aparición en el place, últimos temas donde participaste, últimos documentos que subiste.
 - **Reconocimientos específicos del place**: si el place define títulos honoríficos, alguna marca especial. Esto es customizable por place y totalmente opcional.
@@ -122,7 +124,7 @@ No abre un perfil universal, no abre un "about page", no te lleva a otra pantall
 - Antigüedad en este place: "Lucía está en El Taller desde marzo 2024"
 - Sus contribuciones acumuladas en este place: "14 temas traídos, 48 mensajes, 3 documentos subidos"
 - Actividad reciente: "Su último tema: TDD en proyectos chicos · reabierto hace 2 días"
-- Rol: miembro / admin / fundador
+- Rol: owner / miembro
 - Botón para iniciar DM: "Iniciar conversación"
 
 **Lo que NO muestra**:
@@ -224,15 +226,14 @@ Estos estados se muestran donde corresponde (presencia en home, indicador de "es
 
 ## Handle único global
 
-Para los que lo tomen, el handle es:
+El handle es:
 
-- Único en todo el ecosistema de Place (nadie más puede tenerlo)
-- Tomado por primera vez por orden de registro (first come first serve)
+- **Obligatorio y único** en todo el ecosistema de Place (nadie más puede tener el mismo a la vez).
+- **Asignado automático al crear la cuenta**: un handle random que no esté en uso. El usuario puede **modificarlo** después; la única regla es que no colisione con uno existente.
 - Formato: letras, números, algunos caracteres permitidos. Sin espacios.
-- Visible en el perfil contextual como "@max" debajo del nombre
-- Útil para mencionar a alguien en un mensaje cross-place (si algún día se permite)
-
-Handle es opcional. Podés existir en Place solo con nombre + avatar sin handle.
+- Visible en el perfil contextual como "@max" debajo del nombre.
+- Útil para mencionar a alguien en un mensaje cross-place (si algún día se permite).
+- **Ciclo de vida:** el handle se libera y vuelve a estar disponible **solo al borrar la cuenta**. Salir de un place (volverse "ex-miembro" ahí) NO libera el handle — seguís siendo la misma persona en los otros places. El "ex-miembro" es un estado por-place del contenido (capa 2); el handle es identidad universal (capa 1).
 
 ---
 
@@ -246,7 +247,7 @@ Para proteger el primitivo:
 - **No hay stats vanidosos** tipo "total posts, total likes". Los stats son hechos contextuales, no métricas.
 - **No hay "online status"** agregado. Sabés dónde está alguien si estás en el mismo place que él/ella.
 - **No hay feed de actividad** del miembro. La actividad se ve en contexto de cada objeto.
-- **No hay badges/achievements** por actividad. Sin gamificación.
+- **Reconocimiento de pertenencia/rol, no competencia.** Sí: antigüedad, hitos temporales tranquilos, insignias/títulos cualitativos por rol o forma de participar (ej. "siempre presente en eventos", "ayuda seguido en [tema]"), conferidos por estructura o por el owner. No: leaderboards, rankings, comparación entre miembros, streaks, puntos/niveles por volumen, colección competitiva de insignias. Principio canónico en `docs/producto.md`.
 - **No hay "última vez online"** general. Solo visible en contexto del place.
 - **No hay verificación de identidad/blue checkmark**. Sos quien decís que sos, y el place es privado por diseño.
 
@@ -276,7 +277,7 @@ Durante 365 días su contenido sigue con su nombre (trazabilidad). Después se d
 - Perfil contextual del miembro (se ve al tocar un nombre desde cualquier objeto)
 - Inbox universal de DMs (lista de conversaciones)
 - Conversación individual de DM
-- Onboarding inicial: capturar nombre + avatar + handle opcional
+- Onboarding inicial: capturar nombre + avatar (el handle se asigna random automático; editable después)
 
 **Implementación**: no empezada.
 
@@ -284,6 +285,7 @@ Durante 365 días su contenido sigue con su nombre (trazabilidad). Después se d
 
 ## Referencias cruzadas
 
-- `place-maestro.md` — marco general del producto
-- `place-discusiones-consolidado.md` — donde los miembros se manifiestan hablando
-- `place-eventos-consolidado.md` — donde los miembros se manifiestan confirmando y asistiendo
+- `docs/producto.md` — visión y principios de experiencia (marco general)
+- `docs/ontologia/conversaciones.md` — donde los miembros se manifiestan hablando
+- `docs/ontologia/eventos.md` — donde los miembros se manifiestan confirmando y asistiendo
+- `docs/data-model.md` — expresión en schema (capas de identidad, derecho al olvido)

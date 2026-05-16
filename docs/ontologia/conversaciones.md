@@ -2,6 +2,8 @@
 
 Documento final del objeto "discusiones" (el foro reimaginado) en Place. Todas las decisiones tomadas. Listo para construir.
 
+> _Última actualización: 2026-05-16._ Ontología canónica del dominio. Si una decisión de producto cambia, se actualiza acá **en la misma sesión** y se ajusta la fecha; el schema (`docs/data-model.md`) es su expresión, no su fuente.
+
 ---
 
 ## El principio
@@ -62,7 +64,7 @@ Esto hace que la historia del place acumule capas en vez de fragmentarse.
 
 Un foro tradicional acumula temas indefinidamente. A los tres años tiene 5000 hilos y nadie encuentra nada.
 
-En Place, el admin puede cerrar una temporada del place (mes, trimestre, año). Al cerrar, los temas de esa temporada se consolidan como **artefacto descargable** — un anuario del place, un libro digital, un PDF. Después empieza otra temporada con borrón parcial.
+En Place, el owner puede cerrar una temporada del place (mes, trimestre, año). Al cerrar, los temas de esa temporada se consolidan como **artefacto descargable** — un anuario del place, un libro digital, un PDF. Después empieza otra temporada con borrón parcial.
 
 Esta propiedad es opcional — cada place decide si usa temporadas o no. Pero abre la puerta a que la discusión sea algo que acumula y luego se preserva como memoria del grupo.
 
@@ -105,9 +107,9 @@ Al abrir un tema, la estructura es:
 
 ### Comportamiento fuera de la apertura
 
-Fuera del horario el place **no está accesible** para el contenido. Ni member ni admin/owner ven discusiones, eventos, miembros o threads. La única excepción es admin/owner, que mantiene acceso a `/settings/*` para administrar el place (incluyendo configurar el horario). Cualquier ruta no-settings muestra `<PlaceClosedView>` indicando cuándo vuelve a abrir.
+Fuera del horario el place **no está accesible** para el contenido. Ni miembro ni owner ven discusiones, eventos, miembros o threads. La única excepción es el owner, que mantiene acceso a `/settings/*` para administrar el place (incluyendo configurar el horario). Cualquier ruta no-settings muestra `<PlaceClosedView>` indicando cuándo vuelve a abrir.
 
-Ver `docs/features/hours/spec.md` para el contrato completo del gate por rol.
+Regla técnica del gate (dónde vive, no por feature): `docs/architecture.md` § "Gate de horario del place".
 
 ---
 
@@ -135,14 +137,14 @@ Ver `docs/features/hours/spec.md` para el contrato completo del gate por rol.
 
 **De la moderación**:
 
-- Centralizada en admin (no distribuida)
-- Miembros pueden solicitar; admin ejecuta
+- Centralizada en el owner (no distribuida; delegable vía grupos con permisos en el futuro)
+- Miembros pueden solicitar; el owner ejecuta
 - No hay flags automáticos
 - No hay moderación algorítmica
 
 **De las temporadas** (opcional):
 
-- El admin puede definir temporadas (mes, trimestre, año)
+- El owner puede definir temporadas (mes, trimestre, año)
 - Al cerrar una temporada, se genera un artefacto descargable: PDF, libro digital, o similar
 - Los temas de esa temporada quedan archivados pero accesibles
 
@@ -152,7 +154,7 @@ Ver `docs/features/hours/spec.md` para el contrato completo del gate por rol.
 
 Para proteger el primitivo de Place:
 
-- **No hay karma/reputation/points** de miembros por postear. No hay gamificación.
+- **No hay karma/reputation/points por postear** ni ranking de actividad. Sí puede haber reconocimiento cualitativo de pertenencia/rol (ver principio en `docs/producto.md`), nunca métricas de volumen que compiten por atención.
 - **No hay algoritmo de ranking** — los temas se ordenan cronológicamente por última actividad, no por "popularidad".
 - **No hay tags/categorías** preestablecidas. Cada tema es su propio tema.
 - **No hay votos up/down** en mensajes. Reacciones emoji sí (son expresión, no jerarquía).
@@ -164,9 +166,9 @@ Para proteger el primitivo de Place:
 
 ## Integraciones con otros objetos del place
 
-**Con eventos**: cada evento genera automáticamente un thread del foro que funciona como espacio de preparación colectiva, participación durante, y memoria post-evento. Ver `place-eventos-consolidado.md`.
+**Con eventos**: cada evento genera automáticamente un thread del foro que funciona como espacio de preparación colectiva, participación durante, y memoria post-evento. Ver `docs/ontologia/eventos.md`.
 
-**Con miembros**: los nombres en el foro son tappeables. Tocás el nombre de Lucía y abrís su perfil contextual del place. Desde ahí podés iniciar DM. Ver `place-miembros-consolidado.md`.
+**Con miembros**: los nombres en el foro son tappeables. Tocás el nombre de Lucía y abrís su perfil contextual del place. Desde ahí podés iniciar DM. Ver `docs/ontologia/miembros.md`.
 
 **Con biblioteca** (cuando se implemente): los documentos pueden ser referenciados desde discusiones. Un mensaje puede linkear a un documento del place.
 
@@ -181,7 +183,7 @@ Los temas son conversación real: "¿viste la serie X?", "alguien prueba tal res
 Temas técnicos con más peso: "nuevo enfoque de testing", "librería X vs Y", "código que quiero que revisen". Menos audio, más texto largo. Citas tipo WhatsApp usadas para responder puntualmente. Biblioteca del taller complementa el foro con recursos.
 
 **Iglesia (50 personas, siempre abierta para algunos temas)**:
-Discusiones de fe, dudas, pedidos de oración, organización de actividades. Admin modera activamente. Temas sensibles pueden tener restricciones específicas.
+Discusiones de fe, dudas, pedidos de oración, organización de actividades. El owner modera activamente. Temas sensibles pueden tener restricciones específicas.
 
 **Empresa pequeña (30 personas, horario laboral)**:
 Discusiones más formales, decisiones de producto, retrospectivas, cosas que son demasiado largas para Slack y demasiado informales para email. El horario del place refuerza que hay tiempo de trabajo y tiempo de descanso.
@@ -215,7 +217,7 @@ Es importante ser honestos:
 
 ## Referencias cruzadas
 
-- `place-maestro.md` — marco general del producto
-- `place-eventos-consolidado.md` — evento, que usa thread del foro como espacio
-- `place-miembros-consolidado.md` — perfil del miembro, accesible desde nombres del foro
-- `place-foro-ui.html` — UI mobile existente
+- `docs/producto.md` — visión y principios de experiencia (marco general)
+- `docs/ontologia/eventos.md` — evento, que usa thread del foro como espacio
+- `docs/ontologia/miembros.md` — perfil del miembro, accesible desde nombres del foro
+- `docs/architecture.md` § "Gate de horario del place" — regla técnica del gate por horario
