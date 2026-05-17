@@ -77,8 +77,10 @@ Canónico en **ADR-0005** + **ADR-0008** (dos vías de entrada). En el apex `pla
 
 **Dos modos de saga (ADR-0008).** Hay dos vías de entrada y la saga corre distinto:
 
-- **Modo place-first (CTAs de la landing):** usuario no autenticado → wizard place-first → al submit único corre la saga completa (pasos 1-3: `signUp` → `app_user` → place+ownership+membership). La cuenta se crea al final.
-- **Modo authed (item "Acceso" → login form → signup account-first → "Crear mi place"):** la identidad y `app_user` ya existen (vía `ensureAppUser`). La saga se **reduce al paso 3** (tx de place+ownership+membership); no se re-pide cuenta. La rama "Unirme" = solo directorio (futuro), deshabilitada; las invitaciones se entran por su token-link, no desde "Acceso" (ADR-0010 §3).
+- **Modo place-first (CTAs de la landing):** usuario no autenticado → wizard place-first → al submit único corre la saga completa (`signUp` → `app_user` → `app.create_place(...)`). La cuenta se crea al final.
+- **Modo authed (item "Acceso" → login form → signup account-first → "Crear mi place"):** la identidad y `app_user` ya existen (vía `ensureAppUser`). La saga se **reduce a `app.create_place(...)`**; no se re-pide cuenta. La rama "Unirme" = solo directorio (futuro), deshabilitada; las invitaciones se entran por su token-link, no desde "Acceso" (ADR-0010 §3).
+
+El paso de `public` (place+ownership+membership) es **una función `SECURITY DEFINER` atómica**, no tres INSERT por-RLS — INSERT directo denegado (ADR-0012, supersede ADR-0010 §1).
 
 `ensureAppUser` hace ambos modos seguros (idempotente). Detalle de vías y RLS: ADR-0008/0010, `docs/features/onboarding/`.
 

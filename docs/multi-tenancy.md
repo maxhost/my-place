@@ -74,14 +74,20 @@ Alternativa: entradas en `/etc/hosts` si algún browser no resuelve wildcard loc
 
 Canónico en **ADR-0006** (esta sección es su spec operativa). El aislamiento entre places se enforcea en el **motor** (Postgres RLS), no solo en código de aplicación.
 
-**Modelo POR-OPERACIÓN (S1, ADR-0010 — refina ADR-0006 §2).** Las policies se declaran por operación, no una sola para todo. Esto disuelve el falso "huevo y gallina" al crear un place (la fila de ownership aún no existe en ese instante).
+**Modelo POR-OPERACIÓN (ADR-0010, refinado por ADR-0012).** Las policies se declaran por operación. El INSERT de creación **no** es por-RLS: se canaliza por una función `SECURITY DEFINER` (ADR-0012, hallazgo empírico 2026-05-17 — `WITH CHECK` self-only pura-RLS deja escalación de ownership; ver ADR-0012 §Contexto).
 
-- **`app_user` (todas):** solo la propia fila →
+- **`app_user` — `FOR ALL`:** solo la propia fila (USING + WITH CHECK) →
   ```sql
   (select app.current_user_id()) = app_user.auth_user_id
   ```
-- **`place` / `membership` / `place_ownership` — INSERT:** cualquier usuario **autenticado**, con `WITH CHECK` que garantiza que **solo se inserta a sí mismo** (su `app_user`) como owner/miembro del place que crea — no a nombre de otro ni en place ajeno. Crear el place propio no toca filas ajenas → sin función privilegiada.
-- **`place` / `membership` / `place_ownership` — SELECT/UPDATE/DELETE:** solo el **owner** del place →
+- **`place` / `place_ownership` / `membership` — INSERT: DENEGADO por RLS.** No hay policy de INSERT para `app_system`; además se `REVOKE INSERT` (defense-in-depth). La creación va **solo** por `app.create_place(...)` (ADR-0012 §3): función `SECURITY DEFINER`, dueño `neondb_owner`, `EXECUTE` solo `app_system`, `SET search_path` fijo; genera el `place_id` (no lo acepta de afuera), toma el caller de `app.current_user_id()` (no parámetro), fija billing/trial deterministas y hace los 3 INSERT atómicos. B no puede crear ownership en place ajeno **por construcción** (la única vía siempre crea un place fresco para el caller).
+- **`place_ownership` — SELECT/UPDATE/DELETE:** "esta fila de ownership es mía", **referenciando `app_user`, NUNCA `place_ownership`** (única forma recursion-safe — la auto-referencia da `infinite recursion detected`, verificado 2026-05-17) →
+  ```sql
+  EXISTS (SELECT 1 FROM app_user au
+          WHERE au.id = place_ownership.user_id
+            AND au.auth_user_id = (select app.current_user_id()))
+  ```
+- **`place` / `membership` / `invitation` / `place_domain` — SELECT/UPDATE/DELETE:** solo el **owner** del place →
   ```sql
   EXISTS (
     SELECT 1 FROM place_ownership po
@@ -90,11 +96,13 @@ Canónico en **ADR-0006** (esta sección es su spec operativa). El aislamiento e
       AND au.auth_user_id = (select app.current_user_id())
   )
   ```
-- **`invitation` (todas las operaciones): 100% owner-only** (mismo predicado). Sin policy por email, sin verified-email. La aceptación NO pasa por la RLS del usuario (ver "RLS e invitaciones").
+  El sub-`SELECT` sobre `place_ownership` aplica su policy no-recursiva (vía `app_user`) → termina.
+- **`invitation` — `FOR ALL`: 100% owner-only** (predicado owner; USING + WITH CHECK). El owner crea/lista/revoca por esta base (sin chicken-egg: place+ownership ya existen). Sin policy por email, sin verified-email. La **aceptación** NO pasa por la RLS del usuario: función `SECURITY DEFINER` aparte (ver "RLS e invitaciones").
+- **`place_domain` — `FOR ALL`: owner-only** (mismo predicado; USING + WITH CHECK). Entra al conjunto owner-only por ADR-0012 (ADR-0010/esta sección no lo enumeraban — dejarlo sin RLS expondría los custom domains de cualquier place a todo `app_system`).
 
-Owner → CRUD completo solo en su place; cualquier autenticado puede **crear** su place; places distintos aislados. **El acceso de miembros NO está en la base** (deliberado): se agrega **por-feature, encima**, según tier/grupo/config. RLS incremental; la base entra en S1.
+Owner → CRUD completo solo en su place; la creación va por `app.create_place`; places distintos aislados. **El acceso de miembros NO está en la base** (deliberado): se agrega **por-feature, encima**, según tier/grupo/config. RLS incremental.
 
-Se expresa en Drizzle con `pgPolicy` + predicados custom; `app.current_user_id()` lee el claim `sub` inyectado.
+Se expresa en Drizzle con `pgPolicy` + `pgRole('app_system').existing()`; las funciones `SECURITY DEFINER` (`app.current_user_id()`, `app.create_place`, aceptación de invitación) se escriben a mano en la migración (Drizzle no las modela; drizzle-kit no las gestiona → sin drift). `app.current_user_id()` lee el claim `sub` inyectado.
 
 **Función de identidad (propia, ADR-0011 — verificada empíricamente 2026-05-17).** Neon RLS NO está provisionado (no existe `auth.user_id()` ni schema `auth`). Definimos la nuestra en la primera migración (S1), versionada y portable dev→prod:
 
@@ -109,7 +117,7 @@ Sin claim → `NULL` → la policy deniega. Probado end-to-end con `app_system` 
 
 **Modelo rol/JWT (nombres exactos verificados 2026-05-16, agente de verificación; cierran los "TBD acotado" de ADR-0006):**
 
-- **Roles (definidos, ADR-0010):** el **rol de runtime de queries de dominio = `app_system`** (custom, NO-admin, sin `BYPASSRLS`), declarado con `pgRole('app_system').existing()`. Las policies se declaran `to`/`for` `app_system`, NO el `authenticatedRole`/`anonymousRole` de la Data API. `app_system` recibe `GRANT EXECUTE` de la(s) función(es) `SECURITY DEFINER` (aceptación de invitación) pero **no es su `DEFINER`/dueño**: el dueño es el rol privilegiado de schema/migraciones (`neondb_owner`), de modo que la función toca `invitation` con permiso mientras `app_system` solo la **invoca**. `neondb_owner` (admin, `BYPASSRLS`) **solo** migraciones `drizzle-kit`, nunca en runtime. GRANT de `app_system`: CRUD sujeto a RLS en tablas de producto + `EXECUTE` de funciones privilegiadas + `USAGE` de `public`; sin DDL, sin `BYPASSRLS`, sin `neon_auth`.
+- **Roles (definidos, ADR-0010):** el **rol de runtime de queries de dominio = `app_system`** (custom, NO-admin, sin `BYPASSRLS`), declarado con `pgRole('app_system').existing()`. Las policies se declaran `to`/`for` `app_system`, NO el `authenticatedRole`/`anonymousRole` de la Data API. `app_system` recibe `GRANT EXECUTE` de las funciones `SECURITY DEFINER` (`app.create_place` — creación; aceptación de invitación) pero **no es su `DEFINER`/dueño**: el dueño es el rol privilegiado de schema/migraciones (`neondb_owner`), de modo que la función inserta/toca las tablas con permiso mientras `app_system` solo la **invoca**. `neondb_owner` (admin, `BYPASSRLS`) **solo** migraciones `drizzle-kit`, nunca en runtime. GRANT de `app_system`: CRUD sujeto a RLS en tablas de producto + `EXECUTE` de funciones privilegiadas + `USAGE` de `public`; sin DDL, sin `BYPASSRLS`, sin `neon_auth`.
 - Token: `await auth.getSession()` → **`session.access_token`** (JWT). Se verifica con `jose` (`createRemoteJWKSet(new URL(NEON_AUTH_JWKS_URL))` + `jwtVerify`); el claim **`sub`** = `neon_auth.user.id`.
 - Se **inyectan los claims** en la transacción: `select set_config('request.jwt.claims', <claims-json>, true)` (**transaction-local, `true` obligatorio** — con el pooler de Neon, omitirlo filtraría identidad entre requests) dentro de `db.transaction`; las policies leen **`app.current_user_id()`** (función propia ADR-0011, ya verificada 2026-05-17 — no depende de Neon RLS/Data API).
 - Driver = **`neon-serverless` (WebSocket)** — la saga necesita transacción interactiva (`neon-http` no sirve para tx interactivas).

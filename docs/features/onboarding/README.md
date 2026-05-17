@@ -6,9 +6,10 @@ Spec de **comportamiento esperado** de la feature de onboarding (alta owner-firs
 
 > ⚠️ **Pendiente de re-sync con ADR-0008 + ADR-0010 (estado final del modelo).** Esta spec aún describe el flujo place-first de los CTA (ADR-0005 §1). El modelo final, fuente de verdad hasta el re-sync:
 > - **Dos vías de entrada (ADR-0008):** CTAs → place-first (cuenta al final, single-submit). Item **"Acceso"** → form login → signup **account-first** → "Crear mi place" (reusa pasos de place SIN el de cuenta; saga **modo authed**) o "Unirme".
-> - **RLS por-operación (ADR-0010, refina ADR-0006 §2):** INSERT de place/membership/ownership abierto a autenticado con `WITH CHECK` self-only; SELECT/UPDATE/DELETE owner-only; `app_user` propia fila. **No** hay huevo-y-gallina ni función para crear place.
+> - **RLS por-operación (ADR-0010, refinado por ADR-0012):** INSERT de place/membership/ownership **denegado por RLS** (`REVOKE INSERT` + sin policy); creación **solo** vía `app.create_place` `SECURITY DEFINER`. SELECT/UPDATE/DELETE owner-only (`place_ownership` fraseado vía `app_user`, recursion-safe); `app_user` propia fila; `invitation`/`place_domain` owner-only `FOR ALL`.
 > - **Invitación SOLO por token-link (ADR-0010, supersede ADR-0009 §1):** `invitation` 100% owner-only; se acepta únicamente entrando por el link con token vía función de confianza `SECURITY DEFINER` (validate → ensureAppUser → membership → test-and-set `accepted_at`). **Sin** lookup por email, **sin** verified-email. "Unirme" en Acceso = solo **directorio** (futuro) → deshabilitado/"próximamente"; las invitaciones no se acceden desde el menú "Acceso".
-> El §2 (flujo), §3 (saga: dos modos), §5 (RLS por-operación), §6 (invitación token-link) y `plan-sesiones.md` se re-sincronizan con ADR-0008/0010 antes de implementar. Hasta el re-sync, **ADR-0008 + ADR-0010** son la fuente.
+> - **Creación vía función `SECURITY DEFINER` (ADR-0012, supersede ADR-0010 §1):** INSERT directo de place/ownership/membership denegado; `app.create_place` es la única vía (cierra escalación de ownership y recursión RLS, verificado empíricamente 2026-05-17). §5 ya re-sincronizado a este modelo.
+> El §2 (flujo), §3 (saga: dos modos) y `plan-sesiones.md` se re-sincronizan con ADR-0008/0010/0012 antes de implementar; §5 (RLS) y §6 (invitación token-link) ya están al modelo final. Hasta el re-sync total, **ADR-0008 + ADR-0010 + ADR-0012** son la fuente.
 
 ## Índice de esta carpeta
 
@@ -151,21 +152,22 @@ Canónico: `architecture.md` § "Sesión y SSO", `stack.md`, ADR-0005 §9, ADR-0
 
 ## 5. RLS base aplicada en esta feature
 
-Canónico: ADR-0006 §2–3, `multi-tenancy.md` § RLS. **RLS incremental; la base owner entra en S1.** Esta feature aplica la base; el acceso de miembros NO está en la base (es deliberado) y se agrega por-feature, encima, en specs futuras.
+Canónico: ADR-0006 §2–3, **ADR-0012**, `multi-tenancy.md` § RLS. **RLS incremental; la base owner entra en S2.** Esta feature aplica la base; el acceso de miembros NO está en la base (es deliberado) y se agrega por-feature, encima, en specs futuras.
 
-### Policies que se crean en S1 (POR-OPERACIÓN — ADR-0010, refina ADR-0006 §2)
+### Policies (POR-OPERACIÓN — ADR-0010, refinado por ADR-0012; S2)
 
-- **`app_user` (todas):** solo la propia fila → `(select app.current_user_id()) = app_user.auth_user_id`.
-- **`place` / `membership` / `place_ownership` — INSERT:** cualquier usuario **autenticado**, con `WITH CHECK` que garantiza que **solo se inserta a sí mismo** (su `app_user`) como owner/miembro del place que crea — no a nombre de otro ni en place ajeno. Crear el place propio no toca filas ajenas → **no hay huevo-y-gallina, no hace falta función para crear place**.
-- **`place` / `membership` / `place_ownership` — SELECT/UPDATE/DELETE:** solo el **owner** del place →
+- **`app_user` — `FOR ALL`:** solo la propia fila → `(select app.current_user_id()) = app_user.auth_user_id` (USING + WITH CHECK).
+- **`place` / `place_ownership` / `membership` — INSERT: DENEGADO** (sin policy + `REVOKE INSERT` a `app_system`). La creación va **solo** por `app.create_place` (ADR-0012 §3, S3): `SECURITY DEFINER`, genera el `place_id`, caller de `app.current_user_id()`, billing/trial deterministas, 3 INSERT atómicos. B no puede crear en place ajeno **por construcción**.
+- **`place_ownership` — SELECT/UPDATE/DELETE:** "esta fila es mía" referenciando **`app_user`, nunca `place_ownership`** (recursion-safe; auto-referencia da `infinite recursion detected`, verificado) → `EXISTS (SELECT 1 FROM app_user au WHERE au.id = place_ownership.user_id AND au.auth_user_id = (select app.current_user_id()))`.
+- **`place` / `membership` / `invitation` / `place_domain` — SELECT/UPDATE/DELETE:** solo el **owner** del place →
   ```
   EXISTS (SELECT 1 FROM place_ownership po JOIN app_user au ON au.id = po.user_id
           WHERE po.place_id = <tabla>.place_id  -- para `place`: po.place_id = place.id
             AND au.auth_user_id = (select app.current_user_id()))
   ```
-- **`invitation` (todas las operaciones): 100% owner-only** (mismo predicado). Sin policy por email, sin verified-email. La aceptación NO pasa por la RLS del invitado (ver §6).
+- **`invitation` / `place_domain` — `FOR ALL` owner-only** (USING + WITH CHECK): incluye su INSERT (place+ownership ya existen, sin chicken-egg). `place_domain` entra al conjunto por ADR-0012. La aceptación de invitación NO pasa por la RLS del invitado (ver §6).
 
-Cualquier autenticado puede **crear** su place; owner → CRUD solo en su place; places aislados. La base **no concede nada a miembros** (se agrega por-feature, después).
+La creación va por `app.create_place`; owner → CRUD solo en su place; places aislados. La base **no concede nada a miembros** (se agrega por-feature, después).
 
 ### Modelo rol/JWT (nombres exactos, verificados 2026-05-16)
 
@@ -173,12 +175,12 @@ Cualquier autenticado puede **crear** su place; owner → CRUD solo en su place;
 - Token: `await auth.getSession()` → **`session.access_token`** (JWT). Verificación con **`jose`** (`createRemoteJWKSet(new URL(NEON_AUTH_JWKS_URL))` + `jwtVerify`); el claim **`sub`** = `neon_auth.user.id`.
 - Inyección de claims en la transacción: `select set_config('request.jwt.claims', <claims-json>, true)` dentro de `db.transaction`; las policies leen **`app.current_user_id()`** (canónico; `auth.uid()` es de la Data API y no se usa).
 - `app.current_user_id()` = función **propia** (ADR-0011), creada en la migración de S1 (no depende de Neon RLS, que NO está provisionado). Ya verificada empíricamente 2026-05-17.
-- Se expresa en Drizzle con `pgPolicy`/`crudPolicy` + predicados custom (`drizzle-orm/neon`).
+- Se expresa en Drizzle con `pgPolicy` + `pgRole('app_system').existing()`; las funciones `SECURITY DEFINER` (`app.current_user_id()`, `app.create_place`, aceptación de invitación) van a mano en migraciones (Drizzle no las modela; drizzle-kit no las gestiona → sin drift).
 - **Sin Data API y sin rol `anon`**: ningún grant a `anon`; todo acceso de dominio es autenticado y verificado server-side.
 
 ### Saga vs RLS
 
-La saga (paso 2–3) corre tras `auth.signUp.email()` con la sesión del nuevo usuario; los `INSERT` corren bajo `app_system` con los claims inyectados. **No hay huevo-y-gallina** (ADR-0010 §1): el `INSERT` de `place`/`place_ownership`/`membership` está cubierto por la policy de INSERT (autenticado + `WITH CHECK` self-only), que **no** consulta `place_ownership`. **Lo que se verifica en S1** (ver § Riesgos / `tests.md`) es lo inverso: que el `WITH CHECK` self-only **rechaza** un INSERT que intente poner a otro como owner/miembro o en place ajeno. Diseño cerrado, se prueba; no se improvisa.
+La saga corre tras `auth.signUp.email()` con la sesión del nuevo usuario, bajo `app_system` con los claims inyectados. **El INSERT directo de `place`/`place_ownership`/`membership` está denegado** (ADR-0012, supersede ADR-0010 §1): la creación va por `app.create_place` (`SECURITY DEFINER`, dueño `neondb_owner`), que cierra "ni en place ajeno" **por construcción** (no acepta `place_id` externo; caller de `app.current_user_id()`). **Lo que se verifica** (S2/S3, ver § Riesgos / `tests.md`): INSERT directo rechazado; `create_place` asigna al caller un place fresco; B no puede apuntar a un place ajeno. Diseño cerrado, se prueba; no se improvisa.
 
 ---
 
@@ -231,7 +233,7 @@ De ADR-0005/0006, `architecture.md`, `multi-tenancy.md`:
 3. **Probe empírico de cookie — HECHO y PASÓ (2026-05-16).** Verificado sobre branch Neon de prueba: con `cookies.domain` → `Set-Cookie … Domain=.<apex>`; sin → host-only. ADR-0001 §1 confirmado empíricamente. Ya no es riesgo abierto (`architecture.md` § Sesión y SSO).
 4. **Cookies `__Secure-` requieren HTTPS en dev (nuevo).** Browsers rechazan `__Secure-` sobre http plano → dev local debe ser HTTPS. Es un setup de S1, no un bloqueo de diseño. Ver `docs/gotchas/neon-auth-secure-cookie-https.md`.
 5. **`conversaciones.md` cross-check del gate (post-S1).** El gate de horario no es S1, pero cuando se construya debe respetar `conversaciones.md` § "Comportamiento por horario" (miembro fuera de horario → `<PlaceClosedView>`; owner exceptuado) y `architecture.md` § Gate (vive en `[placeSlug]/(gated)/layout.tsx`, no por feature). Anotado para no perderlo de vista; no bloquea el onboarding.
-6. **`WITH CHECK` self-only de INSERT** (ver §5): ya **no** hay huevo-y-gallina (ADR-0010 §1: INSERT no consulta `place_ownership`). Lo que se prueba en S1 es lo inverso — que el `WITH CHECK` self-only **rechaza** un INSERT que ponga a otro como owner/miembro o en place ajeno. Diseño cerrado; se prueba, no se improvisa.
+6. **INSERT de creación denegado por RLS** (ver §5, ADR-0012, supersede ADR-0010 §1): `WITH CHECK` self-only pura-RLS dejaba escalación de ownership (B se autoasigna a place ajeno — verificado empíricamente). Cierre: INSERT directo denegado + creación solo vía `app.create_place` (`SECURITY DEFINER`). Se prueba en S2 (INSERT directo rechazado) y S3 (función asigna caller a place fresco; no acepta place ajeno). Diseño cerrado; se prueba, no se improvisa.
 
 ---
 

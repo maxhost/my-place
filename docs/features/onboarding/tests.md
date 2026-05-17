@@ -12,31 +12,35 @@ Mandato y casos críticos. **No** diseña los tests en detalle (eso es trabajo d
 
 - **Branch `test` fijo** (no efímero por corrida): modelo de 3 branches decidido (`production`/`dev`/`test`, `plan-sesiones.md`). Conexión como `app_system` vía `DATABASE_URL_TEST`. Aislamiento entre corridas: (a) los tests que **escriben** corren cada uno en una tx con `ROLLBACK` (no se commitea estado), y/o (b) reset del branch `test` re-aplicando migraciones Drizzle a estado limpio antes de la corrida (`db:migrate` contra `DATABASE_URL_TEST_MIGRATE`, rol admin). Nunca se testea contra `production`. El harness S0 ya corre así (tx, sin writes).
 - Los tests de RLS deben correr **bajo el rol Postgres custom no-admin** con los claims inyectados (`set_config('request.jwt.claims', …, true)`), **nunca** bajo `neondb_owner` (que tiene `BYPASSRLS` y haría pasar tests que en runtime fallarían — falso verde peligroso).
+- **Helper de claims conmutables (S2/S3):** para probar aislamiento se necesita sembrar como usuario A y luego actuar como B **dentro de la misma tx con ROLLBACK**. El helper de `db-test-pool` debe permitir re-`set_config('request.jwt.claims', …, true)` mid-tx (no solo una vez al inicio como `inTx`). Sembrar `app_user`/place de A vía `app.create_place` (no INSERT directo — está denegado), luego cambiar claims a B y verificar denegación.
 - `app.current_user_id()` es función **propia** (ADR-0011), ya verificada empíricamente 2026-05-17. Los tests de RLS asumen que la migración la creó; el caso de test es el **comportamiento** (lee `sub`, NULL sin claim → deniega), no "existe".
 - **Introspección de schema/RLS:** el driver `@neondatabase/serverless` **no** devuelve los arrays de Postgres de forma uniforme — `array_agg`/`text[]` vuelve como literal `'{a,b}'` (string), no array JS. Usar `string_agg(col, ',')`+`.split(",")`, nunca `array_agg` esperando un array. Gotcha completo: `docs/gotchas/neon-serverless-array-parsing.md`.
 
 ## Casos críticos (probar primero)
 
-### RLS con rol no-admin + claims inyectados (bloqueante)
-- Usuario A no puede `SELECT`/`UPDATE`/`DELETE` filas de un place que no ownea (aislamiento entre places).
+### RLS con rol no-admin + claims inyectados (bloqueante, ADR-0010/0012)
+- Usuario A no puede `SELECT`/`UPDATE`/`DELETE` filas de un place que no ownea (aislamiento entre places). Cubre `place`, `membership`, `place_ownership`, `invitation`, `place_domain`.
 - Usuario A solo lee/actualiza su propia fila de `app_user` (`app.current_user_id() = auth_user_id`).
-- Owner tiene CRUD completo sobre las tablas con `place_id` **de su place** (`membership`, `place_ownership`, `invitation`, `place`).
-- **INSERT por-operación (ADR-0010):** un usuario autenticado **puede** crear su place (INSERT place+ownership+membership poniéndose a sí mismo) — la policy de INSERT NO consulta `place_ownership` (no hay huevo-y-gallina).
-- **`WITH CHECK` self-only rechaza abuso (bloqueante):** un INSERT que intente poner a **otro** usuario como owner/miembro, o crear membership/ownership en un place **ajeno**, es rechazado por el `WITH CHECK`.
+- Owner tiene SELECT/UPDATE/DELETE completo sobre las tablas con `place_id` **de su place**; owner crea/lista/revoca `invitation` y administra `place_domain` de su place por la base owner-only.
+- **Recursion-safe (bloqueante):** la policy de `place_ownership` referencia `app_user`, **nunca** `place_ownership` — un fraseo auto-referencial da `infinite recursion detected` (verificado 2026-05-17). Test: el aislamiento owner-only sobre `place`/`membership` (que sub-consultan `place_ownership`) **no** lanza recursión.
+- **INSERT de creación DENEGADO (bloqueante, ADR-0012):** bajo `app_system`, un `INSERT` directo a `place` / `place_ownership` / `membership` es **rechazado** (sin policy de INSERT + `REVOKE INSERT`). No hay vía directa de creación.
+- **`app.create_place` (bloqueante, ADR-0012):** crea un place fresco y asigna al **caller** (de `app.current_user_id()`, no parámetro) como owner+miembro, atómico; billing/trial deterministas. Sin claim → rechaza. `app_user` inexistente → rechaza. **B no puede crear ownership en place ajeno**: la función genera el `place_id`, no acepta uno de afuera → no hay forma de apuntar a un place existente. `EXECUTE` solo `app_system` (no `PUBLIC`).
+- `invitation` / `place_domain` INSERT: owner-only por RLS (place+ownership ya existen, sin chicken-egg) — owner SÍ inserta; no-owner NO.
 - Bajo el rol admin todo pasa → ese rol **no** se usa en runtime; el test debe correr bajo `app_system` (rol custom), nunca `neondb_owner`.
 
-### Saga + falla parcial (bloqueante)
-- Happy path: signUp → `app_user`+handle → place+ownership+membership; place servible.
+### Saga + falla parcial (bloqueante, ADR-0005/0008/0012)
+- Happy path: signUp → `app_user`+handle → `SELECT app.create_place(...)` (place+ownership+membership atómico); place servible.
 - Falla del paso 1 (signUp) → nada se persiste.
-- Falla del paso 3 (place) → cuenta (1–2) queda creada; estado "creá tu place"; no error fatal.
-- Idempotencia: reintentar el submit no duplica identidad ni `app_user`; reintentar tras falla del paso 3 no recrea identidad/`app_user`, solo place+ownership+membership.
-- `ensureAppUser` idempotente (llamadas repetidas → un solo `app_user`; dedupe por request).
+- Falla de `app.create_place` (p.ej. slug duplicado) → cuenta (signUp+`app_user`) queda creada; estado "creá tu place"; no error fatal; mapeo de `UNIQUE` violation → "slug ocupado".
+- Atomicidad: si `app.create_place` falla a mitad, rollback de los 3 inserts (sin place/ownership/membership huérfanos en `public`).
+- Idempotencia del submit: reintentar no duplica identidad ni `app_user`; tras falla de creación no recrea identidad/`app_user`, solo reintenta `app.create_place`.
+- `ensureAppUser` idempotente (llamadas repetidas → un solo `app_user`; dedupe por request); corre **antes** de `app.create_place` (la función exige `app_user` del caller).
 
 ### Invariantes de dominio
 - Slug reservado (de `reserved-slugs.ts`) → rechazado.
 - Slug duplicado (colisión global) → rechazado.
 - Máx 150 miembros por place → el miembro 151 rechazado (estructural).
-- Mínimo 1 owner por place (la saga siempre crea la fila `place_ownership`).
+- Mínimo 1 owner por place (`app.create_place` siempre crea `place_ownership`+`membership` del caller, atómico).
 - `theme_config` / `opening_hours` validados por Zod (shape canónico de `data-model.md`); guardrail de contraste deriva variante y avisa, nunca persiste par inaccesible.
 - `opening_hours` default = 09:00–20:00 todos los días en tz del owner; timezone capturado/derivado.
 - Billing: place creado con `OWNER_PAYS`/`ACTIVE`/`trial_ends_at = now()+30d`, `enabled_features=[]`.
