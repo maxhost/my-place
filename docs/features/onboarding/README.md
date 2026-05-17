@@ -20,7 +20,7 @@ Spec de **comportamiento esperado** de la feature de onboarding (alta owner-firs
 
 ## 1. Objetivo y alcance
 
-**Objetivo.** Que una persona, desde la CTA de la landing (`place.community` → `/login` → onboarding, decisión 3b de `landingpage/README.md`), cree su place y su cuenta de owner en un solo flujo, y termine con el place **servible en `{slug}.place.community`** y una sesión iniciada. Es la primera feature post-landing (ADR-0005 Contexto).
+**Objetivo.** Que una persona, desde la **CTA** de la landing (`place.community`; decisión 3b **refinada por ADR-0008**: las CTAs van directo al flujo de creación; el item de menú "Acceso" es la otra vía, login form → account-first), cree su place y su cuenta de owner, y termine con el place **servible en `{slug}.place.community`** y sesión iniciada. Es la primera feature post-landing (ADR-0005 Contexto).
 
 **Owner-first.** El alta arranca creando el place; la cuenta se pide al final (ADR-0005 §1). El resultado del onboarding es funcional end-to-end: place creado **y** ruteado en su URL canónica (ADR-0005 §10 — esto incluye el routing host-based, ver § "Routing en alcance").
 
@@ -153,28 +153,23 @@ Canónico: `architecture.md` § "Sesión y SSO", `stack.md`, ADR-0005 §9, ADR-0
 
 Canónico: ADR-0006 §2–3, `multi-tenancy.md` § RLS. **RLS incremental; la base owner entra en S1.** Esta feature aplica la base; el acceso de miembros NO está en la base (es deliberado) y se agrega por-feature, encima, en specs futuras.
 
-### Policies que se crean en S1
+### Policies que se crean en S1 (POR-OPERACIÓN — ADR-0010, refina ADR-0006 §2)
 
-- **`app_user`** — el usuario solo lee/actualiza su propia fila. Predicado:
+- **`app_user` (todas):** solo la propia fila → `(select auth.user_id()) = app_user.auth_user_id`.
+- **`place` / `membership` / `place_ownership` — INSERT:** cualquier usuario **autenticado**, con `WITH CHECK` que garantiza que **solo se inserta a sí mismo** (su `app_user`) como owner/miembro del place que crea — no a nombre de otro ni en place ajeno. Crear el place propio no toca filas ajenas → **no hay huevo-y-gallina, no hace falta función para crear place**.
+- **`place` / `membership` / `place_ownership` — SELECT/UPDATE/DELETE:** solo el **owner** del place →
   ```
-  (select auth.user_id()) = app_user.auth_user_id
+  EXISTS (SELECT 1 FROM place_ownership po JOIN app_user au ON au.id = po.user_id
+          WHERE po.place_id = <tabla>.place_id  -- para `place`: po.place_id = place.id
+            AND au.auth_user_id = (select auth.user_id()))
   ```
-- **Tablas con `place_id`** (`membership`, `place_ownership`, `invitation`) — la fila pertenece a un place que el usuario actual ownea:
-  ```
-  EXISTS (
-    SELECT 1 FROM place_ownership po
-    JOIN app_user au ON au.id = po.user_id
-    WHERE po.place_id = <tabla>.place_id
-      AND au.auth_user_id = (select auth.user_id())
-  )
-  ```
-- **`place`** — mismo predicado, referido a `place.id` en lugar de `<tabla>.place_id`.
+- **`invitation` (todas las operaciones): 100% owner-only** (mismo predicado). Sin policy por email, sin verified-email. La aceptación NO pasa por la RLS del invitado (ver §6).
 
-Owner → CRUD completo solo en su place; places distintos quedan aislados automáticamente. La base **no concede nada a miembros**.
+Cualquier autenticado puede **crear** su place; owner → CRUD solo en su place; places aislados. La base **no concede nada a miembros** (se agrega por-feature, después).
 
 ### Modelo rol/JWT (nombres exactos, verificados 2026-05-16)
 
-- Queries de dominio bajo un **rol Postgres custom NO-admin** (sin `BYPASSRLS`), declarado con `pgRole('<rol>').existing()`; las policies se declaran `to`/`for` **ese rol custom**, NO el `authenticatedRole`/`anonymousRole` de la Data API. `neondb_owner` (admin) solo para migraciones `drizzle-kit`, nunca en runtime. Nombre exacto del rol y sus GRANT = TBD acotado a fijar en S1 (ADR-0006 §Consecuencias).
+- **Roles (definidos):** el **rol de runtime de queries de dominio = `app_system`** (custom, NO-admin, sin `BYPASSRLS`), declarado con `pgRole('app_system').existing()`; las policies se declaran `to`/`for` `app_system`, NO el `authenticatedRole`/`anonymousRole` de la Data API. `app_system` recibe `GRANT EXECUTE` de la(s) función(es) `SECURITY DEFINER` (p.ej. aceptación de invitación) pero **no** es su dueño: el dueño/`DEFINER` es un rol privilegiado (el owner de schema/migraciones, p.ej. `neondb_owner`), de modo que la función corre con permiso para tocar `invitation` mientras `app_system` solo puede **invocarla**. `neondb_owner` (admin, `BYPASSRLS`) solo para migraciones `drizzle-kit`, nunca en runtime. Los `GRANT` exactos de `app_system` se fijan en S0/S1 (CRUD sujeto a RLS en tablas de producto + `EXECUTE` de las funciones privilegiadas + `USAGE` de `public`; sin DDL, sin `BYPASSRLS`, sin `neon_auth`).
 - Token: `await auth.getSession()` → **`session.access_token`** (JWT). Verificación con **`jose`** (`createRemoteJWKSet(new URL(NEON_AUTH_JWKS_URL))` + `jwtVerify`); el claim **`sub`** = `neon_auth.user.id`.
 - Inyección de claims en la transacción: `select set_config('request.jwt.claims', <claims-json>, true)` dentro de `db.transaction`; las policies leen **`auth.user_id()`** (canónico; `auth.uid()` es de la Data API y no se usa).
 - **Verificar empíricamente en S1** que `auth.user_id()` existe en el branch Neon (ver § Riesgos).
@@ -183,25 +178,26 @@ Owner → CRUD completo solo en su place; places distintos quedan aislados autom
 
 ### Saga vs RLS
 
-La saga (paso 2–3) corre tras `auth.signUp.email()` con la sesión del nuevo usuario: los `INSERT` de `app_user`/`place`/`place_ownership`/`membership` deben pasar las policies bajo el rol custom con los claims inyectados. **Punto a verificar en S1 (ver § Riesgos y `tests.md`):** que las policies base permiten el `INSERT` inicial del owner (en particular el `INSERT` de `place`/`place_ownership` cuando aún no existe la fila en `place_ownership` que el predicado consulta — orden de inserción dentro de la tx y/o `WITH CHECK` apropiados). Esto se diseña y prueba en S1; no se improvisa.
+La saga (paso 2–3) corre tras `auth.signUp.email()` con la sesión del nuevo usuario; los `INSERT` corren bajo `app_system` con los claims inyectados. **No hay huevo-y-gallina** (ADR-0010 §1): el `INSERT` de `place`/`place_ownership`/`membership` está cubierto por la policy de INSERT (autenticado + `WITH CHECK` self-only), que **no** consulta `place_ownership`. **Lo que se verifica en S1** (ver § Riesgos / `tests.md`) es lo inverso: que el `WITH CHECK` self-only **rechaza** un INSERT que intente poner a otro como owner/miembro o en place ajeno. Diseño cerrado, se prueba; no se improvisa.
 
 ---
 
 ## 6. Flujo de invitación (diseño cerrado)
 
-Canónico: ADR-0005 §4, `multi-tenancy.md` § "RLS e invitaciones". **En S1 se cierra el diseño y se aplica la RLS owner-only sobre `invitation` sin romper la aceptación futura.**
+Canónico: **ADR-0010** (supersede ADR-0009 §1), `multi-tenancy.md` § "RLS e invitaciones". `invitation` es **100% owner-only** en RLS; se accede/acepta **únicamente por su token-link**. **Sin** acceso por email, **sin** verified-email, **sin** "listar mis invitaciones".
 
-- **Creación/listado/revocación por el owner**: permitido por la base owner-only de S1 (la policy de `invitation` con `place_id` — §5). El owner genera invitaciones de su place; cada invitación tiene `email`, `token`, `expires_at`, `invited_by`.
-- **`invitation.token` = capability** de alta entropía. La aceptación **NO pasa por la RLS del usuario** (la tabla `invitation` nunca queda expuesta a scan por usuarios): va por una **vía privilegiada server-side de un solo propósito** — `SECURITY DEFINER` o rol controlado acotado a esa operación — que en una tx:
-  1. valida el token (existe, no expiró `expires_at`, no usado `accepted_at IS NULL`),
-  2. exige que el **email de la cuenta que acepta coincida con `invitation.email`** (estricto — decidido, ADR-0005 §4),
-  3. corre `ensureAppUser`,
-  4. crea `membership` respetando **máx 150** y `UNIQUE(user_id, place_id)`,
-  5. marca `invitation.accepted_at`.
+- **Creación/listado/revocación por el owner**: permitido por la base owner-only (§5). Cada invitación tiene `email`, `token` (alta entropía, un solo uso), `expires_at`, `invited_by`.
+- **`invitation.token` = capability.** Un secreto **no** se expresa como regla RLS de identidad → la validación/aceptación va por una **función `SECURITY DEFINER`** cuyo `DEFINER` es el rol privilegiado (owner de schema) y con `GRANT EXECUTE` **solo** para `app_system` (no "rol controlado" genérico). La tabla `invitation` nunca queda expuesta a scan bajo el rol del invitado.
+  - **Display (solo-lectura):** la función valida el token (existe / no vencido / no usado `accepted_at IS NULL`). Inválido → error amable, **nada en la DB**. Válido → muestra a qué place lo invitan.
+  - **Aceptar → form de cuenta → Crear:** recién en el submit final, **una tx atómica**:
+    1. **re-valida** el token (pudo vencer/usarse entre display y submit),
+    2. exige **email de la cuenta == `invitation.email`** (estricto, ADR-0008/0010; prefijado/bloqueado en el form),
+    3. `ensureAppUser`,
+    4. crea `membership` (máx 150, `UNIQUE(user_id, place_id)`),
+    5. **invalida con test-and-set atómico:** `UPDATE invitation SET accepted_at = now() WHERE id = $1 AND accepted_at IS NULL RETURNING …` — si no actualizó ninguna fila, el token ya fue usado (carrera) → abortar la tx. Esto hace el token **de un solo uso** y resuelve dos aceptaciones simultáneas. (NO el `marca accepted_at` no-atómico viejo — eso dejaba el token reusable.)
 - **Host del link:** `{slug}.place.community/invite/{token}`; si el place tiene **custom domain verificado** (`place_domain.verified_at IS NOT NULL` y `archived_at IS NULL`), `https://{custom-domain}/invite/{token}`.
-- **Invariantes que enforza:** máx 150 miembros/place; `UNIQUE(user_id, place_id)` (un usuario no puede tener dos memberships activas en el mismo place); expiración (`expires_at`); revocación (el owner puede revocar; una invitación revocada/expirada no se acepta); `invitation.token UNIQUE`.
-- **Importante:** la RLS owner-only sobre `invitation` se aplica desde S1 **sin romper** la aceptación, justamente porque la aceptación va por la vía privilegiada (no por la RLS del usuario invitado). El usuario invitado nunca necesita `SELECT` directo sobre `invitation` bajo su rol.
-- **Excepción de diseño del alta:** la cuenta que se crea aceptando una invitación crea cuenta + `membership` **sin** crear place (ADR-0005 §4). La UI de aceptación y su Server Action son trabajo de la tanda de registro o inmediatamente posterior (ver `plan-sesiones.md`); "join desde directorio" es **otro** flujo posterior con su propia policy, no se diseña acá.
+- **Invariantes:** máx 150/place; `UNIQUE(user_id, place_id)`; `expires_at`; revocación (owner); `invitation.token UNIQUE`; token de un solo uso (test-and-set).
+- **Alta desde invitación** crea cuenta + `membership` **sin** crear place. La UI `/invite/{token}` está **diferida a sesión propia** (decisión 2026-05-16); en la tanda entra el **diseño + RLS + función + creación/revocación por owner**. "Unirme" en la vía Acceso = solo **directorio** (futuro) → deshabilitado/"próximamente"; las invitaciones NO se acceden desde el menú "Acceso" (ADR-0010 §3).
 
 ---
 
@@ -235,18 +231,18 @@ De ADR-0005/0006, `architecture.md`, `multi-tenancy.md`:
 3. **Probe empírico de cookie — HECHO y PASÓ (2026-05-16).** Verificado sobre branch Neon de prueba: con `cookies.domain` → `Set-Cookie … Domain=.<apex>`; sin → host-only. ADR-0001 §1 confirmado empíricamente. Ya no es riesgo abierto (`architecture.md` § Sesión y SSO).
 4. **Cookies `__Secure-` requieren HTTPS en dev (nuevo).** Browsers rechazan `__Secure-` sobre http plano → dev local debe ser HTTPS. Es un setup de S1, no un bloqueo de diseño. Ver `docs/gotchas/neon-auth-secure-cookie-https.md`.
 5. **`conversaciones.md` cross-check del gate (post-S1).** El gate de horario no es S1, pero cuando se construya debe respetar `conversaciones.md` § "Comportamiento por horario" (miembro fuera de horario → `<PlaceClosedView>`; owner exceptuado) y `architecture.md` § Gate (vive en `[placeSlug]/(gated)/layout.tsx`, no por feature). Anotado para no perderlo de vista; no bloquea el onboarding.
-6. **`INSERT` inicial del owner bajo RLS base** (ver §5 "Saga vs RLS"): el predicado de `place`/`place_ownership` consulta `place_ownership`; el orden de inserción y los `WITH CHECK` deben permitir el alta del primer owner. Diseñar y probar en S1; no improvisar.
+6. **`WITH CHECK` self-only de INSERT** (ver §5): ya **no** hay huevo-y-gallina (ADR-0010 §1: INSERT no consulta `place_ownership`). Lo que se prueba en S1 es lo inverso — que el `WITH CHECK` self-only **rechaza** un INSERT que ponga a otro como owner/miembro o en place ajeno. Diseño cerrado; se prueba, no se improvisa.
 
 ---
 
-## 10. Contradicciones / zonas a confirmar
+## 10. Zonas a confirmar — TODAS CERRADAS (registro)
 
-No se resuelven acá — las decide el humano antes de implementar:
+Lo que estaba abierto se resolvió por decisión del owner / ADR. Se deja el registro:
 
-1. **Timezone del owner (ADR-0007 §2 lo deja "a confirmar en la spec").** Propuesta de esta spec: derivar del browser (`Intl…resolvedOptions().timeZone`) con fallback `America/Argentina/Buenos_Aires`. **A confirmar:** ¿se acepta derivar del browser, o se prefiere un selector explícito de timezone en el paso 3 (más fricción, más preciso)? No es contradicción entre docs, es un punto que el canónico delegó explícitamente a esta spec.
-2. **Wording legacy "hook transaccional al signup".** ADR-0005 §2, ADR-0001 §2 y notas viejas de `data-model.md` hablan de "hook transaccional". ADR-0006 §1 **reemplaza** ese wording por "Server Action orquestado + guard JIT" y `architecture.md`/`data-model.md` ya están corregidos. **No es contradicción abierta** (ADR-0006 es explícito en que ajusta ADR-0005 §2): esta spec sigue ADR-0006. Se anota solo para que nadie "corrija" la spec hacia el wording viejo de las ADR históricas (las ADR no se editan).
-3. **Alcance de la aceptación de invitación en S1.** ADR-0005 §4 trata invitación/join como "flujos aparte, fuera del alcance owner-first de esta tanda", pero `multi-tenancy.md` exige que la RLS owner-only sobre `invitation` se aplique desde S1 sin romper la aceptación. No es contradicción real: en S1 entra **el diseño cerrado + la RLS owner-only sobre `invitation` + creación/listado/revocación por el owner**; la UI de aceptación `/invite/{token}` puede ir en la misma tanda o inmediatamente después. **A confirmar con el humano:** si la pantalla de aceptación se construye dentro de la tanda de registro (S2/S3 del plan) o se difiere a una sesión propia justo después. El plan de sesiones la ubica como sesión opcional al cierre.
-4. **`landingpage/README.md` decisión 3b** dice que `/login` "bifurca crear/unirse/invitación". Esta spec cubre **crear** (owner-first) y deja el diseño de **invitación**; **unirse/join desde directorio** es explícitamente posterior (ADR-0005 §4). A confirmar: si la pantalla `/login` de S1 ya debe mostrar la bifurcación visual (crear vs tengo invitación) o solo el camino de creación con la invitación accesible por su link directo. Propuesta: `/login` ofrece "Creá tu place" (onboarding) y reconoce un link de invitación entrante; el "join desde directorio" no aparece (no existe directorio aún).
+1. **Timezone del owner** → **CERRADO**: derivar del browser (`Intl.DateTimeFormat().resolvedOptions().timeZone`) con fallback `America/Argentina/Buenos_Aires`. Decidido 2026-05-16.
+2. **Wording legacy "hook transaccional".** Solo nota: ADR-0006 reemplazó ese wording por "Server Action + guard JIT"; docs vivos corregidos. No revertir hacia el wording viejo de ADR históricas (no se editan).
+3. **Aceptación de invitación** → **CERRADO**: en la tanda entra **diseño + RLS owner-only + función `SECURITY DEFINER` + creación/revocación por owner** (ADR-0010). La **UI `/invite/{token}` se difiere a sesión propia** post-tanda (decidido 2026-05-16). "Join desde directorio" = futuro.
+4. **Vía de entrada / `/login`** → **CERRADO por ADR-0008/0010**: CTAs → flujo de creación directo; item "Acceso" → login form (account-first → "Crear mi place" o "Unirme"=solo directorio futuro, deshabilitado). Invitaciones por su token-link, no desde el menú "Acceso".
 
 ---
 

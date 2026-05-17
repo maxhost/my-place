@@ -4,7 +4,7 @@ Paradigma: **Modular Monolith con Vertical Slices**. Priorizamos calma, estabili
 
 Este documento es el índice de las decisiones arquitectónicas. El detalle de cada área vive en `docs/`.
 
-> _Última actualización: 2026-05-16._ Documento vivo: si un cambio de código afecta una decisión de esta página, se actualiza **en la misma sesión** y se ajusta la fecha. Un doc viejo desinforma al agente — los specs stale causan fallos silenciosos.
+> _Última actualización: 2026-05-17._ Documento vivo: si un cambio de código afecta una decisión de esta página, se actualiza **en la misma sesión** y se ajusta la fecha. Un doc viejo desinforma al agente — los specs stale causan fallos silenciosos.
 
 ## Principios de organización
 
@@ -65,7 +65,7 @@ Auth provider: **Neon Auth** (sobre Better Auth) — ver `docs/stack.md`. Place 
 
 ## Onboarding del owner y saga de signup
 
-Canónico en **ADR-0005**. El alta es **owner-first** (se crea el place; la cuenta al final), en el apex `place.community`, i18n bajo `[locale]`, wizard 100% client-side hasta el submit.
+Canónico en **ADR-0005** + **ADR-0008** (dos vías de entrada). En el apex `place.community`, i18n bajo `[locale]`, wizard 100% client-side hasta el submit.
 
 **La creación NO es una transacción única, y NO hay "hook" de Neon Auth.** Neon Auth es un servicio **gestionado** sin webhooks ni hooks server-side (verificado, ADR-0006); el dueño de la identidad de login es Neon Auth (schema `neon_auth`), el core vive en `public`. La provisión de `app_user` la **orquestamos nosotros** en nuestro Server Action de signup. Orden canónico de la saga:
 
@@ -74,6 +74,13 @@ Canónico en **ADR-0005**. El alta es **owner-first** (se crea el place; la cuen
 3. Tx de app (`public`): `place` + `place_ownership` + `membership`, con invariantes (reserved-slugs, slug único, máx 150, mínimo 1 owner).
 
 **Guard JIT `ensureAppUser(authUserId)`** (primitivo de `shared/lib`, idempotente, dedupeable vía `React.cache`): se invoca en **toda entrada autenticada** (signup, login posterior, invitación, "join", reintentos) antes de cualquier op de dominio. Invariante: *ninguna operación de dominio corre sin `app_user`*. Falla parcial: si falla el paso 3, la cuenta queda creada (estado "creá tu place", no error fatal); si falla el 1, nada se persiste. Idempotente por `email` único (Neon Auth) y `auth_user_id UNIQUE`. Email verification **no bloquea el alta**: gatea solo las mutaciones de `/settings` (chequeo `neon_auth.user.emailVerified`), vía Resend. Asistencia LLM del onboarding = **propose-only** (paleta + borrador de descripción; **no** horario — ADR-0007), confirmada por el humano (reconciliación del principio en `producto.md` / ADR-0005 §6). `opening_hours` se setea por default 09:00–20:00 en el tz del owner al crear el place (ADR-0007), editable luego en `/settings`. Detalle canónico del mecanismo de provisión: **ADR-0006**.
+
+**Dos modos de saga (ADR-0008).** Hay dos vías de entrada y la saga corre distinto:
+
+- **Modo place-first (CTAs de la landing):** usuario no autenticado → wizard place-first → al submit único corre la saga completa (pasos 1-3: `signUp` → `app_user` → place+ownership+membership). La cuenta se crea al final.
+- **Modo authed (item "Acceso" → login form → signup account-first → "Crear mi place"):** la identidad y `app_user` ya existen (vía `ensureAppUser`). La saga se **reduce al paso 3** (tx de place+ownership+membership); no se re-pide cuenta. La rama "Unirme" = solo directorio (futuro), deshabilitada; las invitaciones se entran por su token-link, no desde "Acceso" (ADR-0010 §3).
+
+`ensureAppUser` hace ambos modos seguros (idempotente). Detalle de vías y RLS: ADR-0008/0010, `docs/features/onboarding/`.
 
 ## Routing multi-tenant (en alcance de la tanda de registro)
 

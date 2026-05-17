@@ -20,8 +20,9 @@ Mandato y casos críticos. **No** diseña los tests en detalle (eso es trabajo d
 - Usuario A no puede `SELECT`/`UPDATE`/`DELETE` filas de un place que no ownea (aislamiento entre places).
 - Usuario A solo lee/actualiza su propia fila de `app_user` (`auth.user_id() = auth_user_id`).
 - Owner tiene CRUD completo sobre las tablas con `place_id` **de su place** (`membership`, `place_ownership`, `invitation`, `place`).
-- **`INSERT` inicial del owner pasa la RLS base**: el alta del primer owner (place + place_ownership + membership) no es bloqueada por el predicado que consulta `place_ownership` (orden de inserción / `WITH CHECK`). Caso explícitamente identificado como riesgo (README §9.6).
-- Bajo el rol admin todo pasa → ese rol **no** se usa en runtime; el test debe correr bajo el rol custom.
+- **INSERT por-operación (ADR-0010):** un usuario autenticado **puede** crear su place (INSERT place+ownership+membership poniéndose a sí mismo) — la policy de INSERT NO consulta `place_ownership` (no hay huevo-y-gallina).
+- **`WITH CHECK` self-only rechaza abuso (bloqueante):** un INSERT que intente poner a **otro** usuario como owner/miembro, o crear membership/ownership en un place **ajeno**, es rechazado por el `WITH CHECK`.
+- Bajo el rol admin todo pasa → ese rol **no** se usa en runtime; el test debe correr bajo `app_system` (rol custom), nunca `neondb_owner`.
 
 ### Saga + falla parcial (bloqueante)
 - Happy path: signUp → `app_user`+handle → place+ownership+membership; place servible.
@@ -44,12 +45,14 @@ Mandato y casos críticos. **No** diseña los tests en detalle (eso es trabajo d
 - Formato de slug compatible con subdominio (minúsculas, alfanumérico+guiones, sin espacios) — validador Zod.
 - Chequeo de disponibilidad en vivo no es autoritativo: la verificación dura corre en la saga.
 
-### Invitación + email-match (bloqueante para el diseño cerrado)
-- Owner crea/lista/revoca invitaciones de su place (permitido por base owner-only); no puede ver invitaciones de otro place.
-- Vía privilegiada de aceptación: token inexistente / expirado (`expires_at`) / ya usado (`accepted_at`) → rechazo.
+### Invitación token-link (bloqueante — ADR-0010)
+- Owner crea/lista/revoca invitaciones de su place (base owner-only); no puede ver invitaciones de otro place.
+- `invitation` 100% owner-only: bajo el rol `app_system`, un invitado **no** puede `SELECT`/`UPDATE` `invitation` directo (la tabla nunca se escanea por su rol).
+- Función `SECURITY DEFINER` (dueño = rol privilegiado; `EXECUTE` solo `app_system`): token inexistente / expirado (`expires_at`) / ya usado (`accepted_at IS NOT NULL`) → rechazo, **nada en la DB**.
 - Email de la cuenta que acepta **NO** coincide con `invitation.email` → rechazo estricto.
-- Éxito: crea `membership` (respeta máx 150 y `UNIQUE(user_id,place_id)`), marca `accepted_at`, corre `ensureAppUser`.
-- La RLS owner-only sobre `invitation` **no** rompe: ni la creación-por-owner, ni la aceptación-por-vía-privilegiada (el usuario invitado nunca hace `SELECT` directo sobre `invitation` bajo su rol).
+- **Test-and-set de un solo uso (bloqueante):** **dos aceptaciones simultáneas** del mismo token → exactamente **una** gana; la otra aborta (el `UPDATE … WHERE accepted_at IS NULL RETURNING` no afecta filas). No quedan dos memberships (respaldado por `UNIQUE(user_id,place_id)`).
+- Re-validación: token válido al display pero **vencido/usado entre display y submit** → el submit rechaza (se re-valida en la tx).
+- Éxito: `ensureAppUser` → `membership` (máx 150, `UNIQUE`) → `accepted_at` seteado atómico.
 - Alta desde invitación crea cuenta + `membership` **sin** crear place.
 
 ### LLM propose-only

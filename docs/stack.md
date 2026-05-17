@@ -18,7 +18,7 @@ Elecciones tecnológicas de Place y justificación de cada una. Cualquier cambio
 | Realtime       | **TBD**                                         | Si se necesita, se decide acotadamente cuando aparezca el caso de uso.                             |
 | Pagos          | **TBD**                                         | Mecanismo de cobro pendiente. ADR-0005 fija solo el arranque: trial 30d (`place.trial_ends_at`), `OWNER_PAYS`/`ACTIVE`, y al expirar → paywall `PAYMENT_PENDING` (ADR-0003). |
 | Email transac. | **Resend** (ADR-0005)                           | Verificación de email y avisos de lifecycle (ADR-0003). Reemplaza el sender "shared" de Neon Auth. |
-| IA             | **Vercel AI Gateway** (ADR-0005)                | Asistencia LLM del onboarding (propone paleta/descr./horario, propose-only). Modelo concreto al implementar. |
+| IA             | **Vercel AI Gateway** (ADR-0005/0007)           | Asistencia LLM del onboarding: propone paleta + borrador de descripción (**no** horario — ADR-0007), propose-only. Modelo concreto al implementar. |
 | CSS            | Tailwind (solo utilidades core) + CSS variables | Layout rápido + temas configurables por place                                                      |
 | Estado cliente | Zustand                                         | Simple, sin boilerplate. Uso mínimo — preferir URL y server state                                  |
 | Data fetching  | Server Components (server-first)                | Datos estables vía RSC. Mutations vía Server Actions. Capa de cliente para mutations/realtime: TBD |
