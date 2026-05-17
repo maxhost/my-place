@@ -13,6 +13,7 @@ Mandato y casos críticos. **No** diseña los tests en detalle (eso es trabajo d
 - **Branch `test` fijo** (no efímero por corrida): modelo de 3 branches decidido (`production`/`dev`/`test`, `plan-sesiones.md`). Conexión como `app_system` vía `DATABASE_URL_TEST`. Aislamiento entre corridas: (a) los tests que **escriben** corren cada uno en una tx con `ROLLBACK` (no se commitea estado), y/o (b) reset del branch `test` re-aplicando migraciones Drizzle a estado limpio antes de la corrida (`db:migrate` contra `DATABASE_URL_TEST_MIGRATE`, rol admin). Nunca se testea contra `production`. El harness S0 ya corre así (tx, sin writes).
 - Los tests de RLS deben correr **bajo el rol Postgres custom no-admin** con los claims inyectados (`set_config('request.jwt.claims', …, true)`), **nunca** bajo `neondb_owner` (que tiene `BYPASSRLS` y haría pasar tests que en runtime fallarían — falso verde peligroso).
 - `app.current_user_id()` es función **propia** (ADR-0011), ya verificada empíricamente 2026-05-17. Los tests de RLS asumen que la migración la creó; el caso de test es el **comportamiento** (lee `sub`, NULL sin claim → deniega), no "existe".
+- **Introspección de schema/RLS:** el driver `@neondatabase/serverless` **no** devuelve los arrays de Postgres de forma uniforme — `array_agg`/`text[]` vuelve como literal `'{a,b}'` (string), no array JS. Usar `string_agg(col, ',')`+`.split(",")`, nunca `array_agg` esperando un array. Gotcha completo: `docs/gotchas/neon-serverless-array-parsing.md`.
 
 ## Casos críticos (probar primero)
 
