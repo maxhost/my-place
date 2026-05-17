@@ -2,9 +2,13 @@
 
 Spec de **comportamiento esperado** de la feature de onboarding (alta owner-first: crear place + cuenta). No es implementación ni código. Consolida lo ya decidido en ADR-0001…0007, `architecture.md`, `data-model.md`, `multi-tenancy.md`, `stack.md`, `producto.md` y las ontologías. Donde dos docs canónicos podrían leerse distinto, **no se resuelve acá**: se anota en § "Contradicciones / zonas a confirmar" para que lo decida el humano.
 
-> _Última actualización: 2026-05-16._ Esta carpeta es la spec; los docs canónicos siguen siendo la fuente de verdad. Si un canónico cambia, esta spec se ajusta — nunca al revés. **No** edita ADRs ni canónicos.
+> _Última actualización: 2026-05-17._ Esta carpeta es la spec; los docs canónicos siguen siendo la fuente de verdad. Si un canónico cambia, esta spec se ajusta — nunca al revés. **No** edita ADRs ni canónicos.
 
-> ⚠️ **Pendiente de re-sync con ADR-0008 (dos vías de entrada).** Esta spec describe el flujo place-first de los CTA (ADR-0005 §1). ADR-0008 agregó una **segunda vía**: item "Acceso" en el menú → form de login → signup **account-first** → elegir "crear mi place" (reusa los pasos de place SIN el de cuenta; saga en **modo authed**) o "unirme". Los 2 sub-puntos de ADR-0008 quedaron **cerrados por ADR-0009**: (1) lookup de invitaciones por email = **Server Action privilegiado** (email verificado), RLS de `invitation` sigue owner-only; (2) "Unirme" se muestra **deshabilitado/"próximamente"** en la tanda. El §2 (flujo), §3 (saga: dos modos — place-first y authed), §6 (sumar el lookup privilegiado por email) y `plan-sesiones.md` se re-sincronizan con ADR-0008/0009 antes de implementar la vía Acceso. Hasta el re-sync, ADR-0008/0009 son la fuente para esa vía.
+> ⚠️ **Pendiente de re-sync con ADR-0008 + ADR-0010 (estado final del modelo).** Esta spec aún describe el flujo place-first de los CTA (ADR-0005 §1). El modelo final, fuente de verdad hasta el re-sync:
+> - **Dos vías de entrada (ADR-0008):** CTAs → place-first (cuenta al final, single-submit). Item **"Acceso"** → form login → signup **account-first** → "Crear mi place" (reusa pasos de place SIN el de cuenta; saga **modo authed**) o "Unirme".
+> - **RLS por-operación (ADR-0010, refina ADR-0006 §2):** INSERT de place/membership/ownership abierto a autenticado con `WITH CHECK` self-only; SELECT/UPDATE/DELETE owner-only; `app_user` propia fila. **No** hay huevo-y-gallina ni función para crear place.
+> - **Invitación SOLO por token-link (ADR-0010, supersede ADR-0009 §1):** `invitation` 100% owner-only; se acepta únicamente entrando por el link con token vía función de confianza `SECURITY DEFINER` (validate → ensureAppUser → membership → test-and-set `accepted_at`). **Sin** lookup por email, **sin** verified-email. "Unirme" en Acceso = solo **directorio** (futuro) → deshabilitado/"próximamente"; las invitaciones no se acceden desde el menú "Acceso".
+> El §2 (flujo), §3 (saga: dos modos), §5 (RLS por-operación), §6 (invitación token-link) y `plan-sesiones.md` se re-sincronizan con ADR-0008/0010 antes de implementar. Hasta el re-sync, **ADR-0008 + ADR-0010** son la fuente.
 
 ## Índice de esta carpeta
 

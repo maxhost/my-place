@@ -11,5 +11,6 @@ Registro de decisiones arquitectónicas con fecha, alternativas rechazadas y con
 - [0007 — Ajuste: el LLM del onboarding no propone horario; horario default](0007-ajuste-llm-horario-default.md) — 2026-05-16
 - [0008 — Dos vías de entrada: CTA (place-first) vs "Acceso" (login form, account-first)](0008-dos-vias-de-entrada.md) — 2026-05-16
 - [0009 — Cierre de los sub-puntos abiertos de ADR-0008](0009-cierre-subpuntos-adr-0008.md) — 2026-05-16
+- [0010 — RLS por-operación + invitación solo por token-link](0010-rls-por-operacion-invitacion-token-link.md) — 2026-05-17
 
 > Los números de ADR se asignan al redactarse, no se reservan por adelantado. La ADR de comisión/pricing (referida en `docs/landingpage/`) tomará el número que corresponda cuando se cierre.

@@ -74,24 +74,25 @@ Alternativa: entradas en `/etc/hosts` si algún browser no resuelve wildcard loc
 
 Canónico en **ADR-0006** (esta sección es su spec operativa). El aislamiento entre places se enforcea en el **motor** (Postgres RLS), no solo en código de aplicación.
 
-**Predicados base (S1):**
+**Modelo POR-OPERACIÓN (S1, ADR-0010 — refina ADR-0006 §2).** Las policies se declaran por operación, no una sola para todo. Esto disuelve el falso "huevo y gallina" al crear un place (la fila de ownership aún no existe en ese instante).
 
-- **`app_user`** — el usuario solo lee/actualiza su propia fila:
+- **`app_user` (todas):** solo la propia fila →
   ```sql
   (select auth.user_id()) = app_user.auth_user_id
   ```
-- **Tablas con `place_id`** (`membership`, `place_ownership`, `invitation`, y futuras tablas de features) — la fila pertenece a un place que el usuario actual ownea:
+- **`place` / `membership` / `place_ownership` — INSERT:** cualquier usuario **autenticado**, con `WITH CHECK` que garantiza que **solo se inserta a sí mismo** (su `app_user`) como owner/miembro del place que crea — no a nombre de otro ni en place ajeno. Crear el place propio no toca filas ajenas → sin función privilegiada.
+- **`place` / `membership` / `place_ownership` — SELECT/UPDATE/DELETE:** solo el **owner** del place →
   ```sql
   EXISTS (
     SELECT 1 FROM place_ownership po
     JOIN app_user au ON au.id = po.user_id
-    WHERE po.place_id = <tabla>.place_id
+    WHERE po.place_id = <tabla>.place_id   -- para `place`: po.place_id = place.id
       AND au.auth_user_id = (select auth.user_id())
   )
   ```
-- **`place`** — mismo predicado, referido a `place.id` en lugar de `<tabla>.place_id`.
+- **`invitation` (todas las operaciones): 100% owner-only** (mismo predicado). Sin policy por email, sin verified-email. La aceptación NO pasa por la RLS del usuario (ver "RLS e invitaciones").
 
-Owner → CRUD completo solo en su place; places distintos quedan aislados automáticamente. **El acceso de miembros NO está en la base** (es deliberado): se agrega **por-feature, encima de esta base**, según tier/grupo/config de thread/library/eventos — cada feature documenta y agrega sus propias policies. RLS se construye incremental; la base owner entra en S1.
+Owner → CRUD completo solo en su place; cualquier autenticado puede **crear** su place; places distintos aislados. **El acceso de miembros NO está en la base** (deliberado): se agrega **por-feature, encima**, según tier/grupo/config. RLS incremental; la base entra en S1.
 
 Se expresa en Drizzle con `pgPolicy`/`crudPolicy` + predicados custom (`drizzle-orm/neon`); `auth.user_id()` lee el claim `sub` inyectado.
 
@@ -105,13 +106,16 @@ Se expresa en Drizzle con `pgPolicy`/`crudPolicy` + predicados custom (`drizzle-
 - Riesgo a vigilar en S1: el SDK cachea la sesión en cookie firmada (~300s, `cookies.sessionDataTtl`); validar que el `exp` del JWT no choque con ese cache.
 - Toda op de dominio corre tras `ensureAppUser` (guard JIT idempotente, ADR-0006) y desde `queries.ts`/`actions.ts` del feature.
 
-**RLS e invitaciones (diseño cerrado, ADR-0005 §4 + esta sección).** La RLS owner-only sobre `invitation` se aplica desde S1 **sin** romper la aceptación futura:
+**RLS e invitaciones (diseño cerrado, ADR-0010 — supersede ADR-0009 §1).** `invitation` es **100% owner-only** en RLS. La invitación se accede y acepta **únicamente por su token-link**; el `invitation.token` (alta entropía, un solo uso) **es** la autorización. **No** hay acceso por email, **no** se requiere email verificado, **no** existe "listar mis invitaciones".
 
 - El owner crea/lista/revoca invitaciones de su place → permitido por la base owner-only.
-- El `invitation.token` es una **capability** de alta entropía. La aceptación NO pasa por la RLS del usuario: va por una **vía privilegiada server-side de un solo propósito** (`SECURITY DEFINER` o rol controlado acotado a esa operación) que valida token (existe, no expiró, no usado), exige que el **email de la cuenta que acepta coincida con `invitation.email`** (estricto, decidido), corre `ensureAppUser`, crea `membership` (respeta máx 150 y `UNIQUE(user_id,place_id)`) y marca `accepted_at` — todo en una tx. La tabla `invitation` nunca queda expuesta a scan por usuarios.
+- Un secreto (token) **no** se expresa como regla RLS de identidad → la validación/aceptación va por una **función de confianza** `SECURITY DEFINER` (`EXECUTE` solo para `app_system`), porque la fila `invitation` es del owner:
+  1. **Display (solo-lectura):** valida token (existe / no vencido / no usado). Inválido → error amable, **nada en la DB**.
+  2. **Aceptar → form de cuenta → Crear:** en **una tx atómica**: `ensureAppUser` → crea `membership` → invalida la invitación (`accepted_at` NULL→now() con **test-and-set**: `UPDATE … WHERE accepted_at IS NULL RETURNING` — token de un solo uso, resuelve carrera). `UNIQUE(user_id,place_id)` respalda contra doble membership. Re-validar token al mostrar **y** al crear.
+- **Email match:** el email de la cuenta creada DEBE ser `invitation.email` (estricto, ADR-0008) — prefijado/bloqueado en el form (detalle de la UI de aceptación, diferida).
 - **Host del link:** `{slug}.place.community/invite/{token}`; si el place tiene custom domain verificado (`place_domain.verified_at IS NOT NULL`), `https://{dominio}/invite/{token}`.
-- **Lookup de invitaciones por email (ADR-0008/0009):** "ver si tengo invitaciones a mi email" (vía Acceso → Unirme) se resuelve con un **Server Action privilegiado** que lista invitaciones donde `invitation.email` = el **email verificado** del usuario autenticado. La RLS de `invitation` **sigue owner-only** (no se amplía `SELECT`); el match se valida server-side; requiere email verificado. Es análogo a la vía privilegiada de aceptación (no pasa por el rol del usuario).
-- "Join desde directorio" es otro flujo posterior con su propia policy; no se diseña acá. La rama "Unirme" se muestra **deshabilitada/"próximamente"** en la tanda de registro (ADR-0009).
+- La tabla `invitation` nunca queda expuesta a scan por usuarios; el invitado nunca hace `SELECT`/`UPDATE` directo sobre `invitation` bajo su rol.
+- **"Unirme" (vía Acceso, ADR-0008/0010):** ya **no** lista invitaciones por email (eliminado). Tras el signup account-first: "Crear mi place" (funcional) y "Unirme" = solo **directorio** (no existe) → **deshabilitado/"próximamente"**. Las invitaciones se entran por el link del email, no desde el menú "Acceso".
 
 ## Slug inmutable
 
