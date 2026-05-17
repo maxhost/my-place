@@ -1,147 +1,117 @@
 # Onboarding · plan de sesiones
 
-Plan de implementación de la tanda de registro, dividido en sesiones según `CLAUDE.md` (≤5 archivos / no mezclar capas / TDD en el core / sesiones focalizadas). **Corregido y consistente con ADR-0005 §10.**
+Plan de implementación de la tanda de registro, **reescrito 2026-05-17** sobre la doc ya coordinada (ADR-0001, 0004–0010; auditoría de coherencia aplicada). Reemplaza el plan previo (S1 era demasiado grande y precedía a ADR-0008/0010).
 
-> **Corrección importante.** Un split verbal previo decía "routing diferido". **ADR-0005 §10 mete el routing host-based EN el alcance** de esta tanda (estructura `(marketing)`/`(app)`, middleware host-based, wildcard DNS/Vercel) — explícitamente rechaza diferirlo ("Diferir el routing por subdominio … se decidió incluirlo para que el resultado del onboarding sea funcional end-to-end", ADR-0005 §Alternativas rechazadas). Este plan **incluye** el routing como sesión propia. El resultado del onboarding deja el place servible en `{slug}.place.community`.
+## Disciplina de trabajo (obligatoria, toda sesión)
 
-## Principios del split
+- **Una sesión = una responsabilidad.** ≤5 archivos núcleo, no mezclar capas (backend/frontend/routing en sesiones separadas). Si una sesión empieza a exceder esto → subdividir antes de seguir (`CLAUDE.md`).
+- **Commit ANTES de empezar cada sesión.** Punto de rollback: si la sesión sale mal, `git reset` al commit previo. El commit previo es el cierre verde de la sesión anterior.
+- **`/compact` ANTES de pasar a la siguiente** sesión → entrar con ventana de contexto libre. Cada sesión está pensada para entrar entera en una ventana.
+- **TDD obligatorio en el core** (`CLAUDE.md`): test primero → ver fallar → implementar → ver pasar. Casos en `tests.md`.
+- **Cierre de sesión:** `pnpm test` + `pnpm typecheck` en verde, reporte de archivos+líneas tocados, doc actualizada si cambió una decisión. Recién ahí se commitea y se compacta.
+- **Sin código de auth/RLS bajo el rol admin.** Tests de RLS corren bajo `app_system`, nunca `neondb_owner` (falso verde por `BYPASSRLS`).
+- **Verificación browser/cookies/subdominios/custom-domain = preview de Vercel** (dominio real + dominios de prueba), NO localhost (gotcha `__Secure-`). Tests de lógica/RLS = Vitest local contra branch `test` de Neon. Sin mkcert.
 
-- Una sesión = una responsabilidad. Backend y frontend en sesiones separadas. No mezclar capas.
-- TDD obligatorio en el core: tests primero, ver fallar, implementar, ver pasar (`CLAUDE.md`). Detalle de casos en `tests.md`.
-- DB de test = branch Neon efímero (Postgres con branching, `stack.md`; ver `tests.md`).
-- `/compact` al 60% de contexto; si una sesión empieza a tocar >5 archivos o cruzar capas, se subdivide antes de continuar.
-- Cada sesión cierra con: tests + typecheck en verde, y reporte de archivos tocados con líneas (`CLAUDE.md` § Después de implementar).
+## Branches Neon (decidido)
 
-## Dependencias (orden)
+`production` (intocable) · `dev` (una; solo schema consolidado; ahí se escriben migraciones) · `test` (una; se resetea/re-migra entre corridas). dev→prod = aplicar los **mismos archivos de migración** Drizzle a `production` (no se mueven branches).
+
+## Mapa de sesiones y dependencias
 
 ```
-S1 (infra datos+auth) ──> S2 (dominio: creación place + invitación + RLS) ──┬──> S4 (frontend wizard)
-                      └─> S3 (routing host-based + (marketing)/(app)) ───────┘
-S2 ──> S5 (capa LLM)  [S5 puede ir en paralelo a S3/S4 una vez cerrado S2]
-S6 (aceptación de invitación UI) — OPCIONAL, al cierre; depende de S2 (diseño/vía privilegiada) y S3 (routing del host del link)
+S0 Harness+entorno ─> S1 Schema ─> S2 RLS ─> S3 Auth wiring ─┬─> S4 Saga creación ─┬─> S7 Wizard place-first ─> S8 Vía "Acceso"
+                                                              ├─> S5 Invitación fn  │
+                                   S1 ─> S6 Routing host-based ┘ (S4 para servir)   └─> S9 Capa LLM
 ```
 
-S1 es fundacional (auth + datos + RLS base); todo lo demás depende de él. S3 y S4 dependen de S2 (necesitan el servicio de creación). S5 depende solo de S2. S6 es opcional/al cierre.
+Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, directorio, gate de horario.
 
 ---
 
-## S1 — Infra de datos + auth (fundacional)
+## S0 — Harness de tests + entorno (prerequisito, sin código de producto)
 
-**Responsabilidad:** capa de datos Drizzle sobre Neon + Neon Auth integrado + RLS base + `ensureAppUser`. Es el fundamento (ADR-0006 Contexto: "si el usuario no se autentica … las RLS y todas las features se construyen sobre arena").
+**Capa:** infra/tooling. **Responsabilidad:** dejar el terreno listo para TDD.
 
-**Capa:** infra/backend. **No** mezcla frontend.
+- Vitest (unit/integration, jsdom) + scripts `test`/`typecheck`. Playwright queda para E2E posterior.
+- Branches Neon `dev` y `test` (vía MCP). Rol **`app_system`** (no-admin, sin `BYPASSRLS`) creado en `dev` y `test` con sus GRANT (CRUD sujeto a RLS + `EXECUTE` de funciones privilegiadas + `USAGE public`; sin DDL, sin `neon_auth`). String admin (`neondb_owner`) solo para migraciones.
+- Deps: `drizzle-orm`, `drizzle-kit`, `@neondatabase/serverless`, `jose`, `vitest`. `.env.local` (string `app_system` para runtime/test; string admin separado para migraciones — nunca en git).
+- Estrategia de DB de test: branch `test` reseteado (re-migrado/truncado) entre corridas; documentar el comando.
+- Verificación empírica mínima en un branch: `auth.user_id()` existe y `set_config('request.jwt.claims',…)` lo alimenta.
+- **Cierre:** un test trivial corre bajo `app_system` contra `test`; `pnpm test`+`typecheck` verdes.
 
-**Alcance:**
-- Cliente Drizzle con driver `neon-serverless` (tx interactiva). Rol Postgres custom no-admin (`pgRole().existing()`); `neondb_owner` solo migraciones. Connection strings en `.env.local` (nunca git).
-- Schema Drizzle de `public` (core de `data-model.md`: `app_user`, `place`, `place_domain`, `membership`, `place_ownership`, `invitation`, enums `billing_mode`/`place_subscription_status`). `neon_auth` NO se versiona (library-owned).
-- **RLS base (S1)**: policies owner-only de §5 del README sobre `app_user`, `place`, `membership`, `place_ownership`, `invitation`, vía `pgPolicy`/`crudPolicy` + predicados custom, declaradas al rol custom.
-- Integración Neon Auth: `createNeonAuth({ cookies: { domain: ".place.community", secret } })`, route handler first-party `app/api/auth/[...path]/route.ts`, verificación JWT con `jose`+JWKS, inyección de claims (`set_config('request.jwt.claims', …, true)`) en la tx.
-- `ensureAppUser(authUserId)` como primitivo idempotente de `shared/lib` (dedupeable vía `React.cache`).
-- `shared/config/reserved-slugs.ts` (lista canónica de `multi-tenancy.md`).
-- Test guard de build: falla si la cookie de sesión se emite sin `Domain` apex.
+## S1 — Schema `public` + migraciones (backend, schema)
 
-**Verificación al cerrar:**
-- **Empírico en branch Neon**: `auth.user_id()` existe y lee los claims inyectados; el `INSERT` inicial del owner pasa la RLS base (orden de inserción / `WITH CHECK`).
-- Probe de cookie apex: **YA verificado empíricamente (2026-05-16)** sobre branch Neon de prueba — `cookies.domain` emite `Domain=.<apex>`; sin él, host-only. No re-hacer; S1 solo cablea `createNeonAuth({cookies:{domain}})` + el test-guard de build. Setup dev HTTPS por el prefijo `__Secure-` (gotcha).
-- Tests TDD: RLS con rol no-admin + claims inyectados (aislamiento entre places, deny cross-place); `ensureAppUser` idempotente.
-- `pnpm test` + `pnpm typecheck` verdes.
+**Responsabilidad:** expresar el core de `data-model.md` en Drizzle. **Sin RLS** (es S2) y sin auth.
 
-**Riesgo a vigilar:** cache de sesión (~300s) vs `exp` del JWT (README §9.1).
+- Schema Drizzle: `app_user`, `place`, `place_domain`, `membership`, `place_ownership`, `invitation` + enums `billing_mode`/`place_subscription_status`; `gen_random_uuid()` PK; shapes JSON (`theme_config`, `opening_hours`) tipados. `neon_auth` NO se versiona.
+- `shared/config/reserved-slugs.ts` (lista de `multi-tenancy.md`).
+- Migración generada (`drizzle-kit`); aplicar a `dev` y `test`.
+- **Cierre:** migración aplica limpia e idempotente; schema == `data-model.md`; tests de migración verdes.
 
----
+## S2 — RLS por-operación (backend, seguridad — núcleo crítico)
 
-## S2 — Dominio: servicio de creación de place + invitación + RLS aplicada
+**Responsabilidad:** las policies de ADR-0010. Es el punto que si falla, nada sirve.
 
-**Responsabilidad:** la saga de creación (Server Action) + el diseño cerrado de invitación (vía privilegiada `SECURITY DEFINER`) + verificación de que la RLS base no rompe el alta ni la aceptación.
+- `app_user` (todas): propia fila. `place`/`membership`/`place_ownership` INSERT: autenticado + `WITH CHECK` self-only; SELECT/UPDATE/DELETE: owner-only. `invitation`: 100% owner-only. Declaradas a `app_system`.
+- Verificación empírica de `auth.user_id()` + inyección de claims en tx.
+- **TDD (bloqueante):** aislamiento entre places (deny cross-place); `WITH CHECK` self-only rechaza INSERT a nombre de otro / en place ajeno; `app_user` solo propia fila; `invitation` no escaneable por no-owner; todo bajo `app_system`, nunca admin.
+- **Cierre:** tests RLS verdes.
 
-**Capa:** dominio/backend. **No** frontend.
+## S3 — Auth wiring (backend/infra)
 
-**Alcance:**
-- Server Action de signup que orquesta la saga (README §3): `auth.signUp.email()` → tx upsert `app_user`+handle random → tx `place`+`place_ownership`+`membership` con invariantes (reserved-slug, slug único, máx 150, mín 1 owner), `theme_config` Zod-validado, `opening_hours` default 09:00–20:00 tz-owner, billing trial (`OWNER_PAYS`/`ACTIVE`/`trial_ends_at=now()+30d`), `enabled_features=[]`.
-- Manejo de falla parcial e idempotencia (cuenta sin place = estado "creá tu place", no error fatal; reintento no duplica).
-- Generación de handle random no-usado (ADR-0002).
-- Validación Zod del payload del submit (slug, colores, descripción, datos de cuenta, timezone).
-- Vía privilegiada server-side de aceptación de invitación (`SECURITY DEFINER` o rol controlado de un solo propósito): valida token (existe/no expirado/no usado), email-match estricto con `invitation.email`, `ensureAppUser`, crea `membership` (máx 150, `UNIQUE(user_id,place_id)`), marca `accepted_at`. (El servicio/función; la UI es S6.)
+**Responsabilidad:** Neon Auth ↔ Postgres (identidad → RLS).
 
-**Verificación al cerrar:**
-- Tests TDD: saga happy path; falla parcial (paso 3 falla → cuenta queda, place no); idempotencia (reintento); invariantes (slug reservado/duplicado rechazado, máx 150, mín 1 owner); shapes Zod; vía privilegiada de invitación (token inválido/expirado/usado, email mismatch → rechazo; éxito crea membership y marca accepted_at; RLS owner-only sobre `invitation` no rompe ni creación-por-owner ni aceptación-por-vía-privilegiada).
-- `pnpm test` + `pnpm typecheck` verdes.
+- `createNeonAuth({ cookies:{ domain, secret } })`, route handler first-party `app/api/auth/[...path]`, helper `getAuthenticatedDb` (verifica `session.access_token` con `jose`+JWKS → `set_config('request.jwt.claims',…,true)` en tx, driver `neon-serverless`).
+- `ensureAppUser(authUserId)` primitivo idempotente en `shared/lib` (dedupe `React.cache`).
+- Test-guard de build: falla si la cookie de sesión se emite sin `Domain` apex.
+- **TDD:** `ensureAppUser` idempotente; sesión→claims→RLS end-to-end (lógica, contra `test`); test-guard dispara. Verificación cookie/cross-subdomain → preview Vercel (anotado, no localhost).
+- **Cierre:** verdes.
 
----
+## S4 — Saga de creación de place (backend/dominio)
 
-## S3 — Routing host-based + `(marketing)` / `(app)`
+**Responsabilidad:** el Server Action de creación, **dos modos** (ADR-0008).
 
-**Responsabilidad:** estructura de rutas y middleware host-based (ADR-0005 §10, `multi-tenancy.md`). **En alcance — NO diferido.**
+- Modo place-first (CTA): `signUp` → `app_user`+handle → tx place+ownership+membership. Modo authed (Acceso→"Crear mi place"): identidad+`app_user` ya existen (`ensureAppUser`) → solo tx de place. Falla parcial/idempotencia (cuenta sin place = estado "creá tu place").
+- Invariantes (reserved-slug, slug único, máx 150, mín 1 owner), `theme_config` (paleta acotada + guardrail contraste server-side), `opening_hours` default 09–20 tz-owner, billing trial, `enabled_features=[]`. Zod del payload.
+- **TDD:** happy path ambos modos; falla parcial; idempotencia; invariantes; Zod; guardrail.
+- **Cierre:** verdes.
 
-**Capa:** routing/app shell. Sin lógica de dominio (delega a S2) ni UI de wizard (es S4).
+## S5 — Invitación: función `SECURITY DEFINER` + RLS (backend/dominio)
 
-**Alcance:**
-- Estructura `src/app/(marketing)/` (apex `place.community` → landing/onboarding) y `src/app/(app)/` (`{slug}.place.community` → place; `app.` → inbox). Migrar la landing actual (`src/app/[locale]/`) a `(marketing)` sin romperla.
-- `src/middleware.ts` host-based: apex → marketing/onboarding; `{slug}.place.community` → `(app)/[placeSlug]/…`; `app.` → `(app)/inbox/…`. **Integra** el middleware i18n actual (no lo duplica).
-- Wildcard DNS/Vercel: `*.place.community → CNAME → cname.vercel-dns.com`; wildcard domain en el proyecto Vercel; Function Region `iad1` (co-locar con Neon `us-east-1`).
-- Resolución de place por hostname → slug (custom domains: solo verificados; fuera de alcance de S1 más allá de no romper la resolución).
-- El place creado en S2 queda servible en `{slug}.place.community` (página mínima/placeholder del place; el contenido del place es feature futura).
+**Responsabilidad:** el mecanismo token-link de ADR-0010 (sin UI).
 
-**Verificación al cerrar:**
-- Tests: middleware rutea apex/subdominio/`app.` correctamente; landing sigue funcionando bajo `(marketing)`; un slug inexistente → 404; URLs públicas son subdominio (no `placeSlug` en el path — regla de memoria del proyecto).
-- `pnpm test` + `pnpm typecheck` verdes; build de la landing intacto (`cross-env NODE_ENV=production`, gotcha de `CLAUDE.md`).
+- Función `SECURITY DEFINER` (dueño = rol privilegiado; `EXECUTE` solo `app_system`): validar token (existe/no vencido/no usado) + email-match estricto + `ensureAppUser` + `membership` (máx 150, `UNIQUE`) + **test-and-set atómico** de `accepted_at`. Owner crea/revoca invitaciones (base owner-only).
+- **TDD:** token inválido/expirado/usado; email mismatch; **doble aceptación simultánea → una gana**; éxito; `invitation` no escaneable por el invitado.
+- **Cierre:** verdes.
 
----
+## S6 — Routing host-based + `(marketing)`/`(app)` (routing/app-shell)
 
-## S4 — Frontend del wizard
+**Responsabilidad:** estructura de rutas y middleware por host (ADR-0005 §10). Sin dominio (delega a S4) ni UI de wizard (S7).
 
-**Responsabilidad:** la UI del wizard de 3 pasos (README §2), estado client-side, llamada al Server Action de S2.
+- `src/app/(marketing)/` (apex) y `(app)/` (`{slug}.` place; `app.` inbox). Migrar la landing actual a `(marketing)` sin romperla. `src/middleware.ts` host-based **integrando** i18n. Wildcard DNS/Vercel; Function Region `iad1`. Place servible en `{slug}.place.community` (placeholder).
+- **Tests:** rutea apex/subdominio/`app.`; landing intacta; slug inexistente→404; URLs públicas = subdominio (regla de memoria).
+- **Cierre:** verdes; build de landing intacto (`cross-env NODE_ENV=production`).
 
-**Capa:** frontend. Consume el Server Action de S2 y el routing de S3; no implementa lógica de dominio.
+## S7 — Frontend wizard place-first (frontend)
 
-**Alcance:**
-- Paso 1: nombre + slug con preview de URL + chequeo de disponibilidad en vivo (contra unicidad global + `reserved-slugs.ts` — vía un endpoint/action de solo-lectura; el dura corre en la saga).
-- Paso 2: descripción "para quién" + selector de los 3 tokens de color con preview, default Papel, guardrail de contraste (auto-ajustar + avisar); zona de asistencia LLM (consume S5; degrada elegante si LLM no disponible).
-- Paso 3: nombre completo + email + password + aceptar términos (links a `/terminos`, `/privacidad`); captura del timezone del browser (README §8, punto a confirmar).
-- Estado 100% client-side hasta el submit (Zustand mínimo / RHF + Zod); submit único → Server Action de la saga.
-- Estado post-falla-parcial: "creá tu place" (cuenta existe, place no) — pantalla de reintento.
-- i18n bajo `[locale]`; tono cozytech (nada grita, sin contadores/urgencia).
+**Responsabilidad:** UI del wizard 3 pasos (CTA). Consume S4/S6.
 
-**Verificación al cerrar:**
-- Tests de componentes: validaciones de cada paso; preview de slug; guardrail de contraste avisa; submit llama al action; estado de reintento.
-- `react-best-practices` aplicable (TSX). `pnpm test` + `pnpm typecheck` verdes.
-- Revisión contra `producto.md` (principios no negociables) y continuidad visual con la landing.
+- Paso 1 nombre+slug (preview + disponibilidad en vivo, no autoritativa). Paso 2 descripción+paleta acotada (preview, default Papel, guardrail avisa) — sin LLM aún (S9). Paso 3 cuenta + T&C + timezone del browser (fallback fijo). Estado client-side hasta submit. Estado "creá tu place" post-falla.
+- **Cierre:** tests de componentes; revisión `producto.md` (cozytech) + continuidad visual con landing; `react-best-practices`.
 
----
+## S8 — Vía "Acceso": login form + account-first + modo authed (frontend + thin)
 
-## S5 — Capa LLM (asistencia propose-only)
+**Responsabilidad:** la segunda vía (ADR-0008). Consume S3/S4/S7.
 
-**Responsabilidad:** integración con Vercel AI Gateway para proponer paleta + borrador de descripción (ADR-0005 §5 ajustado por ADR-0007). Puede ir en paralelo a S3/S4 una vez cerrado S2.
+- Item "Acceso" en el menú de la landing. Form login/signup account-first → "Crear mi place" (reusa wizard SIN paso de cuenta; saga modo authed) / "Unirme" = solo directorio → **deshabilitado/"próximamente"**. Invitaciones NO desde acá (van por su token-link).
+- **Cierre:** tests del form + ramificación; modo authed no re-pide cuenta.
 
-**Capa:** servicio/backend (más una isla cliente mínima en S4 que la consume).
+## S9 — Capa LLM propose-only (servicio + isla mínima)
 
-**Alcance:**
-- Cliente AI Gateway (`AI_GATEWAY_API_KEY`, string `"provider/model"`, modelo chico/rápido — concreto a fijar acá, TBD acotado ADR-0005).
-- Salida estructurada validada por **Zod**: `{ palette: {accent,bg,ink}, descriptionDraft: string }`. **Sin horario** (ADR-0007 §1).
-- Propose-only: la salida es propuesta editable; nada se auto-aplica (ADR-0005 §6, `producto.md`). El guardrail de contraste se aplica también a la paleta propuesta por el LLM (README §2 paso 2).
-- Degradación elegante: si el LLM falla/no responde, el wizard sigue con el default Papel y edición manual.
+**Responsabilidad:** asistencia LLM (ADR-0005 §5 / ADR-0007). Paralelizable tras S4.
 
-**Verificación al cerrar:**
-- Tests: el parser Zod rechaza salida malformada; nunca se persiste sin confirmación; la salida no incluye horario; guardrail aplicado a paleta propuesta.
-- `pnpm test` + `pnpm typecheck` verdes.
-
----
-
-## S6 — (Opcional, al cierre) UI de aceptación de invitación
-
-**Responsabilidad:** la pantalla `/invite/{token}` + Server Action que invoca la vía privilegiada de S2. **Punto a confirmar con el humano** si entra en esta tanda o se difiere a una sesión propia inmediatamente posterior (README §10.3).
-
-**Capa:** frontend + thin server action (la lógica de dominio ya está en S2).
-
-**Alcance:**
-- Ruta `/invite/{token}` servida en el host del link (`{slug}.place.community/invite/{token}` o custom domain verificado).
-- Si no hay cuenta: alta de cuenta (email DEBE coincidir con `invitation.email`, estricto) + `membership`, **sin** crear place.
-- Si hay cuenta: aceptar (mismo email-match estricto) + `membership`.
-- Errores claros: token inválido/expirado/usado, email mismatch, place lleno (máx 150), ya es miembro.
-
-**Verificación al cerrar:**
-- Tests E2E del flujo de aceptación (token válido/ inválido / email mismatch / place lleno).
-- `pnpm test` + `pnpm typecheck` verdes.
+- Cliente Vercel AI Gateway (`AI_GATEWAY_API_KEY`, modelo chico — fijar acá). Salida Zod `{ palette:{accent,bg,ink}, descriptionDraft }` — **sin horario**. Propose-only (nada se auto-aplica); guardrail de contraste también sobre la paleta propuesta. Degradación elegante si el LLM falla.
+- **Cierre:** parser Zod rechaza malformado; nunca persiste sin confirmación; sin horario; guardrail aplicado.
 
 ---
 
@@ -149,12 +119,17 @@ S1 es fundacional (auth + datos + RLS base); todo lo demás depende de él. S3 y
 
 | Sesión | Responsabilidad | Capa | Depende de |
 |---|---|---|---|
-| S1 | Infra datos+auth: Drizzle/Neon, Neon Auth, RLS base, `ensureAppUser`, reserved-slugs | infra/backend | — |
-| S2 | Dominio: saga de creación + vía privilegiada de invitación + RLS aplicada | dominio/backend | S1 |
-| S3 | Routing host-based + `(marketing)`/`(app)` + wildcard DNS/Vercel (**en alcance**) | routing/app shell | S1 (S2 para servir el place) |
-| S4 | Frontend del wizard de 3 pasos | frontend | S2, S3 |
-| S5 | Capa LLM propose-only (paleta + descripción, sin horario) | servicio/backend | S2 |
-| S6 | (Opcional, al cierre) UI de aceptación de invitación | frontend + thin action | S2, S3 |
+| S0 | Harness + entorno (Vitest, branches, rol `app_system`) | infra | — |
+| S1 | Schema `public` + migraciones | backend/schema | S0 |
+| S2 | RLS por-operación (núcleo crítico) | backend/seguridad | S1 |
+| S3 | Auth wiring (Neon Auth↔RLS, `ensureAppUser`) | backend/infra | S2 |
+| S4 | Saga de creación (dos modos) | backend/dominio | S3 |
+| S5 | Invitación: función `SECURITY DEFINER` | backend/dominio | S3 |
+| S6 | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S4 para servir) |
+| S7 | Wizard place-first | frontend | S4, S6 |
+| S8 | Vía "Acceso" + modo authed | frontend | S7 |
+| S9 | Capa LLM propose-only | servicio | S4 |
 
-Cada sesión cierra en verde (test + typecheck) y reporta archivos+líneas tocados antes de pasar a la siguiente.
-</content>
+Diferido a sesión propia posterior: UI `/invite/{token}`, directorio, gate de horario.
+
+Cada sesión: **commit antes de empezar** → trabajo TDD → **cierre verde** (test+typecheck+reporte) → commit → **`/compact`** → siguiente.
