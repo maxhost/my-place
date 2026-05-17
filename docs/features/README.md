@@ -38,7 +38,7 @@ Inventario de todo lo que Place incluye o quiere incluir. Es el **backlog y mapa
 | Feature | Qué es | Estado | Canónico |
 |---|---|---|---|
 | Auth (Neon Auth/Better Auth) | OIDC IdP propio, SSO cross-domain | Plataforma | ADR-0001, `stack.md` |
-| Onboarding | Alta de cuenta: nombre + avatar, handle auto random editable | Core | `ontologia/miembros.md` |
+| Onboarding | Alta owner-first: crear place + cuenta, wizard 3 pasos, saga de signup | Core | `features/onboarding/`, ADR-0005/0006/0007 |
 | Roles owner/miembro | Owner vs miembro; rol derivado | Core | ADR-0002, `data-model.md` |
 | Lifecycle de cuenta | Inactividad 6m/12m, tombstone, derecho al olvido | Core | ADR-0003 |
 

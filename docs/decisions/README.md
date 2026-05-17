@@ -5,3 +5,11 @@ Registro de decisiones arquitectónicas con fecha, alternativas rechazadas y con
 - [0001 — Auth: OIDC IdP propio, identidad separada y custom domains](0001-auth-oidc-custom-domains.md) — 2026-05-15
 - [0002 — Roles owner/miembro, reconocimiento de pertenencia, ciclo de vida del handle](0002-roles-gamificacion-handle.md) — 2026-05-16
 - [0003 — Lifecycle de cuenta y de place; tombstone; reemplazo de los 365 días](0003-lifecycle-cuenta-place-tombstone.md) — 2026-05-16
+- [0004 — Capa de acceso a datos: Drizzle ORM](0004-acceso-datos-drizzle.md) — 2026-05-16
+- [0005 — Onboarding del owner: creación de place y cuenta](0005-onboarding-creacion-place.md) — 2026-05-16
+- [0006 — Provisión de `app_user`, RLS base y modelo rol/JWT](0006-provision-appuser-rls-base-rol-jwt.md) — 2026-05-16
+- [0007 — Ajuste: el LLM del onboarding no propone horario; horario default](0007-ajuste-llm-horario-default.md) — 2026-05-16
+- [0008 — Dos vías de entrada: CTA (place-first) vs "Acceso" (login form, account-first)](0008-dos-vias-de-entrada.md) — 2026-05-16
+- [0009 — Cierre de los sub-puntos abiertos de ADR-0008](0009-cierre-subpuntos-adr-0008.md) — 2026-05-16
+
+> Los números de ADR se asignan al redactarse, no se reservan por adelantado. La ADR de comisión/pricing (referida en `docs/landingpage/`) tomará el número que corresponda cuando se cierre.

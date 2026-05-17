@@ -25,7 +25,7 @@ Fases 1-8 completas. Verificado en verde: `pnpm typecheck`, `pnpm lint`, `pnpm b
 - Paleta: se sumó `--accent-strong #A8501E` por WCAG (ver README §Decisiones 3d).
 - Legales en `/[locale]/terminos` y `/privacidad` (ruta plana, sin route group `(legal)` — es cosmético, no cambia URL).
 - "First Load JS shared by all" ≈102 KB = runtime de Next App Router, inherente; el gate bloqueante real es Lighthouse y pasa. La regla "requests ≤5" del README se excede solo por chunks de framework de Next (no código propio).
-- Pendiente antes de publicar: comisión % (ADR-0004) y contenido legal definitivo.
+- Pendiente antes de publicar: comisión % (ADR de comisión, pendiente) y contenido legal definitivo.
 
 > _Lo de abajo es el runway original de la sesión (histórico)._
 
@@ -35,7 +35,7 @@ Fases 1-8 completas. Verificado en verde: `pnpm typecheck`, `pnpm lint`, `pnpm b
 - Copy **aprobado** (ver `README.md` § "Copy propuesto"). Idioma fuente **ES**; v1 solo ES, scaffold i18n listo para EN/FR/PT.
 - Tipografía **Fraunces + Inter** (`next/font`, variable, self-hosted).
 - Paleta **Papel** (tokens en `README.md` § Decisiones 3d).
-- Pricing visible: 30 días gratis, Hobby $7, Comunidad $30. **Comisión % = TBD** → mostrar "0% comisión (plan Comunidad)" como dirección, marcado para confirmar con ADR-0004 antes de publicar.
+- Pricing visible: 30 días gratis, Hobby $7, Comunidad $30. **Comisión % = TBD** → mostrar "0% comisión (plan Comunidad)" como dirección, marcado para confirmar con la ADR de comisión (pendiente) antes de publicar.
 - Prueba social: **sin testimonios** (no hay usuarios); franja "Para clubes, talleres, equipos y comunidades de hasta 150".
 - `localePrefix: 'always'`, default `es`. Contacto `hola@place.community`.
 - Gate Lighthouse CI **bloqueante**.
@@ -116,7 +116,7 @@ src/
 
 - Capturas reales del producto (no existe UI) → placeholders.
 - Contenido EN/FR/PT (solo scaffold).
-- Comisión % en pricing → confirmar con ADR-0004 antes de publicar.
+- Comisión % en pricing → confirmar con la ADR de comisión (pendiente) antes de publicar.
 - Onboarding/`/login` real (la landing solo linkea; el flujo es otra feature).
 - Deploy a Vercel → autorización explícita del owner.
 

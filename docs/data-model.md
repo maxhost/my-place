@@ -28,9 +28,11 @@ CREATE TYPE place_subscription_status AS ENUM (
 
 CREATE TABLE app_user (
   id           TEXT PRIMARY KEY,
-  -- 1:1 con la identidad de login de Better Auth. Referencia lógica (sin FK
-  -- hard): esa tabla es propiedad de la librería de auth, no la versiona este
-  -- schema. La fila app_user se crea en un hook transaccional al signup.
+  -- 1:1 con la identidad de login de Neon Auth (neon_auth.user). Referencia
+  -- lógica (sin FK hard): esa tabla es library-owned, no la versiona este
+  -- schema. app_user se provisiona por orquestación app-side (nuestro Server
+  -- Action de signup) + guard JIT idempotente ensureAppUser — NO por hook ni
+  -- trigger (Neon Auth es gestionado, sin webhooks). Canónico: ADR-0006.
   auth_user_id TEXT NOT NULL UNIQUE,
   email        TEXT NOT NULL UNIQUE,
   display_name TEXT NOT NULL,
@@ -60,6 +62,10 @@ CREATE TABLE place (
   -- al impago avanza por los estados. La eliminación a 12m es purga física.
   subscription_status   place_subscription_status NOT NULL DEFAULT 'ACTIVE',
   subscription_past_due_at TIMESTAMPTZ,  -- vencimiento impago que abrió el ciclo
+  -- Trial de 30 días seteado al crear el place (ADR-0005): now()+30d. El place
+  -- es 100% usable durante el trial. Al expirar sin pago → entra al flujo
+  -- PAYMENT_PENDING (paywall, ADR-0003). Mecanismo de cobro: Pagos TBD.
+  trial_ends_at         TIMESTAMPTZ,
   -- Solo lista las zonas OPCIONALES habilitadas. Discusiones está siempre
   -- activa (es el primitivo, no se puede desactivar) y NO aparece acá.
   -- Miembros no es una zona toggleable. Valores posibles: "events", "library".
@@ -116,6 +122,51 @@ CREATE TABLE invitation (
 );
 ```
 
+## Shapes JSON canónicos (ADR-0005)
+
+Las columnas `JSONB` no son libres: tienen un shape canónico validado con Zod en el código.
+
+**`place.theme_config`** — paleta acotada. El owner setea **solo 3 tokens**; el producto **deriva** el resto en render (no se persisten los derivados). Default = paleta "Papel" de marca (mismos valores que la landing).
+
+```jsonc
+{
+  "colors": {
+    "accent": "#C4632F",  // acento de marca del place (CTA, kickers)
+    "bg":     "#FAF7F0",  // fondo papel
+    "ink":    "#1C1B22"   // texto principal
+  }
+}
+// Derivados en render (NO persistidos): --surface, --muted, --border,
+// --accent-strong, --accent-ink. --accent-strong se deriva para cumplir el
+// contraste WCAG (igual que en la landing). Guardrail = auto-ajustar + avisar
+// al owner (ADR-0005 §8): nunca se persiste/aplica un par que falle contraste
+// sin corrección + aviso.
+```
+
+**`place.opening_hours`** — horario del place (gate de horario, `architecture.md` + `docs/ontologia/conversaciones.md` es canónico para el comportamiento; acá solo el shape).
+
+```jsonc
+{
+  "timezone": "America/Argentina/Buenos_Aires",  // IANA tz del owner
+  "weekly": {                                     // [] = cerrado ese día
+    "mon": [{ "open": "09:00", "close": "20:00" }],
+    "tue": [{ "open": "09:00", "close": "20:00" }],
+    "wed": [{ "open": "09:00", "close": "20:00" }],
+    "thu": [{ "open": "09:00", "close": "20:00" }],
+    "fri": [{ "open": "09:00", "close": "20:00" }],
+    "sat": [{ "open": "09:00", "close": "20:00" }],
+    "sun": [{ "open": "09:00", "close": "20:00" }]
+  }
+}
+// DEFAULT al crear el place (ADR-0007): 09:00–20:00 todos los días en el
+// timezone del owner. Rangos en hora local del `timezone`.
+// El LLM del onboarding NO propone horario (ADR-0007). El owner lo edita
+// después en /settings (gateado por email verificado). El owner es la
+// excepción al gate (accede fuera de horario, architecture.md).
+```
+
+`place.enabled_features` ya documentado arriba (lista de zonas opcionales: `"events"`, `"library"`).
+
 ## Invariantes del dominio
 
 Reglas que el código debe enforzar. No son validaciones UI — son invariantes estructurales que viven en el modelo o en domain services.
@@ -132,6 +183,7 @@ Reglas que el código debe enforzar. No son validaciones UI — son invariantes 
 - **Discusiones es la zona no-desactivable.** Es el primitivo del que derivan eventos y biblioteca; siempre está activa. Eventos y Biblioteca son zonas **opcionales** que el owner activa/desactiva desde `/settings/*` (`enabled_features`). Miembros no es una zona toggleable: los miembros existen siempre.
 - **Handle obligatorio y único global.** `app_user.handle NOT NULL UNIQUE`. Auto-asignado random no-usado al crear la cuenta, editable por el usuario, liberado para reuso **solo al borrar la cuenta** (no al salir de un place).
 - **Exención de la escala de inactividad.** La escala 6m/12m de cuenta NO corre mientras el usuario sea owner de ≥1 place activo O tenga ≥1 pago activo. Es una condición evaluada, no un flag permanente: al dejar de cumplir ambas, la cuenta entra a la escala. Ver ADR-0003.
+- **Alta owner-first: cuenta y place se crean juntos (saga, no transacción única).** El alta del apex crea `app_user` (+ identidad Better Auth) y luego `place` + `place_ownership` + `membership` en una tx de app (ADR-0005). Una cuenta queda sin place solo si falla ese último paso (reintento, no error fatal). Excepción de diseño: alta desde invitación o "join" del directorio crea cuenta + `membership` sin crear place.
 - **Place requiere suscripción del owner activa.** Sin pago, el place avanza por `subscription_status` hasta purga a los 12m. La eliminación/tombstone de un usuario que es único owner de un place activo se bloquea: primero transferir ownership o cerrar el place (extiende "mínimo 1 owner").
 
 ## Capas de identidad de un usuario
@@ -146,10 +198,11 @@ Ver `docs/ontologia/miembros.md` para el detalle ontológico. En el schema:
 
 Place actúa como su propio OIDC Identity Provider. La topología y el flujo SSO son canónicos en `docs/architecture.md` § "Sesión y SSO". En el schema:
 
-- **Tablas de auth propiedad de la librería.** Better Auth gestiona sus propias tablas (identidad de login, sesiones, accounts, verification) y el plugin OIDC Provider las suyas (OAuth clients, tokens, consents). **No se hand-spec-ean acá**: las crea y migra la librería; documentar sus internals los vuelve stale. Se versionan vía las migraciones de Better Auth.
-- **Integración con `app_user` (decidido: separada, 1:1).** `app_user` es la capa de identidad universal del producto y vive **separada** de la tabla de login de Better Auth, con link 1:1 vía `app_user.auth_user_id UNIQUE`. Razón: la anonimización del derecho al olvido opera sobre `app_user` sin tocar las tablas de auth, y el modelo de dominio no se acopla al schema de la librería. La fila `app_user` se crea en un hook transaccional al signup.
+- **Tablas de auth propiedad de la librería, en el schema `neon_auth`.** Verificado (2026-05-16, ADR-0005): Neon Auth provisionado con `auth_provider: better_auth`; tablas en el schema **`neon_auth`** (`user, session, account, verification, jwks` + plugin organization: `organization, member, invitation`). El core del producto va en **`public`**. El link `app_user.auth_user_id` → `neon_auth.user.id` es **referencia lógica cross-schema, sin FK hard**. **No se hand-spec-ean acá** ni se versionan en nuestras migraciones (Drizzle modela solo `public`; las gestiona Neon Auth). **No** usamos el plugin organization de Better Auth para modelar `place` — `place` vive en `public` (este schema); `neon_auth.organization/member/invitation` se ignoran para el dominio.
+- **Integración con `app_user` (decidido: separada, 1:1).** `app_user` es la capa de identidad universal del producto y vive **separada** de la tabla de login de Better Auth, con link 1:1 vía `app_user.auth_user_id UNIQUE`. Razón: la anonimización del derecho al olvido opera sobre `app_user` sin tocar las tablas de auth, y el modelo de dominio no se acopla al schema de la librería. `app_user` se provisiona por orquestación app-side (Server Action de signup) + guard JIT idempotente `ensureAppUser`, **no** por hook/trigger (Neon Auth gestionado, sin webhooks) — canónico en ADR-0006.
 - **Clients OIDC = solo custom domains (decidido: uno por dominio).** `*.place.community` (subdomains + inbox) comparten la cookie cross-subdomain y **no son RPs**. Cada custom domain es un RP con su **propio client confidencial**, provisionado al verificarse el dominio y revocado al archivarlo; el link vive en `place_domain.oauth_client_id`. Topología canónica en `architecture.md` § "Sesión y SSO".
-- **TBD acotado restante:** firma de ID tokens (RS256 vs EdDSA) — detalle de implementación, no afecta el modelo.
+- **RLS base (ADR-0006).** El aislamiento entre places se enforcea en Postgres RLS, no solo en código. Base: `app_user` solo accesible por su dueño (`auth.user_id() = auth_user_id`); tablas con `place_id` solo por el owner del place (vía `place_ownership`). Acceso de miembros = por-feature encima de la base. Rol custom no-admin + JWT verificado por JWKS; sin Data API ni `anon`. Spec operativa: `docs/multi-tenancy.md` § RLS.
+- **TBD acotado restante:** firma de ID tokens (RS256 vs EdDSA) la gestiona Neon Auth (`neon_auth.jwks` presente) — detalle de implementación, no afecta el modelo.
 
 ## Derecho al olvido
 
@@ -170,6 +223,6 @@ Implementado en `features/members/` y `features/places/` con cron/scheduled func
 
 ## Convenciones
 
-- IDs son opacos y no secuenciales (cuid o uuid), no autoincrementales. Razón: no exponer conteos de places o users vía URLs secuenciales.
+- IDs opacos, **aleatorios** y no secuenciales: `gen_random_uuid()` (UUID v4, generado por Postgres) como default de PK. No autoincrementales. Razón de seguridad: no exponer conteos de places/users ni permitir enumeración vía URLs.
 - Soft delete vía `archived_at` o `left_at` en lugar de `DELETE` físico. Los hard deletes son operación explícita.
 - Timestamps siempre en UTC (`TIMESTAMPTZ`). La conversión a timezone del usuario es responsabilidad del cliente.

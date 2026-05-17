@@ -53,9 +53,40 @@ Auth provider: **Neon Auth** (sobre Better Auth) — ver `docs/stack.md`. Place 
 
 **Cookie del IdP:** la sesión del IdP/apex DEBE setear `Domain=place.community` explícito (sin `Domain` en dev local; resuelto desde `NEXT_PUBLIC_APP_DOMAIN`). Test guard que falle el build si se emite sin `Domain`: una cookie host-only (sin `Domain`) en un subdomain sobrescribe la del apex (RFC 6265 §5.3, host-only tienen precedencia y van primero en el header `Cookie`).
 
+**Mecanismo VERIFICADO EMPÍRICAMENTE (2026-05-16, probe sobre branch Neon de prueba).** El SDK server de Next.js (`@neondatabase/auth@0.4.x`) instala un route handler **first-party** (`app/api/auth/[...path]/route.ts` = `auth.handler()`) que emite la cookie **en nuestro dominio**. `createNeonAuth({ cookies: { domain: ".place.community", secret } })` setea el `Domain`. Observado real: **con** `cookies.domain` → `Set-Cookie: __Secure-neon-auth.session_token=…; Domain=.lvh.me; HttpOnly; Secure; SameSite=Strict` (y `__Secure-neon-auth.local.session_data` JWT, `Max-Age=299`); **sin** `cookies.domain` → mismas cookies **sin** `Domain=` (host-only). El dominio vive **solo en código** (no en Console/MCP). ADR-0001 §1 confirmado y verificado, sin replanteo. El test-guard de build es necesario: la doble cookie host-only es el modo por default y rompería el apex (RFC 6265 §5.3).
+
+**Corrección (2026-05-16): `trusted_origins` SÍ acepta wildcard.** El reporte previo de "sin wildcard" era **incorrecto**. El validador de `configure_neon_auth` es autoritativo: acepta `https://*.example.com` (wildcard de subdominios), `http://localhost`/`127.0.0.1`/`[::1]`, y deeplinks de esquema custom; rechaza `http://` no-localhost, host-only/TLD-only wildcards y esquemas peligrosos. Por lo tanto **`https://*.place.community` es un único trusted origin válido** → no hay que enumerar subdominios y no hay gap. La topología "dos mundos de sesión" se mantiene; mantener el login/redirect concentrado en `auth.place.community` sigue siendo una buena práctica defensiva, pero **no es una mitigación obligatoria** (ya no hay gap que mitigar). Los custom domains se allowlistan con su origin `https://` al verificar el dominio (ya previsto).
+
+**Gotcha (cookies `__Secure-`).** Neon Auth prefija las cookies con `__Secure-`; los browsers **rechazan** cookies `__Secure-` sobre `http://` plano. En dev local hay que servir por **HTTPS** (mkcert o equivalente) o las sesiones no persisten en el browser. Canónico: `docs/gotchas/neon-auth-secure-cookie-https.md`.
+
 **Identidad:** `app_user` (identidad de producto) tiene relación 1:1 con la identidad de login de Better Auth — ver `docs/data-model.md` § "Auth y OIDC". Invariante: un humano = un `app_user`, sin importar por qué dominio entró.
 
 **TBD acotado (se decide al implementar auth):** firma de ID tokens (JWT plugin, RS256 vs EdDSA) — detalle de implementación, no afecta la topología.
+
+## Onboarding del owner y saga de signup
+
+Canónico en **ADR-0005**. El alta es **owner-first** (se crea el place; la cuenta al final), en el apex `place.community`, i18n bajo `[locale]`, wizard 100% client-side hasta el submit.
+
+**La creación NO es una transacción única, y NO hay "hook" de Neon Auth.** Neon Auth es un servicio **gestionado** sin webhooks ni hooks server-side (verificado, ADR-0006); el dueño de la identidad de login es Neon Auth (schema `neon_auth`), el core vive en `public`. La provisión de `app_user` la **orquestamos nosotros** en nuestro Server Action de signup. Orden canónico de la saga:
+
+1. Nuestro Server Action llama `auth.signUp.email()` (Neon Auth) → devuelve la identidad sincrónicamente.
+2. En la misma request, tx de app (`public`): **upsert idempotente** de `app_user` 1:1 (`auth_user_id` → `neon_auth.user.id`, ref. lógica cross-schema) + handle random (ADR-0002).
+3. Tx de app (`public`): `place` + `place_ownership` + `membership`, con invariantes (reserved-slugs, slug único, máx 150, mínimo 1 owner).
+
+**Guard JIT `ensureAppUser(authUserId)`** (primitivo de `shared/lib`, idempotente, dedupeable vía `React.cache`): se invoca en **toda entrada autenticada** (signup, login posterior, invitación, "join", reintentos) antes de cualquier op de dominio. Invariante: *ninguna operación de dominio corre sin `app_user`*. Falla parcial: si falla el paso 3, la cuenta queda creada (estado "creá tu place", no error fatal); si falla el 1, nada se persiste. Idempotente por `email` único (Neon Auth) y `auth_user_id UNIQUE`. Email verification **no bloquea el alta**: gatea solo las mutaciones de `/settings` (chequeo `neon_auth.user.emailVerified`), vía Resend. Asistencia LLM del onboarding = **propose-only** (paleta + borrador de descripción; **no** horario — ADR-0007), confirmada por el humano (reconciliación del principio en `producto.md` / ADR-0005 §6). `opening_hours` se setea por default 09:00–20:00 en el tz del owner al crear el place (ADR-0007), editable luego en `/settings`. Detalle canónico del mecanismo de provisión: **ADR-0006**.
+
+## Routing multi-tenant (en alcance de la tanda de registro)
+
+ADR-0005 mete el routing host-based en el alcance: estructura `(marketing)` / `(app)`, middleware host-based (apex → marketing/onboarding; `{slug}.place.community` → place; `app.` → inbox), wildcard DNS/Vercel. El middleware i18n actual (solo landing) se integra con el host-based. Detalle de URLs y estructura de rutas: `docs/multi-tenancy.md`.
+
+## RLS y modelo rol/JWT (fundamento de auth)
+
+Canónico en **ADR-0006**; spec operativa en `docs/multi-tenancy.md`. Reglas que toda feature respeta:
+
+- **RLS incremental, base owner desde S1.** Base: `app_user` solo accesible por su dueño (`auth.user_id() = app_user.auth_user_id`); tablas con `place_id` solo accesibles por el owner de ese place (predicado vía `place_ownership`). El acceso de **miembros** se agrega por-feature **encima**; la base no concede nada a miembros.
+- **Rol Postgres custom no-admin** para queries de dominio (sin `BYPASSRLS`). `neondb_owner` solo para migraciones. El backend verifica el JWT con **JWKS** e inyecta los claims en la transacción; las policies leen `auth.user_id()`.
+- **Sin Data API y sin rol `anon`.** Todo acceso de dominio es autenticado y verificado server-side. `anon` no recibe grants → no es superficie de riesgo.
+- Las queries a la DB se hacen desde `queries.ts`/`actions.ts` del feature (regla de aislamiento), nunca con el rol admin, siempre tras `ensureAppUser`.
 
 ## Gate de horario del place
 

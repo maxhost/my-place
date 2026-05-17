@@ -48,7 +48,7 @@ Orden de alta conversión 2026, con qué decir / qué NO:
 - **H1 candidatos** (≤8 palabras, outcome, sin jerga): "Un lugar, no una plataforma." · "Tu comunidad, sin la máquina de atención." · "Reuní a tu comunidad, no a una audiencia."
 - **Subhead:** ataca la objeción/diferenciación. Ej.: "Hasta 150 personas que se conocen. Sin FOMO, sin métricas, sin algoritmo."
 - **Pricing subhead:** "0% de comisión en el plan comunidad. Lo que tu comunidad paga, llega a vos."
-- **Pricing concreto (MVP, se muestra):** **30 días gratis** como promesa destacada. Plan **Hobby $7/mes**, plan **Comunidad $30/mes**. (Comisión por plan aún sin fijar — ver índice de features / ADR-0004 pendiente; el copy de comisión 0% aplica al plan Comunidad como dirección, confirmar al cerrar números.)
+- **Pricing concreto (MVP, se muestra):** **30 días gratis** como promesa destacada. Plan **Hobby $7/mes**, plan **Comunidad $30/mes**. (Comisión por plan aún sin fijar — ver índice de features; ADR de comisión pendiente; el copy de comisión 0% aplica al plan Comunidad como dirección, confirmar al cerrar números.)
 - **Reframe anti-objeción** (riesgo "se muere sin notificaciones"): "Los temas dormidos no mueren — cualquier mensaje revive una conversación de hace meses. El horario no apaga la comunidad: la hace un lugar al que se vuelve, no una app que te persigue."
 
 ## UX/UI (estética de restraint = tendencia 2026)
@@ -92,12 +92,12 @@ Orden de alta conversión 2026, con qué decir / qué NO:
 1. **`localePrefix` = `always`** (`/es` `/en` `/fr` `/pt`), default `es`, `x-default`→es. Es la opción más limpia para SEO multi-idioma: cada locale con su path canónico explícito, `hreflang` sin ambigüedad, sin el caso raro del default-sin-prefijo.
 2. **Hero = composición tipográfica/SVG** (opción 2: más rápida, coherente con el DNA, sin imagen en el critical path). Si no convence al ver el resultado, se pasa a imagen.
 3. **Voz**: amistosa y cercana; diferenciación moderada (capturar, no sermonear).
-3b. **Modo = B (landing de producto)**: CTA → `/login` → onboarding (bifurca crear/unirse/invitación). No es waitlist.
+3b. **Modo = B (landing de producto)**. _Refinado por ADR-0008:_ los **CTAs** ("Creá tu place"/"Empezá gratis") → **flujo de creación place-first** directo (no a un `/login` genérico). Un item **"Acceso"** en el menú (distinto del CTA) → **form de login** (login o signup account-first; tras el signup el usuario elige "crear mi place" o "unirme"). La bifurcación crear/unirse vive **después** del signup en la vía Acceso, no en los CTA. No es waitlist. (La landing ya está construida sin el item "Acceso" → sumar ese item es cambio de implementación futuro, anotado en ADR-0008.)
 3c. **Tipografía**: Fraunces (titulares) + Inter (cuerpo), variable, self-hosted `next/font`.
 3d. **Paleta = Papel cálido**: `--bg #FAF7F0` · `--surface #FFFFFF` · `--ink #1C1B22` · `--muted #6B6A73` · `--border #E7E2D6` · `--accent #C4632F` (terracota) · `--accent-ink #FFFFFF`. 1 acento, usado con intención (CTA, kickers). **Outcome de "validar cada par" (build 2026-05-16):** `--accent #C4632F` no alcanza 4.5:1 como texto (≈3.7:1 sobre papel, ≈3.9:1 blanco-sobre-accent). Se agregó `--accent-strong #A8501E` (terracota más profundo, ≈5.3:1) para TODO accent que sea texto (kickers, links, label/fill del CTA); `--accent` queda para detalles decorativos con umbral 3:1. La dirección de marca (terracota cálido sobre papel) no cambia.
 3e. **Contacto**: `hola@place.community`.
 4. **CTA**: una sola acción/mensaje, **repetida ≥3 veces** (hero, tras solución, cierre). No un único botón (riesgo).
-5. **Pricing en la landing (MVP)**: se muestra, con **30 días gratis** como promesa destacada; Hobby **$7/mes**, Comunidad **$30/mes**. Comisión por plan aún sin fijar (ADR-0004 pendiente cuando se cierre).
+5. **Pricing en la landing (MVP)**: se muestra, con **30 días gratis** como promesa destacada; Hobby **$7/mes**, Comunidad **$30/mes**. Comisión por plan aún sin fijar (ADR de comisión pendiente (número al redactarse)).
 6. **Footer/legales**: Términos, Privacidad, Contacto.
 7. **Gate de performance en CI = BLOQUEANTE.** Lighthouse CI frena el PR si se pasa del budget (HTML > 14KB, Performance < 99, CLS > 0). `<200ms` es requisito duro → freno duro.
 8. **H1 = "Un lugar, no una plataforma."** (build 2026-05-16, elegido por el owner entre los 3 candidatos). Subhead: "Hasta 150 personas que se conocen. Sin FOMO, sin métricas, sin algoritmo."
