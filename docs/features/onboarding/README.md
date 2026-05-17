@@ -155,13 +155,13 @@ Canónico: ADR-0006 §2–3, `multi-tenancy.md` § RLS. **RLS incremental; la ba
 
 ### Policies que se crean en S1 (POR-OPERACIÓN — ADR-0010, refina ADR-0006 §2)
 
-- **`app_user` (todas):** solo la propia fila → `(select auth.user_id()) = app_user.auth_user_id`.
+- **`app_user` (todas):** solo la propia fila → `(select app.current_user_id()) = app_user.auth_user_id`.
 - **`place` / `membership` / `place_ownership` — INSERT:** cualquier usuario **autenticado**, con `WITH CHECK` que garantiza que **solo se inserta a sí mismo** (su `app_user`) como owner/miembro del place que crea — no a nombre de otro ni en place ajeno. Crear el place propio no toca filas ajenas → **no hay huevo-y-gallina, no hace falta función para crear place**.
 - **`place` / `membership` / `place_ownership` — SELECT/UPDATE/DELETE:** solo el **owner** del place →
   ```
   EXISTS (SELECT 1 FROM place_ownership po JOIN app_user au ON au.id = po.user_id
           WHERE po.place_id = <tabla>.place_id  -- para `place`: po.place_id = place.id
-            AND au.auth_user_id = (select auth.user_id()))
+            AND au.auth_user_id = (select app.current_user_id()))
   ```
 - **`invitation` (todas las operaciones): 100% owner-only** (mismo predicado). Sin policy por email, sin verified-email. La aceptación NO pasa por la RLS del invitado (ver §6).
 
@@ -171,8 +171,8 @@ Cualquier autenticado puede **crear** su place; owner → CRUD solo en su place;
 
 - **Roles (definidos):** el **rol de runtime de queries de dominio = `app_system`** (custom, NO-admin, sin `BYPASSRLS`), declarado con `pgRole('app_system').existing()`; las policies se declaran `to`/`for` `app_system`, NO el `authenticatedRole`/`anonymousRole` de la Data API. `app_system` recibe `GRANT EXECUTE` de la(s) función(es) `SECURITY DEFINER` (p.ej. aceptación de invitación) pero **no** es su dueño: el dueño/`DEFINER` es un rol privilegiado (el owner de schema/migraciones, p.ej. `neondb_owner`), de modo que la función corre con permiso para tocar `invitation` mientras `app_system` solo puede **invocarla**. `neondb_owner` (admin, `BYPASSRLS`) solo para migraciones `drizzle-kit`, nunca en runtime. Los `GRANT` exactos de `app_system` se fijan en S0/S1 (CRUD sujeto a RLS en tablas de producto + `EXECUTE` de las funciones privilegiadas + `USAGE` de `public`; sin DDL, sin `BYPASSRLS`, sin `neon_auth`).
 - Token: `await auth.getSession()` → **`session.access_token`** (JWT). Verificación con **`jose`** (`createRemoteJWKSet(new URL(NEON_AUTH_JWKS_URL))` + `jwtVerify`); el claim **`sub`** = `neon_auth.user.id`.
-- Inyección de claims en la transacción: `select set_config('request.jwt.claims', <claims-json>, true)` dentro de `db.transaction`; las policies leen **`auth.user_id()`** (canónico; `auth.uid()` es de la Data API y no se usa).
-- **Verificar empíricamente en S1** que `auth.user_id()` existe en el branch Neon (ver § Riesgos).
+- Inyección de claims en la transacción: `select set_config('request.jwt.claims', <claims-json>, true)` dentro de `db.transaction`; las policies leen **`app.current_user_id()`** (canónico; `auth.uid()` es de la Data API y no se usa).
+- `app.current_user_id()` = función **propia** (ADR-0011), creada en la migración de S1 (no depende de Neon RLS, que NO está provisionado). Ya verificada empíricamente 2026-05-17.
 - Se expresa en Drizzle con `pgPolicy`/`crudPolicy` + predicados custom (`drizzle-orm/neon`).
 - **Sin Data API y sin rol `anon`**: ningún grant a `anon`; todo acceso de dominio es autenticado y verificado server-side.
 
@@ -227,7 +227,7 @@ Canónico: ADR-0007 §2, `data-model.md` § Shapes JSON.
 De ADR-0005/0006, `architecture.md`, `multi-tenancy.md`:
 
 1. **Cache de sesión vs `exp` del JWT.** El SDK cachea la sesión en cookie firmada (~300s, `cookies.sessionDataTtl`). Validar en S1 que el `exp` del JWT no choque con ese cache (`multi-tenancy.md` § RLS).
-2. **`auth.user_id()` a verificar empíricamente** en el branch Neon: confirmar que la función existe y que `set_config('request.jwt.claims', …, true)` la alimenta como se espera (ADR-0006 §3, `multi-tenancy.md`).
+2. **`app.current_user_id()` — RESUELTO (ADR-0011, verificado 2026-05-17).** Neon RLS no estaba provisionado; se definió función propia y se probó end-to-end con `app_system` (`NOBYPASSRLS`). Ya no es riesgo abierto.
 3. **Probe empírico de cookie — HECHO y PASÓ (2026-05-16).** Verificado sobre branch Neon de prueba: con `cookies.domain` → `Set-Cookie … Domain=.<apex>`; sin → host-only. ADR-0001 §1 confirmado empíricamente. Ya no es riesgo abierto (`architecture.md` § Sesión y SSO).
 4. **Cookies `__Secure-` requieren HTTPS en dev (nuevo).** Browsers rechazan `__Secure-` sobre http plano → dev local debe ser HTTPS. Es un setup de S1, no un bloqueo de diseño. Ver `docs/gotchas/neon-auth-secure-cookie-https.md`.
 5. **`conversaciones.md` cross-check del gate (post-S1).** El gate de horario no es S1, pero cuando se construya debe respetar `conversaciones.md` § "Comportamiento por horario" (miembro fuera de horario → `<PlaceClosedView>`; owner exceptuado) y `architecture.md` § Gate (vive en `[placeSlug]/(gated)/layout.tsx`, no por feature). Anotado para no perderlo de vista; no bloquea el onboarding.

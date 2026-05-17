@@ -90,8 +90,8 @@ ADR-0005 mete el routing host-based en el alcance: estructura `(marketing)` / `(
 
 Canónico en **ADR-0006**; spec operativa en `docs/multi-tenancy.md`. Reglas que toda feature respeta:
 
-- **RLS incremental, base owner desde S1.** Base: `app_user` solo accesible por su dueño (`auth.user_id() = app_user.auth_user_id`); tablas con `place_id` solo accesibles por el owner de ese place (predicado vía `place_ownership`). El acceso de **miembros** se agrega por-feature **encima**; la base no concede nada a miembros.
-- **Rol Postgres custom no-admin** para queries de dominio (sin `BYPASSRLS`). `neondb_owner` solo para migraciones. El backend verifica el JWT con **JWKS** e inyecta los claims en la transacción; las policies leen `auth.user_id()`.
+- **RLS incremental, base owner desde S1.** Base: `app_user` solo accesible por su dueño (`app.current_user_id() = app_user.auth_user_id`); tablas con `place_id` solo accesibles por el owner de ese place (predicado vía `place_ownership`). El acceso de **miembros** se agrega por-feature **encima**; la base no concede nada a miembros.
+- **Rol Postgres custom no-admin** para queries de dominio (sin `BYPASSRLS`). `neondb_owner` solo para migraciones. El backend verifica el JWT con **JWKS** e inyecta los claims en la transacción; las policies leen `app.current_user_id()`.
 - **Sin Data API y sin rol `anon`.** Todo acceso de dominio es autenticado y verificado server-side. `anon` no recibe grants → no es superficie de riesgo.
 - Las queries a la DB se hacen desde `queries.ts`/`actions.ts` del feature (regla de aislamiento), nunca con el rol admin, siempre tras `ensureAppUser`.
 

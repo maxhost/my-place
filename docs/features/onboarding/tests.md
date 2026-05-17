@@ -10,15 +10,15 @@ Mandato y casos críticos. **No** diseña los tests en detalle (eso es trabajo d
 
 ## Estrategia de DB de test
 
-- **Branch Neon efímero** por corrida de tests de integración/RLS. Neon es Postgres con branching (`stack.md`, ADR-0004 §Consecuencias: branching "útil para entornos efímeros de test/preview"). Se crea un branch desde `production`/un branch base, se corren las migraciones Drizzle, se ejecutan los tests, se destruye el branch. No se testea contra prod.
+- **Branch `test` fijo** (no efímero por corrida): modelo de 3 branches decidido (`production`/`dev`/`test`, `plan-sesiones.md`). Conexión como `app_system` vía `DATABASE_URL_TEST`. Aislamiento entre corridas: (a) los tests que **escriben** corren cada uno en una tx con `ROLLBACK` (no se commitea estado), y/o (b) reset del branch `test` re-aplicando migraciones Drizzle a estado limpio antes de la corrida (`db:migrate` contra `DATABASE_URL_TEST_MIGRATE`, rol admin). Nunca se testea contra `production`. El harness S0 ya corre así (tx, sin writes).
 - Los tests de RLS deben correr **bajo el rol Postgres custom no-admin** con los claims inyectados (`set_config('request.jwt.claims', …, true)`), **nunca** bajo `neondb_owner` (que tiene `BYPASSRLS` y haría pasar tests que en runtime fallarían — falso verde peligroso).
-- Verificar empíricamente en el branch que `auth.user_id()` existe y lee los claims (README §9.2 / `multi-tenancy.md`).
+- `app.current_user_id()` es función **propia** (ADR-0011), ya verificada empíricamente 2026-05-17. Los tests de RLS asumen que la migración la creó; el caso de test es el **comportamiento** (lee `sub`, NULL sin claim → deniega), no "existe".
 
 ## Casos críticos (probar primero)
 
 ### RLS con rol no-admin + claims inyectados (bloqueante)
 - Usuario A no puede `SELECT`/`UPDATE`/`DELETE` filas de un place que no ownea (aislamiento entre places).
-- Usuario A solo lee/actualiza su propia fila de `app_user` (`auth.user_id() = auth_user_id`).
+- Usuario A solo lee/actualiza su propia fila de `app_user` (`app.current_user_id() = auth_user_id`).
 - Owner tiene CRUD completo sobre las tablas con `place_id` **de su place** (`membership`, `place_ownership`, `invitation`, `place`).
 - **INSERT por-operación (ADR-0010):** un usuario autenticado **puede** crear su place (INSERT place+ownership+membership poniéndose a sí mismo) — la policy de INSERT NO consulta `place_ownership` (no hay huevo-y-gallina).
 - **`WITH CHECK` self-only rechaza abuso (bloqueante):** un INSERT que intente poner a **otro** usuario como owner/miembro, o crear membership/ownership en un place **ajeno**, es rechazado por el `WITH CHECK`.

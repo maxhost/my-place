@@ -2,6 +2,8 @@
 
 Plan de implementación de la tanda de registro, **reescrito 2026-05-17** sobre la doc ya coordinada (ADR-0001, 0004–0010; auditoría de coherencia aplicada). Reemplaza el plan previo (S1 era demasiado grande y precedía a ADR-0008/0010).
 
+> **Ejecución (decidido 2026-05-17):** secuencial, un solo hilo, **sin agentes en paralelo**. El núcleo auth/RLS (S0–S5) es cadena de dependencias dura + estado compartido (un branch Neon, migraciones seriales); paralelizar ahí cambia corrección por velocidad. Las hojas tardías (S6/S9/S7/S8) podrían paralelizarse a futuro pero por ahora también van en serie.
+
 ## Disciplina de trabajo (obligatoria, toda sesión)
 
 - **Una sesión = una responsabilidad.** ≤5 archivos núcleo, no mezclar capas (backend/frontend/routing en sesiones separadas). Si una sesión empieza a exceder esto → subdividir antes de seguir (`CLAUDE.md`).
@@ -28,15 +30,17 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 
 ---
 
-## S0 — Harness de tests + entorno (prerequisito, sin código de producto)
+## S0 — Harness de tests + entorno (prerequisito, sin código de producto) ✅ HECHA (2026-05-17)
 
 **Capa:** infra/tooling. **Responsabilidad:** dejar el terreno listo para TDD.
+
+**Resultado:** branches Neon `dev`(`br-icy-river-apv86ai9`)/`test`(`br-withered-darkness-apz87zyz`); rol `app_system` (`NOBYPASSRLS`,`LOGIN`) + schema `app` + `app.current_user_id()` en ambas + default privileges; deps (drizzle-orm/kit, @neondatabase/serverless, jose, vitest, ws, dotenv); `vitest.config.ts`/`vitest.setup.ts`/`drizzle.config.ts`; `.env.local` (gitignored); harness `src/db/__tests__/harness.test.ts` (3 tests, patrón runtime: Pool WebSocket + tx + `set_config` local) — **`pnpm test` 3/3 y `pnpm typecheck` verdes**. Password `app_system` dev/test es de desarrollo (rotar el de prod fuera de banda antes del cutover).
 
 - Vitest (unit/integration, jsdom) + scripts `test`/`typecheck`. Playwright queda para E2E posterior.
 - Branches Neon `dev` y `test` (vía MCP). Rol **`app_system`** (no-admin, sin `BYPASSRLS`) creado en `dev` y `test` con sus GRANT (CRUD sujeto a RLS + `EXECUTE` de funciones privilegiadas + `USAGE public`; sin DDL, sin `neon_auth`). String admin (`neondb_owner`) solo para migraciones.
 - Deps: `drizzle-orm`, `drizzle-kit`, `@neondatabase/serverless`, `jose`, `vitest`. `.env.local` (string `app_system` para runtime/test; string admin separado para migraciones — nunca en git).
 - Estrategia de DB de test: branch `test` reseteado (re-migrado/truncado) entre corridas; documentar el comando.
-- Verificación empírica mínima en un branch: `auth.user_id()` existe y `set_config('request.jwt.claims',…)` lo alimenta.
+- `app.current_user_id()` (ADR-0011) **ya verificada empíricamente 2026-05-17** sobre `dev`; S0/S1 solo la materializa en la migración inicial (no re-verificar el mecanismo, sí dejarla creada en `dev`/`test`).
 - **Cierre:** un test trivial corre bajo `app_system` contra `test`; `pnpm test`+`typecheck` verdes.
 
 ## S1 — Schema `public` + migraciones (backend, schema)
@@ -53,7 +57,7 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 **Responsabilidad:** las policies de ADR-0010. Es el punto que si falla, nada sirve.
 
 - `app_user` (todas): propia fila. `place`/`membership`/`place_ownership` INSERT: autenticado + `WITH CHECK` self-only; SELECT/UPDATE/DELETE: owner-only. `invitation`: 100% owner-only. Declaradas a `app_system`.
-- Verificación empírica de `auth.user_id()` + inyección de claims en tx.
+- `app.current_user_id()` (ADR-0011) ya verificada; S2 la usa en las policies (no re-verifica el mecanismo, sí prueba el aislamiento por-operación con ella).
 - **TDD (bloqueante):** aislamiento entre places (deny cross-place); `WITH CHECK` self-only rechaza INSERT a nombre de otro / en place ajeno; `app_user` solo propia fila; `invitation` no escaneable por no-owner; todo bajo `app_system`, nunca admin.
 - **Cierre:** tests RLS verdes.
 

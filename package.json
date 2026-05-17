@@ -8,10 +8,16 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
     "analyze": "cross-env ANALYZE=true NODE_ENV=production next build",
     "lhci": "lhci autorun"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "drizzle-orm": "^0.45.2",
+    "jose": "^6.2.3",
     "next": "15.5.18",
     "next-intl": "^4.12.0",
     "react": "19.1.0",
@@ -25,10 +31,15 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
     "cross-env": "^7.0.3",
+    "dotenv": "^17.4.2",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "15.5.18",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.6",
+    "ws": "^8.20.1"
   }
 }

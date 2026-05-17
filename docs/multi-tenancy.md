@@ -78,7 +78,7 @@ Canónico en **ADR-0006** (esta sección es su spec operativa). El aislamiento e
 
 - **`app_user` (todas):** solo la propia fila →
   ```sql
-  (select auth.user_id()) = app_user.auth_user_id
+  (select app.current_user_id()) = app_user.auth_user_id
   ```
 - **`place` / `membership` / `place_ownership` — INSERT:** cualquier usuario **autenticado**, con `WITH CHECK` que garantiza que **solo se inserta a sí mismo** (su `app_user`) como owner/miembro del place que crea — no a nombre de otro ni en place ajeno. Crear el place propio no toca filas ajenas → sin función privilegiada.
 - **`place` / `membership` / `place_ownership` — SELECT/UPDATE/DELETE:** solo el **owner** del place →
@@ -87,20 +87,31 @@ Canónico en **ADR-0006** (esta sección es su spec operativa). El aislamiento e
     SELECT 1 FROM place_ownership po
     JOIN app_user au ON au.id = po.user_id
     WHERE po.place_id = <tabla>.place_id   -- para `place`: po.place_id = place.id
-      AND au.auth_user_id = (select auth.user_id())
+      AND au.auth_user_id = (select app.current_user_id())
   )
   ```
 - **`invitation` (todas las operaciones): 100% owner-only** (mismo predicado). Sin policy por email, sin verified-email. La aceptación NO pasa por la RLS del usuario (ver "RLS e invitaciones").
 
 Owner → CRUD completo solo en su place; cualquier autenticado puede **crear** su place; places distintos aislados. **El acceso de miembros NO está en la base** (deliberado): se agrega **por-feature, encima**, según tier/grupo/config. RLS incremental; la base entra en S1.
 
-Se expresa en Drizzle con `pgPolicy`/`crudPolicy` + predicados custom (`drizzle-orm/neon`); `auth.user_id()` lee el claim `sub` inyectado.
+Se expresa en Drizzle con `pgPolicy` + predicados custom; `app.current_user_id()` lee el claim `sub` inyectado.
+
+**Función de identidad (propia, ADR-0011 — verificada empíricamente 2026-05-17).** Neon RLS NO está provisionado (no existe `auth.user_id()` ni schema `auth`). Definimos la nuestra en la primera migración (S1), versionada y portable dev→prod:
+
+```sql
+CREATE SCHEMA IF NOT EXISTS app;
+CREATE OR REPLACE FUNCTION app.current_user_id() RETURNS text
+  LANGUAGE sql STABLE AS
+$$ SELECT nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub' $$;
+```
+
+Sin claim → `NULL` → la policy deniega. Probado end-to-end con `app_system` (`NOBYPASSRLS`): aislamiento real sin extensión/feature de Neon.
 
 **Modelo rol/JWT (nombres exactos verificados 2026-05-16, agente de verificación; cierran los "TBD acotado" de ADR-0006):**
 
 - **Roles (definidos, ADR-0010):** el **rol de runtime de queries de dominio = `app_system`** (custom, NO-admin, sin `BYPASSRLS`), declarado con `pgRole('app_system').existing()`. Las policies se declaran `to`/`for` `app_system`, NO el `authenticatedRole`/`anonymousRole` de la Data API. `app_system` recibe `GRANT EXECUTE` de la(s) función(es) `SECURITY DEFINER` (aceptación de invitación) pero **no es su `DEFINER`/dueño**: el dueño es el rol privilegiado de schema/migraciones (`neondb_owner`), de modo que la función toca `invitation` con permiso mientras `app_system` solo la **invoca**. `neondb_owner` (admin, `BYPASSRLS`) **solo** migraciones `drizzle-kit`, nunca en runtime. GRANT de `app_system`: CRUD sujeto a RLS en tablas de producto + `EXECUTE` de funciones privilegiadas + `USAGE` de `public`; sin DDL, sin `BYPASSRLS`, sin `neon_auth`.
 - Token: `await auth.getSession()` → **`session.access_token`** (JWT). Se verifica con `jose` (`createRemoteJWKSet(new URL(NEON_AUTH_JWKS_URL))` + `jwtVerify`); el claim **`sub`** = `neon_auth.user.id`.
-- Se **inyectan los claims** en la transacción: `select set_config('request.jwt.claims', <claims-json>, true)` dentro de `db.transaction`; las policies leen **`auth.user_id()`** (canónico para el patrón backend; `auth.uid()` es de la Data API, no se usa). Verificar empíricamente en S1 que `auth.user_id()` existe en el branch.
+- Se **inyectan los claims** en la transacción: `select set_config('request.jwt.claims', <claims-json>, true)` (**transaction-local, `true` obligatorio** — con el pooler de Neon, omitirlo filtraría identidad entre requests) dentro de `db.transaction`; las policies leen **`app.current_user_id()`** (función propia ADR-0011, ya verificada 2026-05-17 — no depende de Neon RLS/Data API).
 - Driver = **`neon-serverless` (WebSocket)** — la saga necesita transacción interactiva (`neon-http` no sirve para tx interactivas).
 - **No se usa la Data API ni el rol `anonymous`/`anon`** — sin grants a `anon`, sin acceso no-autenticado a la DB. Todo acceso de dominio es autenticado y verificado server-side.
 - Riesgo a vigilar en S1: el SDK cachea la sesión en cookie firmada (~300s, `cookies.sessionDataTtl`); validar que el `exp` del JWT no choque con ese cache.
