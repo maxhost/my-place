@@ -43,9 +43,11 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 - `app.current_user_id()` (ADR-0011) **ya verificada empíricamente 2026-05-17** sobre `dev`; S0/S1 solo la materializa en la migración inicial (no re-verificar el mecanismo, sí dejarla creada en `dev`/`test`).
 - **Cierre:** un test trivial corre bajo `app_system` contra `test`; `pnpm test`+`typecheck` verdes.
 
-## S1 — Schema `public` + migraciones (backend, schema)
+## S1 — Schema `public` + migraciones (backend, schema) ✅ HECHA (2026-05-17)
 
 **Responsabilidad:** expresar el core de `data-model.md` en Drizzle. **Sin RLS** (es S2) y sin auth.
+
+**Resultado:** schema Drizzle `src/db/schema/` (6 tablas + 2 enums; `id TEXT` default `(gen_random_uuid())::text`; shapes JSON tipados en `json-shapes.ts`) == `data-model.md`. `src/shared/config/reserved-slugs.ts` (lista de `multi-tenancy.md` + subdominios de infra). Migración `0000_youthful_hydra.sql` (drizzle-kit) con la función ADR-0011 versionada al frente (`CREATE SCHEMA IF NOT EXISTS app` + `CREATE OR REPLACE FUNCTION app.current_user_id()` + grants) y `GRANT … TO app_system` por tabla al final — todo idempotente. Aplicada a `dev` y `test`; re-migrate de `test` = no-op (idempotencia verificada). Alias `@/*` agregado a `vitest.config.ts`. **`pnpm test` 16/16 y `pnpm typecheck` verdes.**
 
 - Schema Drizzle: `app_user`, `place`, `place_domain`, `membership`, `place_ownership`, `invitation` + enums `billing_mode`/`place_subscription_status`; `gen_random_uuid()` PK; shapes JSON (`theme_config`, `opening_hours`) tipados. `neon_auth` NO se versiona.
 - `shared/config/reserved-slugs.ts` (lista de `multi-tenancy.md`).
