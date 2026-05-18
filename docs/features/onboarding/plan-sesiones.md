@@ -22,7 +22,7 @@ Plan de implementación de la tanda de registro (auth + creación de place). **R
 ## Mapa de sesiones y dependencias (modelo D)
 
 ```
-S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3 fn create_place ─┐
+S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3✅ fn create_place ─┐
                           │                                       ├─> S5 Saga ─┬─> S8 Wizard ─> S9 Vía "Acceso"
                           └─> S4 Auth wiring ──────────────────────┤            │
                                                                    └─> S6 Inv fn└─> S10 LLM
@@ -45,15 +45,11 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 
 **Resultado:** policies por-operación de ADR-0010 refinadas por ADR-0012, expresadas en Drizzle (`pgRole('app_system').existing()` + `pgPolicy` por tabla, `src/db/schema/index.ts`): `au_self` (`app_user` `FOR ALL` self-only, incluye su INSERT), `po_sel/upd/del` (`place_ownership` recursion-safe vía `app_user`, **nunca** `place_ownership`), `place_sel/upd/del` y `membership_sel/upd/del` (owner-only vía `place_ownership`), `invitation_all` y `place_domain_all` (`FOR ALL` owner-only). Migración `0001_round_forge.sql` (drizzle-kit generate; `.existing()` evitó `CREATE ROLE`) + `REVOKE INSERT ON place, place_ownership, membership FROM app_system` versionado a mano (defense-in-depth, ADR-0012 §1; precedente: GRANTs de 0000). Aplicada a `dev` y `test`; re-migrate de `test` = no-op. Helper de RLS `inRlsTx` en `db-test-pool.ts` (GRANT efímero intra-tx + `SET ROLE`/`RESET ROLE` + claims conmutables + `SAVEPOINT` para negativos, todo ROLLBACK — patrón canónico documentado en `tests.md`, reusable S3/S6). **Diagnose-before-implement:** el diseño completo (aislamiento, recursion-safe, INSERT-deny, el hueco de escalación cerrado) se verificó empíricamente sobre el branch `test` con el rol real `app_system` **antes** de escribir la migración. `tests.md` actualizado (bullet del helper). **`pnpm test` 25/25, `pnpm typecheck` y `pnpm lint` verdes.** Archivos: `src/db/schema/index.ts` (+policies/role/`ownerOnly`, ~líneas 1-235), `src/db/__tests__/db-test-pool.ts` (+`inRlsTx`/`endRlsAdminPool`, ~líneas 14-110), `src/db/__tests__/rls.test.ts` (nuevo, 9 tests), `src/db/migrations/0001_round_forge.sql` (nuevo), `docs/features/onboarding/tests.md` (bullet helper).
 
-## S3 — Función `app.create_place` `SECURITY DEFINER` + grants (backend, seguridad/dominio)
+## S3 — Función `app.create_place` `SECURITY DEFINER` + grants (backend, seguridad/dominio) ✅ HECHA (2026-05-17)
 
 **Responsabilidad:** la única vía de creación (ADR-0012 §3). Objeto sensible — TDD estricto.
 
-- Función a mano en migración `0002` (Drizzle no modela `SECURITY DEFINER`; precedente `app.current_user_id()`): `LANGUAGE plpgsql SECURITY DEFINER`, dueño `neondb_owner`, **`SET search_path = public, pg_temp`** (anti-hijack), `REVOKE EXECUTE … FROM PUBLIC` + `GRANT EXECUTE … TO app_system`. Idempotente (`CREATE OR REPLACE` + grants idempotentes).
-- Firma `app.create_place(p_slug, p_name, p_description, p_theme_config jsonb, p_opening_hours jsonb) RETURNS text`. Caller de `app.current_user_id()` (no parámetro); `place_id` generado por la DB (no se acepta de afuera); billing/trial deterministas (`OWNER_PAYS`/`ACTIVE`/`now()+30d`/`enabled_features=[]`, ADR-0005 §3); 3 INSERT atómicos en la tx del caller.
-- **Verificar empíricamente (diagnose-before-infer):** que `app.current_user_id()` dentro de un `SECURITY DEFINER` siga leyendo el GUC tx-local del caller (no lo cambia el cambio de privilegio). Es premisa del cierre.
-- **TDD (bloqueante, `tests.md` § RLS):** crea place fresco + caller owner+miembro atómico; sin claim → rechaza; `app_user` inexistente → rechaza; **no acepta `place_id` ajeno** (no hay parámetro → B no puede apuntar a place existente); billing/trial deterministas; slug duplicado → `UNIQUE` violation propaga; `EXECUTE` denegado a `PUBLIC`; corre bajo `app_system`.
-- **Cierre:** tests verdes; migración idempotente `dev`+`test`.
+**Resultado:** función `app.create_place(p_slug,p_name,p_description,p_theme_config jsonb,p_opening_hours jsonb) RETURNS text` escrita a mano en migración `0002_create_place_fn.sql` (`LANGUAGE plpgsql SECURITY DEFINER`, dueño `neondb_owner`, `SET search_path = public, pg_temp`, `REVOKE EXECUTE … FROM PUBLIC` + `GRANT EXECUTE … TO app_system`; `CREATE OR REPLACE` + grants/revoke idempotentes). Caller desde `app.current_user_id()` (no parámetro), `place_id` generado por la DB, billing/trial deterministas (`OWNER_PAYS`/`ACTIVE`/`now()+30d`/`enabled_features=[]`), 3 INSERT atómicos. Drizzle no modela `SECURITY DEFINER` → migración sin diff de schema, registrada a mano en `meta/_journal.json` (idx 2) + `meta/0002_snapshot.json` encadenado off 0001 (`prevId`=id de 0001). **Diagnose-before-implement:** se verificó empíricamente sobre el branch `test` que dentro del DEFINER (dueño `neondb_owner`, BYPASSRLS) `app.current_user_id()` lee el GUC tx-local del **caller** `app_system` (el cambio de privilegio NO sombrea el GUC: ownership+membership apuntan al `app_user` del caller; no-claim→`28000`, app_user inexistente→`P0002`; `EXECUTE` app_system sí / PUBLIC no) **antes** de escribir la migración — premisa del cierre confirmada. Aplicada a `dev` y `test`; re-migrate de `test` = no-op (journal-tracked). `tests.md` actualizado. **`pnpm test` 31/31, `pnpm typecheck` y `pnpm lint` verdes.** Archivos: `src/db/migrations/0002_create_place_fn.sql` (nuevo), `src/db/migrations/meta/_journal.json` (+idx 2), `src/db/migrations/meta/0002_snapshot.json` (nuevo), `src/db/__tests__/create-place.test.ts` (nuevo, 6 tests), `docs/features/onboarding/tests.md`.
 
 ## S4 — Auth wiring (backend/infra)
 
@@ -140,7 +136,7 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S0 ✅ | Harness + entorno (Vitest, branches, rol `app_system`) | infra | — |
 | S1 ✅ | Schema `public` + migraciones + reserved-slugs | backend/schema | S0 |
 | S2 ✅ | RLS owner-only + INSERT-deny (recursion-safe) | backend/seguridad | S1 |
-| S3 | Función `app.create_place` `SECURITY DEFINER` | backend/seguridad-dominio | S2 |
+| S3 ✅ | Función `app.create_place` `SECURITY DEFINER` | backend/seguridad-dominio | S2 |
 | S4 | Auth wiring (Neon Auth↔RLS, `ensureAppUser`) | backend/infra | S2 |
 | S5 | Saga de creación (dos modos → `app.create_place`) | backend/dominio | S3, S4 |
 | S6 | Invitación: función `SECURITY DEFINER` de aceptación | backend/dominio | S3 (patrón), S4 |

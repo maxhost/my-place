@@ -15,6 +15,13 @@
       "when": 1779068094669,
       "tag": "0001_round_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779079200000,
+      "tag": "0002_create_place_fn",
+      "breakpoints": true
     }
   ]
 }
