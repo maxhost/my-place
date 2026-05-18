@@ -23,10 +23,10 @@ Plan de implementación de la tanda de registro (auth + creación de place). **R
 
 ```
 S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3✅ fn create_place ─┐
-                          │                                       ├─> S5 Saga ─┬─> S8 Wizard ─> S9 Vía "Acceso"
-                          └─> S4 Auth wiring ──────────────────────┤            │
-                                                                   └─> S6 Inv fn└─> S10 LLM
-              S1 ─> S7 Routing host-based ──────────────────────────────────────┘ (S5 para servir place real)
+                          │                                  ├─> S5a → S5b Saga ─┬─> S8 Wizard ─> S9 Vía "Acceso"
+                          └─> S4 Auth wiring ─────────────────┤                  │
+                                                              └─> S6 Inv fn      └─> S10 LLM
+              S1 ─> S7 Routing host-based ───────────────────────────────────────┘ (S5b para servir place real)
 ```
 
 Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, directorio, gate de horario, `/settings` + gate de email verificado (ADR-0005 §9).
@@ -79,12 +79,33 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 
 ## S5 — Saga de creación de place: dos modos (backend/dominio)
 
-**Responsabilidad:** el Server Action de creación, **dos modos** (ADR-0008), cableado a `app.create_place` (ADR-0012 §4).
+**Responsabilidad:** el Server Action de creación, **dos modos** (ADR-0008), cableado a `app.create_place` (ADR-0012 §4). **Dividida en S5a/S5b** (regla dura `CLAUDE.md` "una sesión = una responsabilidad / >5 archivos núcleo": S5 cruza dominio puro + orquestación cross-system y excede 5 archivos; decisión del owner 2026-05-18, mismo precedente que el split de S4): S5a = dominio puro (Zod/slug/contraste/defaults, 100% TDD, sin SDK ni DB viva); S5b = saga de orquestación (dos modos, two-tx, slice + puerto cross-system).
 
+> **No es ADR nueva.** Todo sigue dentro de ADR-0005 §2/§4 (saga ordenada, falla parcial controlada), ADR-0008 (dos modos) y ADR-0012 §3/§4 (la tx de `public` = `SELECT app.create_place(...)`, 3 inserts atómicos dentro de la función). Los 3 puntos no triviales abajo son **diagnose-before-implement / cumplimiento**, no desvíos.
+
+### S5a — Dominio puro (backend/dominio, TDD estricto)
+
+**Responsabilidad:** toda la lógica determinística de la saga, sin SDK ni DB viva → 100% unit-testeable en Vitest.
+
+- Zod del payload; `slug` formato subdominio + `reserved-slugs` (lista estática/UX, no frontera de seguridad — la dura es el `UNIQUE` de S1; explícito, no es gap).
+- **Guardrail de contraste = módulo puro nuevo en `shared/`** (ADR-0005 §8: deriva variante WCAG que cumpla + avisa qué ajustó, nunca persiste par inaccesible). La derivación de la landing vive en CSS (`globals.css`), no como función TS reutilizable → S5a escribe la suya pura (no es duplicación ni toca la landing; importar de `features/landing` está prohibido por el paradigma).
+- `theme_config` (paleta acotada, default Papel — shapes en `json-shapes.ts`); `opening_hours` default 09–20 todos los días en tz del owner (tz capturado/derivado); mapeo de errores de dominio.
+- **TDD (`tests.md` § Invariantes + Slug/reservados):** Zod rechaza payload malformado; reserved-slug y formato de slug; guardrail deriva variante y avisa (no bloquea, no persiste inaccesible); defaults `opening_hours`/tz; `theme_config` shape canónico.
+- **Cierre:** verdes (test + typecheck + lint + build).
+
+### S5b — Saga de orquestación: dos modos, two-tx (backend/dominio)
+
+**Responsabilidad:** el Server Action que orquesta identidad → `app_user` → place, en los dos modos de ADR-0008, consumiendo S5a.
+
+- **Slice nuevo** `src/features/onboarding/` con `public.ts` (paradigma: el Server Action es lógica de feature; `shared/lib` conserva los primitivos de infra `auth`/`db`/`jwt`/`ensure-app-user`).
 - Modo place-first (CTA): `signUp` (Neon Auth) → `ensureAppUser` → `SELECT app.create_place(...)`. Modo authed (Acceso→"Crear mi place"): identidad+`app_user` ya existen (`ensureAppUser` idempotente) → `app.create_place(...)`. `signUp`/`ensureAppUser` siguen fuera de la función (cross-system, ADR-0005 §2).
-- Server Action mantiene: Zod del payload; slug-format + `reserved-slugs` (lista estática/UX, no frontera de seguridad — explícito, no es gap); guardrail de contraste server-side; `theme_config` (paleta acotada, default Papel); `opening_hours` default 09–20 en tz del owner (tz capturado/derivado); mapeo `UNIQUE` slug → "slug ocupado"; estado "cuenta sin place" (ADR-0005 §4 / ADR-0008 §4) tras falla.
-- **TDD (`tests.md` § Saga + Invariantes):** happy path ambos modos; falla signUp → nada; falla create_place (slug dup) → cuenta queda, estado "creá tu place"; atomicidad (rollback de los 3 inserts); idempotencia del submit; `ensureAppUser` antes de la función; invariantes (reserved-slug, slug único, mín 1 owner); Zod; guardrail.
-- **Cierre:** verdes.
+- **Frontera de atomicidad (cumplimiento ADR-0005 §4, NO una sola tx):** `ensureAppUser` commitea en su tx → recién después `app.create_place` en tx propia. Compartir tx haría que el rollback de slug-dup borre el `app_user` → violaría "falla create_place → cuenta+`app_user` queda" (`tests.md` §Saga). Los 3 inserts de `create_place` siguen atómicos *dentro* de la función (ADR-0012 §3).
+- **Identidad desde el claim verificado:** `authUserId` de `ensureAppUser` sale de `verifyAccessToken(...).sub` (lo que `app.current_user_id()` lee), NO del `user.id` de la respuesta de signUp — si difieren, `au_self` rechaza el INSERT y `create_place` cae en `P0002`. Invariante con test explícito (`app_user.auth_user_id === claims.sub`).
+- **Adquisición del token post-signUp (diagnose-before-implement):** en place-first el usuario está unauth al correr el Server Action; la cookie que setea `signUp` vía `next/headers` **no es re-legible en la misma invocación** → se usa el token de la respuesta de `signUp.email`, **verificado empíricamente contra Neon Auth vivo (preview Vercel), no asumido** (TBD de implementación, como fue `getAccessToken` vs `getSession`). Mismo seam-split que S4b: la orquestación pura se TDD-ea con el borde cross-system (`signUp`/token) inyectado como **puerto**; el wiring vivo del SDK se verifica en preview, no en vitest (arrastra `next/headers` + Neon vivo).
+- Mantiene: mapeo `UNIQUE` slug → "slug ocupado"; estado "cuenta sin place" (ADR-0005 §4 / ADR-0008 §4) tras falla; idempotencia del submit.
+- **(Hardening opcional, no bloqueante)** evaluar fijar `iss` en `verifyAccessToken` al usarlo desde la saga — defense-in-depth (el JWKS ya es por-instancia → no es hueco abierto); decisión al implementar, sin reabrir S4a si no aporta.
+- **TDD (`tests.md` § Saga + Invariantes):** happy path ambos modos (puerto cross-system mockeado); falla signUp → nada; falla create_place (slug dup) → cuenta+`app_user` queda, estado "creá tu place", mapeo `UNIQUE`; atomicidad (los 3 inserts de la función rollbackean juntos; el `app_user` NO); idempotencia del submit; `ensureAppUser` antes de la función; `auth_user_id === sub`; mín 1 owner.
+- **Cierre:** verdes; verificación viva place-first (signUp→token→create_place) → preview Vercel (anotado, no localhost).
 
 ## S6 — Invitación: función `SECURITY DEFINER` de aceptación (backend/dominio)
 
@@ -99,27 +120,27 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 
 **Responsabilidad:** estructura de rutas y middleware por host (ADR-0005 §10). Sin dominio (delega a saga) ni UI de wizard (S8).
 
-- `src/app/(marketing)/` (apex) y `(app)/` (`{slug}.` place; `app.` inbox). Migrar la landing actual a `(marketing)` sin romperla. `src/middleware.ts` host-based **integrando** i18n. Wildcard DNS/Vercel; Function Region `iad1`. Place servible en `{slug}.place.community` (placeholder hasta S5).
+- `src/app/(marketing)/` (apex) y `(app)/` (`{slug}.` place; `app.` inbox). Migrar la landing actual a `(marketing)` sin romperla. `src/middleware.ts` host-based **integrando** i18n. Wildcard DNS/Vercel; Function Region `iad1`. Place servible en `{slug}.place.community` (placeholder hasta S5b).
 - **Tests:** rutea apex/subdominio/`app.`; landing intacta; slug inexistente→404; URLs públicas = subdominio (regla de memoria).
 - **Cierre:** verdes; build de landing intacto (`cross-env NODE_ENV=production`).
 
 ## S8 — Frontend wizard place-first (frontend)
 
-**Responsabilidad:** UI del wizard 3 pasos (CTA). Consume S5/S7.
+**Responsabilidad:** UI del wizard 3 pasos (CTA). Consume S5b/S7.
 
 - Paso 1 nombre+slug (preview + disponibilidad en vivo, no autoritativa — la dura corre en `app.create_place` vía `UNIQUE`). Paso 2 descripción+paleta acotada (preview, default Papel, guardrail avisa) — sin LLM aún (S10). Paso 3 cuenta + T&C + timezone del browser (fallback fijo). Estado client-side hasta submit. Estado "creá tu place" post-falla.
 - **Cierre:** tests de componentes; revisión `producto.md` (cozytech) + continuidad visual con landing; `react-best-practices`.
 
 ## S9 — Vía "Acceso": login form + account-first + modo authed (frontend + thin)
 
-**Responsabilidad:** la segunda vía (ADR-0008). Consume S4/S5/S8.
+**Responsabilidad:** la segunda vía (ADR-0008). Consume S4b/S5b/S8.
 
 - Item "Acceso" en el menú de la landing. Form login/signup account-first → "Crear mi place" (reusa wizard SIN paso de cuenta; saga modo authed) / "Unirme" = solo directorio → **deshabilitado/"próximamente"** (ADR-0009 §2 / ADR-0010 §3). Invitaciones NO desde acá (van por su token-link).
 - **Cierre:** tests del form + ramificación; modo authed no re-pide cuenta.
 
 ## S10 — Capa LLM propose-only (servicio + isla mínima)
 
-**Responsabilidad:** asistencia LLM (ADR-0005 §5 / ADR-0007). Paralelizable tras S5.
+**Responsabilidad:** asistencia LLM (ADR-0005 §5 / ADR-0007). Paralelizable tras S5a.
 
 - Cliente Vercel AI Gateway (`AI_GATEWAY_API_KEY`, modelo chico — fijar acá). Salida Zod `{ palette:{accent,bg,ink}, descriptionDraft }` — **sin horario** (ADR-0007). Propose-only (nada se auto-aplica); guardrail de contraste también sobre la paleta propuesta. Degradación elegante si el LLM falla.
 - **Cierre:** parser Zod rechaza malformado; nunca persiste sin confirmación; sin horario; guardrail aplicado.
@@ -135,9 +156,11 @@ Revisión del plan D contra "nada de gaps". Cada ítem es decisión consciente, 
 3. **`place_domain` sin RLS.** Cerrado: ADR-0012 lo suma al conjunto owner-only `FOR ALL` (S2). No queda tabla de dominio sin RLS.
 4. **Hardening `SECURITY DEFINER`.** Explícito en S3/S6: `SET search_path` fijo, dueño `neondb_owner`, `EXECUTE` solo `app_system` (`REVOKE … PUBLIC`), sin SQL dinámico, identidad de `app.current_user_id()` no de parámetro.
 5. **Claims en `SECURITY DEFINER`.** S3 lo verifica empíricamente antes de confiar (premisa del cierre; diagnose-before-infer).
-6. **Atomicidad de creación.** Mejorada vs el plan previo: los 3 INSERT son una función atómica en la tx del caller (sin orfanatos en `public`). Falla cross-system (signUp) sigue siendo saga (ADR-0005 §2, intacto).
-7. **Idempotencia / "cuenta sin place".** S5 la maneja a nivel Server Action (sin cambios de ADR-0005 §4 / ADR-0008 §4); `UNIQUE` de slug respalda contra duplicado en reintento.
-8. **`reserved-slugs` no es frontera DB.** Decisión consciente: es validación de app/UX (lista estática); la seguridad de slug la da el `UNIQUE` (S1). Documentado en S5, no es gap.
+6. **Atomicidad de creación.** Mejorada vs el plan previo: los 3 INSERT son una función atómica en la tx del caller (sin orfanatos en `public`). Falla cross-system (signUp) sigue siendo saga (ADR-0005 §2, intacto). **Frontera explícita (S5b):** `ensureAppUser` y `app.create_place` van en tx **separadas** (no una sola) — es cumplimiento de ADR-0005 §4 ("falla create_place → cuenta+`app_user` queda"), no gap; documentado y TDD-eado en S5b.
+7. **Idempotencia / "cuenta sin place".** S5b la maneja a nivel Server Action (sin cambios de ADR-0005 §4 / ADR-0008 §4); `UNIQUE` de slug respalda contra duplicado en reintento.
+13. **Token post-signUp en place-first (S5b, no gap).** La cookie de `signUp` no es re-legible en la misma invocación del Server Action → se usa el token de la respuesta de `signUp.email`; TBD de implementación (como `getAccessToken` vs `getSession` en S4b), verificado vivo en preview Vercel, orquestación pura TDD con el borde inyectado. Decisión consciente, no omisión.
+14. **Identidad = claim verificado (S5b).** `app_user.auth_user_id` se siembra desde `verifyAccessToken().sub` (lo que RLS lee), no del `user.id` de signUp → sin riesgo de `au_self`/`P0002`. Invariante con test bloqueante.
+8. **`reserved-slugs` no es frontera DB.** Decisión consciente: es validación de app/UX (lista estática); la seguridad de slug la da el `UNIQUE` (S1). Documentado en S5a, no es gap.
 9. **Source-of-truth de funciones DB.** `app.current_user_id()`/`app.create_place`/aceptación-invitación a mano en migraciones; `src/db/schema/` solo tablas+policies; drizzle-kit no gestiona funciones → sin drift. Explícito en ADR-0012.
 10. **Falso verde por admin.** Disciplina + `tests.md`: todo test de RLS/función bajo `app_system`, nunca `neondb_owner`.
 11. **Cookie apex / `__Secure-` HTTPS.** S4 test-guard de build + verificación en preview Vercel (gotcha), no localhost.
@@ -156,12 +179,13 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S3.5 ✅ | Upgrade Next 15→16 (ADR-0013, prereq de S4) | stack/infra | — |
 | S4a ✅ | Core DB/claims/RLS + `ensureAppUser` (TDD, sin Neon Auth vivo) | backend/infra | S2, S3.5 |
 | S4b ✅ | Wiring SDK Neon Auth + route handler + test-guard cookie + doc | backend/infra | S4a |
-| S5 | Saga de creación (dos modos → `app.create_place`) | backend/dominio | S3, S4b |
+| S5a | Saga — dominio puro (Zod/slug/contraste/defaults) | backend/dominio | S3, S4b |
+| S5b | Saga — orquestación dos modos, two-tx (→ `app.create_place`) | backend/dominio | S5a |
 | S6 | Invitación: función `SECURITY DEFINER` de aceptación | backend/dominio | S3 (patrón), S4b |
-| S7 | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S5 para servir) |
-| S8 | Wizard place-first | frontend | S5, S7 |
-| S9 | Vía "Acceso" + modo authed | frontend | S4b, S5, S8 |
-| S10 | Capa LLM propose-only | servicio | S5 |
+| S7 | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S5b para servir) |
+| S8 | Wizard place-first | frontend | S5b, S7 |
+| S9 | Vía "Acceso" + modo authed | frontend | S4b, S5b, S8 |
+| S10 | Capa LLM propose-only | servicio | S5a |
 
 Diferido a sesión propia posterior: `/settings` + gate email, UI `/invite/{token}`, directorio, gate de horario.
 
