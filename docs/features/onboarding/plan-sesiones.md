@@ -25,7 +25,7 @@ Plan de implementación de la tanda de registro (auth + creación de place). **R
 S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3✅ fn create_place ─┐
                           │                                  ├─> S5a✅ → S5b✅ Saga ┬─> S8 Wizard ─> S9 Vía "Acceso"
                           └─> S4 Auth wiring ─────────────────┤                  │
-                                                              └─> S6 Inv fn      └─> S10 LLM
+                                                              └─> S6✅ Inv fn    └─> S10 LLM
               S1 ─> S7 Routing host-based ───────────────────────────────────────┘ (S5b para servir place real)
 ```
 
@@ -111,14 +111,16 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 - **TDD (`tests.md` § Saga + Invariantes):** happy path ambos modos (puerto cross-system mockeado); falla signUp → nada; falla create_place (slug dup) → cuenta+`app_user` queda, estado "creá tu place", mapeo `UNIQUE`; atomicidad (los 3 inserts de la función rollbackean juntos; el `app_user` NO); idempotencia del submit; `ensureAppUser` antes de la función; `auth_user_id === sub`; mín 1 owner.
 - **Cierre:** verdes; verificación viva place-first (signUp→token→create_place) → preview Vercel (anotado, no localhost).
 
-## S6 — Invitación: función `SECURITY DEFINER` de aceptación (backend/dominio)
+## S6 — Invitación: función `SECURITY DEFINER` de aceptación (backend/dominio) ✅ HECHA (2026-05-18)
 
 **Responsabilidad:** el mecanismo token-link de ADR-0010 §2 (sin UI). RLS owner-only de `invitation` ya está en S2.
+
+**Resultado.** TDD estricto (rojo→verde): `accept-invitation.test.ts` escrito primero, verificado fallando (`function "app.invitation_preview(text)" does not exist`), luego implementación. **DOS funciones PROPIAS** a mano en migración `0003_accept_invitation_fn.sql`, mismo hardening que S3 (`SECURITY DEFINER`, dueño `neondb_owner` BYPASSRLS → lee `invitation` owner-only e inserta `membership`, ambos denegados a `app_system` por RLS/ADR-0012 §1; `SET search_path` fijo; `EXECUTE` solo `app_system`, `REVOKE … PUBLIC`; sin SQL dinámico; `CREATE OR REPLACE`+grants idempotentes): `app.invitation_preview(token)` solo-lectura **SIN claim** (el token ES la capability, ADR-0010; el invitado puede no tener cuenta aún — devuelve slug/name del place + email del invitado para prefijar el form; valida existe/no vencido/no usado) y `app.accept_invitation(token)` atómica en la tx del caller (requiere claim → `app_user` del caller debe existir, P0002, porque `ensureAppUser` corre **app-side antes** como en S5b — la función no lo hace). **Email-match estricto** (ADR-0008) normalizado `lower(btrim())` — rechaza otra dirección, tolera capitalización/espacios (decisión consciente, registrada). **Single-use / dos-aceptaciones = TEST-AND-SET atómico** `UPDATE … WHERE accepted_at IS NULL` + `GET DIAGNOSTICS ROW_COUNT` (el perdedor afecta 0 filas → aborta); `UNIQUE(user_id,place_id)` respalda doble membership. Cap **150** activos (`left_at IS NULL`). Crea `membership` **SIN** place; cualquier `RAISE`/fallo revierte TODA la tx (`accepted_at` incluido) → nada huérfano. SQLSTATE: `28000`/`P0002` (= create_place) + `P0005`–`P0009` (libres; `P0001`–`P0004` son predefinidos de plpgsql). **Concurrencia wall-clock real = preview/integración (anotado); el PREDICADO test-and-set se unit-testea determinista** — 2ª aceptación secuencial afecta 0 filas y deja 1 sola membership (mismo precedente que el `UNIQUE` secuencial de S3). Migración sin diff de schema → no la genera drizzle-kit; registrada a mano en `meta/_journal.json` (idx 3) + `meta/0003_snapshot.json` encadenado off 0002 (`prevId`=id de 0002, schema-idéntico verificado). Aplicada a `dev` y `test`; re-migrate de `test` = no-op (journal-tracked). `tests.md` actualizado. **Cierre verde determinista:** `pnpm test` 114/114, `pnpm typecheck`, `pnpm lint` (0 problems), `pnpm build` (landing intacta + `ƒ /api/auth/[...path]` + `Proxy (Middleware)`). Archivos: `src/db/migrations/0003_accept_invitation_fn.sql` (nuevo), `src/db/migrations/meta/_journal.json` (+idx 3), `src/db/migrations/meta/0003_snapshot.json` (nuevo), `src/db/__tests__/accept-invitation.test.ts` (nuevo, 14 tests), `docs/features/onboarding/tests.md`.
 
 - Función a mano en migración `0003`, mismo hardening que S3 (`SECURITY DEFINER`, dueño `neondb_owner`, `SET search_path`, `EXECUTE` solo `app_system`): validar token (existe/no vencido/no usado) + email-match estricto + `ensureAppUser` + `membership` (máx 150, `UNIQUE`) + **test-and-set atómico** de `accepted_at` (`UPDATE … WHERE accepted_at IS NULL RETURNING`). Display (solo-lectura) re-valida; aceptar re-valida en la tx.
 - Owner crea/lista/revoca invitaciones por la base owner-only (S2). Alta desde invitación crea cuenta+`membership` **sin** place.
 - **TDD (`tests.md` § Invitación):** token inválido/expirado/usado → nada en DB; email mismatch; **doble aceptación simultánea → una gana**; éxito (máx 150, `UNIQUE`); `invitation` no escaneable por el invitado bajo su rol; re-validación display↔submit.
-- **Cierre:** verdes.
+- **Cierre:** verdes. **Diferido a sesión propia posterior (consciente):** wiring app-side (Server Action signup-desde-invitación → `ensureAppUser` → `accept_invitation`) + UI `/invite/{token}` — ya listado como diferido (análogo a cómo S5b fue la saga sobre la función S3).
 
 ## S7 — Routing host-based + `(marketing)`/`(app)` (routing/app-shell)
 
@@ -185,7 +187,7 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S4b ✅ | Wiring SDK Neon Auth + route handler + test-guard cookie + doc | backend/infra | S4a |
 | S5a ✅ | Saga — dominio puro (Zod/slug/contraste/defaults) | backend/dominio | S3, S4b |
 | S5b ✅ | Saga — orquestación dos modos, two-tx (→ `app.create_place`) | backend/dominio | S5a |
-| S6 | Invitación: función `SECURITY DEFINER` de aceptación | backend/dominio | S3 (patrón), S4b |
+| S6 ✅ | Invitación: funciones `SECURITY DEFINER` (preview + accept) | backend/dominio | S3 (patrón), S4b |
 | S7 | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S5b para servir) |
 | S8 | Wizard place-first | frontend | S5b, S7 |
 | S9 | Vía "Acceso" + modo authed | frontend | S4b, S5b, S8 |

@@ -22,6 +22,13 @@
       "when": 1779079200000,
       "tag": "0002_create_place_fn",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779165600000,
+      "tag": "0003_accept_invitation_fn",
+      "breakpoints": true
     }
   ]
 }

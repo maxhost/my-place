@@ -59,6 +59,7 @@ Mandato y casos críticos. **No** diseña los tests en detalle (eso es trabajo d
 - Re-validación: token válido al display pero **vencido/usado entre display y submit** → el submit rechaza (se re-valida en la tx).
 - Éxito: `ensureAppUser` → `membership` (máx 150, `UNIQUE`) → `accepted_at` seteado atómico.
 - Alta desde invitación crea cuenta + `membership` **sin** crear place.
+- **S6 implementado (verificado 2026-05-18):** dos funciones `SECURITY DEFINER` (dueño `neondb_owner`, `EXECUTE` solo `app_system`, mismo hardening que S3) en `0003_accept_invitation_fn.sql` — `app.invitation_preview(token)` (solo-lectura, **sin claim**: el token ES la capability, el invitado puede no tener cuenta) y `app.accept_invitation(token)` (atómica, requiere claim; `ensureAppUser` corre app-side **antes**, P0002 si falta). Email-match estricto = `lower(btrim())` (rechaza otra dirección, tolera mayúsculas/espacios). **El test-and-set se unit-testea como PREDICADO determinista** (2ª aceptación secuencial afecta 0 filas + 1 sola membership) — la concurrencia wall-clock real es preview/integración, no Vitest single-tx (mismo precedente que el `UNIQUE` secuencial de S3, `inRlsTx` reutilizado). El wiring app-side (Server Action signup-desde-invitación) + UI `/invite/{token}` quedan diferidos a sesión propia (análogo a S5b sobre S3).
 
 ### LLM propose-only
 - Parser Zod rechaza salida malformada del LLM.
