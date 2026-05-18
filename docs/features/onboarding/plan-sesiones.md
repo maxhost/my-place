@@ -23,7 +23,7 @@ Plan de implementación de la tanda de registro (auth + creación de place). **R
 
 ```
 S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3✅ fn create_place ─┐
-                          │                                  ├─> S5a✅ → S5b Saga ┬─> S8 Wizard ─> S9 Vía "Acceso"
+                          │                                  ├─> S5a✅ → S5b✅ Saga ┬─> S8 Wizard ─> S9 Vía "Acceso"
                           └─> S4 Auth wiring ─────────────────┤                  │
                                                               └─> S6 Inv fn      └─> S10 LLM
               S1 ─> S7 Routing host-based ───────────────────────────────────────┘ (S5b para servir place real)
@@ -95,9 +95,11 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 - **TDD (`tests.md` § Invariantes + Slug/reservados):** Zod rechaza payload malformado; reserved-slug y formato de slug; guardrail deriva variante y avisa (no bloquea, no persiste inaccesible); defaults `opening_hours`/tz; `theme_config` shape canónico.
 - **Cierre:** verdes (test + typecheck + lint + build).
 
-### S5b — Saga de orquestación: dos modos, two-tx (backend/dominio)
+### S5b — Saga de orquestación: dos modos, two-tx (backend/dominio) ✅ HECHA (2026-05-18)
 
 **Responsabilidad:** el Server Action que orquesta identidad → `app_user` → place, en los dos modos de ADR-0008, consumiendo S5a.
+
+**Resultado.** TDD estricto (rojo→verde): `create-place.test.ts` escrito primero, verificado fallando (módulo ausente), luego implementación. **Slice vertical `src/features/onboarding/`** con `public.ts` (la feature expone sólo `createPlaceAction` + tipos `CreatePlaceResult`/`PlaceFirstCredentials`/`CreatePlaceInput`; S8/S9 importan de acá, nunca de internos): `ports.ts` (puertos cross-system `AcquireIdentity`/`AuthedTxRunner` — firma = `getAuthenticatedDb`), `create-place.ts` (saga PURA: dominio S5a → identidad → **TX 1** `ensureAppUser` → **TX 2** `app.create_place`; resultado discriminado `created`/`slug_taken`/`invalid`), `actions.ts` (Server Action `"use server"`, dos modos: con `credentials` → place-first vía `signUp.email`, sin ellas → authed vía `getSession`). **Seam-split como S4b:** la saga se TDD-ea con los puertos inyectados (fake DB con semántica de **tx por invocación** — commit al volver / rollback si lanza → la frontera two-tx de ADR-0005 §4 se expresa estructuralmente; modela `au_self`, `P0002`, `UNIQUE(slug)`→`23505`); el wiring vivo del SDK Neon Auth NO se testea en vitest (arrastra `next/headers` + Neon vivo) → correctitud por tipo/build + preview. **Frontera two-tx** = dos invocaciones de `runAuthedTx` (no una sola): `ensureAppUser` commitea su tx ANTES de `app.create_place` → falla de slug-dup deja cuenta+`app_user` ("cuenta sin place", ADR-0005 §4) sin error fatal; los 3 inserts de la función siguen atómicos *dentro* (ADR-0012 §3). **Identidad = `claims.sub` verificado** (lo que RLS lee), NO el `user.id` de signUp → test explícito (token "miente" otro id; sin `claims.sub` `au_self` rechazaría). **Dominio PRIMERO**: payload inválido → `status:"invalid"` sin tocar identidad ni DB. **Diagnóstico (diagnose-before-implement, anotado en `actions.ts`):** el `auth.getAccessToken()` tipado exige `providerId` OAuth (token de cuenta externa, otro concepto) → el JWT RLS-utilizable sale del token de sesión de Neon Auth; **cuál token es JWKS-verificable (sesión vs endpoint `get-access-token`) es TBD-impl de ADR-0006 verificado EN PREVIEW Vercel, no asumido** (mismo estatus que `getAccessToken` vs `getSession` y la cookie en S4b). **Hardening `iss` (decisión consciente, no se aplica):** el JWKS de `verifyAccessToken` ya es por-instancia de Neon Auth → tokens instance-scoped, no es hueco abierto; agregarlo reabriría `jwt.ts`/S4a sin ganancia → no se hace (registrado acá, sin desvío de ADR). **Cierre verde:** `pnpm test` 100/100, `pnpm typecheck`, `pnpm lint` (0 problems), `pnpm build` (landing intacta + `ƒ /api/auth/[...path]` + `Proxy (Middleware)`). **Verificación viva pendiente (anotada, NO localhost):** place-first end-to-end (signUp→token→`create_place`) + resolución del token JWKS-verificable → preview Vercel, junto con la verificación de cookie diferida de S4b. Archivos: `src/features/onboarding/{ports,create-place,actions,public}.ts` (nuevos), `src/features/onboarding/__tests__/create-place.test.ts` (nuevo, 7 tests).
 
 - **Slice nuevo** `src/features/onboarding/` con `public.ts` (paradigma: el Server Action es lógica de feature; `shared/lib` conserva los primitivos de infra `auth`/`db`/`jwt`/`ensure-app-user`).
 - Modo place-first (CTA): `signUp` (Neon Auth) → `ensureAppUser` → `SELECT app.create_place(...)`. Modo authed (Acceso→"Crear mi place"): identidad+`app_user` ya existen (`ensureAppUser` idempotente) → `app.create_place(...)`. `signUp`/`ensureAppUser` siguen fuera de la función (cross-system, ADR-0005 §2).
@@ -182,7 +184,7 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S4a ✅ | Core DB/claims/RLS + `ensureAppUser` (TDD, sin Neon Auth vivo) | backend/infra | S2, S3.5 |
 | S4b ✅ | Wiring SDK Neon Auth + route handler + test-guard cookie + doc | backend/infra | S4a |
 | S5a ✅ | Saga — dominio puro (Zod/slug/contraste/defaults) | backend/dominio | S3, S4b |
-| S5b | Saga — orquestación dos modos, two-tx (→ `app.create_place`) | backend/dominio | S5a |
+| S5b ✅ | Saga — orquestación dos modos, two-tx (→ `app.create_place`) | backend/dominio | S5a |
 | S6 | Invitación: función `SECURITY DEFINER` de aceptación | backend/dominio | S3 (patrón), S4b |
 | S7 | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S5b para servir) |
 | S8 | Wizard place-first | frontend | S5b, S7 |
