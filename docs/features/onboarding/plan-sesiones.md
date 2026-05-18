@@ -26,7 +26,7 @@ S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3✅ fn create_place 
                           │                                  ├─> S5a✅ → S5b✅ Saga ┬─> S8 Wizard ─> S9 Vía "Acceso"
                           └─> S4 Auth wiring ─────────────────┤                  │
                                                               └─> S6✅ Inv fn    └─> S10 LLM
-              S1 ─> S7 Routing host-based ───────────────────────────────────────┘ (S5b para servir place real)
+              S1 ─> S7✅ Routing host-based ──────────────────────────────────────┘ (S5b para servir place real)
 ```
 
 Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, directorio, gate de horario, `/settings` + gate de email verificado (ADR-0005 §9).
@@ -122,13 +122,15 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 - **TDD (`tests.md` § Invitación):** token inválido/expirado/usado → nada en DB; email mismatch; **doble aceptación simultánea → una gana**; éxito (máx 150, `UNIQUE`); `invitation` no escaneable por el invitado bajo su rol; re-validación display↔submit.
 - **Cierre:** verdes. **Diferido a sesión propia posterior (consciente):** wiring app-side (Server Action signup-desde-invitación → `ensureAppUser` → `accept_invitation`) + UI `/invite/{token}` — ya listado como diferido (análogo a cómo S5b fue la saga sobre la función S3).
 
-## S7 — Routing host-based + `(marketing)`/`(app)` (routing/app-shell)
+## S7 ✅ HECHA (2026-05-18) — Routing host-based + `(marketing)`/`(app)` (routing/app-shell)
 
-**Responsabilidad:** estructura de rutas y middleware por host (ADR-0005 §10). Sin dominio (delega a saga) ni UI de wizard (S8).
+**Responsabilidad:** estructura de rutas y proxy por host (ADR-0005 §10). Sin dominio (delega a saga) ni UI de wizard (S8).
 
-- `src/app/(marketing)/` (apex) y `(app)/` (`{slug}.` place; `app.` inbox). Migrar la landing actual a `(marketing)` sin romperla. `src/middleware.ts` host-based **integrando** i18n. Wildcard DNS/Vercel; Function Region `iad1`. Place servible en `{slug}.place.community` (placeholder hasta S5b).
+- `src/app/(marketing)/[locale]/` (apex) y `(app)/` (`{slug}.` place; `app.` inbox). Migrar la landing actual a `(marketing)` sin romperla. `src/proxy.ts` host-based **integrando** i18n (Next 16 renombró `middleware.ts`→`proxy.ts`, ADR-0013). Wildcard DNS/Vercel; Function Region `iad1`. Place servible en `{slug}.place.community` (placeholder hasta S5b).
 - **Tests:** rutea apex/subdominio/`app.`; landing intacta; slug inexistente→404; URLs públicas = subdominio (regla de memoria).
 - **Cierre:** verdes; build de landing intacto (`cross-env NODE_ENV=production`).
+
+**Resultado (2026-05-18):** TDD rojo→verde sobre la lógica pura de clasificación. `src/shared/lib/host-routing.ts` — `resolveHost(host)` (apex/`www`/`localhost`/`*.vercel.app`/desconocido → `marketing`; `app.` → `inbox`; otro subdominio → `place`+slug; strippea puerto; soporta `*.localhost` dev) + `isServiceableSlug` (gate estructural: formato DNS ≥3 + reservados, espeja `slugSchema` sin importar internals del feature). `src/proxy.ts` reescrito: delega en el middleware next-intl en `marketing` (i18n integrado, no duplicado) y hace `NextResponse.rewrite` a **prefijo estático interno** (`/place/{slug}`, `/inbox`) en place/inbox — necesario porque Next prohíbe dos segmentos dinámicos distintos en la misma posición de URL aunque estén en route groups distintos (`(marketing)/[locale]` ↔ `(app)/[placeSlug]`); el prefijo nunca aparece en la URL pública → "URLs públicas = subdominio" intacto. Restructura: `src/app/[locale]/*` → `src/app/(marketing)/[locale]/*` vía `git mv` (historial preservado; fix import `../../globals.css`); nuevo árbol `(app)/` con su propio `<html>` (multi-root layout, sin `app/layout.tsx`): `layout.tsx`, `not-found.tsx`, `inbox/page.tsx`, `place/[placeSlug]/page.tsx` (placeholders ES; `isServiceableSlug`→`notFound()` para reservado/inválido; `preferredRegion="iad1"` para co-location Neon en S5b). `multi-tenancy.md` reconciliado: el árbol ilustrativo dibujaba `(app)/[placeSlug]` en la raíz (colisión real con `[locale]`) — documentado el rewrite con prefijo estático (comportamiento sin cambios, prefijo invisible al usuario). **Decisiones conscientes:** custom domains → `marketing` fallback hasta resolución por `place_domain` verificado (feature posterior) — nunca servir un place en host ajeno; "slug inexistente → 404" en S7 = gate **estructural** (la page hace `notFound()` por reservado/formato), la existencia real por DB es S5b (mismo lugar donde irá `loadPlaceBySlug` + streaming del shell). Cierre verde: `pnpm test` 128/128 (15 files, +14 `host-routing.test.ts`) · `pnpm typecheck` limpio · `pnpm lint` exit 0 · `pnpm build` verde (landing SSG intacta 4 locales, `/inbox`, `/place/[placeSlug]`, `ƒ /api/auth/[...path]`, `ƒ Proxy (Middleware)`; sin error de colisión de segmentos). Wildcard DNS + wildcard domain en Vercel = infra de despliegue (no código), documentado en `multi-tenancy.md` § DNS y Vercel. Archivos: `src/shared/lib/host-routing.ts` (nuevo), `src/shared/lib/__tests__/host-routing.test.ts` (nuevo, 14), `src/proxy.ts` (reescrito), `src/app/(marketing)/[locale]/*` (movido, 6, +fix import en `layout.tsx`), `src/app/(app)/{layout,not-found}.tsx` + `(app)/inbox/page.tsx` + `(app)/place/[placeSlug]/page.tsx` (nuevos).
 
 ## S8 — Frontend wizard place-first (frontend)
 
@@ -188,7 +190,7 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S5a ✅ | Saga — dominio puro (Zod/slug/contraste/defaults) | backend/dominio | S3, S4b |
 | S5b ✅ | Saga — orquestación dos modos, two-tx (→ `app.create_place`) | backend/dominio | S5a |
 | S6 ✅ | Invitación: funciones `SECURITY DEFINER` (preview + accept) | backend/dominio | S3 (patrón), S4b |
-| S7 | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S5b para servir) |
+| S7 ✅ | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S5b para servir) |
 | S8 | Wizard place-first | frontend | S5b, S7 |
 | S9 | Vía "Acceso" + modo authed | frontend | S4b, S5b, S8 |
 | S10 | Capa LLM propose-only | servicio | S5a |

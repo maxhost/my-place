@@ -4,7 +4,7 @@ import { hasLocale } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Inter, Fraunces } from "next/font/google";
 import { routing, type Locale } from "@/i18n/routing";
-import "../globals.css";
+import "../../globals.css";
 
 // Inter (cuerpo) + Fraunces (titulares), self-hosted vía next/font, subset
 // latin, display swap → CLS ~0. Pesos mínimos: Inter 400/500, Fraunces 400.

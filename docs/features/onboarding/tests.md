@@ -66,10 +66,11 @@ Mandato y casos críticos. **No** diseña los tests en detalle (eso es trabajo d
 - La salida nunca incluye horario (ADR-0007).
 - Nada se persiste sin confirmación humana (propose-only); guardrail de contraste aplicado también a la paleta propuesta por el LLM.
 
-### Routing host-based (S3)
-- Middleware rutea apex/`{slug}.`/`app.` a la zona correcta; landing intacta bajo `(marketing)`.
+### Routing host-based (S7)
+- Proxy rutea apex/`{slug}.`/`app.` a la zona correcta; landing intacta bajo `(marketing)`.
 - Slug inexistente → 404.
 - URLs públicas = subdominio (sin `placeSlug` en el path).
+- **S7 implementado (verificado 2026-05-18):** clasificación pura en `src/shared/lib/host-routing.ts` (`resolveHost`/`isServiceableSlug`), unit-testeada sin red/DB (`host-routing.test.ts`, 14 casos) — apex/`www`/`localhost`/`*.vercel.app`/desconocido→marketing, `app.`→inbox, otro→place+slug, strip de puerto, `*.localhost` dev. `src/proxy.ts` delega i18n en marketing (integrado) y reescribe a **prefijo estático interno** (`/place/{slug}`, `/inbox`) — Next prohíbe dos segmentos dinámicos distintos en la misma posición aunque haya route groups (`[locale]`↔`[placeSlug]`); el prefijo no aparece en la URL pública (regla URLs=subdominio intacta). "Slug inexistente→404" en S7 = gate **estructural** (la page `notFound()` por reservado/formato vía `isServiceableSlug`); la existencia real por DB (`loadPlaceBySlug`) + streaming del shell son S5b/S8. Landing intacta verificada por `pnpm build` (SSG 4 locales). Custom domains → marketing fallback hasta `place_domain` verificado (feature posterior).
 
 ## Qué NO se testea en esta tanda
 

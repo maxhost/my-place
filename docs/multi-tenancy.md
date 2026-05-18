@@ -15,35 +15,41 @@ Cada place tiene su propia URL con subdomain. La estructura de URLs refuerza la 
 
 > El slug de URL `thread` es **deliberado**: técnico/universal en la ruta, mientras el objeto canónico de producto es **Discusión** (`docs/ontologia/conversaciones.md`). Consistente con "código en inglés, docs/UI en español" (`CLAUDE.md`). Un barrido de consistencia no debe "corregir" esto.
 
-> **Estado (2026-05-16, ADR-0005):** hoy `src/middleware.ts` solo hace i18n de la landing (build de la landing). El routing **host-based** descrito abajo entra en alcance con la tanda de registro: el onboarding del owner vive en el **apex** `place.community` (i18n bajo `[locale]`) y el place creado queda servible en `{slug}.place.community`. El middleware i18n se integra con el host-based (no se duplica).
+> **Estado (S7, implementado 2026-05-18 — ADR-0005 §10):** el routing host-based está implementado en `src/proxy.ts` (Next 16 renombró `middleware.ts`→`proxy.ts`, ADR-0013). El apex `place.community` sirve la landing/onboarding con i18n bajo `[locale]`; `{slug}.place.community` sirve el place (placeholder hasta S5b: gate estructural `isServiceableSlug`, resolución por DB en S5b); `app.place.community` sirve el inbox. El i18n de next-intl se **integra** (no se duplica): el proxy delega en su middleware solo en la zona marketing.
 
 ## Implementación en Next.js
 
-Middleware en `src/middleware.ts` (Next 15; en Next 16 sería `proxy.ts`) inspecciona el hostname en cada request:
+`src/proxy.ts` (raíz de `src/`, NO `src/app/`) inspecciona el `host` de cada request. La clasificación pura vive en `src/shared/lib/host-routing.ts` (`resolveHost`, unit-testeada sin red/DB):
 
-- Si el subdomain es `app` → rutea a `/(app)/inbox/...`
-- Si el subdomain es cualquier otro → extrae el slug y reescribe la URL a `/(app)/[placeSlug]/...`
-- Si es el dominio raíz → rutea a `/(marketing)/...`
+- subdomain `app` → zona **inbox**.
+- subdomain `www` / apex / `localhost` / `*.vercel.app` / host desconocido → zona **marketing** (los custom domains se resuelven por `place_domain` verificado en una feature posterior; hasta entonces el fallback seguro es marketing — nunca servir el place de otro en un host ajeno).
+- cualquier otro subdomain → zona **place** con ese slug (normalizado a minúsculas).
 
-Estructura de rutas:
+**Rewrite con prefijo estático (decisión de implementación, S7).** Next prohíbe dos segmentos dinámicos con nombres distintos en la misma posición de URL **aunque estén en route groups distintos** — `(marketing)/[locale]` y `(app)/[placeSlug]` no pueden coexistir en la raíz. El proxy resuelve esto reescribiendo a un path con **prefijo estático interno**: place → `/place/{slug}{path}`, inbox → `/inbox{path}`; marketing delega en el middleware i18n (`/` → `/{locale}`). El prefijo lo pone el proxy, **nunca aparece en la URL pública** → "URLs públicas = subdominio" se mantiene intacto.
+
+Estructura de rutas (real, S7):
 
 ```
 src/app/
-├── (marketing)/       Para place.community
-│   └── page.tsx
-├── (app)/             Para todo lo autenticado
-│   ├── inbox/         En app.place.community
-│   └── [placeSlug]/   En {slug}.place.community
-│       ├── page.tsx
-│       ├── [zone]/page.tsx
-│       ├── thread/[id]/page.tsx
-│       └── settings/page.tsx
-└── api/              Route handlers (webhooks, cron, etc.) — a definir
+├── (marketing)/[locale]/   apex place.community (i18n always-prefix)
+│   ├── layout.tsx          <html> raíz de la zona marketing
+│   ├── page.tsx            landing
+│   ├── not-found.tsx
+│   ├── login/ terminos/ privacidad/
+├── (app)/                  zona autenticada (español, sin [locale])
+│   ├── layout.tsx          <html> raíz de la zona app (multi-root layout)
+│   ├── not-found.tsx       404 de slug no servible / inexistente
+│   ├── inbox/page.tsx      ← app.place.community  (proxy: /inbox)
+│   └── place/[placeSlug]/  ← {slug}.place.community (proxy: /place/{slug})
+│       └── page.tsx        + futuros [zone]/ thread/[id]/ settings/ (S8+)
+├── api/                    route handlers (auth; webhooks/cron — a definir)
+└── globals.css
 
-src/middleware.ts        # raíz de src, NO src/app/ (Next 15; Next 16 → proxy.ts)
+src/proxy.ts                 # host-based + delega i18n en marketing
+src/shared/lib/host-routing.ts  # resolveHost / isServiceableSlug (puro)
 ```
 
-> Estado real: hoy `src/middleware.ts` solo hace i18n de la landing y `src/app/[locale]/` tiene la landing. La estructura `(marketing)/(app)` + el routing host-based de arriba son el **target**, se construyen en el batch de registro (ver nota al inicio de esta sección y ADR-0005 §10).
+> Route groups (`(marketing)`/`(app)`) NO aparecen en la URL. Sin `app/layout.tsx` único: cada grupo provee su propio `<html>` (multi-root layout de Next 16). La resolución real del place por DB (`{slug}` inexistente → 404) y el patrón de streaming agresivo del shell entran con los datos en S5b/S8 (placeholder hasta entonces).
 
 ## DNS y Vercel
 
