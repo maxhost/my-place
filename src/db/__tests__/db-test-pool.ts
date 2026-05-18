@@ -31,6 +31,9 @@ export type Rows = Promise<Record<string, unknown>[]>;
 export interface RlsTx {
   seed: (text: string, params?: unknown[]) => Rows;
   as: (sub: string | null) => Promise<void>;
+  // Inyecta el JSON de claims CRUDO tal cual lo hace `getAuthenticatedDb`
+  // (objeto completo: sub+iat+exp), no sólo `{sub}`. `""` = sin claim.
+  asRawClaims: (claimsJson: string) => Promise<void>;
   q: (text: string, params?: unknown[]) => Rows;
   denied: (text: string, params?: unknown[]) => Promise<boolean>;
 }
@@ -62,6 +65,13 @@ export async function inRlsTx<T>(fn: (tx: RlsTx) => Promise<T>): Promise<T> {
         sub === null ? "" : JSON.stringify({ sub }),
       ]);
     };
+    const asRawClaims: RlsTx["asRawClaims"] = async (claimsJson) => {
+      await client.query("RESET ROLE");
+      await client.query("SET ROLE app_system");
+      await client.query("SELECT set_config('request.jwt.claims', $1, true)", [
+        claimsJson,
+      ]);
+    };
     const q: RlsTx["q"] = async (text, params) =>
       (await client.query(text, params)).rows as Record<string, unknown>[];
     const denied: RlsTx["denied"] = async (text, params) => {
@@ -78,7 +88,7 @@ export async function inRlsTx<T>(fn: (tx: RlsTx) => Promise<T>): Promise<T> {
       return rejected;
     };
 
-    return await fn({ seed, as, q, denied });
+    return await fn({ seed, as, asRawClaims, q, denied });
   } finally {
     await client.query("RESET ROLE").catch(() => {});
     await client.query("ROLLBACK").catch(() => {});
@@ -95,7 +105,9 @@ export function endRlsAdminPool(): Promise<void> {
 // transaction-local como en runtime (`set_config('request.jwt.claims', …, true)`).
 export async function inTx<T>(
   claims: string | null,
-  fn: (q: (text: string, params?: unknown[]) => Promise<unknown[]>) => Promise<T>,
+  fn: (
+    q: (text: string, params?: unknown[]) => Promise<Record<string, unknown>[]>,
+  ) => Promise<T>,
 ): Promise<T> {
   const client = await testPool.connect();
   try {

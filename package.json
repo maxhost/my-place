@@ -18,6 +18,7 @@
     "lhci": "lhci autorun"
   },
   "dependencies": {
+    "@neondatabase/auth": "0.4.1-beta",
     "@neondatabase/serverless": "^1.1.0",
     "drizzle-orm": "^0.45.2",
     "jose": "^6.2.3",

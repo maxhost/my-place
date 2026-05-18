@@ -59,12 +59,19 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 
 ## S4 — Auth wiring (backend/infra)
 
-**Responsabilidad:** Neon Auth ↔ Postgres (identidad → claims → RLS). **Prerequisito:** S3.5 (Next 16, ADR-0013) — el SDK `@neondatabase/auth` lo exige.
+**Responsabilidad:** Neon Auth ↔ Postgres (identidad → claims → RLS). **Prerequisito:** S3.5 (Next 16, ADR-0013) — el SDK `@neondatabase/auth` lo exige. **Dividida en S4a/S4b** (regla dura `CLAUDE.md` "una sesión = una responsabilidad / >5 archivos"; decisión del owner 2026-05-18): S4a = core DB/claims/RLS + `ensureAppUser` (TDD puro, contra `test`, sin Neon Auth vivo); S4b = wiring del SDK + route handler + test-guard cookie + env + reconciliación de doc.
 
-- `createNeonAuth({ cookies:{ domain apex, secret } })`, route handler first-party `app/api/auth/[...path]`, helper `getAuthenticatedDb`: verifica `session.access_token` con `jose`+JWKS → `set_config('request.jwt.claims', <claims>, true)` (**tx-local obligatorio**) en `db.transaction`, driver `neon-serverless`.
-- `ensureAppUser(authUserId)` primitivo idempotente en `shared/lib` (dedupe `React.cache`); INSERT de `app_user` sujeto a su RLS self-only (sin chicken-egg).
+### S4a — Core DB/claims/RLS + `ensureAppUser` ✅ HECHA (2026-05-18)
+
+**Resultado.** Diagnóstico empírico del SDK instalado (`@neondatabase/auth@0.4.1-beta`, no asumido): API server canónica `createNeonAuth(...)` de `@neondatabase/auth/next/server`; el JWT se obtiene con **`auth.getAccessToken()`** (endpoint `get-access-token`), **no** `getSession().access_token` como dice hoy `multi-tenancy.md §121`/`stack.md §35` — es el "TBD de implementación de método de token" que ADR-0006 §Consecuencias dejó abierto (no desviación arquitectónica); su reconciliación de doc va en S4b. El catch-all debe ser `[...path]` (lo exige el `Params={path:string[]}` del handler). Implementado con **TDD** (rojo→verde): `src/db/client.ts` (Pool `neon-serverless`, rol `app_system` vía `DATABASE_URL`, `ws`); `src/shared/lib/jwt.ts` (`verifyAccessToken` jose+JWKS, resolver remoto **perezoso** → fail-closed real ante token malformado sin tocar red/env, JWKS inyectable para tests); `src/shared/lib/db.ts` (`getAuthenticatedDb`: verifica **antes** de abrir tx → tx interactiva `app_system` → `set_config('request.jwt.claims', <claims completos>, true)` tx-local → `SqlExecutor` parametrizado; SQL a mano para seams de seguridad = misma convención que las funciones `SECURITY DEFINER`, ADR-0012; Drizzle sigue SoT de schema/RLS); `src/shared/lib/ensure-app-user.ts` (upsert idempotente `ON CONFLICT (auth_user_id) DO NOTHING`, handle random 128-bit ADR-0002, sujeto a `au_self`, dedupe `React.cache`). Helper aditivo `asRawClaims` en `db-test-pool.ts` (S2/S3 intactos). **Diagnose-before-fix:** timeouts espurios de 5000ms en tests S2/S3 al sumar 3 archivos en paralelo = cold-connect real del branch `test` (scale-to-zero), no regresión ni leak de S4a → `vitest.config.ts` `testTimeout/hookTimeout` a 30s (sobre de latencia real, no flakiness tapada). **Cierre verde determinista:** `pnpm build` (landing intacta, `Proxy (Middleware)`), `pnpm typecheck`, `pnpm lint`, `pnpm test` 42/42. Archivos: `src/db/client.ts` (nuevo), `src/shared/lib/{jwt,db,ensure-app-user}.ts` (nuevos), `src/shared/lib/__tests__/{jwt,auth-db,ensure-app-user}.test.ts` (nuevos), `src/db/__tests__/db-test-pool.ts`, `vitest.config.ts`.
+
+### S4b — Wiring Neon Auth SDK + route handler + test-guard cookie (pendiente)
+
+- `src/shared/lib/auth.ts`: `createNeonAuth({ baseUrl, cookies:{ domain apex, secret } })` (singleton); route handler first-party `app/api/auth/[...path]/route.ts` = `auth.handler()`.
 - Test-guard de build: falla si la cookie de sesión se emite sin `Domain` apex.
-- **TDD:** `ensureAppUser` idempotente; sesión→claims→RLS end-to-end (lógica, contra `test`, reusa S2); test-guard dispara. Verificación cookie/cross-subdomain → preview Vercel (anotado, no localhost — gotcha `__Secure-`).
+- `.env.local`: `NEON_AUTH_BASE_URL`/`NEON_AUTH_JWKS_URL`/`NEON_AUTH_COOKIE_SECRET` (secret dev; prod rotado out-of-band antes del cutover).
+- Reconciliación de doc (verificado + fecha; cierra el TBD impl de ADR-0006, no es cambio arquitectónico): `multi-tenancy.md §121` y `stack.md §35` `getSession().access_token` → `auth.getAccessToken()`.
+- Verificación cookie/cross-subdomain → preview Vercel (anotado, no localhost — gotcha `__Secure-`).
 - **Cierre:** verdes.
 
 ## S5 — Saga de creación de place: dos modos (backend/dominio)
@@ -144,12 +151,13 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S2 ✅ | RLS owner-only + INSERT-deny (recursion-safe) | backend/seguridad | S1 |
 | S3 ✅ | Función `app.create_place` `SECURITY DEFINER` | backend/seguridad-dominio | S2 |
 | S3.5 ✅ | Upgrade Next 15→16 (ADR-0013, prereq de S4) | stack/infra | — |
-| S4 | Auth wiring (Neon Auth↔RLS, `ensureAppUser`) | backend/infra | S2, S3.5 |
-| S5 | Saga de creación (dos modos → `app.create_place`) | backend/dominio | S3, S4 |
-| S6 | Invitación: función `SECURITY DEFINER` de aceptación | backend/dominio | S3 (patrón), S4 |
+| S4a ✅ | Core DB/claims/RLS + `ensureAppUser` (TDD, sin Neon Auth vivo) | backend/infra | S2, S3.5 |
+| S4b | Wiring SDK Neon Auth + route handler + test-guard cookie + doc | backend/infra | S4a |
+| S5 | Saga de creación (dos modos → `app.create_place`) | backend/dominio | S3, S4b |
+| S6 | Invitación: función `SECURITY DEFINER` de aceptación | backend/dominio | S3 (patrón), S4b |
 | S7 | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S5 para servir) |
 | S8 | Wizard place-first | frontend | S5, S7 |
-| S9 | Vía "Acceso" + modo authed | frontend | S4, S5, S8 |
+| S9 | Vía "Acceso" + modo authed | frontend | S4b, S5, S8 |
 | S10 | Capa LLM propose-only | servicio | S5 |
 
 Diferido a sesión propia posterior: `/settings` + gate email, UI `/invite/{token}`, directorio, gate de horario.
