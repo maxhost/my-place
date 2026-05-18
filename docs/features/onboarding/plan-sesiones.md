@@ -22,7 +22,7 @@ Plan de implementación de la tanda de registro (auth + creación de place). **R
 ## Mapa de sesiones y dependencias (modelo D)
 
 ```
-S0✅─> S1✅─> S2 RLS owner-only+INSERT-deny ─> S3 fn create_place ─┐
+S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3 fn create_place ─┐
                           │                                       ├─> S5 Saga ─┬─> S8 Wizard ─> S9 Vía "Acceso"
                           └─> S4 Auth wiring ──────────────────────┤            │
                                                                    └─> S6 Inv fn└─> S10 LLM
@@ -41,18 +41,9 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 
 **Resultado:** schema Drizzle `src/db/schema/` (6 tablas + 2 enums; `id TEXT` default `(gen_random_uuid())::text`; shapes JSON tipados en `json-shapes.ts`) == `data-model.md`. `src/shared/config/reserved-slugs.ts`. Migración `0000_youthful_hydra.sql` (drizzle-kit) con `app.current_user_id()` (ADR-0011) versionada al frente + `GRANT … TO app_system` por tabla al final — todo idempotente. Aplicada a `dev` y `test`; re-migrate de `test` = no-op. Alias `@/*` en `vitest.config.ts`. **`pnpm test` 16/16 y `pnpm typecheck` verdes.** Gotcha registrado: el driver Neon no parsea arrays uniformemente (`docs/gotchas/neon-serverless-array-parsing.md`).
 
-## S2 — RLS owner-only + INSERT denegado (backend, seguridad — núcleo crítico)
+## S2 — RLS owner-only + INSERT denegado (backend, seguridad — núcleo crítico) ✅ HECHA (2026-05-17)
 
-**Responsabilidad:** las policies de ADR-0010 refinadas por ADR-0012. Punto que si falla, nada sirve.
-
-- Drizzle: `pgRole('app_system').existing()` + `pgPolicy` por tabla. Migración `0001` (drizzle-kit generate; ENABLE RLS es idempotente, las policies van por journal).
-- **`app_user` — `FOR ALL`:** propia fila (USING+WITH CHECK `(select app.current_user_id()) = auth_user_id`).
-- **`place_ownership` — SELECT/UPDATE/DELETE:** "esta fila es mía" referenciando **`app_user`, nunca `place_ownership`** (recursion-safe — auto-referencia da `infinite recursion detected`, verificado).
-- **`place` / `membership` / `invitation` / `place_domain` — SELECT/UPDATE/DELETE:** owner-only vía `place_ownership` (predicado ADR-0010). `invitation` y `place_domain` además `FOR ALL` owner-only (incluye su INSERT: place+ownership ya existen, sin chicken-egg). `place_domain` entra al conjunto por ADR-0012 (cerrar omisión de enumeración).
-- **`place` / `place_ownership` / `membership` — INSERT: sin policy + `REVOKE INSERT` a `app_system`** (denegado por construcción + defense-in-depth). `app_system` conserva SELECT/UPDATE/DELETE.
-- Helper de test con **claims conmutables mid-tx** (rollback) en `db-test-pool` (lo precisa S2/S3/S6).
-- **TDD (bloqueante, `tests.md` § RLS):** aislamiento cross-place en las 5 tablas; `app_user` propia-fila; recursion-safe (owner-only no lanza recursión); INSERT directo a place/po/membership **rechazado**; `invitation`/`place_domain` INSERT owner-only (owner sí, no-owner no); todo bajo `app_system`, nunca admin; sin-claim deniega.
-- **Cierre:** tests RLS verdes; migración aplica limpia e idempotente a `dev`+`test`.
+**Resultado:** policies por-operación de ADR-0010 refinadas por ADR-0012, expresadas en Drizzle (`pgRole('app_system').existing()` + `pgPolicy` por tabla, `src/db/schema/index.ts`): `au_self` (`app_user` `FOR ALL` self-only, incluye su INSERT), `po_sel/upd/del` (`place_ownership` recursion-safe vía `app_user`, **nunca** `place_ownership`), `place_sel/upd/del` y `membership_sel/upd/del` (owner-only vía `place_ownership`), `invitation_all` y `place_domain_all` (`FOR ALL` owner-only). Migración `0001_round_forge.sql` (drizzle-kit generate; `.existing()` evitó `CREATE ROLE`) + `REVOKE INSERT ON place, place_ownership, membership FROM app_system` versionado a mano (defense-in-depth, ADR-0012 §1; precedente: GRANTs de 0000). Aplicada a `dev` y `test`; re-migrate de `test` = no-op. Helper de RLS `inRlsTx` en `db-test-pool.ts` (GRANT efímero intra-tx + `SET ROLE`/`RESET ROLE` + claims conmutables + `SAVEPOINT` para negativos, todo ROLLBACK — patrón canónico documentado en `tests.md`, reusable S3/S6). **Diagnose-before-implement:** el diseño completo (aislamiento, recursion-safe, INSERT-deny, el hueco de escalación cerrado) se verificó empíricamente sobre el branch `test` con el rol real `app_system` **antes** de escribir la migración. `tests.md` actualizado (bullet del helper). **`pnpm test` 25/25, `pnpm typecheck` y `pnpm lint` verdes.** Archivos: `src/db/schema/index.ts` (+policies/role/`ownerOnly`, ~líneas 1-235), `src/db/__tests__/db-test-pool.ts` (+`inRlsTx`/`endRlsAdminPool`, ~líneas 14-110), `src/db/__tests__/rls.test.ts` (nuevo, 9 tests), `src/db/migrations/0001_round_forge.sql` (nuevo), `docs/features/onboarding/tests.md` (bullet helper).
 
 ## S3 — Función `app.create_place` `SECURITY DEFINER` + grants (backend, seguridad/dominio)
 
@@ -148,7 +139,7 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 |---|---|---|---|
 | S0 ✅ | Harness + entorno (Vitest, branches, rol `app_system`) | infra | — |
 | S1 ✅ | Schema `public` + migraciones + reserved-slugs | backend/schema | S0 |
-| S2 | RLS owner-only + INSERT-deny (recursion-safe) | backend/seguridad | S1 |
+| S2 ✅ | RLS owner-only + INSERT-deny (recursion-safe) | backend/seguridad | S1 |
 | S3 | Función `app.create_place` `SECURITY DEFINER` | backend/seguridad-dominio | S2 |
 | S4 | Auth wiring (Neon Auth↔RLS, `ensureAppUser`) | backend/infra | S2 |
 | S5 | Saga de creación (dos modos → `app.create_place`) | backend/dominio | S3, S4 |

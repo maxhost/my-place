@@ -8,6 +8,13 @@
       "when": 1779034317274,
       "tag": "0000_youthful_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779068094669,
+      "tag": "0001_round_forge",
+      "breakpoints": true
     }
   ]
 }
