@@ -51,9 +51,15 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 
 **Resultado:** función `app.create_place(p_slug,p_name,p_description,p_theme_config jsonb,p_opening_hours jsonb) RETURNS text` escrita a mano en migración `0002_create_place_fn.sql` (`LANGUAGE plpgsql SECURITY DEFINER`, dueño `neondb_owner`, `SET search_path = public, pg_temp`, `REVOKE EXECUTE … FROM PUBLIC` + `GRANT EXECUTE … TO app_system`; `CREATE OR REPLACE` + grants/revoke idempotentes). Caller desde `app.current_user_id()` (no parámetro), `place_id` generado por la DB, billing/trial deterministas (`OWNER_PAYS`/`ACTIVE`/`now()+30d`/`enabled_features=[]`), 3 INSERT atómicos. Drizzle no modela `SECURITY DEFINER` → migración sin diff de schema, registrada a mano en `meta/_journal.json` (idx 2) + `meta/0002_snapshot.json` encadenado off 0001 (`prevId`=id de 0001). **Diagnose-before-implement:** se verificó empíricamente sobre el branch `test` que dentro del DEFINER (dueño `neondb_owner`, BYPASSRLS) `app.current_user_id()` lee el GUC tx-local del **caller** `app_system` (el cambio de privilegio NO sombrea el GUC: ownership+membership apuntan al `app_user` del caller; no-claim→`28000`, app_user inexistente→`P0002`; `EXECUTE` app_system sí / PUBLIC no) **antes** de escribir la migración — premisa del cierre confirmada. Aplicada a `dev` y `test`; re-migrate de `test` = no-op (journal-tracked). `tests.md` actualizado. **`pnpm test` 31/31, `pnpm typecheck` y `pnpm lint` verdes.** Archivos: `src/db/migrations/0002_create_place_fn.sql` (nuevo), `src/db/migrations/meta/_journal.json` (+idx 2), `src/db/migrations/meta/0002_snapshot.json` (nuevo), `src/db/__tests__/create-place.test.ts` (nuevo, 6 tests), `docs/features/onboarding/tests.md`.
 
+## S3.5 — Upgrade Next 15 → 16 (prerequisito de S4) ✅ HECHA (2026-05-18)
+
+**Responsabilidad:** desbloquear S4. Decisión de stack, no de auth → sesión + ADR propias (`CLAUDE.md` "una sesión = una responsabilidad").
+
+**Resultado:** al diagnosticar S4 se halló bloqueo duro (evidencia npm): `@neondatabase/auth` (SDK que S4 cablea) declara `peerDependencies.next` = `>=16.0.0` en **todas** sus versiones publicadas; el repo estaba pineado a Next 15.5.18. Decidido en **ADR-0013**. Ejecutado: `next` 15.5.18→**16.2.6** + `eslint-config-next`→16.2.6 (React 19.1.0 / next-intl 4.12 / bundle-analyzer ya compatibles, sin tocar); `src/middleware.ts`→`src/proxy.ts` (Next 16 renombra el archivo de middleware; `createMiddleware(routing)`+matcher intactos); `.nvmrc` `22` + `engines >=22.0.0` (cierra el TBD de Node de `stack.md`); `eslint.config.mjs` migrado de `FlatCompat`/`compat.extends` (legacy eslintrc, rompía con v16 "circular structure") a flat config nativo (`eslint-config-next/core-web-vitals` + `/typescript` spreadeados) → `@eslint/eslintrc` eliminado (dep huérfana). **Cierre verde: `pnpm build` (landing intacta, 19 páginas/4 locales, `Proxy (Middleware)` reconocido), `pnpm typecheck`, `pnpm lint`, `pnpm test` 31/31** (un timeout transitorio de cold-connect del WebSocket de Neon en una corrida; verde determinista al re-correr — Next 16 no toca la capa DB). `stack.md` actualizado (Next 16 + Node fijado). Archivos: `package.json`, `eslint.config.mjs`, `src/proxy.ts` (ex `middleware.ts`), `.nvmrc` (nuevo), `docs/decisions/0013-upgrade-next-16.md` (nuevo), `docs/decisions/README.md`, `docs/stack.md`.
+
 ## S4 — Auth wiring (backend/infra)
 
-**Responsabilidad:** Neon Auth ↔ Postgres (identidad → claims → RLS).
+**Responsabilidad:** Neon Auth ↔ Postgres (identidad → claims → RLS). **Prerequisito:** S3.5 (Next 16, ADR-0013) — el SDK `@neondatabase/auth` lo exige.
 
 - `createNeonAuth({ cookies:{ domain apex, secret } })`, route handler first-party `app/api/auth/[...path]`, helper `getAuthenticatedDb`: verifica `session.access_token` con `jose`+JWKS → `set_config('request.jwt.claims', <claims>, true)` (**tx-local obligatorio**) en `db.transaction`, driver `neon-serverless`.
 - `ensureAppUser(authUserId)` primitivo idempotente en `shared/lib` (dedupe `React.cache`); INSERT de `app_user` sujeto a su RLS self-only (sin chicken-egg).
@@ -137,7 +143,8 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S1 ✅ | Schema `public` + migraciones + reserved-slugs | backend/schema | S0 |
 | S2 ✅ | RLS owner-only + INSERT-deny (recursion-safe) | backend/seguridad | S1 |
 | S3 ✅ | Función `app.create_place` `SECURITY DEFINER` | backend/seguridad-dominio | S2 |
-| S4 | Auth wiring (Neon Auth↔RLS, `ensureAppUser`) | backend/infra | S2 |
+| S3.5 ✅ | Upgrade Next 15→16 (ADR-0013, prereq de S4) | stack/infra | — |
+| S4 | Auth wiring (Neon Auth↔RLS, `ensureAppUser`) | backend/infra | S2, S3.5 |
 | S5 | Saga de creación (dos modos → `app.create_place`) | backend/dominio | S3, S4 |
 | S6 | Invitación: función `SECURITY DEFINER` de aceptación | backend/dominio | S3 (patrón), S4 |
 | S7 | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S5 para servir) |

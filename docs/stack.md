@@ -8,7 +8,7 @@ Elecciones tecnológicas de Place y justificación de cada una. Cualquier cambio
 
 | Pieza          | Elección                                        | Razón                                                                                              |
 | -------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Framework      | Next.js 15 con App Router                       | Multi-tenant nativo con middleware, Server Components, Server Actions, integración directa con Vercel |
+| Framework      | Next.js 16 con App Router                       | Multi-tenant nativo con middleware (`proxy.ts`), Server Components, Server Actions, integración directa con Vercel. Subido de 15→16 en ADR-0013 (el SDK `@neondatabase/auth` exige Next ≥16). |
 | Lenguaje       | TypeScript strict mode                          | Seguridad de tipos en modelos de dominio complejos                                                 |
 | UI library     | React 19                                        | Estándar                                                                                           |
 | Base de datos  | PostgreSQL 17 gestionado por **Neon**           | Postgres serverless con branching; relacional denso; aislamiento de places vía RLS de Postgres     |
@@ -82,7 +82,7 @@ Las variables de storage/realtime/pagos se agregan cuando se decida cada pieza. 
 
 ## Versión de Node
 
-Node LTS (22.x o superior). Vercel corre el proyecto en Node 24.x. Fijar en `.nvmrc` y en `package.json` via `engines` cuando se reintroduzcan.
+Node LTS (22.x o superior; Next 16 exige ≥20.9). Vercel corre el proyecto en Node 24.x. **Fijado** en `.nvmrc` (`22`) y en `package.json` via `engines` (`>=22.0.0`) — ADR-0013 (cierra el TBD de versión de Node).
 
 ## Request-scoped caching (patrón a reimplementar)
 
