@@ -51,7 +51,7 @@ export async function Pricing() {
                 {plan.description}
               </p>
               <a
-                href={`/${locale}/login`}
+                href={`/${locale}/crear`}
                 className={`mt-7 inline-flex min-h-[3rem] items-center justify-center rounded-lg px-6 text-base font-medium ${
                   plan.highlight
                     ? "cta"

@@ -1,19 +1,28 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
-import { PlaceWizard, type WizardLabels } from "../place-wizard";
+import { describe, expect, it, vi } from "vitest";
+import type { CreatePlaceResult } from "../../create-place";
+import {
+  PlaceWizard,
+  type WizardLabels,
+  type WizardSubmit,
+} from "../place-wizard";
 
-// Tests de componente del wizard place-first (S8a): shell + Paso 1 + preview
-// en vivo. jsdom + RTL. El wizard recibe sus textos por prop `labels`
-// (serializable, sin runtime i18n en cliente → testeable sin provider; el
-// Server Component de la ruta los traducirá en S8b).
+// Tests de componente del wizard place-first completo (S8b): shell + Paso 1
+// (S8a) + Paso 2 (descripción + paleta) + Paso 3 (cuenta + T&C + tz) + submit
+// + estados post-falla. jsdom + RTL. El wizard recibe sus textos por prop
+// `labels` (serializable, sin runtime i18n en cliente → testeable sin
+// provider) y el submit por prop `onSubmit` (seam-split: el Server Action
+// vivo se cablea en la ruta, acá se inyecta un fake — mismo patrón S5b/S8a).
 
 const LABELS: WizardLabels = {
   title: "Creá tu lugar",
   progress: "Paso {n} de {total}",
-  stepTitles: ["Identidad"],
+  stepTitles: ["Identidad", "Estilo", "Tu cuenta"],
   next: "Siguiente",
   back: "Atrás",
+  create: "Crear mi lugar",
+  creating: "Creando…",
   nameLabel: "Nombre del lugar",
   namePlaceholder: "El nombre que verán al entrar",
   slugLabel: "Dirección",
@@ -25,13 +34,79 @@ const LABELS: WizardLabels = {
   previewLabel: "Así se va a ver",
   previewEmptyName: "Tu lugar",
   guardrailNotice: "Ajustamos un color para que se lea bien",
+  descriptionLabel: "Descripción",
+  descriptionPlaceholder: "Una línea sobre tu lugar",
+  descriptionHint: "Opcional. Hasta 500 caracteres.",
+  descriptionTooLong: "La descripción es demasiado larga",
+  paletteLabel: "Colores",
+  paletteNames: {
+    papel: "Papel",
+    bosque: "Bosque",
+    tinta: "Tinta",
+    arcilla: "Arcilla",
+  },
+  emailLabel: "Email",
+  emailPlaceholder: "vos@ejemplo.com",
+  emailInvalid: "Revisá el email",
+  passwordLabel: "Contraseña",
+  passwordPlaceholder: "Al menos 8 caracteres",
+  passwordHint: "Al menos 8 caracteres",
+  passwordTooShort: "La contraseña es muy corta",
+  displayNameLabel: "Tu nombre",
+  displayNamePlaceholder: "Cómo te van a ver",
+  displayNameRequired: "Poné tu nombre",
+  terms: "Acepto los {terms} y la {privacy}.",
+  termsLinkLabel: "términos",
+  privacyLinkLabel: "privacidad",
+  termsRequired: "Necesitás aceptar los términos",
+  successTitle: "Tu lugar está listo",
+  successBody: "Ya podés entrar en {url}.",
+  successOpen: "Abrir mi lugar",
+  slugTakenNotice: "Esa dirección ya tiene dueño, probá con otra",
+  invalidNotice: "Revisá los datos e intentá de nuevo",
+  errorNotice: "No pudimos crear tu lugar. Probá de nuevo en un momento.",
 };
 
-function setup() {
-  return render(<PlaceWizard labels={LABELS} rootDomain="place.community" />);
+function setup(
+  onSubmit: WizardSubmit = vi.fn<WizardSubmit>(async () => ({
+    status: "created",
+    placeId: "p1",
+    slug: "mi-club",
+    adjustments: [],
+  })),
+) {
+  const utils = render(
+    <PlaceWizard
+      labels={LABELS}
+      rootDomain="place.community"
+      termsHref="/es/terminos"
+      privacyHref="/es/privacidad"
+      onSubmit={onSubmit}
+    />,
+  );
+  return { ...utils, onSubmit };
 }
 
-describe("PlaceWizard — shell + Paso 1", () => {
+// Recorre Paso 1 → Paso 2 → Paso 3 con datos válidos.
+async function fillToAccountStep(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByLabelText("Nombre del lugar"), "Mi Club");
+  await user.clear(screen.getByLabelText("Dirección"));
+  await user.type(screen.getByLabelText("Dirección"), "mi-club");
+  await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+  await user.type(
+    screen.getByLabelText("Descripción"),
+    "Un lugar tranquilo para leer juntos",
+  );
+  await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+  await user.type(screen.getByLabelText("Email"), "vos@ejemplo.com");
+  await user.type(screen.getByLabelText("Contraseña"), "supersegura");
+  await user.type(screen.getByLabelText("Tu nombre"), "Ana");
+  await user.click(screen.getByLabelText(/Acepto los/));
+}
+
+describe("PlaceWizard — shell + Paso 1 (S8a)", () => {
   it("muestra el Paso 1 con nombre, dirección y el progreso calmo", () => {
     setup();
     expect(screen.getByLabelText("Nombre del lugar")).toBeInTheDocument();
@@ -52,7 +127,6 @@ describe("PlaceWizard — shell + Paso 1", () => {
     await user.type(slug, "circulo");
     await user.clear(name);
     await user.type(name, "Otro Nombre");
-    // Tras editar el slug a mano, deja de seguir al nombre.
     expect(slug.value).toBe("circulo");
   });
 
@@ -77,9 +151,7 @@ describe("PlaceWizard — shell + Paso 1", () => {
     setup();
     await user.type(screen.getByLabelText("Dirección"), "mi-club");
     expect(
-      screen.getByText(
-        "La disponibilidad final se confirma al crear el lugar",
-      ),
+      screen.getByText("La disponibilidad final se confirma al crear el lugar"),
     ).toBeInTheDocument();
     expect(screen.getByText("mi-club.place.community")).toBeInTheDocument();
   });
@@ -94,23 +166,166 @@ describe("PlaceWizard — shell + Paso 1", () => {
     expect(preview).toHaveTextContent("Casa Común");
   });
 
-  it("con la paleta Papel (AA) el preview no muestra aviso de guardrail", () => {
-    setup();
-    expect(
-      screen.queryByTestId("preview-guardrail-notice"),
-    ).not.toBeInTheDocument();
-  });
-
   it("'Siguiente' está deshabilitado mientras el Paso 1 es inválido", async () => {
     const user = userEvent.setup();
     setup();
     const next = screen.getByRole("button", { name: "Siguiente" });
     expect(next).toBeDisabled();
 
-    // Nombre ok pero sin slug válido → sigue deshabilitado.
     await user.type(screen.getByLabelText("Nombre del lugar"), "Hola");
     await user.clear(screen.getByLabelText("Dirección"));
     await user.type(screen.getByLabelText("Dirección"), "ab");
     expect(next).toBeDisabled();
+  });
+});
+
+describe("PlaceWizard — Paso 2 (estilo) y navegación", () => {
+  it("avanza al Paso 2 y permite volver al Paso 1 sin perder datos", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByLabelText("Nombre del lugar"), "Mi Club");
+    await user.clear(screen.getByLabelText("Dirección"));
+    await user.type(screen.getByLabelText("Dirección"), "mi-club");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    expect(screen.getByText("Paso 2 de 3")).toBeInTheDocument();
+    expect(screen.getByLabelText("Descripción")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Atrás" }));
+    expect(screen.getByText("Paso 1 de 3")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText<HTMLInputElement>("Dirección").value,
+    ).toBe("mi-club");
+  });
+
+  it("bloquea avanzar si la descripción excede 500 caracteres", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByLabelText("Nombre del lugar"), "Mi Club");
+    await user.clear(screen.getByLabelText("Dirección"));
+    await user.type(screen.getByLabelText("Dirección"), "mi-club");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    const desc = screen.getByLabelText("Descripción");
+    await user.click(desc);
+    await user.paste("x".repeat(501));
+    expect(
+      screen.getByText("La descripción es demasiado larga"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Siguiente" })).toBeDisabled();
+  });
+
+  it("elegir una paleta cambia el preview en vivo", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByLabelText("Nombre del lugar"), "Mi Club");
+    await user.clear(screen.getByLabelText("Dirección"));
+    await user.type(screen.getByLabelText("Dirección"), "mi-club");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    const bosque = screen.getByRole("radio", { name: "Bosque" });
+    await user.click(bosque);
+    expect(bosque).toBeChecked();
+  });
+});
+
+describe("PlaceWizard — Paso 3 (cuenta) + submit", () => {
+  it("crea el lugar y muestra la pantalla de éxito con la URL", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<WizardSubmit>(async () => ({
+      status: "created",
+      placeId: "p1",
+      slug: "mi-club",
+      adjustments: [],
+    }));
+    setup(onSubmit);
+    await fillToAccountStep(user);
+    await user.click(screen.getByRole("button", { name: "Crear mi lugar" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Tu lugar está listo")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText("Ya podés entrar en mi-club.place.community."),
+    ).toBeInTheDocument();
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const [input, credentials] = onSubmit.mock.calls[0];
+    expect(input).toMatchObject({ name: "Mi Club", slug: "mi-club" });
+    expect(input.ownerTimezone).toBeTruthy();
+    expect(credentials).toEqual({
+      email: "vos@ejemplo.com",
+      password: "supersegura",
+      displayName: "Ana",
+    });
+  });
+
+  it("no deja crear sin aceptar los términos", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByLabelText("Nombre del lugar"), "Mi Club");
+    await user.clear(screen.getByLabelText("Dirección"));
+    await user.type(screen.getByLabelText("Dirección"), "mi-club");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.type(screen.getByLabelText("Email"), "vos@ejemplo.com");
+    await user.type(screen.getByLabelText("Contraseña"), "supersegura");
+    await user.type(screen.getByLabelText("Tu nombre"), "Ana");
+
+    expect(
+      screen.getByRole("button", { name: "Crear mi lugar" }),
+    ).toBeDisabled();
+  });
+
+  it("slug ocupado: aviso calmo y vuelve al Paso 1", async () => {
+    const user = userEvent.setup();
+    setup(vi.fn<WizardSubmit>(async () => ({ status: "slug_taken" })));
+    await fillToAccountStep(user);
+    await user.click(screen.getByRole("button", { name: "Crear mi lugar" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Esa dirección ya tiene dueño, probá con otra"),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Paso 1 de 3")).toBeInTheDocument();
+  });
+
+  it("payload inválido (red de seguridad): aviso calmo, sin pantalla de éxito", async () => {
+    const user = userEvent.setup();
+    setup(
+      vi.fn<WizardSubmit>(async () => ({
+        status: "invalid",
+        fields: ["slug"],
+        message: "x",
+      })),
+    );
+    await fillToAccountStep(user);
+    await user.click(screen.getByRole("button", { name: "Crear mi lugar" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Revisá los datos e intentá de nuevo"),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Tu lugar está listo")).not.toBeInTheDocument();
+  });
+
+  it("idempotencia: doble click no dispara dos submits", async () => {
+    const user = userEvent.setup();
+    let resolve!: (r: CreatePlaceResult) => void;
+    const onSubmit = vi.fn<WizardSubmit>(
+      () => new Promise<CreatePlaceResult>((r) => (resolve = r)),
+    );
+    setup(onSubmit);
+    await fillToAccountStep(user);
+    const createBtn = screen.getByRole("button", { name: "Crear mi lugar" });
+    await user.click(createBtn);
+    await user.click(createBtn);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+
+    resolve({ status: "created", placeId: "p1", slug: "mi-club", adjustments: [] });
+    await waitFor(() =>
+      expect(screen.getByText("Tu lugar está listo")).toBeInTheDocument(),
+    );
   });
 });

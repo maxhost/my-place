@@ -15,7 +15,7 @@ export async function CtaFinal() {
         </h2>
         <p className="mt-4 text-muted">{t("subhead")}</p>
         <a
-          href={`/${locale}/login`}
+          href={`/${locale}/crear`}
           className="cta mt-10 inline-flex min-h-[3rem] items-center justify-center rounded-lg px-8 text-base font-medium"
         >
           {t("cta")}

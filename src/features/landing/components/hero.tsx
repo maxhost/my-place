@@ -21,7 +21,7 @@ export async function Hero() {
           </p>
           <div className="mt-10 flex flex-col items-start gap-3">
             <a
-              href={`/${locale}/login`}
+              href={`/${locale}/crear`}
               className="cta inline-flex min-h-[3rem] items-center justify-center rounded-lg px-7 text-base font-medium"
             >
               {t("cta")}

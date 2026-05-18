@@ -86,7 +86,7 @@ export async function ParaQuien() {
                   {tab.body}
                 </p>
                 <a
-                  href={`/${locale}/login`}
+                  href={`/${locale}/crear`}
                   className="cta mt-8 inline-flex min-h-[3rem] items-center justify-center rounded-lg px-7 text-base font-medium"
                 >
                   {tab.cta}

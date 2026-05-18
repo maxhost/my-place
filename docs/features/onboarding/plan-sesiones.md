@@ -23,7 +23,7 @@ Plan de implementación de la tanda de registro (auth + creación de place). **R
 
 ```
 S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3✅ fn create_place ─┐
-                          │                                  ├─> S5a✅ → S5b✅ Saga ┬─> S8a✅/S8b Wizard ─> S9 Vía "Acceso"
+                          │                                  ├─> S5a✅ → S5b✅ Saga ┬─> S8a✅/S8b✅ Wizard ─> S9 Vía "Acceso"
                           └─> S4 Auth wiring ─────────────────┤                  │
                                                               └─> S6✅ Inv fn    └─> S10 LLM
               S1 ─> S7✅ Routing host-based ──────────────────────────────────────┘ (S5b para servir place real)
@@ -152,11 +152,24 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 
 **Cierre verde:** `pnpm test` **142/142** (17 files, +14: 6 `slugify` + 8 `place-wizard`) · `pnpm typecheck` limpio · `pnpm lint` 0 problemas · `pnpm build` verde (landing SSG 4 locales intacta, `/inbox`, `/place/[placeSlug]`, `ƒ /api/auth/[...path]`, `ƒ Proxy`; sin ruta nueva = boundary S8a). Archivos: `vitest.config.ts` (→ projects node/ui), `vitest.setup.ui.ts` (nuevo), `package.json`/`pnpm-lock.yaml` (+jsdom/RTL dev), `src/features/onboarding/ui/{slugify,place-wizard,place-preview}.tsx?` (nuevos), `src/features/onboarding/ui/__tests__/{slugify.test.ts,place-wizard.test.tsx}` (nuevos).
 
-### S8b — Pasos 2/3 + submit + estados post-falla + ruta + repunte de CTA + i18n (frontend)
+### S8b — Pasos 2/3 + submit + estados post-falla + ruta + repunte de CTA + i18n (frontend) ✅ HECHA (2026-05-18)
 
 **Responsabilidad:** completar el wizard y montarlo. Consume S8a + S5b (`createPlaceAction`) + S7 (zona `(marketing)`).
 
-- Paso 2 (descripción + paleta acotada, default Papel, guardrail avisa ante `ink`); Paso 3 (cuenta + T&C + timezone del browser con fallback fijo). Submit → `createPlaceAction(input, credentials)` modo place-first; estados `created` / `slug_taken` ("creá tu place") / `invalid`. Página `src/app/(marketing)/[locale]/crear/page.tsx` (Server Component: traduce el namespace `wizard` → `labels`, inyecta root domain de env). Repunte de los 3 CTAs de la landing (hero/nav/cta-final) `/login` → `/crear`. i18n `wizard` en `es.json`.
+**Resultado.** TDD rojo→verde: se extendió `place-wizard.test.tsx` (pasos 2/3 + navegación + submit + estados post-falla) y se sumó `place-preview.test.tsx`, verificados fallando (8 rojos: el wizard sólo tenía Paso 1), luego implementación → verde.
+
+- **Paso 2 (estilo):** descripción opcional (≤500, bloquea avanzar si excede) + **paleta acotada** (`palettes.ts`: 4 presets — Papel default + Bosque/Tinta/Arcilla, AA-limpios por diseño; radios accesibles, preview en vivo). Sin picker libre (cozytech: sin abrumar; la sugerencia LLM es S10, propose-only).
+- **Paso 3 (cuenta):** email/contraseña/nombre + T&C (links a `/{locale}/terminos` y `/{locale}/privacidad`, sin aceptar no se crea) + **tz del browser** (`Intl…timeZone`) con fallback fijo `"UTC"` (IANA válido → pasa `timezoneSchema`; el owner ajusta horario luego en `/settings`).
+- **Submit + estados post-falla:** `onSubmit(input, credentials)` → `created` (pantalla de éxito con la URL **subdominio sin path**, regla de memoria) / `slug_taken` (aviso calmo + vuelve al Paso 1) / `invalid` (aviso calmo, red de seguridad — el dominio ya valida client-side) / throw (aviso calmo de error). Avisos `aria-live` tranquilos, nunca alarmistas (cozytech). **Idempotencia por ref** (`submittingRef`): doble click no dispara dos submits aunque el estado no haya re-renderizado — test bloqueante.
+- **Seam-split (decisión consciente, sin desvío, mismo patrón S5b/S4b/S8a):** el wizard recibe el submit por prop `onSubmit: WizardSubmit`; la ruta cablea el Server Action vivo `createPlaceAction` (patrón canónico Server→Client), los tests inyectan un fake. El Server Action arrastra `next/headers`+Neon → no es vitest-testeable; su correctitud es tipo/build + preview. La máquina de estado pura (validaciones, navegación, ramificación de submit) está 100% TDD-cubierta. No viola "TDD en el core": el core acá es la máquina, no el glue del SDK.
+- **Ruta** `src/app/(marketing)/[locale]/crear/page.tsx` (Server Component: traduce el namespace `wizard` → `labels`, mapea `PALETTE_PRESET_IDS`→nombres, inyecta root domain de `NEXT_PUBLIC_APP_URL`, pasa `createPlaceAction` como `onSubmit`). Bajo `(marketing)/[locale]` → hereda `<html>`/skip-link del layout (S7); SSG en los 4 locales. i18n: namespace `wizard` en `es.json` (en/fr/pt caen a es, como el resto).
+- **Repunte de CTAs — corrección de alcance consciente (production-minded, NO desvío de ADR):** el plan nombraba 3 CTAs (hero/nav/cta-final) pero la landing tiene el **mismo** CTA primario "Creá tu place" también en `pricing`/`para-quien`/`como-funciona`. Dejar algunos en `/login` (placeholder "acceso no disponible") mientras otros van a `/crear` sería un gap de producto (landing inconsistente). Se repuntaron **todos** los CTAs primarios `/login`→`/crear` (cambio mecánico idéntico, sin riesgo). `/login` queda sólo como la vía "Acceso" diferida (S9).
+- **Guardrail (compliance ADR-0005 §7/§8):** los presets son AA-limpios (no se envían defaults rotos — cozytech); el aviso calmo de `PlacePreview`/`SuccessPanel` dispara sólo ante un ajuste del token **persistido `ink`** (`accentStrong` es derivado de render, no se persiste, no se avisa). La mecánica se prueba directa en `place-preview.test.tsx` (ink no-AA → avisa; Papel → no avisa). Defensa en profundidad para S10 (paleta LLM) y un futuro picker libre.
+- **Límite de archivo (CLAUDE.md ≤300, dividir antes de seguir):** el wizard real superó 300 líneas → se dividió en piezas de la misma slice: `use-place-wizard.ts` (máquina de estado), `wizard-steps.tsx` (cuerpos de los 3 pasos), `wizard-success.tsx` (pantalla de éxito), `wizard-labels.ts` (tipos/contratos), `place-wizard.tsx` (orquestador de render). Todos ≤300; feature onboarding total < 1500.
+
+**Cierre verde:** `pnpm test` **152/152** (18 files, +10 vs S8a) · `pnpm typecheck` limpio · `pnpm lint` 0 problemas · `pnpm build` verde (`● /[locale]/crear` SSG 4 locales, landing intacta, `ƒ /api/auth/[...path]`, `○ /inbox`, `ƒ /place/[placeSlug]`, `ƒ Proxy`). **Verificación viva pendiente (anotada, NO localhost):** submit place-first end-to-end (signUp→token→`create_place`, cookie cross-subdominio) → preview Vercel, junto con la verificación diferida de S5b/S4b. Archivos: `src/features/onboarding/ui/{place-wizard.tsx,use-place-wizard.ts,wizard-steps.tsx,wizard-success.tsx,wizard-labels.ts,palettes.ts}` (nuevos/reescritos), `src/features/onboarding/ui/__tests__/{place-wizard.test.tsx,place-preview.test.tsx}`, `src/features/onboarding/public.ts` (+`PlaceWizard`/tipos/`PALETTE_PRESET_IDS`), `src/app/(marketing)/[locale]/crear/page.tsx` (nuevo), `src/i18n/messages/es.json` (+`wizard`), `src/features/landing/components/{hero,nav,cta-final,pricing,para-quien,como-funciona}.tsx` (CTA→`/crear`).
+
+- Paso 2 (descripción + paleta acotada, default Papel, guardrail avisa ante `ink`); Paso 3 (cuenta + T&C + timezone del browser con fallback fijo). Submit → `createPlaceAction(input, credentials)` modo place-first; estados `created` / `slug_taken` ("creá tu place") / `invalid`. Página `src/app/(marketing)/[locale]/crear/page.tsx` (Server Component: traduce el namespace `wizard` → `labels`, inyecta root domain de env). Repunte de los CTAs de la landing `/login` → `/crear`. i18n `wizard` en `es.json`.
 - **Cierre:** tests de componentes (pasos 2/3 + ramificación de submit); revisión `producto.md` (cozytech) + continuidad visual con la landing; `react-best-practices`; verdes (test+typecheck+lint+build).
 
 ## S9 — Vía "Acceso": login form + account-first + modo authed (frontend + thin)
@@ -212,7 +225,7 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S6 ✅ | Invitación: funciones `SECURITY DEFINER` (preview + accept) | backend/dominio | S3 (patrón), S4b |
 | S7 ✅ | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S5b para servir) |
 | S8a ✅ | Infra test jsdom + shell + Paso 1 + preview | frontend | S5a, S7 |
-| S8b | Pasos 2/3 + submit + ruta + repunte CTA + i18n | frontend | S8a, S5b |
+| S8b ✅ | Pasos 2/3 + submit + ruta + repunte CTA + i18n | frontend | S8a, S5b |
 | S9 | Vía "Acceso" + modo authed | frontend | S4b, S5b, S8 |
 | S10 | Capa LLM propose-only | servicio | S5a |
 

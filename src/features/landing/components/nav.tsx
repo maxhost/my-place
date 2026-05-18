@@ -39,7 +39,7 @@ export async function Nav() {
             </a>
           ))}
           <a
-            href={`/${locale}/login`}
+            href={`/${locale}/crear`}
             className="cta inline-flex min-h-[2.5rem] items-center rounded-lg px-5 text-sm font-medium"
           >
             {t("cta")}
@@ -72,7 +72,7 @@ export async function Nav() {
                 </a>
               ))}
               <a
-                href={`/${locale}/login`}
+                href={`/${locale}/crear`}
                 className="cta mt-2 inline-flex min-h-[2.75rem] items-center justify-center rounded-lg px-5 text-base font-medium"
               >
                 {t("cta")}

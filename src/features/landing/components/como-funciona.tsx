@@ -33,7 +33,7 @@ export async function ComoFunciona() {
 
         <div className="mt-14">
           <a
-            href={`/${locale}/login`}
+            href={`/${locale}/crear`}
             className="cta inline-flex min-h-[3rem] items-center justify-center rounded-lg px-7 text-base font-medium"
           >
             {t("cta")}
