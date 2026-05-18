@@ -23,7 +23,7 @@ Plan de implementación de la tanda de registro (auth + creación de place). **R
 
 ```
 S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3✅ fn create_place ─┐
-                          │                                  ├─> S5a → S5b Saga ─┬─> S8 Wizard ─> S9 Vía "Acceso"
+                          │                                  ├─> S5a✅ → S5b Saga ┬─> S8 Wizard ─> S9 Vía "Acceso"
                           └─> S4 Auth wiring ─────────────────┤                  │
                                                               └─> S6 Inv fn      └─> S10 LLM
               S1 ─> S7 Routing host-based ───────────────────────────────────────┘ (S5b para servir place real)
@@ -83,7 +83,9 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 
 > **No es ADR nueva.** Todo sigue dentro de ADR-0005 §2/§4 (saga ordenada, falla parcial controlada), ADR-0008 (dos modos) y ADR-0012 §3/§4 (la tx de `public` = `SELECT app.create_place(...)`, 3 inserts atómicos dentro de la función). Los 3 puntos no triviales abajo son **diagnose-before-implement / cumplimiento**, no desvíos.
 
-### S5a — Dominio puro (backend/dominio, TDD estricto)
+### S5a — Dominio puro (backend/dominio, TDD estricto) ✅ HECHA (2026-05-18)
+
+**Resultado.** TDD estricto (rojo→verde): 3 archivos de test escritos primero, verificados fallando (módulos ausentes), luego implementación. **Zod agregado como dependencia** (`zod@4.4.3`) — ya canónico en `stack.md`/`CLAUDE.md` ("Zod para todo input externo"), no estaba instalado; no es desvío arquitectónico. **Guardrail de contraste = `src/shared/lib/contrast.ts`** (puro, sin red ni DOM, reusable por S8/S10): luminancia relativa + razón de contraste WCAG simétrica, umbral AA texto normal 4.5:1 (mismo que la landing); `applyContrastGuardrail` ajusta **`ink`** sobre `bg` (jamás toca `bg`, el lienzo del owner) y deriva **`accentStrong`** (no se persiste, ADR-0005 §7), reportando cada ajuste — NUNCA lanza ni bloquea aun con par patológico (mejor esfuerzo al extremo de mayor contraste, ADR-0005 §8). La landing deriva `--accent-strong` a mano en CSS (`globals.css`), no como TS reutilizable; importar de `features/landing` está prohibido → versión pura propia, no duplicación. **Slice de onboarding** `src/features/onboarding/domain/`: `schema.ts` (Zod — slug formato label-DNS 3–63 + reservados vía `@/shared/config/reserved-slugs`, paleta hex 3/6→`#rrggbb`, `openingHours` con tz IANA validada por `Intl` + rangos `HH:MM` open<close + los 7 días obligatorios, `createPlaceInput` con name 1–80 / description ≤500→`undefined` si vacía); `defaults.ts` (`PAPEL_PALETTE` = valores de marca de la landing, `defaultOpeningHours(tz)` 09–20 los 7 días, ADR-0007); `build-place.ts` (`buildPlaceCreation`: valida→defaults→guardrail→args canónicos de `app.create_place`; `OnboardingDomainError` mapea `ZodError`, nunca filtra el crudo). La unicidad de slug NO se valida acá — frontera dura = `UNIQUE` de S1 vía S5b. **Cierre verde determinista:** `pnpm test` 93/93, `pnpm typecheck`, `pnpm lint` (0 warnings), `pnpm build` (landing intacta + `ƒ /api/auth/[...path]` + `Proxy (Middleware)`). Archivos: `src/shared/lib/contrast.ts` (nuevo), `src/shared/lib/__tests__/contrast.test.ts` (nuevo, 13 tests), `src/features/onboarding/domain/{schema,defaults,build-place}.ts` (nuevos), `src/features/onboarding/domain/__tests__/{schema,build-place}.test.ts` (nuevos, 27 tests), `package.json`/`pnpm-lock.yaml` (+zod).
 
 **Responsabilidad:** toda la lógica determinística de la saga, sin SDK ni DB viva → 100% unit-testeable en Vitest.
 
@@ -179,7 +181,7 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S3.5 ✅ | Upgrade Next 15→16 (ADR-0013, prereq de S4) | stack/infra | — |
 | S4a ✅ | Core DB/claims/RLS + `ensureAppUser` (TDD, sin Neon Auth vivo) | backend/infra | S2, S3.5 |
 | S4b ✅ | Wiring SDK Neon Auth + route handler + test-guard cookie + doc | backend/infra | S4a |
-| S5a | Saga — dominio puro (Zod/slug/contraste/defaults) | backend/dominio | S3, S4b |
+| S5a ✅ | Saga — dominio puro (Zod/slug/contraste/defaults) | backend/dominio | S3, S4b |
 | S5b | Saga — orquestación dos modos, two-tx (→ `app.create_place`) | backend/dominio | S5a |
 | S6 | Invitación: función `SECURITY DEFINER` de aceptación | backend/dominio | S3 (patrón), S4b |
 | S7 | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S5b para servir) |
