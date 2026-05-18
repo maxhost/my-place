@@ -23,7 +23,7 @@ Plan de implementación de la tanda de registro (auth + creación de place). **R
 
 ```
 S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3✅ fn create_place ─┐
-                          │                                  ├─> S5a✅ → S5b✅ Saga ┬─> S8 Wizard ─> S9 Vía "Acceso"
+                          │                                  ├─> S5a✅ → S5b✅ Saga ┬─> S8a✅/S8b Wizard ─> S9 Vía "Acceso"
                           └─> S4 Auth wiring ─────────────────┤                  │
                                                               └─> S6✅ Inv fn    └─> S10 LLM
               S1 ─> S7✅ Routing host-based ──────────────────────────────────────┘ (S5b para servir place real)
@@ -134,10 +134,30 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 
 ## S8 — Frontend wizard place-first (frontend)
 
-**Responsabilidad:** UI del wizard 3 pasos (CTA). Consume S5b/S7.
+**Responsabilidad:** UI del wizard 3 pasos (CTA). Consume S5b/S7. **Dividida en S8a/S8b** (regla dura `CLAUDE.md` "una sesión = una responsabilidad / >5 archivos núcleo": el wizard real = shell + 3 pasos + preview + guardrail + submit + estados post-falla + ruta + repunte de CTA + i18n + **infra de test de componentes que no existía** (Vitest era Node-only; `tests.md` manda jsdom) → >10 archivos; decisión del owner 2026-05-18, mismo precedente que los splits S4a/b y S5a/b): S8a = infra de test jsdom + shell + Paso 1 + preview en vivo (puro cliente, sin Server Action); S8b = Pasos 2/3 + submit + estados post-falla + ruta + repunte de CTA + i18n.
 
 - Paso 1 nombre+slug (preview + disponibilidad en vivo, no autoritativa — la dura corre en `app.create_place` vía `UNIQUE`). Paso 2 descripción+paleta acotada (preview, default Papel, guardrail avisa) — sin LLM aún (S10). Paso 3 cuenta + T&C + timezone del browser (fallback fijo). Estado client-side hasta submit. Estado "creá tu place" post-falla.
 - **Cierre:** tests de componentes; revisión `producto.md` (cozytech) + continuidad visual con landing; `react-best-practices`.
+
+### S8a — Infra test jsdom + shell + Paso 1 + preview en vivo (frontend) ✅ HECHA (2026-05-18)
+
+**Resultado.** TDD rojo→verde: `slugify.test.ts` (node) + `place-wizard.test.tsx` (jsdom) escritos primero, verificados fallando (módulos ausentes / la infra jsdom cargando), luego implementación.
+
+- **Infra de test de componentes (no existía).** `vitest.config.ts` → dos `projects` (Vitest 4): `node` (DB/RLS, `*.test.ts`, env node, timeouts 30s, `vitest.setup.ts`) y `ui` (componentes, `*.test.tsx`, env jsdom, `vitest.setup.ui.ts`). Separación por extensión → no se arrastra jsdom a la capa DB ni `next/headers`/Neon a la UI. Deps dev: `jsdom`, `@testing-library/{react,dom,jest-dom,user-event}`. JSX automático lo resuelve el transformer por defecto de Vite 8 (oxc) — el `esbuild.jsx` inicial era config muerta (warning) y se quitó (0 warnings).
+- **Determinación de alcance (compliance, NO desvío de ADR, anotada):** la "disponibilidad en vivo del slug" en S8 = feedback de **formato + reservado** en vivo vía `slugSchema` (client-side, sin red). Un pre-check de unicidad contra la DB **no es viable como frontend**: bajo RLS (S2) `place` es owner-only y el usuario place-first aún no tiene cuenta → exigiría una **nueva función `SECURITY DEFINER` `app.slug_available(text)`** (objeto de seguridad backend, su propia TDD/ADR) — fuera de S8. El plan ya califica el chequeo como "no autoritativa — la dura corre en `app.create_place` vía `UNIQUE`" (resultado `slug_taken` de S5b). No es gap: lo dice el propio plan; un pre-check DB queda como sesión backend propia si se quiere.
+- **Decisión arquitectónica (anotada, sin desvío):** el wizard recibe sus textos por prop `labels` (objeto serializable) en vez de `useTranslations`/`NextIntlClientProvider` → sin runtime i18n en el cliente (menor bundle, mismo ethos "Server Component → 0 KB" de la landing) y testeable sin provider; el Server Component de la ruta los traducirá con next-intl en S8b.
+- **Aviso del guardrail = token PERSISTIDO (ADR-0005 §7/§8, diagnose-before-implement):** la paleta de marca Papel **sí** produce un ajuste — `accentStrong` (el accent terracota no llega a 4.5:1 como texto; ya verificado en S5a, por eso la landing tiene `--accent-strong`). Pero `accentStrong` es un **derivado de render que NO se persiste** (ADR-0005 §7) y existe siempre, incluso para el default; avisarlo sería ruido alarmista (cozytech: nada alarma). El aviso calmo del preview dispara sólo ante un ajuste de **`ink`** (token persistido que el owner eligió, ADR-0005 §8 / `build-place.ts`). El test inicial asumía mal "Papel AA → sin ajuste"; se corrigió la **condición del componente** (no el test), análogo al fix de aserción de S7.
+- **Reuso sin duplicar:** validación de slug = `slugSchema` (S5a) reusada en el cliente (es pura: sólo `reserved-slugs` + tipos); preview = `applyContrastGuardrail` (`@/shared/lib/contrast`, S5a). Los colores del place van por CSS inline (configurables por owner), nunca clases Tailwind de color (`CLAUDE.md`); Tailwind sólo layout/spacing, chrome con tokens del producto (text-ink/muted, .cta — continuidad visual con la landing).
+- **Boundary honesto de S8a:** el wizard existe y está testeado pero **no está ruteado** (la ruta `(marketing)/[locale]/crear` y el repunte de los 3 CTAs son S8b) → ningún usuario lo alcanza; "Siguiente" deshabilitado porque S8a define un solo paso (no hay siguiente al que avanzar todavía). No es gap servido: es un slice en progreso no montado (análogo a la saga S5b antes de tener UI).
+
+**Cierre verde:** `pnpm test` **142/142** (17 files, +14: 6 `slugify` + 8 `place-wizard`) · `pnpm typecheck` limpio · `pnpm lint` 0 problemas · `pnpm build` verde (landing SSG 4 locales intacta, `/inbox`, `/place/[placeSlug]`, `ƒ /api/auth/[...path]`, `ƒ Proxy`; sin ruta nueva = boundary S8a). Archivos: `vitest.config.ts` (→ projects node/ui), `vitest.setup.ui.ts` (nuevo), `package.json`/`pnpm-lock.yaml` (+jsdom/RTL dev), `src/features/onboarding/ui/{slugify,place-wizard,place-preview}.tsx?` (nuevos), `src/features/onboarding/ui/__tests__/{slugify.test.ts,place-wizard.test.tsx}` (nuevos).
+
+### S8b — Pasos 2/3 + submit + estados post-falla + ruta + repunte de CTA + i18n (frontend)
+
+**Responsabilidad:** completar el wizard y montarlo. Consume S8a + S5b (`createPlaceAction`) + S7 (zona `(marketing)`).
+
+- Paso 2 (descripción + paleta acotada, default Papel, guardrail avisa ante `ink`); Paso 3 (cuenta + T&C + timezone del browser con fallback fijo). Submit → `createPlaceAction(input, credentials)` modo place-first; estados `created` / `slug_taken` ("creá tu place") / `invalid`. Página `src/app/(marketing)/[locale]/crear/page.tsx` (Server Component: traduce el namespace `wizard` → `labels`, inyecta root domain de env). Repunte de los 3 CTAs de la landing (hero/nav/cta-final) `/login` → `/crear`. i18n `wizard` en `es.json`.
+- **Cierre:** tests de componentes (pasos 2/3 + ramificación de submit); revisión `producto.md` (cozytech) + continuidad visual con la landing; `react-best-practices`; verdes (test+typecheck+lint+build).
 
 ## S9 — Vía "Acceso": login form + account-first + modo authed (frontend + thin)
 
@@ -191,7 +211,8 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S5b ✅ | Saga — orquestación dos modos, two-tx (→ `app.create_place`) | backend/dominio | S5a |
 | S6 ✅ | Invitación: funciones `SECURITY DEFINER` (preview + accept) | backend/dominio | S3 (patrón), S4b |
 | S7 ✅ | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S5b para servir) |
-| S8 | Wizard place-first | frontend | S5b, S7 |
+| S8a ✅ | Infra test jsdom + shell + Paso 1 + preview | frontend | S5a, S7 |
+| S8b | Pasos 2/3 + submit + ruta + repunte CTA + i18n | frontend | S8a, S5b |
 | S9 | Vía "Acceso" + modo authed | frontend | S4b, S5b, S8 |
 | S10 | Capa LLM propose-only | servicio | S5a |
 
