@@ -3,12 +3,9 @@ import { slugSchema } from "@/features/place-creation/public";
 import { isReservedSlug } from "@/shared/config/reserved-slugs";
 import { slugify } from "./slugify";
 
-// use-identity-step.ts — Sub-hook 2/6 de `use-place-wizard`.
-// Paso 1 del wizard: nombre del lugar + slug. Autónomo (no consume otros
-// sub-hooks). `onNameChange` deriva el slug a partir del nombre si el owner
-// aún no editó el slug a mano (`slugTouched`). `slugState` clasifica
-// reservado / inválido / válido (no autoritativo — el `UNIQUE` de DB es la
-// verdad). `isValid` resume el paso para la validez global del wizard.
+// Sub-hook 2/6: Paso 1 (nombre + slug). `onNameChange` deriva el slug si el
+// owner no lo editó (`slugTouched`). `slugState` no es autoritativo — `UNIQUE`
+// de DB es la verdad. Ver mapa en `use-place-wizard.ts`.
 
 export type SlugState = "idle" | "reserved" | "invalid" | "valid";
 
@@ -28,7 +25,7 @@ export function useIdentityStep() {
 
   const { state: slugState, normalized } = classifySlug(slug);
   const nameValid = name.trim().length >= 1 && name.trim().length <= 80;
-  const isValid = nameValid && slugState === "valid";
+  const step1Valid = nameValid && slugState === "valid";
 
   function onNameChange(value: string) {
     setName(value);
@@ -43,7 +40,7 @@ export function useIdentityStep() {
     slugTouched,
     slugState,
     normalized,
-    isValid,
+    step1Valid,
     onNameChange,
     setNameTouched,
     setSlug,

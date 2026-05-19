@@ -1,10 +1,8 @@
 import { useState } from "react";
 
-// use-account-step.ts — Sub-hook 3/6 de `use-place-wizard`.
-// Paso 3 del wizard place-first: cuenta (email + password + nombre + T&C).
-// Autónomo (no consume otros sub-hooks). En modo authed este paso se omite
-// del UI; el orquestador decide qué cuenta para `submitValid`. `isValid`
-// resume el paso (los 4 campos válidos y T&C aceptados).
+// Sub-hook 5/6: Paso 3 (cuenta place-first: email + password + nombre + T&C).
+// En modo authed este paso no se renderiza. `step3Valid` resume el paso (los
+// 4 campos válidos y T&C aceptados). Ver mapa en `use-place-wizard.ts`.
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -21,7 +19,7 @@ export function useAccountStep() {
   const passwordValid = password.length >= 8;
   const displayNameValid =
     displayName.trim().length >= 1 && displayName.trim().length <= 80;
-  const isValid = emailValid && passwordValid && displayNameValid && terms;
+  const step3Valid = emailValid && passwordValid && displayNameValid && terms;
 
   return {
     email,
@@ -34,7 +32,7 @@ export function useAccountStep() {
     displayNameTouched,
     displayNameValid,
     terms,
-    isValid,
+    step3Valid,
     setEmail,
     setEmailTouched,
     setPassword,

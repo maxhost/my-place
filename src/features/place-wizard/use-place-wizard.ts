@@ -82,10 +82,10 @@ export function usePlaceWizard(opts: {
 
   // Validez por paso (cross-domain — se compone acá) + validez del submit
   // (en authed el último paso es Estilo; en place-first es Cuenta).
-  const stepValid = [identity.isValid, !style.descTooLong, account.isValid];
+  const stepValid = [identity.step1Valid, !style.descTooLong, account.step3Valid];
   const submitValid = authed
-    ? identity.isValid && !style.descTooLong
-    : account.isValid;
+    ? identity.step1Valid && !style.descTooLong
+    : account.step3Valid;
 
   const submit = useCreateSubmit({
     authed,
@@ -143,66 +143,26 @@ export function usePlaceWizard(opts: {
       }[submit.notice]
     : null;
 
+  // Spread de los sub-hooks (cada uno expone su superficie pública). Las
+  // wrappers cross-domain (goNext/goBack/choosePreset/setPaletteMode) van
+  // explícitas al final para sobreescribir las versiones planas si las hay.
+  // Los derivados cross-domain (stepValid/submitValid/progress/noticeText/
+  // ids) también explícitos.
   return {
+    ...nav,
+    ...identity,
+    ...style,
+    ...assist,
+    ...account,
+    ...submit,
     ids,
-    currentStep,
-    isLastStep,
     progress,
     noticeText,
-    result: submit.result,
-    submitting: submit.submitting,
-    submitValid,
     stepValid,
-    selectedPalette: style.selectedPalette,
-    name: identity.name,
-    nameTouched: identity.nameTouched,
-    nameValid: identity.nameValid,
-    slug: identity.slug,
-    slugState: identity.slugState,
-    normalized: identity.normalized,
-    description: style.description,
-    descTooLong: style.descTooLong,
-    paletteId: style.paletteId,
-    paletteMode: style.paletteMode,
-    customPalette: style.customPalette,
-    suggestEnabled: assist.suggestEnabled,
-    suggestPhase: assist.suggestPhase,
-    suggestReady: assist.suggestReady,
-    canSuggest: assist.canSuggest,
-    suggestion: assist.suggestion,
-    paletteApplied: assist.paletteApplied,
-    descriptionApplied: assist.descriptionApplied,
-    email: account.email,
-    emailTouched: account.emailTouched,
-    emailValid: account.emailValid,
-    password: account.password,
-    passwordTouched: account.passwordTouched,
-    passwordValid: account.passwordValid,
-    displayName: account.displayName,
-    displayNameTouched: account.displayNameTouched,
-    displayNameValid: account.displayNameValid,
-    terms: account.terms,
-    onNameChange: identity.onNameChange,
-    setNameTouched: identity.setNameTouched,
-    setSlug: identity.setSlug,
-    setSlugTouched: identity.setSlugTouched,
-    setDescription: style.setDescription,
-    setPaletteId: style.setPaletteId,
+    submitValid,
     choosePreset,
     setPaletteMode,
-    setCustomHex: style.setCustomHex,
-    handleSuggest: assist.handleSuggest,
-    applySuggestedPalette: assist.applySuggestedPalette,
-    applySuggestedDescription: assist.applySuggestedDescription,
-    setEmail: account.setEmail,
-    setEmailTouched: account.setEmailTouched,
-    setPassword: account.setPassword,
-    setPasswordTouched: account.setPasswordTouched,
-    setDisplayName: account.setDisplayName,
-    setDisplayNameTouched: account.setDisplayNameTouched,
-    setTerms: account.setTerms,
     goNext,
     goBack,
-    handleSubmit: submit.handleSubmit,
   };
 }

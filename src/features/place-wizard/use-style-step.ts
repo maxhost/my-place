@@ -2,13 +2,9 @@ import { useState } from "react";
 import { hexColorSchema, type Palette } from "@/shared/lib/palette-schema";
 import { DEFAULT_PRESET_ID, PALETTE_PRESETS } from "./palettes";
 
-// use-style-step.ts — Sub-hook 4/6 de `use-place-wizard`.
-// Paso 2 (datos): descripción libre + paleta (modo "preset" o "custom").
-// Autónomo: no consume otros sub-hooks. Expone primitivos de paleta puros
-// (`choosePreset`, `activateCustomFromPreset`, `setCustomHex`) + setters
-// para que la asistencia LLM (`use-style-assist`) aplique su propuesta. El
-// cruce LLM↔preset (envoltorio de `choosePreset` + construcción de
-// `setPaletteMode`) vive en el orquestador `use-place-wizard.ts`.
+// Sub-hook 3/6: Paso 2 (descripción + paleta modo preset/custom). Expone
+// primitivos puros; el cruce LLM↔preset (envoltorio de choosePreset +
+// setPaletteMode) vive en el orquestador. Ver mapa en `use-place-wizard.ts`.
 
 type PaletteMode = "preset" | "custom";
 

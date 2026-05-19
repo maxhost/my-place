@@ -6,15 +6,10 @@ import type {
 } from "@/features/place-creation/public";
 import type { WizardSignUp, WizardSubmit } from "./wizard-labels";
 
-// use-create-submit.ts — Sub-hook 6/6 de `use-place-wizard`.
-// Orquesta el submit two-phase del wizard (ADR-0018):
-//   FASE 1 (place-first): `onCreateAccount(credentials)` — crea identidad y
-//   setea la cookie de sesión. Sin "ok" no seguimos (sin sesión la FASE 2 no
-//   podría obtener el JWT). En authed la sesión ya existe → se salta.
-//   FASE 2: `onSubmit(input)` — crea el place en modo authed (`auth.token()`).
-// El `notice` vive acá (su dueño natural — `handleSubmit` lo setea); el
-// orquestador envuelve `goNext`/`goBack` para llamar `clearNotice()`.
-// `detectTimezone()` se mueve acá (sólo `handleSubmit` lo usa al armar input).
+// Sub-hook 6/6: submit two-phase (ADR-0018). FASE 1 onCreateAccount establece
+// cookie; FASE 2 onSubmit crea el place authed (auth.token() lee la cookie).
+// authed se salta FASE 1. `notice` vive acá; orquestador llama clearNotice
+// desde goNext/goBack. Ver mapa en `use-place-wizard.ts`.
 
 type Notice = "slug_taken" | "invalid" | "error" | "account" | null;
 

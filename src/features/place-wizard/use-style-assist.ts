@@ -3,15 +3,10 @@ import type { StyleSuggestion } from "@/features/style-assist/public";
 import type { Palette } from "@/shared/lib/palette-schema";
 import type { WizardSuggest } from "./wizard-labels";
 
-// use-style-assist.ts — Sub-hook 5/6 de `use-place-wizard`.
-// Máquina de la isla LLM propose-only (ADR-0005 §5-§6 / ADR-0007). Recibe
-// la `description` para gating + los setters de `use-style-step`
-// (`setCustomPalette`, `setDescription`) para aplicar lo que el owner
-// confirme. NUNCA auto-aplica (propose-only); falla del LLM degrada elegante
-// a `unavailable` (sin romper el wizard). El cruce inverso —resetear
-// `paletteApplied` cuando el owner elige un preset a mano— se expone como
-// `resetPaletteApplied()` y el orquestador lo cablea via ref-dispatch
-// (`onPresetChosen` de `use-style-step`).
+// Sub-hook 4/6: máquina de la isla LLM propose-only (ADR-0005 §5-§6).
+// Recibe description (gating) + setters de use-style-step (aplicar propuesta).
+// NUNCA auto-aplica; falla → unavailable (no rompe wizard). `resetPaletteApplied`
+// lo consume el orquestador para el cruce. Ver mapa en `use-place-wizard.ts`.
 
 type SuggestPhase = "idle" | "loading" | "ready" | "unavailable";
 

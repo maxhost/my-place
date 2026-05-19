@@ -1,11 +1,7 @@
 import { useState } from "react";
 
-// use-wizard-nav.ts — Sub-hook 1/6 de `use-place-wizard`.
-// Navegación entre los pasos del wizard place-first (Paso 1/2/3, o 1/2 en
-// modo authed). Autónomo: no consume otros sub-hooks. El orquestador
-// (`use-place-wizard.ts`) envuelve `goNext`/`goBack` para sumar el guard de
-// validez del paso y la limpieza de `notice` del submit (cruces documentados
-// en el header del orquestador).
+// Sub-hook 1/6: navegación entre pasos. El orquestador envuelve goNext/goBack
+// para guard de validez + limpiar notice. Ver mapa en `use-place-wizard.ts`.
 
 export function useWizardNav(stepCount: number) {
   const [currentStep, setCurrentStep] = useState(0);
