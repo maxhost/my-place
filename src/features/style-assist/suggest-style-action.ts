@@ -13,9 +13,13 @@ import { type StyleSuggestionResult, suggestStyle } from "./suggest-style";
 
 // Modelo: punto ÚNICO de cambio. String `"provider/model"` plano → Vercel AI
 // Gateway (default Vercel; `AI_GATEWAY_API_KEY` en env, no se ata a un paquete
-// de proveedor). Chico/rápido con structured output sólido; ADR-0005 mandaba
-// fijar el modelo concreto al implementar (TBD cerrado acá).
-const LLM_MODEL = "openai/gpt-4o-mini";
+// de proveedor — cambiar de proveedor NO requiere key nueva). Haiku 4.5:
+// chico/rápido con structured output sólido, de sobra para proponer 3 hex +
+// 1–2 frases (el dominio re-valida con Zod + guardrail igual). ADR-0005
+// mandaba fijar el modelo concreto al implementar (TBD cerrado). El slug
+// exacto del Gateway se verifica en preview Vercel (seam-split): si fuera
+// inválido, la saga degrada a `unavailable` sin romper el wizard.
+const LLM_MODEL = "anthropic/claude-haiku-4-5";
 
 // Forma de generación PLANA (sin transforms): JSON-schema limpio para el
 // structured output. El dominio (`parseStyleSuggestion`) re-valida estricto y
