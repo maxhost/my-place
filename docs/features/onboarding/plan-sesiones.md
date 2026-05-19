@@ -25,7 +25,7 @@ Plan de implementación de la tanda de registro (auth + creación de place). **R
 S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3✅ fn create_place ─┐
                           │                                  ├─> S5a✅ → S5b✅ Saga ┬─> S8a✅/S8b✅ Wizard ─> S9✅ Vía "Acceso" ─> S9.5✅ Split slice
                           └─> S4 Auth wiring ─────────────────┤                  │
-                                                              └─> S6✅ Inv fn    └─> S10 LLM
+                                                              └─> S6✅ Inv fn    └─> S10a LLM svc ─> S10b isla
               S1 ─> S7✅ Routing host-based ──────────────────────────────────────┘ (S5b para servir place real)
 ```
 
@@ -207,10 +207,26 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 
 ## S10 — Capa LLM propose-only (servicio + isla mínima)
 
-**Responsabilidad:** asistencia LLM (ADR-0005 §5 / ADR-0007). Paralelizable tras S5a.
+**Responsabilidad:** asistencia LLM (ADR-0005 §5 / ADR-0007). Paralelizable tras S5a. **Dividida en S10a/S10b** (regla dura `CLAUDE.md` "una sesión = una responsabilidad / >5 archivos núcleo o mezcla backend con frontend": el título mismo dice "servicio **+** isla" = dos responsabilidades; ~15 archivos cruzando backend/TDD-de-dominio con frontend; decisión del owner 2026-05-18, mismo precedente que los splits S4a/b, S5a/b, S8a/b). **Sin ADR nueva:** el LLM ya está decidido en ADR-0005 §5 (propose-only, Vercel AI Gateway, salida Zod, confirmación humana) + ADR-0007 (sin horario); fijar el modelo concreto y sumar el paquete `ai` son TBD-de-implementación que esas ADR mandan cerrar al implementar (mismo estatus que Zod en S5a, no es desvío).
 
-- Cliente Vercel AI Gateway (`AI_GATEWAY_API_KEY`, modelo chico — fijar acá). Salida Zod `{ palette:{accent,bg,ink}, descriptionDraft }` — **sin horario** (ADR-0007). Propose-only (nada se auto-aplica); guardrail de contraste también sobre la paleta propuesta. Degradación elegante si el LLM falla.
-- **Cierre:** parser Zod rechaza malformado; nunca persiste sin confirmación; sin horario; guardrail aplicado.
+- S10a = servicio LLM: dominio Zod de la propuesta + guardrail de contraste sobre la paleta propuesta + saga pura (puerto LLM inyectado, TDD estricto) + Server Action (seam-split del wiring vivo del Gateway) + `public.ts` + dependencia `ai`.
+- S10b = isla mínima propose-only en el wizard (Step 2 "Estilo"): componente que pide la sugerencia, la muestra y deja al owner aplicar cada parte a mano (nada auto-aplicado) + estado + labels + i18n.
+
+### S10a — Servicio LLM: dominio + saga + Server Action (backend/servicio, TDD estricto)
+
+**Comportamiento esperado.** Cliente Vercel AI Gateway (`AI_GATEWAY_API_KEY`, modelo chico/rápido con structured output — constante única swappable, `"provider/model"` plano por el Gateway). Salida Zod `{ palette:{accent,bg,ink}, descriptionDraft }` — **sin horario** (ADR-0007). El dominio re-valida la salida del modelo (defensa en profundidad: normaliza hex + rechaza malformado), aplica el guardrail de contraste a la paleta propuesta (reusa `applyContrastGuardrail`, S5a) y devuelve la propuesta accesible — **nada se persiste** (propose-only; el owner confirma en S10b). Saga pura con el puerto LLM inyectado (seam-split como S5b: el wiring vivo del Gateway se verifica por tipo/build + preview, NO vitest — arrastra `ai` + red). **Degradación elegante:** si el modelo lanza o devuelve malformado → resultado discriminado `unavailable`, NUNCA throw que rompa el wizard.
+
+- **Cierre:** parser Zod rechaza malformado (→ `unavailable`); descripción vacía no gasta llamada; guardrail aplicado a la paleta propuesta; sin horario; el servicio nunca persiste ni lanza al caller.
+
+**Resultado (2026-05-18, con deuda estructural abierta — ver ⚠️).** TDD estricto (rojo→verde): 2 archivos de test escritos primero, verificados fallando (módulos ausentes), luego implementación. **Dependencia `ai@6` agregada** (cliente del Vercel AI Gateway — ya canónico en `stack.md`/ADR-0005, mismo estatus que Zod en S5a, no es desvío). **Dominio** `domain/style-suggestion.ts`: `styleSuggestionSchema` (Zod — `paletteSchema` reusado normaliza/rechaza hex; `descriptionDraft` trim + 1–500, tope alineado con `createPlaceInput.description`), `parseStyleSuggestion` re-valida la salida CRUDA del modelo (defensa en profundidad — nunca se confía en el LLM), aplica `applyContrastGuardrail` (S5a) y devuelve la propuesta accesible; `StyleSuggestionError` jamás filtra el `ZodError` crudo. **Saga** `suggest-style.ts`: orquestación pura con el puerto `StyleSuggester` (`ports.ts`) inyectado; descripción vacía/no-string → `unavailable` sin gastar llamada; input acotado a 2000; cualquier throw/malformado → `unavailable` (degradación elegante, ADR-0005 §5 — NUNCA propaga). **Server Action** `suggest-style-action.ts` (`"use server"`): wiring vivo del Gateway vía `generateObject`, **modelo fijado = `openai/gpt-4o-mini`** (constante única swappable, `"provider/model"` plano — TBD de ADR-0005 cerrado acá), forma de generación plana (JSON-schema limpio; el dominio re-valida estricto), seam-split como `actions.ts` (correctitud por tipo/build + preview, NO vitest — arrastra `ai` + red). `public.ts` expone `suggestStyleAction` + `StyleSuggestionResult`/`StyleSuggestion`/`SuggestStyle` (seam para S10b). **Cierre verde:** `pnpm test` 179/179 (no cambia comportamiento existente), `pnpm typecheck`, `pnpm lint` (0 problems), `pnpm build` (login/crear/terminos/privacidad SSG ×4 locales + `ƒ /api/auth/[...path]` + `Proxy` intactos). Archivos: `src/features/place-creation/domain/style-suggestion.ts` (nuevo), `src/features/place-creation/domain/__tests__/style-suggestion.test.ts` (nuevo, 9 tests), `src/features/place-creation/suggest-style.ts` (nuevo), `src/features/place-creation/__tests__/suggest-style.test.ts` (nuevo, 8 tests), `src/features/place-creation/suggest-style-action.ts` (nuevo, seam), `src/features/place-creation/ports.ts` (+`StyleSuggester`), `src/features/place-creation/public.ts` (+exports LLM), `package.json`/`pnpm-lock.yaml` (+`ai`).
+
+> ⚠️ **Deuda estructural abierta.** Tras S10a el slice `src/features/place-creation/` totaliza **1544 líneas (no-test) > 1500** (límite duro `CLAUDE.md` § Límites / `architecture.md` §37). No se improvisa: el trabajo funcional de S10a se cierra verde y se commitea como rollback, y la decisión (extraer la asistencia LLM a su propio slice consumido por el wizard vía `public.ts` — mismo patrón `access`→`place-creation` de ADR-0014) se eleva al owner como **sesión propia ADR-backed antes de S10b** ("dividir antes de continuar"; mismo precedente exacto que S9 → S9.5). S10b (que sumaría UI a este slice) NO arranca hasta resolverlo.
+
+### S10b — Isla mínima propose-only en el wizard (frontend)
+
+**Comportamiento esperado.** En el Paso 2 (Estilo), botón calmo (`producto.md` cozytech: nada grita) que pide la sugerencia con la descripción libre; muestra paleta propuesta + borrador de descripción; el owner aplica cada parte explícitamente (propose-only, ADR-0005 §6 — nada auto-aplicado). Si el servicio devuelve `unavailable`, aviso tranquilo que no bloquea (sigue editando a mano). Seam-split: el Server Action vivo se inyecta como prop en la ruta (como `onSubmit`); el flujo se testea con fakes (jsdom, S8a).
+
+- **Cierre:** nada se auto-aplica (el owner confirma cada parte); `unavailable` degrada sin bloquear; sin horario en la UI.
 
 ---
 
@@ -254,7 +270,8 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S8b ✅ | Pasos 2/3 + submit + ruta + repunte CTA + i18n | frontend | S8a, S5b |
 | S9 ✅ | Vía "Acceso" + modo authed | frontend | S4b, S5b, S8 |
 | S9.5 ✅ | Split slice `onboarding` → `place-creation` + `access` (ADR-0014; cierra deuda 1885>1500) | refactor | S9 |
-| S10 | Capa LLM propose-only | servicio | S5a |
+| S10a ✅ | Capa LLM — servicio (dominio Zod + guardrail + saga TDD + Server Action seam + dep `ai`) — ⚠️ deuda 1544>1500 (slice extraído pendiente) | backend/servicio | S5a |
+| S10b | Capa LLM — isla mínima propose-only en el wizard | frontend | S10a, S8b |
 
 Diferido a sesión propia posterior: `/settings` + gate email, UI `/invite/{token}`, directorio, gate de horario.
 
