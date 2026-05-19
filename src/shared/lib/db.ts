@@ -1,7 +1,5 @@
-import type { PoolClient } from "@neondatabase/serverless";
 import { pool } from "@/db/client";
 import { type VerifiedClaims, verifyAccessToken } from "./jwt";
-import { tagStep } from "./obs";
 
 // Ejecutor SQL parametrizado (posicional, estilo node-postgres) sobre la tx
 // autenticada. Los seams de seguridad (ensureAppUser, aceptación de
@@ -18,25 +16,15 @@ export type SqlExecutor = (
 // rol `app_system`, inyecta los claims COMPLETOS tx-local
 // (`set_config('request.jwt.claims', …, true)` — `true` OBLIGATORIO: con el
 // pooler de Neon omitirlo filtraría identidad entre requests) y corre `fn`.
-// Las policies leen app.current_user_id() (->>'sub'). El token lo provee el
-// caller vía `auth.getAccessToken()` (Neon Auth) — wiring del SDK en S4b.
+// Las policies leen app.current_user_id() (->>'sub'). El JWT lo provee el
+// caller vía `auth.token()` de Neon Auth (NO `getAccessToken`, que es OAuth;
+// ni el token de sesión opaco) — verificado en preview 2026-05-19.
 export async function getAuthenticatedDb<T>(
   accessToken: string,
   fn: (sql: SqlExecutor, claims: VerifiedClaims) => Promise<T>,
 ): Promise<T> {
-  let claims: VerifiedClaims;
-  try {
-    claims = await verifyAccessToken(accessToken);
-  } catch (err) {
-    throw tagStep(err, "db:verifyToken");
-  }
-
-  let client: PoolClient;
-  try {
-    client = await pool.connect();
-  } catch (err) {
-    throw tagStep(err, "db:poolConnect");
-  }
+  const claims = await verifyAccessToken(accessToken);
+  const client = await pool.connect();
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('request.jwt.claims', $1, true)", [
@@ -49,7 +37,7 @@ export async function getAuthenticatedDb<T>(
     return result;
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
-    throw tagStep(err, "db:tx");
+    throw err;
   } finally {
     client.release();
   }

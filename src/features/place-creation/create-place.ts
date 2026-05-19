@@ -1,6 +1,5 @@
 import type { ContrastAdjustment } from "@/shared/lib/contrast";
 import { ensureAppUser } from "@/shared/lib/ensure-app-user";
-import { tagStep } from "@/shared/lib/obs";
 import {
   OnboardingDomainError,
   type PlaceCreationArgs,
@@ -61,12 +60,7 @@ export async function createPlace(
 
   // 2. Identidad (borde cross-system, ADR-0005 §2). Si falla `signUp` acá,
   //    no se creó nada y no se llega a la DB.
-  let ident: Awaited<ReturnType<typeof ports.acquireIdentity>>;
-  try {
-    ident = await ports.acquireIdentity();
-  } catch (err) {
-    throw tagStep(err, "saga:acquireIdentity");
-  }
+  const ident = await ports.acquireIdentity();
 
   // 3. TX 1 — ensureAppUser commitea en su PROPIA tx. Compartir tx con
   //    create_place haría que el rollback de slug-dup borre el `app_user`
@@ -74,17 +68,13 @@ export async function createPlace(
   //    Identidad = `claims.sub` VERIFICADO (lo que RLS lee), NO el user.id de
   //    la respuesta de signUp → si difirieran, `au_self` rechaza y luego
   //    `app.create_place` caería en P0002.
-  try {
-    await ports.runAuthedTx(ident.accessToken, (sql, claims) =>
-      ensureAppUser(sql, {
-        authUserId: claims.sub,
-        email: ident.email,
-        displayName: ident.displayName,
-      }),
-    );
-  } catch (err) {
-    throw tagStep(err, "saga:tx1-ensureAppUser");
-  }
+  await ports.runAuthedTx(ident.accessToken, (sql, claims) =>
+    ensureAppUser(sql, {
+      authUserId: claims.sub,
+      email: ident.email,
+      displayName: ident.displayName,
+    }),
+  );
 
   // 4. TX 2 — `app.create_place` en tx SEPARADA. Sus 3 inserts son atómicos
   //    DENTRO de la función (ADR-0012 §3); si falla, sólo rollbackea esta tx.
@@ -113,6 +103,6 @@ export async function createPlace(
     // place", sin error fatal. Cualquier otro fallo propaga: la cuenta
     // persiste igual por construcción ("cuenta sin place").
     if (isUniqueViolation(err)) return { status: "slug_taken" };
-    throw tagStep(err, "saga:tx2-create_place");
+    throw err;
   }
 }

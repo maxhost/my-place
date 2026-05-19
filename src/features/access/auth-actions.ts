@@ -1,7 +1,6 @@
 "use server";
 
 import { getAuth } from "@/shared/lib/auth";
-import { onbLine } from "@/shared/lib/obs";
 import type { AccessCredentials, AccessResult } from "./ui/access-labels";
 
 // Borde cross-system de la vía "Acceso" (S9, ADR-0008/0009). Es el wiring
@@ -52,17 +51,11 @@ export async function signUpAccountAction(
       password: c.password,
       name: c.displayName,
     });
-    // `data.token` (token de sesión) presente = signUp OK + cookie seteada.
-    if (error || !data?.token) {
-      const e = error as { status?: unknown; message?: string } | null;
-      console.error(
-        `[onb] FAIL:signup|${String(e?.status ?? "")}|signUpAccount|${e?.message ?? "sin token"}`,
-      );
-      return { status: "signup_failed" };
-    }
+    // `data.token` (token de sesión) presente = signUp OK + cookie seteada
+    // en la respuesta; el JWT lo obtiene la request siguiente (create authed).
+    if (error || !data?.token) return { status: "signup_failed" };
     return { status: "ok" };
-  } catch (err) {
-    console.error(onbLine(err));
+  } catch {
     return { status: "signup_failed" };
   }
 }

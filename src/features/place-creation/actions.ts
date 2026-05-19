@@ -2,7 +2,6 @@
 
 import { getAuth } from "@/shared/lib/auth";
 import { getAuthenticatedDb } from "@/shared/lib/db";
-import { onbLine, tagStep } from "@/shared/lib/obs";
 import { type CreatePlaceResult, createPlace } from "./create-place";
 import type { AcquireIdentity } from "./ports";
 
@@ -46,11 +45,8 @@ async function acquireSessionJwt(): Promise<string> {
   ).token()) as SessionJwtResult;
   const token = res.data?.token;
   if (typeof token !== "string" || token.length === 0) {
-    throw tagStep(
-      new Error(
-        `auth.token sin JWT data=${!!res.data} status=${String(res.error?.status ?? "")} msg=${res.error?.message ?? ""}`,
-      ),
-      "jwt:token-endpoint",
+    throw new Error(
+      `Neon Auth no devolvió JWT (auth.token): status=${String(res.error?.status ?? "")} ${res.error?.message ?? ""}`,
     );
   }
   return token;
@@ -65,10 +61,7 @@ function sessionIdentity(): AcquireIdentity {
   return async () => {
     const { data } = await getAuth().getSession();
     if (!data?.session) {
-      throw tagStep(
-        new Error("getSession sin sesión vigente"),
-        "authed:no-session",
-      );
+      throw new Error("Neon Auth: no hay sesión vigente (getSession)");
     }
     return {
       accessToken: await acquireSessionJwt(),
@@ -86,17 +79,8 @@ function sessionIdentity(): AcquireIdentity {
 export async function createPlaceAction(
   input: unknown,
 ): Promise<CreatePlaceResult> {
-  try {
-    return await createPlace(input, {
-      acquireIdentity: sessionIdentity(),
-      runAuthedTx: getAuthenticatedDb,
-    });
-  } catch (err) {
-    // DIAGNÓSTICO TEMPORAL: única línea, veredicto adelante (el visor de
-    // Vercel trunca ~30 chars y muestra solo la 1ª línea del request).
-    console.error(
-      `${onbLine(err)} | envs db=${!!process.env.DATABASE_URL} jwks=${!!process.env.NEON_AUTH_JWKS_URL} base=${!!process.env.NEON_AUTH_BASE_URL}`,
-    );
-    throw err;
-  }
+  return createPlace(input, {
+    acquireIdentity: sessionIdentity(),
+    runAuthedTx: getAuthenticatedDb,
+  });
 }
