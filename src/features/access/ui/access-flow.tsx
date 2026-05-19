@@ -1,8 +1,11 @@
 "use client";
 
+import {
+  PlaceWizard,
+  type WizardLabels,
+  type WizardSubmit,
+} from "@/features/place-creation/public";
 import type { AccessLabels, AccessSubmit } from "./access-labels";
-import { PlaceWizard } from "./place-wizard";
-import type { WizardLabels, WizardSubmit } from "./place-wizard";
 import { useAccessForm } from "./use-access-form";
 
 // Vía "Acceso" (S9, ADR-0008/0009): form account-first (login | signup) →

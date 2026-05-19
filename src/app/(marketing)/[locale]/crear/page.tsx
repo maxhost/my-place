@@ -5,7 +5,7 @@ import {
   PlaceWizard,
   type WizardLabels,
   createPlaceAction,
-} from "@/features/onboarding/public";
+} from "@/features/place-creation/public";
 
 // Ruta de la vía place-first (CTA de la landing). Server Component: traduce
 // el namespace `wizard` → `labels` (el wizard no carga runtime i18n en

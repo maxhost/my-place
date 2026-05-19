@@ -4,12 +4,14 @@ import {
   AccessFlow,
   type AccessLabels,
   type AccessSubmit,
+  loginAction,
+  signUpAccountAction,
+} from "@/features/access/public";
+import {
   PALETTE_PRESET_IDS,
   type WizardLabels,
   createPlaceAction,
-  loginAction,
-  signUpAccountAction,
-} from "@/features/onboarding/public";
+} from "@/features/place-creation/public";
 
 // Ruta de la vía "Acceso" (S9, ADR-0008/0009): item distinto del CTA. Server
 // Component: traduce los namespaces `access` (form/elección) y `wizard`

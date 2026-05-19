@@ -1,9 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import type {
+  WizardLabels,
+  WizardSubmit,
+} from "@/features/place-creation/public";
 import { AccessFlow } from "../access-flow";
 import type { AccessLabels, AccessSubmit } from "../access-labels";
-import type { WizardLabels, WizardSubmit } from "../place-wizard";
 
 // Tests de componente de la vía "Acceso" (S9, ADR-0008/0009): form
 // account-first (login | signup) → elección post-auth ("Crear mi place"

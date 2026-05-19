@@ -1,4 +1,4 @@
-import type { PlaceFirstCredentials } from "./wizard-labels";
+import type { PlaceFirstCredentials } from "@/features/place-creation/public";
 
 // Tipos/contratos de la vía "Acceso" (S9, ADR-0008/0009). Separados del
 // componente para no exceder el límite de archivo (CLAUDE.md ≤300) y para que

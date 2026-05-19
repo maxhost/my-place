@@ -23,7 +23,7 @@ Plan de implementación de la tanda de registro (auth + creación de place). **R
 
 ```
 S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3✅ fn create_place ─┐
-                          │                                  ├─> S5a✅ → S5b✅ Saga ┬─> S8a✅/S8b✅ Wizard ─> S9✅ Vía "Acceso"
+                          │                                  ├─> S5a✅ → S5b✅ Saga ┬─> S8a✅/S8b✅ Wizard ─> S9✅ Vía "Acceso" ─> S9.5✅ Split slice
                           └─> S4 Auth wiring ─────────────────┤                  │
                                                               └─> S6✅ Inv fn    └─> S10 LLM
               S1 ─> S7✅ Routing host-based ──────────────────────────────────────┘ (S5b para servir place real)
@@ -187,9 +187,23 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 
 **Cierre verde:** `pnpm test` **162/162** (19 files, +10 vs S8b) · `pnpm typecheck` limpio · `pnpm lint` 0 problemas · `pnpm build` verde (`● /[locale]/login` SSG 4 locales, `/crear` + landing intactas, `ƒ /api/auth/[...path]`, `○ /inbox`, `ƒ /place/[placeSlug]`, `ƒ Proxy`). **Verificación viva pendiente (anotada, NO localhost):** login/signup + modo authed end-to-end (cookie de sesión cross-subdominio, token JWKS-verificable) → preview Vercel, junto con la deuda de S5b/S4b/S8b. Archivos: `src/features/onboarding/ui/{access-flow.tsx,use-access-form.ts,access-labels.ts}` (nuevos), `src/features/onboarding/auth-actions.ts` (nuevo), `src/features/onboarding/ui/{place-wizard.tsx,use-place-wizard.ts,wizard-labels.ts}` (modo authed), `src/features/onboarding/public.ts`, `src/app/(marketing)/[locale]/login/page.tsx` (reescrito), `src/features/landing/components/nav.tsx` (item Acceso), `src/i18n/messages/es.json` (`access` + `nav.acceso`), tests `access-flow.test.tsx` (nuevo) + `place-wizard.test.tsx` (extendido).
 
-> ⚠️ **Deuda estructural abierta (límite duro CLAUDE.md, NO se improvisa).** Tras S9 el slice `src/features/onboarding/` totaliza **1885 líneas (no-test) > 1500** (límite duro `CLAUDE.md` § Límites / `architecture.md` §37/§189). Todos los archivos individuales están ≤300 y la función ≤60; lo que se excede es el **slice completo**. Partir un vertical slice en dos es **decisión arquitectónica** → `CLAUDE.md` manda pausar y consultar + ADR antes de implementar; **no se hace dentro de S9** (cruza capas, >5 archivos, mueve archivos). El trabajo funcional de S9 está completo y verde y se commitea como punto de rollback; la resolución (split del slice en `place-creation` + `access`, o excepción documentada por ADR) es **su propia sesión ADR-backed ANTES de S10** ("dividir antes de continuar"). Pendiente de decisión del owner.
+> ✅ **Deuda estructural CERRADA por S9.5 (ADR-0014, 2026-05-18).** Tras S9 el slice `src/features/onboarding/` totalizaba **1885 líneas (no-test) > 1500** (límite duro `CLAUDE.md` § Límites / `architecture.md` §37/§189). No se improvisó: el trabajo funcional de S9 se cerró verde y se commiteó como rollback (`a073c09`), la decisión se elevó al owner (opción A: split en dos slices) y se ejecutó como **sesión propia ADR-backed** (S9.5, ver abajo) **antes de S10** ("dividir antes de continuar").
 
 - **Cierre:** tests del form + ramificación; modo authed no re-pide cuenta.
+
+## S9.5 — Split del slice `onboarding` en `place-creation` + `access` ✅ HECHA (2026-05-18, ADR-0014)
+
+**Objetivo.** Cerrar la deuda estructural de S9 (slice 1885 > 1500, límite duro) partiendo `src/features/onboarding/` en dos vertical slices, **sin cambio de comportamiento** (la suite de 162 tests es la red de regresión del refactor).
+
+**Resultado.** **ADR-0014 escrita ANTES de implementar** (decisión arquitectónica → `CLAUDE.md` › Ante una desviación; rollback point `a073c09`). Diagnóstico previo por `grep` (no asumido): el grafo ya era unidireccional y acíclico. Ejecutado con **`git mv`** (preserva historial; precedente S7):
+
+- **`src/features/place-creation/`** (dominio + saga + wizard, **1370** no-test): `actions.ts`, `create-place.ts`, `ports.ts`, `domain/{schema,build-place,defaults}.ts`, `ui/{place-wizard,use-place-wizard,wizard-labels,wizard-steps,wizard-success,place-preview,slugify,palettes}` + `__tests__`. `public.ts` → `createPlaceAction`, `PlaceFirstCredentials`, `CreatePlaceResult`, `CreatePlaceInput`, `PlaceWizard`, `WizardLabels`, `WizardSubmit`, `PALETTE_PRESET_IDS`.
+- **`src/features/access/`** (vía "Acceso", **517** no-test): `auth-actions.ts`, `ui/{access-flow,use-access-form,access-labels}` + `ui/__tests__/access-flow.test.tsx`. `public.ts` → `AccessFlow`, `AccessLabels`, `AccessSubmit`, `loginAction`, `signUpAccountAction`.
+- **`access` → `place-creation` solo vía su `public.ts`** (primer feature→feature del repo; unidireccional, sin ciclo — `architecture.md` §21/§25, ADR-0014). `place-creation` no conoce a `access`.
+- Rutas re-apuntadas: `crear/page.tsx` → `@/features/place-creation/public`; `login/page.tsx` importa de **ambos** `public.ts`.
+- **Fix de infra (no cambio de comportamiento):** consumir `place-creation/public` desde el cliente arrastra `createPlaceAction` → `@/shared/lib/auth` → `@neondatabase/auth` → `next/headers`, que NO resuelve en jsdom (la config ya documenta "no arrastrar `next/headers`/Neon a la capa UI"). Resuelto fakeando el shim `@/shared/lib/auth` en `vitest.setup.ui.ts` — exactamente el seam-split del proyecto: la UI inyecta los Server Actions como props y nunca ejecuta el SDK; si lo invocara, falla ruidoso. Ambos slices < 1500 con margen; deuda cerrada.
+
+**Cierre verde:** `pnpm test` **162/162** (19 files, sin cambio de comportamiento) · `pnpm typecheck` limpio · `pnpm lint` 0 problemas · `pnpm build` verde (`● /[locale]/login` + `/crear` SSG 4 locales, landing intacta, `ƒ /api/auth/[...path]`, `○ /inbox`, `ƒ /place/[placeSlug]`, `ƒ Proxy`). Historial Git preservado (`git mv`). Archivos: `git mv` de todo `onboarding/` → `place-creation/` y extracción de los 4 archivos de `access/`; `src/features/place-creation/public.ts` (reescrito, sin exports de access), `src/features/access/public.ts` (nuevo), `src/features/access/ui/{access-flow.tsx,access-labels.ts}` + `access-flow.test.tsx` (imports cross-slice → `@/features/place-creation/public`), `src/app/(marketing)/[locale]/{crear,login}/page.tsx` (imports re-apuntados), `vitest.setup.ui.ts` (fake seam-split), `docs/decisions/0014-*` + README.
 
 ## S10 — Capa LLM propose-only (servicio + isla mínima)
 
@@ -238,7 +252,8 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S7 ✅ | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S5b para servir) |
 | S8a ✅ | Infra test jsdom + shell + Paso 1 + preview | frontend | S5a, S7 |
 | S8b ✅ | Pasos 2/3 + submit + ruta + repunte CTA + i18n | frontend | S8a, S5b |
-| S9 ✅ | Vía "Acceso" + modo authed (⚠️ deuda: slice 1885>1500, split ADR-backed pre-S10) | frontend | S4b, S5b, S8 |
+| S9 ✅ | Vía "Acceso" + modo authed | frontend | S4b, S5b, S8 |
+| S9.5 ✅ | Split slice `onboarding` → `place-creation` + `access` (ADR-0014; cierra deuda 1885>1500) | refactor | S9 |
 | S10 | Capa LLM propose-only | servicio | S5a |
 
 Diferido a sesión propia posterior: `/settings` + gate email, UI `/invite/{token}`, directorio, gate de horario.
