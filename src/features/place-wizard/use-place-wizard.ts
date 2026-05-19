@@ -1,9 +1,9 @@
 import { useId, useRef, useState } from "react";
 import { useAccountStep } from "./use-account-step";
 import { useIdentityStep } from "./use-identity-step";
+import { useStyleAssist } from "./use-style-assist";
 import { useStyleStep } from "./use-style-step";
 import { useWizardNav } from "./use-wizard-nav";
-import type { StyleSuggestion } from "@/features/style-assist/public";
 import {
   type CreatePlaceInput,
   type CreatePlaceResult,
@@ -30,8 +30,6 @@ function detectTimezone(): string {
     return "UTC";
   }
 }
-
-type SuggestPhase = "idle" | "loading" | "ready" | "unavailable";
 
 export function usePlaceWizard(opts: {
   labels: WizardLabels;
@@ -82,24 +80,34 @@ export function usePlaceWizard(opts: {
     terms,
     isValid: step3Valid,
   } = account;
-  // El cruce LLM↔preset se cablea acá: cuando el owner elige un preset (o
-  // pasa a modo "preset") se resetea `paletteApplied` del LLM.
-  const style = useStyleStep({ onPresetChosen: () => setPaletteApplied(false) });
-  const {
+  // Ref-dispatch para el cruce LLM↔preset (chicken-and-egg): use-style-step
+  // se inicializa ANTES que use-style-assist, así que `onPresetChosen` no
+  // puede ver `assist.resetPaletteApplied` en tiempo de declaración. La ref
+  // se setea después y los event handlers (call-time) la leen actualizada.
+  const resetPaletteAppliedRef = useRef<() => void>(() => {});
+  const style = useStyleStep({
+    onPresetChosen: () => resetPaletteAppliedRef.current(),
+  });
+  const { description, descTooLong, paletteId, customPalette, selectedPalette, paletteMode } = style;
+  const assist = useStyleAssist({
+    onSuggest: opts.onSuggest,
     description,
-    descTooLong,
-    paletteId,
-    customPalette,
-    selectedPalette,
-    paletteMode,
-    setDescription,
-    setCustomPalette,
-  } = style;
-  const [suggestPhase, setSuggestPhase] = useState<SuggestPhase>("idle");
-  const [suggestion, setSuggestion] = useState<StyleSuggestion | null>(null);
-  const [paletteApplied, setPaletteApplied] = useState(false);
-  const [descriptionApplied, setDescriptionApplied] = useState(false);
-  const suggestingRef = useRef(false);
+    setCustomPalette: style.setCustomPalette,
+    setDescription: style.setDescription,
+  });
+  resetPaletteAppliedRef.current = assist.resetPaletteApplied;
+  const {
+    suggestPhase,
+    suggestion,
+    paletteApplied,
+    descriptionApplied,
+    suggestEnabled,
+    canSuggest,
+    suggestReady,
+    handleSuggest,
+    applySuggestedPalette,
+    applySuggestedDescription,
+  } = assist;
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [result, setResult] = useState<CreatePlaceResult | null>(null);
@@ -119,10 +127,6 @@ export function usePlaceWizard(opts: {
   // Validez del último paso para habilitar "Crear": en authed el último paso
   // es Estilo (sin cuenta), en place-first es el Paso 3 (cuenta).
   const submitValid = authed ? step1Valid && !descTooLong : step3Valid;
-
-  const canSuggest =
-    !!opts.onSuggest && suggestPhase !== "loading";
-  const suggestReady = description.trim().length > 0;
 
   // Envoltorios de `nav.goNext`/`goBack` para sumar el guard de validez +
   // limpiar `notice` (cruce documentado en el header del orquestador).
@@ -182,49 +186,6 @@ export function usePlaceWizard(opts: {
     }
   }
 
-  // Pide la propuesta. NUNCA lanza: la asistencia es opcional — falla/red/
-  // `unavailable` → aviso calmo, se sigue a mano (ADR-0005 §5). Nada se
-  // auto-aplica: sólo deja la propuesta visible (ADR-0005 §6).
-  async function handleSuggest() {
-    if (!opts.onSuggest || suggestingRef.current || !suggestReady) return;
-    suggestingRef.current = true;
-    setSuggestPhase("loading");
-    try {
-      const res = await opts.onSuggest(description.trim());
-      if (res.status === "suggested") {
-        setSuggestion({
-          palette: res.palette,
-          accentStrong: res.accentStrong,
-          adjustments: res.adjustments,
-          descriptionDraft: res.descriptionDraft,
-        });
-        setSuggestPhase("ready");
-        setPaletteApplied(false);
-        setDescriptionApplied(false);
-      } else {
-        setSuggestion(null);
-        setSuggestPhase("unavailable");
-      }
-    } catch {
-      setSuggestion(null);
-      setSuggestPhase("unavailable");
-    } finally {
-      suggestingRef.current = false;
-    }
-  }
-
-  function applySuggestedPalette() {
-    if (!suggestion) return;
-    setCustomPalette(suggestion.palette);
-    setPaletteApplied(true);
-  }
-
-  function applySuggestedDescription() {
-    if (!suggestion) return;
-    setDescription(suggestion.descriptionDraft);
-    setDescriptionApplied(true);
-  }
-
   const progress = labels.progress
     .replace("{n}", String(currentStep + 1))
     .replace("{total}", String(stepCount));
@@ -260,7 +221,7 @@ export function usePlaceWizard(opts: {
     paletteId,
     paletteMode,
     customPalette,
-    suggestEnabled: !!opts.onSuggest,
+    suggestEnabled,
     suggestPhase,
     suggestReady,
     canSuggest,
