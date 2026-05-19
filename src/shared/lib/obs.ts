@@ -1,33 +1,33 @@
-// DIAGNÓSTICO TEMPORAL (incidente cutover prod 2026-05-19): el camino de
-// creación de place no logueaba nada y el throw lo traga el `catch` del
-// wizard → Vercel no mostraba el error. Logging con prefijo `[onboarding]`
-// para filtrar en Vercel runtime logs (query="onboarding").
+// DIAGNÓSTICO TEMPORAL (incidente cutover prod 2026-05-19). El visor de
+// runtime logs de Vercel (MCP) agrupa por request y muestra SOLO la primera
+// línea truncada (~30 chars). Por eso no sirve loguear varias líneas ni JSON:
+// se emite UNA sola línea por request fallido, con el VEREDICTO adelante
+// (`[onb] FAIL:<step>|<code>|<msg>`) → legible dentro del truncado.
 //
-// INVARIANTE: NUNCA loguear secretos — token de sesión, password, connection
-// string, ni el payload de claims. Sólo presencia/longitud/códigos/`sub`
-// (id opaco, sirve de correlación). Se recorta a logging operativo mínimo
-// una vez hallada la causa raíz (no es observabilidad permanente).
+// INVARIANTE: NUNCA secretos (token/password/connstring/claims). El `step`
+// y el `code` SQL/clase de error alcanzan para localizar la causa.
 
-export function obs(step: string, extra?: Record<string, unknown>): void {
-  console.log(`[onboarding] ${step}`, extra ? JSON.stringify(extra) : "");
+interface Tagged {
+  onbStep?: string;
+  code?: unknown;
+  name?: string;
+  message?: string;
+  cause?: { code?: unknown; message?: string };
 }
 
-export function obsErr(step: string, err: unknown): void {
-  const e = err as {
-    name?: string;
-    code?: unknown;
-    message?: string;
-    cause?: unknown;
-  };
-  const cause = e?.cause as { code?: unknown; message?: string } | undefined;
-  console.error(
-    `[onboarding] ERROR ${step}`,
-    JSON.stringify({
-      name: e?.name,
-      code: e?.code,
-      message: e?.message,
-      causeCode: cause?.code,
-      causeMessage: cause?.message,
-    }),
-  );
+/** Marca el error con el step donde se originó (si no estaba marcado) y lo
+ *  re-lanza el caller. El primero en taggear gana (el más profundo). */
+export function tagStep(err: unknown, step: string): unknown {
+  if (err && typeof err === "object" && !(err as Tagged).onbStep) {
+    (err as Tagged).onbStep = step;
+  }
+  return err;
+}
+
+/** Línea única, veredicto adelante. `step` y `code` en los primeros chars. */
+export function onbLine(err: unknown): string {
+  const e = (err ?? {}) as Tagged;
+  const code = e.code ?? e.cause?.code ?? "";
+  const msg = (e.message ?? e.cause?.message ?? String(err)).slice(0, 80);
+  return `[onb] FAIL:${e.onbStep ?? "unknown"}|${String(code)}|${e.name ?? ""}|${msg}`;
 }

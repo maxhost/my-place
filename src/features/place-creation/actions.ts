@@ -1,9 +1,8 @@
 "use server";
 
-import { headers } from "next/headers";
 import { getAuth } from "@/shared/lib/auth";
 import { getAuthenticatedDb } from "@/shared/lib/db";
-import { obs, obsErr } from "@/shared/lib/obs";
+import { onbLine, tagStep } from "@/shared/lib/obs";
 import { type CreatePlaceResult, createPlace } from "./create-place";
 import type { AcquireIdentity } from "./ports";
 
@@ -39,7 +38,6 @@ function requireToken(token: string | null | undefined): string {
 // sin token) → la saga no llega a la DB (nada creado).
 function placeFirstIdentity(c: PlaceFirstCredentials): AcquireIdentity {
   return async () => {
-    obs("signup:start", { emailLen: c.email.length });
     let res: unknown;
     try {
       res = await getAuth().signUp.email({
@@ -48,22 +46,24 @@ function placeFirstIdentity(c: PlaceFirstCredentials): AcquireIdentity {
         name: c.displayName,
       });
     } catch (err) {
-      obsErr("signup:threw", err);
-      throw err;
+      throw tagStep(err, "signup:threw");
     }
     const { data, error } = res as {
       data?: { token?: string | null } | null;
       error?: { status?: unknown; message?: string } | null;
     };
-    obs("signup:result", {
-      dataPresent: !!data,
-      tokenPresent: !!data?.token,
-      tokenLen: data?.token?.length ?? 0,
-      errorStatus: error?.status,
-      errorMessage: error?.message,
-    });
+    if (!data?.token) {
+      // signUp no devolvió token (TBD S5b). El `error` de Neon Auth, si lo
+      // hay, va en el mensaje (status/msg) — sin secretos.
+      throw tagStep(
+        new Error(
+          `signUp sin token data=${!!data} status=${String(error?.status ?? "")} msg=${error?.message ?? ""}`,
+        ),
+        "signup:no-token",
+      );
+    }
     return {
-      accessToken: requireToken(data?.token),
+      accessToken: data.token,
       email: c.email,
       displayName: c.displayName,
     };
@@ -76,15 +76,16 @@ function placeFirstIdentity(c: PlaceFirstCredentials): AcquireIdentity {
 function authedIdentity(): AcquireIdentity {
   return async () => {
     const { data } = await getAuth().getSession();
-    obs("authed:session", {
-      sessionPresent: !!data?.session,
-      tokenPresent: !!data?.session.token,
-      tokenLen: data?.session.token?.length ?? 0,
-    });
+    if (!data?.session.token) {
+      throw tagStep(
+        new Error(`getSession sin token session=${!!data?.session}`),
+        "authed:no-token",
+      );
+    }
     return {
-      accessToken: requireToken(data?.session.token),
-      email: data?.user.email ?? "",
-      displayName: data?.user.name ?? "",
+      accessToken: requireToken(data.session.token),
+      email: data.user.email ?? "",
+      displayName: data.user.name ?? "",
     };
   };
 }
@@ -99,30 +100,18 @@ export async function createPlaceAction(
   credentials?: PlaceFirstCredentials,
 ): Promise<CreatePlaceResult> {
   try {
-    const h = await headers();
-    obs("action:invoked", {
-      mode: credentials ? "place-first" : "authed",
-      host: h.get("host"),
-      xfHost: h.get("x-forwarded-host"),
-      origin: h.get("origin"),
-      hasDbUrl: !!process.env.DATABASE_URL,
-      hasJwks: !!process.env.NEON_AUTH_JWKS_URL,
-      hasBaseUrl: !!process.env.NEON_AUTH_BASE_URL,
-    });
-  } catch (err) {
-    obsErr("action:headers", err);
-  }
-  try {
-    const result = await createPlace(input, {
+    return await createPlace(input, {
       acquireIdentity: credentials
         ? placeFirstIdentity(credentials)
         : authedIdentity(),
       runAuthedTx: getAuthenticatedDb,
     });
-    obs("action:result", { status: result.status });
-    return result;
   } catch (err) {
-    obsErr("action:threw", err);
+    // DIAGNÓSTICO TEMPORAL: única línea, veredicto adelante (el visor de
+    // Vercel trunca ~30 chars y muestra solo la 1ª línea del request).
+    console.error(
+      `${onbLine(err)} | envs db=${!!process.env.DATABASE_URL} jwks=${!!process.env.NEON_AUTH_JWKS_URL} base=${!!process.env.NEON_AUTH_BASE_URL}`,
+    );
     throw err;
   }
 }
