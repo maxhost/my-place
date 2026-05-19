@@ -17,25 +17,48 @@ export interface PlaceFirstCredentials {
   displayName: string;
 }
 
-// El token que `getAuthenticatedDb` verifica contra el JWKS de Neon Auth
-// (`verifyAccessToken` → `jwtVerify`). DIAGNÓSTICO (no asumido): el método
-// tipado `auth.getAccessToken()` exige un `providerId` OAuth (token de cuenta
-// externa, otro concepto); el JWT de backend RLS-utilizable sale del token de
-// sesión de Neon Auth. Cuál de los dos tokens es JWKS-verificable (token de
-// `signUp`/`getSession` vs endpoint `get-access-token`) es un TBD de impl de
-// ADR-0006 que se VERIFICA EN PREVIEW Vercel, NO en vitest/typecheck — mismo
-// estatus que `getAccessToken` vs `getSession` y la cookie en S4b. Fail-closed.
-function requireToken(token: string | null | undefined): string {
+// TBD de ADR-0006/S5b RESUELTO POR EVIDENCIA (preview Vercel, 2026-05-19):
+// `signUp.email().data.token` y `getSession().session.token` son el TOKEN DE
+// SESIÓN OPACO de Neon Auth (Better Auth) — NO un JWT. Pasárselo a
+// `verifyAccessToken`/`jwtVerify` da `ERR_JWS_INVALID`. El JWT que el JWKS
+// verifica (y que RLS lee en `request.jwt.claims.sub`) se emite por el
+// endpoint `/token` del plugin JWT → método server `auth.token()`
+// (`get-access-token` es OAuth, otro concepto; el SDK server no expone
+// `getJWTToken`). La correctitud del wiring vivo es de tipo/build + preview,
+// NO vitest (seam-split: arrastra el SDK + red).
+//
+// El SDK tipa la acción del plugin con `fetchOptions?: any` y devuelve
+// `{ data, error }` (`fetchOptions.throw:false` en NeonAuthAdapterCore); se
+// lee `data.token` defensivamente — la forma exacta es del SDK, no nuestra.
+type SessionJwtResult = {
+  data?: { token?: string | null } | null;
+  error?: { status?: unknown; message?: string } | null;
+};
+
+// Adquiere el JWT JWKS-verificable de la sesión vigente (cookie del request,
+// que la cubre el adapter Next del SDK como en `getSession()`). Fail-closed:
+// sin JWT no se llega a la DB.
+async function acquireSessionJwt(): Promise<string> {
+  const res = (await (
+    getAuth() as unknown as {
+      token: (fetchOptions?: unknown) => Promise<SessionJwtResult>;
+    }
+  ).token()) as SessionJwtResult;
+  const token = res.data?.token;
   if (typeof token !== "string" || token.length === 0) {
-    throw new Error("Neon Auth no devolvió token de sesión");
+    throw tagStep(
+      new Error(
+        `auth.token sin JWT data=${!!res.data} status=${String(res.error?.status ?? "")} msg=${res.error?.message ?? ""}`,
+      ),
+      "jwt:token-endpoint",
+    );
   }
   return token;
 }
 
-// place-first (CTA): `signUp` crea la cuenta; el token sale de la RESPUESTA
-// de signUp porque la cookie que éste setea NO es re-legible en la misma
-// invocación del Server Action (ADR-0005 §S5b). Falla de signUp (`error` o
-// sin token) → la saga no llega a la DB (nada creado).
+// place-first (CTA): `signUp` crea cuenta + sesión; el JWT NO sale de ahí
+// (es token de sesión) sino de `auth.token()` sobre esa sesión. Falla de
+// `signUp` → no se llega a la DB (nada creado, ADR-0005 §2/§4).
 function placeFirstIdentity(c: PlaceFirstCredentials): AcquireIdentity {
   return async () => {
     let res: unknown;
@@ -53,37 +76,32 @@ function placeFirstIdentity(c: PlaceFirstCredentials): AcquireIdentity {
       error?: { status?: unknown; message?: string } | null;
     };
     if (!data?.token) {
-      // signUp no devolvió token (TBD S5b). El `error` de Neon Auth, si lo
-      // hay, va en el mensaje (status/msg) — sin secretos.
       throw tagStep(
         new Error(
-          `signUp sin token data=${!!data} status=${String(error?.status ?? "")} msg=${error?.message ?? ""}`,
+          `signUp falló data=${!!data} status=${String(error?.status ?? "")} msg=${error?.message ?? ""}`,
         ),
-        "signup:no-token",
+        "signup:failed",
       );
     }
     return {
-      accessToken: data.token,
+      accessToken: await acquireSessionJwt(),
       email: c.email,
       displayName: c.displayName,
     };
   };
 }
 
-// authed (Acceso → "Crear mi place"): la sesión ya existe; token + perfil
-// salen de la sesión vigente (`ensureAppUser` es idempotente: el `app_user`
-// ya existe, email/displayName sólo siembran si faltara).
+// authed (Acceso → "Crear mi place"): la sesión ya existe. El JWT viene de
+// `auth.token()`; el perfil de `getSession()` (`ensureAppUser` es idempotente:
+// el `app_user` ya existe, email/displayName sólo siembran si faltara).
 function authedIdentity(): AcquireIdentity {
   return async () => {
     const { data } = await getAuth().getSession();
-    if (!data?.session.token) {
-      throw tagStep(
-        new Error(`getSession sin token session=${!!data?.session}`),
-        "authed:no-token",
-      );
+    if (!data?.session) {
+      throw tagStep(new Error("getSession sin sesión vigente"), "authed:no-session");
     }
     return {
-      accessToken: requireToken(data.session.token),
+      accessToken: await acquireSessionJwt(),
       email: data.user.email ?? "",
       displayName: data.user.name ?? "",
     };
