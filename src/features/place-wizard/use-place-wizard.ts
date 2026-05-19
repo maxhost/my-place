@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from "react";
+import { useAccountStep } from "./use-account-step";
 import { useIdentityStep } from "./use-identity-step";
 import { useWizardNav } from "./use-wizard-nav";
 import type { StyleSuggestion } from "@/features/style-assist/public";
@@ -20,8 +21,6 @@ import type {
 // El estado vive client-side hasta el submit; idempotencia por ref.
 
 type Notice = "slug_taken" | "invalid" | "error" | "account" | null;
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // tz del browser con fallback fijo a "UTC" (IANA válido → pasa
 // `timezoneSchema`). El owner ajusta el horario luego en `/settings`.
@@ -70,6 +69,20 @@ export function usePlaceWizard(opts: {
     isValid: step1Valid,
     onNameChange,
   } = identity;
+  const account = useAccountStep();
+  const {
+    email,
+    emailTouched,
+    emailValid,
+    password,
+    passwordTouched,
+    passwordValid,
+    displayName,
+    displayNameTouched,
+    displayNameValid,
+    terms,
+    isValid: step3Valid,
+  } = account;
   const [description, setDescription] = useState("");
   const [paletteId, setPaletteId] = useState(DEFAULT_PRESET_ID);
   // Override de paleta cuando el owner aplica la propuesta del LLM (S10b).
@@ -80,13 +93,6 @@ export function usePlaceWizard(opts: {
   const [paletteApplied, setPaletteApplied] = useState(false);
   const [descriptionApplied, setDescriptionApplied] = useState(false);
   const suggestingRef = useRef(false);
-  const [email, setEmail] = useState("");
-  const [emailTouched, setEmailTouched] = useState(false);
-  const [password, setPassword] = useState("");
-  const [passwordTouched, setPasswordTouched] = useState(false);
-  const [displayName, setDisplayName] = useState("");
-  const [displayNameTouched, setDisplayNameTouched] = useState(false);
-  const [terms, setTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [result, setResult] = useState<CreatePlaceResult | null>(null);
@@ -103,12 +109,6 @@ export function usePlaceWizard(opts: {
   };
 
   const descTooLong = description.trim().length > 500;
-  const emailValid = EMAIL_RE.test(email.trim());
-  const passwordValid = password.length >= 8;
-  const displayNameValid =
-    displayName.trim().length >= 1 && displayName.trim().length <= 80;
-
-  const step3Valid = emailValid && passwordValid && displayNameValid && terms;
   const stepValid = [step1Valid, !descTooLong, step3Valid];
   // Validez del último paso para habilitar "Crear": en authed el último paso
   // es Estilo (sin cuenta), en place-first es el Paso 3 (cuenta).
@@ -317,13 +317,13 @@ export function usePlaceWizard(opts: {
     handleSuggest,
     applySuggestedPalette,
     applySuggestedDescription,
-    setEmail,
-    setEmailTouched,
-    setPassword,
-    setPasswordTouched,
-    setDisplayName,
-    setDisplayNameTouched,
-    setTerms,
+    setEmail: account.setEmail,
+    setEmailTouched: account.setEmailTouched,
+    setPassword: account.setPassword,
+    setPasswordTouched: account.setPasswordTouched,
+    setDisplayName: account.setDisplayName,
+    setDisplayNameTouched: account.setDisplayNameTouched,
+    setTerms: account.setTerms,
     goNext,
     goBack,
     handleSubmit,
