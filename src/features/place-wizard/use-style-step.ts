@@ -4,15 +4,15 @@ import { DEFAULT_PRESET_ID, PALETTE_PRESETS } from "./palettes";
 
 // use-style-step.ts — Sub-hook 4/6 de `use-place-wizard`.
 // Paso 2 (datos): descripción libre + paleta (modo "preset" o "custom").
-// Autónomo internamente (no consume otros sub-hooks). Expone setters que la
-// asistencia LLM (`use-style-assist`) consume para aplicar su propuesta —
-// el cruce LLM↔preset (resetear "Aplicado" cuando el owner elige preset a
-// mano) se inyecta via callback opcional `onPresetChosen` (lo wirea el
-// orquestador en `use-place-wizard.ts`).
+// Autónomo: no consume otros sub-hooks. Expone primitivos de paleta puros
+// (`choosePreset`, `activateCustomFromPreset`, `setCustomHex`) + setters
+// para que la asistencia LLM (`use-style-assist`) aplique su propuesta. El
+// cruce LLM↔preset (envoltorio de `choosePreset` + construcción de
+// `setPaletteMode`) vive en el orquestador `use-place-wizard.ts`.
 
 type PaletteMode = "preset" | "custom";
 
-export function useStyleStep(opts: { onPresetChosen?: () => void } = {}) {
+export function useStyleStep() {
   const [description, setDescription] = useState("");
   const [paletteId, setPaletteId] = useState(DEFAULT_PRESET_ID);
   // `null` ⇒ manda el preset. El LLM apply lo llena; al elegir preset se
@@ -30,12 +30,13 @@ export function useStyleStep(opts: { onPresetChosen?: () => void } = {}) {
   function choosePreset(id: string) {
     setPaletteId(id);
     setCustomPalette(null);
-    opts.onPresetChosen?.();
   }
 
-  function setPaletteMode(mode: PaletteMode) {
-    if (mode === "custom" && !customPalette) setCustomPalette(presetPalette);
-    else if (mode === "preset") choosePreset(paletteId);
+  /** Caso borde del segmented control: si el owner pasa a "custom" sin
+   *  haber editado nada, copia el preset actual para que el modo persista
+   *  (el derivado `paletteMode` necesita `customPalette` no-null). */
+  function activateCustomFromPreset() {
+    if (!customPalette) setCustomPalette(presetPalette);
   }
 
   function setCustomHex(token: "accent" | "bg" | "ink", value: string) {
@@ -57,7 +58,9 @@ export function useStyleStep(opts: { onPresetChosen?: () => void } = {}) {
     setPaletteId,
     setCustomPalette,
     choosePreset,
-    setPaletteMode,
+    activateCustomFromPreset,
     setCustomHex,
   };
 }
+
+export type { PaletteMode };

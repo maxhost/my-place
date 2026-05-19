@@ -1,13 +1,10 @@
-import { useId, useRef, useState } from "react";
+import { useId } from "react";
 import { useAccountStep } from "./use-account-step";
+import { useCreateSubmit } from "./use-create-submit";
 import { useIdentityStep } from "./use-identity-step";
 import { useStyleAssist } from "./use-style-assist";
-import { useStyleStep } from "./use-style-step";
+import { type PaletteMode, useStyleStep } from "./use-style-step";
 import { useWizardNav } from "./use-wizard-nav";
-import {
-  type CreatePlaceInput,
-  type CreatePlaceResult,
-} from "@/features/place-creation/public";
 import type {
   WizardLabels,
   WizardSignUp,
@@ -15,22 +12,27 @@ import type {
   WizardSuggest,
 } from "./wizard-labels";
 
-// Máquina de estado del wizard (S8b), separada del render para no exceder el
-// límite de archivo (CLAUDE.md ≤300) y para testear la UI por comportamiento.
-// El estado vive client-side hasta el submit; idempotencia por ref.
-
-type Notice = "slug_taken" | "invalid" | "error" | "account" | null;
-
-// tz del browser con fallback fijo a "UTC" (IANA válido → pasa
-// `timezoneSchema`). El owner ajusta el horario luego en `/settings`.
-function detectTimezone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  } catch {
-    return "UTC";
-  }
-}
-
+/**
+ * usePlaceWizard — máquina del wizard place-first. Orquesta 6 sub-hooks
+ * por dominio. Mapa para navegar el código:
+ *
+ *   1. Navegación (paso actual, next/back)     → ./use-wizard-nav.ts
+ *   2. Paso 1 — identidad (nombre + slug)      → ./use-identity-step.ts
+ *   3. Paso 2 — estilo (desc + paleta)         → ./use-style-step.ts
+ *   4. Paso 2 — asistencia LLM (propose-only)  → ./use-style-assist.ts
+ *   5. Paso 3 — cuenta (place-first)           → ./use-account-step.ts
+ *   6. Submit two-phase + avisos               → ./use-create-submit.ts
+ *
+ * Cruces (wireados acá para no contaminar los sub-hooks):
+ *   - `choosePreset` y `setPaletteMode("preset")` también resetean
+ *     `paletteApplied` del LLM (3+4). Se compone acá (los sub-hooks son
+ *     autónomos: ninguno conoce al otro).
+ *   - `goNext`/`goBack` también limpian `notice` del submit (1+6).
+ *
+ * Refactor 2026-05-20 (cierra deuda de 342 LOC > 300 — CLAUDE.md). El
+ * contrato de retorno es el mismo que antes del refactor; ningún consumer
+ * (place-wizard.tsx, wizard-steps.tsx, tests) cambia.
+ */
 export function usePlaceWizard(opts: {
   labels: WizardLabels;
   onSubmit: WizardSubmit;
@@ -53,66 +55,71 @@ export function usePlaceWizard(opts: {
 }) {
   const { labels, authed = false } = opts;
   const stepCount = labels.stepTitles.length;
+
   const nav = useWizardNav(stepCount);
   const { currentStep, isLastStep } = nav;
   const identity = useIdentityStep();
-  const {
-    name,
-    nameTouched,
-    nameValid,
-    slug,
-    slugState,
-    normalized,
-    isValid: step1Valid,
-    onNameChange,
-  } = identity;
   const account = useAccountStep();
-  const {
-    email,
-    emailTouched,
-    emailValid,
-    password,
-    passwordTouched,
-    passwordValid,
-    displayName,
-    displayNameTouched,
-    displayNameValid,
-    terms,
-    isValid: step3Valid,
-  } = account;
-  // Ref-dispatch para el cruce LLM↔preset (chicken-and-egg): use-style-step
-  // se inicializa ANTES que use-style-assist, así que `onPresetChosen` no
-  // puede ver `assist.resetPaletteApplied` en tiempo de declaración. La ref
-  // se setea después y los event handlers (call-time) la leen actualizada.
-  const resetPaletteAppliedRef = useRef<() => void>(() => {});
-  const style = useStyleStep({
-    onPresetChosen: () => resetPaletteAppliedRef.current(),
-  });
-  const { description, descTooLong, paletteId, customPalette, selectedPalette, paletteMode } = style;
+
+  const style = useStyleStep();
   const assist = useStyleAssist({
     onSuggest: opts.onSuggest,
-    description,
+    description: style.description,
     setCustomPalette: style.setCustomPalette,
     setDescription: style.setDescription,
   });
-  resetPaletteAppliedRef.current = assist.resetPaletteApplied;
-  const {
-    suggestPhase,
-    suggestion,
-    paletteApplied,
-    descriptionApplied,
-    suggestEnabled,
-    canSuggest,
-    suggestReady,
-    handleSuggest,
-    applySuggestedPalette,
-    applySuggestedDescription,
-  } = assist;
-  const [submitting, setSubmitting] = useState(false);
-  const [notice, setNotice] = useState<Notice>(null);
-  const [result, setResult] = useState<CreatePlaceResult | null>(null);
-  const submittingRef = useRef(false);
 
+  // Envoltorios del cruce LLM↔preset: elegir un preset (directo o vía modo)
+  // invalida el "Aplicado" del LLM (`producto.md` §30 — preset gana).
+  function choosePreset(id: string) {
+    style.choosePreset(id);
+    assist.resetPaletteApplied();
+  }
+  function setPaletteMode(mode: PaletteMode) {
+    if (mode === "custom") style.activateCustomFromPreset();
+    else choosePreset(style.paletteId);
+  }
+
+  // Validez por paso (cross-domain — se compone acá) + validez del submit
+  // (en authed el último paso es Estilo; en place-first es Cuenta).
+  const stepValid = [identity.isValid, !style.descTooLong, account.isValid];
+  const submitValid = authed
+    ? identity.isValid && !style.descTooLong
+    : account.isValid;
+
+  const submit = useCreateSubmit({
+    authed,
+    onCreateAccount: opts.onCreateAccount,
+    onSubmit: opts.onSubmit,
+    submitValid,
+    buildInputCore: () => ({
+      name: identity.name.trim(),
+      slug: identity.normalized,
+      description: style.description.trim() || undefined,
+      theme: style.selectedPalette,
+    }),
+    buildCredentials: () => ({
+      email: account.email.trim(),
+      password: account.password,
+      displayName: account.displayName.trim(),
+    }),
+    onSlugTaken: nav.resetToFirstStep,
+  });
+
+  // Envoltorios de navegación: guard de validez + limpiar `notice` del submit
+  // (cruce documentado en el header).
+  function goNext() {
+    if (!stepValid[currentStep] || isLastStep) return;
+    submit.clearNotice();
+    nav.goNext();
+  }
+  function goBack() {
+    submit.clearNotice();
+    nav.goBack();
+  }
+
+  // 7 ids cross-step para accesibilidad (label/aria-describedby). Viven acá
+  // para mantener el orden estable de hooks entre renders (React rule).
   const ids = {
     name: useId(),
     slug: useId(),
@@ -123,80 +130,17 @@ export function usePlaceWizard(opts: {
     displayName: useId(),
   };
 
-  const stepValid = [step1Valid, !descTooLong, step3Valid];
-  // Validez del último paso para habilitar "Crear": en authed el último paso
-  // es Estilo (sin cuenta), en place-first es el Paso 3 (cuenta).
-  const submitValid = authed ? step1Valid && !descTooLong : step3Valid;
-
-  // Envoltorios de `nav.goNext`/`goBack` para sumar el guard de validez +
-  // limpiar `notice` (cruce documentado en el header del orquestador).
-  function goNext() {
-    if (!stepValid[currentStep] || isLastStep) return;
-    setNotice(null);
-    nav.goNext();
-  }
-  function goBack() {
-    setNotice(null);
-    nav.goBack();
-  }
-
-  async function handleSubmit() {
-    // Idempotencia: el ref bloquea reentradas aunque el estado aún no haya
-    // re-renderizado (doble click). El submit nunca dispara dos veces.
-    if (submittingRef.current || !submitValid) return;
-    submittingRef.current = true;
-    setSubmitting(true);
-    setNotice(null);
-    try {
-      // FASE 1 (solo place-first): crear la cuenta. Es una request propia
-      // que establece la cookie de sesión; sin "ok" no seguimos (sin sesión
-      // la FASE 2 no podría obtener el JWT). En authed la sesión ya existe.
-      if (!authed) {
-        const acc = await opts.onCreateAccount?.({
-          email: email.trim(),
-          password,
-          displayName: displayName.trim(),
-        });
-        if (!acc || acc.status !== "ok") {
-          setNotice("account");
-          return;
-        }
-      }
-      // FASE 2: crear el place en modo authed. La cookie de la FASE 1 (o la
-      // sesión preexistente en authed) viaja en ESTA request → el Server
-      // Action obtiene el JWT vía `auth.token()`.
-      const input: CreatePlaceInput = {
-        name: name.trim(),
-        slug: normalized,
-        description: description.trim() || undefined,
-        theme: selectedPalette,
-        ownerTimezone: detectTimezone(),
-      };
-      const res = await opts.onSubmit(input);
-      if (res.status === "created") setResult(res);
-      else if (res.status === "slug_taken") {
-        setNotice("slug_taken");
-        nav.resetToFirstStep();
-      } else setNotice("invalid");
-    } catch {
-      setNotice("error");
-    } finally {
-      submittingRef.current = false;
-      setSubmitting(false);
-    }
-  }
-
   const progress = labels.progress
     .replace("{n}", String(currentStep + 1))
     .replace("{total}", String(stepCount));
 
-  const noticeText: string | null = notice
+  const noticeText: string | null = submit.notice
     ? {
         slug_taken: labels.slugTakenNotice,
         account: labels.accountFailedNotice,
         invalid: labels.invalidNotice,
         error: labels.errorNotice,
-      }[notice]
+      }[submit.notice]
     : null;
 
   return {
@@ -205,51 +149,51 @@ export function usePlaceWizard(opts: {
     isLastStep,
     progress,
     noticeText,
-    result,
-    submitting,
+    result: submit.result,
+    submitting: submit.submitting,
     submitValid,
     stepValid,
-    selectedPalette,
-    name,
-    nameTouched,
-    nameValid,
-    slug,
-    slugState,
-    normalized,
-    description,
-    descTooLong,
-    paletteId,
-    paletteMode,
-    customPalette,
-    suggestEnabled,
-    suggestPhase,
-    suggestReady,
-    canSuggest,
-    suggestion,
-    paletteApplied,
-    descriptionApplied,
-    email,
-    emailTouched,
-    emailValid,
-    password,
-    passwordTouched,
-    passwordValid,
-    displayName,
-    displayNameTouched,
-    displayNameValid,
-    terms,
-    onNameChange,
+    selectedPalette: style.selectedPalette,
+    name: identity.name,
+    nameTouched: identity.nameTouched,
+    nameValid: identity.nameValid,
+    slug: identity.slug,
+    slugState: identity.slugState,
+    normalized: identity.normalized,
+    description: style.description,
+    descTooLong: style.descTooLong,
+    paletteId: style.paletteId,
+    paletteMode: style.paletteMode,
+    customPalette: style.customPalette,
+    suggestEnabled: assist.suggestEnabled,
+    suggestPhase: assist.suggestPhase,
+    suggestReady: assist.suggestReady,
+    canSuggest: assist.canSuggest,
+    suggestion: assist.suggestion,
+    paletteApplied: assist.paletteApplied,
+    descriptionApplied: assist.descriptionApplied,
+    email: account.email,
+    emailTouched: account.emailTouched,
+    emailValid: account.emailValid,
+    password: account.password,
+    passwordTouched: account.passwordTouched,
+    passwordValid: account.passwordValid,
+    displayName: account.displayName,
+    displayNameTouched: account.displayNameTouched,
+    displayNameValid: account.displayNameValid,
+    terms: account.terms,
+    onNameChange: identity.onNameChange,
     setNameTouched: identity.setNameTouched,
     setSlug: identity.setSlug,
     setSlugTouched: identity.setSlugTouched,
     setDescription: style.setDescription,
     setPaletteId: style.setPaletteId,
-    choosePreset: style.choosePreset,
-    setPaletteMode: style.setPaletteMode,
+    choosePreset,
+    setPaletteMode,
     setCustomHex: style.setCustomHex,
-    handleSuggest,
-    applySuggestedPalette,
-    applySuggestedDescription,
+    handleSuggest: assist.handleSuggest,
+    applySuggestedPalette: assist.applySuggestedPalette,
+    applySuggestedDescription: assist.applySuggestedDescription,
     setEmail: account.setEmail,
     setEmailTouched: account.setEmailTouched,
     setPassword: account.setPassword,
@@ -259,6 +203,6 @@ export function usePlaceWizard(opts: {
     setTerms: account.setTerms,
     goNext,
     goBack,
-    handleSubmit,
+    handleSubmit: submit.handleSubmit,
   };
 }
