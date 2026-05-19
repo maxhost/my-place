@@ -60,7 +60,9 @@ export default async function LoginPage({ params }: Props) {
     displayNameLabel: t("displayNameLabel"),
     displayNamePlaceholder: t("displayNamePlaceholder"),
     displayNameRequired: t("displayNameRequired"),
-    terms: t("terms"),
+    // Plantilla que AccessFlow parte client-side ({terms}/{privacy}):
+    // `t.raw` evita el FORMATTING_ERROR de next-intl (ver gotcha).
+    terms: t.raw("terms"),
     termsLinkLabel: t("termsLinkLabel"),
     privacyLinkLabel: t("privacyLinkLabel"),
     termsRequired: t("termsRequired"),
@@ -86,7 +88,8 @@ export default async function LoginPage({ params }: Props) {
   // Wizard reusado en modo authed: 2 pasos (Identidad + Estilo), sin cuenta.
   const wizardLabels: WizardLabels = {
     title: w("title"),
-    progress: w("progress"),
+    // Plantillas que el wizard rellena client-side: `w.raw` (ver gotcha).
+    progress: w.raw("progress"),
     stepTitles: [w("steps.identity"), w("steps.style")],
     next: w("next"),
     back: w("back"),
@@ -95,7 +98,7 @@ export default async function LoginPage({ params }: Props) {
     nameLabel: w("nameLabel"),
     namePlaceholder: w("namePlaceholder"),
     slugLabel: w("slugLabel"),
-    slugHint: w("slugHint"),
+    slugHint: w.raw("slugHint"),
     slugReserved: w("slugReserved"),
     slugFormat: w("slugFormat"),
     slugAvailableHint: w("slugAvailableHint"),
@@ -119,12 +122,12 @@ export default async function LoginPage({ params }: Props) {
     displayNameLabel: w("displayNameLabel"),
     displayNamePlaceholder: w("displayNamePlaceholder"),
     displayNameRequired: w("displayNameRequired"),
-    terms: w("terms"),
+    terms: w.raw("terms"),
     termsLinkLabel: w("termsLinkLabel"),
     privacyLinkLabel: w("privacyLinkLabel"),
     termsRequired: w("termsRequired"),
     successTitle: w("successTitle"),
-    successBody: w("successBody"),
+    successBody: w.raw("successBody"),
     successOpen: w("successOpen"),
     slugTakenNotice: w("slugTakenNotice"),
     invalidNotice: w("invalidNotice"),

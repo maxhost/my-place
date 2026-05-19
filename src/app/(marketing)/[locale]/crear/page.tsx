@@ -45,7 +45,10 @@ export default async function CrearPage({ params }: Props) {
 
   const labels: WizardLabels = {
     title: t("title"),
-    progress: t("progress"),
+    // Plantillas que el wizard rellena client-side ({n}, {slug}, {terms},
+    // {url}): `t.raw` evita que next-intl corra el formatter ICU y tire
+    // FORMATTING_ERROR por placeholders no provistos (ver gotcha).
+    progress: t.raw("progress"),
     stepTitles: [t("steps.identity"), t("steps.style"), t("steps.account")],
     next: t("next"),
     back: t("back"),
@@ -54,7 +57,7 @@ export default async function CrearPage({ params }: Props) {
     nameLabel: t("nameLabel"),
     namePlaceholder: t("namePlaceholder"),
     slugLabel: t("slugLabel"),
-    slugHint: t("slugHint"),
+    slugHint: t.raw("slugHint"),
     slugReserved: t("slugReserved"),
     slugFormat: t("slugFormat"),
     slugAvailableHint: t("slugAvailableHint"),
@@ -78,12 +81,12 @@ export default async function CrearPage({ params }: Props) {
     displayNameLabel: t("displayNameLabel"),
     displayNamePlaceholder: t("displayNamePlaceholder"),
     displayNameRequired: t("displayNameRequired"),
-    terms: t("terms"),
+    terms: t.raw("terms"),
     termsLinkLabel: t("termsLinkLabel"),
     privacyLinkLabel: t("privacyLinkLabel"),
     termsRequired: t("termsRequired"),
     successTitle: t("successTitle"),
-    successBody: t("successBody"),
+    successBody: t.raw("successBody"),
     successOpen: t("successOpen"),
     slugTakenNotice: t("slugTakenNotice"),
     invalidNotice: t("invalidNotice"),
