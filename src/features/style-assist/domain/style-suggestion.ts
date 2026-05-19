@@ -3,7 +3,7 @@ import {
   type ContrastAdjustment,
   applyContrastGuardrail,
 } from "@/shared/lib/contrast";
-import { type Palette, paletteSchema } from "./schema";
+import { type Palette, paletteSchema } from "@/shared/lib/palette-schema";
 
 // Salida del LLM del onboarding (ADR-0005 §5 / ADR-0007: paleta + borrador de
 // descripción, SIN horario). PURO: sin red. El servicio re-valida acá la

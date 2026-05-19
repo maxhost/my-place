@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { isReservedSlug } from "@/shared/config/reserved-slugs";
+import {
+  hexColorSchema,
+  type Palette,
+  paletteSchema,
+} from "@/shared/lib/palette-schema";
 import type {
   OpeningHours,
   ThemeConfig,
@@ -35,27 +40,10 @@ export const slugSchema = z
       .refine((s) => !isReservedSlug(s), "Ese slug está reservado"),
   );
 
-export const hexColorSchema = z
-  .string()
-  .trim()
-  .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Color hex inválido")
-  .transform((h) => {
-    const body = h.slice(1).toLowerCase();
-    const full =
-      body.length === 3
-        ? body
-            .split("")
-            .map((c) => c + c)
-            .join("")
-        : body;
-    return `#${full}`;
-  });
-
-export const paletteSchema = z.object({
-  accent: hexColorSchema,
-  bg: hexColorSchema,
-  ink: hexColorSchema,
-});
+// Primitivo de paleta hex extraído a `shared/` (ADR-0015): compartido con
+// `style-assist` sin arista feature→feature. Se re-exporta para los
+// consumidores internos/tests existentes (sin cambio de comportamiento).
+export { hexColorSchema, paletteSchema };
 
 function isValidTimezone(tz: string): boolean {
   try {
@@ -115,5 +103,5 @@ export const createPlaceInputSchema = z.object({
 });
 
 export type CreatePlaceInput = z.infer<typeof createPlaceInputSchema>;
-export type Palette = z.infer<typeof paletteSchema>;
+export type { Palette };
 export type { ThemeConfig };

@@ -22,7 +22,7 @@ Inviolables. Enforzadas por eslint con `no-restricted-paths`.
 - `shared/` nunca importa de `features/`.
 - El acceso a la DB se hace desde `queries.ts` y `actions.ts` del propio feature. Nunca desde componentes ni otras features.
 - Las rutas en `src/app/` son delgadas: importan desde features y renderizan.
-- Dependencias entre features son unidireccionales. Si aparece un ciclo, extraer la parte común a `shared/`. Primer ejemplo canónico en el repo: `access` consume el wizard de `place-creation` vía su `public.ts` (ADR-0014).
+- Dependencias entre features son unidireccionales. Si aparece un ciclo, extraer la parte común a `shared/`. Primer ejemplo canónico en el repo: `access` consume el wizard de `place-creation` vía su `public.ts` (ADR-0014). Segundo: `place-creation` consumirá `style-assist` vía su `public.ts` (ADR-0015); el ciclo potencial se evitó extrayendo el primitivo de paleta a `@/shared/lib/palette-schema.ts` (aplicación literal de esta regla).
 
 ## Estructura de directorios
 
