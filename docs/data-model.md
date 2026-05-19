@@ -54,7 +54,7 @@ CREATE TABLE place (
   id               TEXT PRIMARY KEY,
   slug             TEXT NOT NULL UNIQUE,
   name             TEXT NOT NULL,
-  description      TEXT,
+  description      TEXT,  -- ADR-0020 (2026-05-19): nullable y *dormida* en el MVP. No se setea desde el wizard ni se edita desde ningún UI activo; forward-compat para `/settings` futuro (mismo patrón que `opening_hours` por ADR-0007).
   theme_config     JSONB NOT NULL DEFAULT '{}',
   opening_hours    JSONB NOT NULL DEFAULT '{}',
   billing_mode     billing_mode NOT NULL,

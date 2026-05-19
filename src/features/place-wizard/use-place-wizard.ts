@@ -65,15 +65,18 @@ export function usePlaceWizard(opts: {
   // El LLM aplica `setCustomPalette(...)` directamente; con el modo `paletteMode`
   // explícito (no derivado, post-bug-fix), también hay que bascular el modo a
   // "custom" para que el preview/submit usen la propuesta. Wrapper acá para que
-  // `useStyleAssist` no necesite conocer el modo.
+  // `useStyleAssist` no necesite conocer el modo. La descripción se eliminó
+  // del wizard (ADR-0020): se pasa string vacío al hook (gating de la isla
+  // queda en "necesita descripción" — innocuo: la isla también se elimina en
+  // el commit siguiente del mismo ADR).
   const assist = useStyleAssist({
     onSuggest: opts.onSuggest,
-    description: style.description,
+    description: "",
     setCustomPalette: (p) => {
       style.setCustomPalette(p);
       style.setPaletteMode("custom");
     },
-    setDescription: style.setDescription,
+    setDescription: () => {},
   });
 
   // Envoltorios del cruce LLM↔paleta: cambiar de preset o volver al modo
@@ -90,11 +93,11 @@ export function usePlaceWizard(opts: {
   }
 
   // Validez por paso (cross-domain — se compone acá) + validez del submit
-  // (en authed el último paso es Estilo; en place-first es Cuenta).
-  const stepValid = [identity.step1Valid, !style.descTooLong, account.step3Valid];
-  const submitValid = authed
-    ? identity.step1Valid && !style.descTooLong
-    : account.step3Valid;
+  // (en authed el último paso es Estilo; en place-first es Cuenta). El Paso 2
+  // ya no tiene validación bloqueante tras quitar el campo descripción
+  // (ADR-0020) — la paleta siempre es válida (preset o custom hex parseable).
+  const stepValid = [identity.step1Valid, true, account.step3Valid];
+  const submitValid = authed ? identity.step1Valid : account.step3Valid;
 
   const submit = useCreateSubmit({
     authed,
@@ -104,7 +107,6 @@ export function usePlaceWizard(opts: {
     buildInputCore: () => ({
       name: identity.name.trim(),
       slug: identity.normalized,
-      description: style.description.trim() || undefined,
       theme: style.selectedPalette,
     }),
     buildCredentials: () => ({
@@ -127,13 +129,12 @@ export function usePlaceWizard(opts: {
     nav.goBack();
   }
 
-  // 7 ids cross-step para accesibilidad (label/aria-describedby). Viven acá
+  // 6 ids cross-step para accesibilidad (label/aria-describedby). Viven acá
   // para mantener el orden estable de hooks entre renders (React rule).
   const ids = {
     name: useId(),
     slug: useId(),
     slugMsg: useId(),
-    desc: useId(),
     email: useId(),
     password: useId(),
     displayName: useId(),

@@ -127,13 +127,9 @@ export function PlaceWizard({
         {w.currentStep === 1 && (
           <Step2Style
             labels={labels}
-            ids={{ desc: w.ids.desc }}
-            description={w.description}
-            descTooLong={w.descTooLong}
             selectedPaletteId={w.paletteId}
             paletteMode={w.paletteMode}
             customPalette={w.customPalette}
-            onDescription={w.setDescription}
             onPalette={w.choosePreset}
             onPaletteMode={w.setPaletteMode}
             onCustomHex={w.setCustomHex}

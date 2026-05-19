@@ -73,10 +73,6 @@ export interface WizardLabels extends StyleAssistLabels {
   nameRequired: string;
   previewLabel: string;
   previewEmptyName: string;
-  descriptionLabel: string;
-  descriptionPlaceholder: string;
-  descriptionHint: string;
-  descriptionTooLong: string;
   paletteLabel: string;
   /** id de preset → nombre traducido. */
   paletteNames: Record<string, string>;

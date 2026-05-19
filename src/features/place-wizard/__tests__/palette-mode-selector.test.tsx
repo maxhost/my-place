@@ -22,8 +22,6 @@ const LABELS: WizardLabels = {
   slugAvailableHint: "x", nameRequired: "x", previewLabel: "x",
   previewEmptyName: "x",
   guardrailNotice: "Ajustamos un color para que se lea bien",
-  descriptionLabel: "x", descriptionPlaceholder: "x", descriptionHint: "x",
-  descriptionTooLong: "x",
   paletteLabel: "Colores",
   paletteNames: { papel: "Papel", bosque: "Bosque", tinta: "Tinta", arcilla: "Arcilla" },
   emailLabel: "x", emailPlaceholder: "x", emailInvalid: "x",

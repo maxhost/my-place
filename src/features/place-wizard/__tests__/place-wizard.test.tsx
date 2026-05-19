@@ -35,10 +35,6 @@ const LABELS: WizardLabels = {
   previewLabel: "Así se va a ver",
   previewEmptyName: "Tu lugar",
   guardrailNotice: "Ajustamos un color para que se lea bien",
-  descriptionLabel: "Descripción",
-  descriptionPlaceholder: "Una línea sobre tu lugar",
-  descriptionHint: "Opcional. Hasta 500 caracteres.",
-  descriptionTooLong: "La descripción es demasiado larga",
   paletteLabel: "Colores",
   paletteNames: {
     papel: "Papel",
@@ -119,11 +115,7 @@ async function fillToAccountStep(user: ReturnType<typeof userEvent.setup>) {
   await user.clear(screen.getByLabelText("Dirección"));
   await user.type(screen.getByLabelText("Dirección"), "mi-club");
   await user.click(screen.getByRole("button", { name: "Siguiente" }));
-
-  await user.type(
-    screen.getByLabelText("Descripción"),
-    "Un lugar tranquilo para leer juntos",
-  );
+  // Paso 2 (estilo) no requiere input para avanzar — la paleta default basta.
   await user.click(screen.getByRole("button", { name: "Siguiente" }));
 
   await user.type(screen.getByLabelText("Email"), "vos@ejemplo.com");
@@ -215,30 +207,17 @@ describe("PlaceWizard — Paso 2 (estilo) y navegación", () => {
     await user.click(screen.getByRole("button", { name: "Siguiente" }));
 
     expect(screen.getByText("Paso 2 de 3")).toBeInTheDocument();
-    expect(screen.getByLabelText("Descripción")).toBeInTheDocument();
+    // El Paso 2 ya no tiene descripción (ADR-0020); el selector de paleta es
+    // su único contenido. Identificamos el paso vía el segmented control.
+    expect(
+      screen.getByRole("radio", { name: "Predefinidas" }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Atrás" }));
     expect(screen.getByText("Paso 1 de 3")).toBeInTheDocument();
     expect(
       screen.getByLabelText<HTMLInputElement>("Dirección").value,
     ).toBe("mi-club");
-  });
-
-  it("bloquea avanzar si la descripción excede 500 caracteres", async () => {
-    const user = userEvent.setup();
-    setup();
-    await user.type(screen.getByLabelText("Nombre del lugar"), "Mi Club");
-    await user.clear(screen.getByLabelText("Dirección"));
-    await user.type(screen.getByLabelText("Dirección"), "mi-club");
-    await user.click(screen.getByRole("button", { name: "Siguiente" }));
-
-    const desc = screen.getByLabelText("Descripción");
-    await user.click(desc);
-    await user.paste("x".repeat(501));
-    expect(
-      screen.getByText("La descripción es demasiado larga"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Siguiente" })).toBeDisabled();
   });
 
   it("elegir una paleta cambia el preview en vivo", async () => {

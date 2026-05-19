@@ -281,10 +281,6 @@
     "previewLabel": "Así se va a ver",
     "previewEmptyName": "Tu lugar",
     "guardrailNotice": "Ajustamos un color para que el texto se lea bien",
-    "descriptionLabel": "Descripción",
-    "descriptionPlaceholder": "Una línea sobre tu lugar",
-    "descriptionHint": "Opcional. Hasta 500 caracteres.",
-    "descriptionTooLong": "La descripción no puede superar los 500 caracteres",
     "paletteLabel": "Colores",
     "palettes": {
       "papel": "Papel",

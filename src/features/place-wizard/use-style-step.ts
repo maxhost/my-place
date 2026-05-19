@@ -2,9 +2,9 @@ import { useState } from "react";
 import { hexColorSchema, type Palette } from "@/shared/lib/palette-schema";
 import { DEFAULT_PRESET_ID, PALETTE_PRESETS } from "./palettes";
 
-// Sub-hook 3/6: Paso 2 (descripción + paleta modo preset/custom). Expone
-// primitivos puros; el cruce LLM↔preset (envoltorio de choosePreset +
-// setPaletteMode) vive en el orquestador. Ver mapa en `use-place-wizard.ts`.
+// Sub-hook 3/6: Paso 2 (paleta modo preset/custom). Expone primitivos puros;
+// el cruce LLM↔preset (envoltorio de choosePreset + setPaletteMode) vive en
+// el orquestador. Ver mapa en `use-place-wizard.ts`.
 //
 // Diseño del estado de paleta (post-bug-fix 2026-05-19): `paletteMode` y
 // `customPalette` son DOS estados ORTOGONALES — el modo decide qué paleta
@@ -12,11 +12,14 @@ import { DEFAULT_PRESET_ID, PALETTE_PRESETS } from "./palettes";
 // en "preset" (es legítimo que el owner alterne modos sin perder ediciones).
 // El bug histórico era el modo derivado (`customPalette ? "custom" : "preset"`),
 // que obligaba a nullificar el custom para "estar en preset" → ediciones perdidas.
+//
+// El campo `description` se removió del wizard (ADR-0020, 2026-05-19) — la
+// columna `place.description` permanece nullable en DB, diferida a /settings
+// (mismo patrón que `opening_hours` por ADR-0007).
 
 type PaletteMode = "preset" | "custom";
 
 export function useStyleStep() {
-  const [description, setDescription] = useState("");
   const [paletteMode, setPaletteModeState] = useState<PaletteMode>("preset");
   const [paletteId, setPaletteId] = useState(DEFAULT_PRESET_ID);
   // Persiste entre viajes de modo: en "preset" sigue vivo, en "custom" es la
@@ -24,7 +27,6 @@ export function useStyleStep() {
   // viene del preset actual al primer ingreso (`setPaletteMode("custom")`).
   const [customPalette, setCustomPalette] = useState<Palette | null>(null);
 
-  const descTooLong = description.trim().length > 500;
   const presetPalette =
     PALETTE_PRESETS.find((p) => p.id === paletteId)?.palette ??
     PALETTE_PRESETS[0].palette;
@@ -61,14 +63,11 @@ export function useStyleStep() {
   }
 
   return {
-    description,
-    descTooLong,
     paletteId,
     customPalette,
     presetPalette,
     selectedPalette,
     paletteMode,
-    setDescription,
     setPaletteId,
     setCustomPalette,
     setPaletteMode,

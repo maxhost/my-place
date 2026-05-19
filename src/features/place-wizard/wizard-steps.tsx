@@ -94,18 +94,16 @@ export function Step1Identity(p: {
 
 export function Step2Style(p: {
   labels: WizardLabels;
-  ids: { desc: string };
-  description: string;
-  descTooLong: boolean;
   selectedPaletteId: string;
   paletteMode: "preset" | "custom";
   customPalette: Palette | null;
-  onDescription: (v: string) => void;
   onPalette: (id: string) => void;
   onPaletteMode: (mode: "preset" | "custom") => void;
   onCustomHex: (token: "accent" | "bg" | "ink", value: string) => void;
   // Isla propose-only (S10b). `assist` ausente = la ruta no la cableó → no se
-  // renderiza (la asistencia es opcional, ADR-0005 §5).
+  // renderiza (la asistencia es opcional, ADR-0005 §5). Pausada en el MVP
+  // por ADR-0020 — ningún consumer activo la cablea, queda el guard por si
+  // se reactiva en el futuro.
   assist?: {
     phase: "idle" | "loading" | "ready" | "unavailable";
     suggestReady: boolean;
@@ -121,25 +119,6 @@ export function Step2Style(p: {
   const { labels: l } = p;
   return (
     <>
-      <div className="flex flex-col gap-2">
-        <label htmlFor={p.ids.desc} className="text-sm font-medium text-ink">
-          {l.descriptionLabel}
-        </label>
-        <textarea
-          id={p.ids.desc}
-          value={p.description}
-          placeholder={l.descriptionPlaceholder}
-          rows={3}
-          onChange={(e) => p.onDescription(e.target.value)}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-base text-ink"
-        />
-        {p.descTooLong ? (
-          <p className={errClass}>{l.descriptionTooLong}</p>
-        ) : (
-          <p className="text-sm text-muted">{l.descriptionHint}</p>
-        )}
-      </div>
-
       {p.assist && (
         <StyleAssistIsland
           labels={l}
