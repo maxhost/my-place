@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from "react";
+import { useWizardNav } from "./use-wizard-nav";
 import type { StyleSuggestion } from "@/features/style-assist/public";
 import { isReservedSlug } from "@/shared/config/reserved-slugs";
 import { hexColorSchema, type Palette } from "@/shared/lib/palette-schema";
@@ -66,7 +67,9 @@ export function usePlaceWizard(opts: {
   onSuggest?: WizardSuggest;
 }) {
   const { labels, authed = false } = opts;
-  const [currentStep, setCurrentStep] = useState(0);
+  const stepCount = labels.stepTitles.length;
+  const nav = useWizardNav(stepCount);
+  const { currentStep, isLastStep } = nav;
   const [name, setName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const [slug, setSlug] = useState("");
@@ -129,23 +132,21 @@ export function usePlaceWizard(opts: {
     !!opts.onSuggest && suggestPhase !== "loading";
   const suggestReady = description.trim().length > 0;
 
-  const stepCount = labels.stepTitles.length;
-  const isLastStep = currentStep === stepCount - 1;
-
   function onNameChange(value: string) {
     setName(value);
     if (!slugTouched) setSlug(slugify(value));
   }
 
+  // Envoltorios de `nav.goNext`/`goBack` para sumar el guard de validez +
+  // limpiar `notice` (cruce documentado en el header del orquestador).
   function goNext() {
     if (!stepValid[currentStep] || isLastStep) return;
     setNotice(null);
-    setCurrentStep((s) => Math.min(stepCount - 1, s + 1));
+    nav.goNext();
   }
-
   function goBack() {
     setNotice(null);
-    setCurrentStep((s) => Math.max(0, s - 1));
+    nav.goBack();
   }
 
   async function handleSubmit() {
@@ -184,7 +185,7 @@ export function usePlaceWizard(opts: {
       if (res.status === "created") setResult(res);
       else if (res.status === "slug_taken") {
         setNotice("slug_taken");
-        setCurrentStep(0);
+        nav.resetToFirstStep();
       } else setNotice("invalid");
     } catch {
       setNotice("error");
