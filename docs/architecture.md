@@ -38,6 +38,8 @@ src/
 
 Canónico en `CLAUDE.md` › Límites de tamaño. Superar un límite = dividir antes de continuar.
 
+Cuando un hook crece más allá del techo y la lógica se separa en sub-hooks por dominio, **el orquestador documenta el mapa al tope del archivo** (single source of truth en el código mismo, sin doc paralela). Precedente: `src/features/place-wizard/use-place-wizard.ts` compone 6 sub-hooks (navegación, identidad, estilo, asistencia LLM, cuenta, submit two-phase) — leer su header JSDoc para saber qué hace cada uno y dónde tocar.
+
 ## Sesión y SSO
 
 Auth provider: **Neon Auth** (sobre Better Auth) — ver `docs/stack.md`. Place actúa como **su propio OIDC Identity Provider** (plugin OIDC Provider de Better Auth): el modelo "Sign in with Google", pero el IdP somos nosotros.
