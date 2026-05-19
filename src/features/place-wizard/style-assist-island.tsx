@@ -44,7 +44,10 @@ export function StyleAssistIsland(p: {
       )}
 
       {p.phase === "unavailable" && (
-        <p className="text-sm text-muted" aria-live="polite">
+        <p
+          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink"
+          aria-live="polite"
+        >
           {l.assistUnavailable}
         </p>
       )}

@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from "react";
 import type { StyleSuggestion } from "@/features/style-assist/public";
 import { isReservedSlug } from "@/shared/config/reserved-slugs";
-import type { Palette } from "@/shared/lib/palette-schema";
+import { hexColorSchema, type Palette } from "@/shared/lib/palette-schema";
 import {
   type CreatePlaceInput,
   type CreatePlaceResult,
@@ -201,6 +201,26 @@ export function usePlaceWizard(opts: {
     setPaletteApplied(false);
   }
 
+  // Modo de paleta DERIVADO (`producto.md` §30 customización activa):
+  // `customPalette` no-null ⇒ "custom". Cambiar a "custom" sin paleta custom
+  // copia el preset actual (caso borde: el modo nunca "se vuelve solo" a
+  // preset). Cambiar a "preset" limpia custom (reusa `choosePreset`).
+  const paletteMode: "preset" | "custom" = customPalette ? "custom" : "preset";
+  function setPaletteMode(mode: "preset" | "custom") {
+    if (mode === "custom" && !customPalette) setCustomPalette(presetPalette);
+    else if (mode === "preset") choosePreset(paletteId);
+  }
+
+  // Actualiza un canal de la paleta custom si parsea (`hexColorSchema`). Si
+  // no parsea, no-op (preserva el último válido). La UI muestra el aviso
+  // calmo a partir de su buffer local; ese caso no rompe el preview.
+  function setCustomHex(token: "accent" | "bg" | "ink", value: string) {
+    const parsed = hexColorSchema.safeParse(value);
+    if (!parsed.success) return;
+    const base = customPalette ?? presetPalette;
+    setCustomPalette({ ...base, [token]: parsed.data });
+  }
+
   // Pide la propuesta. NUNCA lanza: la asistencia es opcional — falla/red/
   // `unavailable` → aviso calmo, se sigue a mano (ADR-0005 §5). Nada se
   // auto-aplica: sólo deja la propuesta visible (ADR-0005 §6).
@@ -277,6 +297,8 @@ export function usePlaceWizard(opts: {
     description,
     descTooLong,
     paletteId,
+    paletteMode,
+    customPalette,
     suggestEnabled: !!opts.onSuggest,
     suggestPhase,
     suggestReady,
@@ -301,6 +323,8 @@ export function usePlaceWizard(opts: {
     setDescription,
     setPaletteId,
     choosePreset,
+    setPaletteMode,
+    setCustomHex,
     handleSuggest,
     applySuggestedPalette,
     applySuggestedDescription,

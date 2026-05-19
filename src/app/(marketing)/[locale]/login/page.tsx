@@ -144,6 +144,15 @@ export default async function LoginPage({ params }: Props) {
     assistApplyPalette: w("assistApplyPalette"),
     assistApplyDescription: w("assistApplyDescription"),
     assistApplied: w("assistApplied"),
+    paletteModeLabel: w("paletteModeLabel"),
+    paletteModePreset: w("paletteModePreset"),
+    paletteModeCustom: w("paletteModeCustom"),
+    paletteCustomTitle: w("paletteCustomTitle"),
+    paletteCustomAccentLabel: w("paletteCustomAccentLabel"),
+    paletteCustomBgLabel: w("paletteCustomBgLabel"),
+    paletteCustomInkLabel: w("paletteCustomInkLabel"),
+    paletteCustomHexInvalid: w("paletteCustomHexInvalid"),
+    paletteCustomPickerSuffix: w("paletteCustomPickerSuffix"),
   };
 
   const auth: AccessSubmit = {

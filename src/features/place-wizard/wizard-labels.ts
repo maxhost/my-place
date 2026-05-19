@@ -115,4 +115,19 @@ export interface WizardLabels {
   assistApplyPalette: string;
   assistApplyDescription: string;
   assistApplied: string;
+  // Modo de paleta: predefinidas vs. personalizado (custom hex). El owner
+  // elige uno explícitamente (`producto.md` §30 customización activa).
+  /** Label del segmented control "¿Cómo elegís los colores?". */
+  paletteModeLabel: string;
+  paletteModePreset: string;
+  paletteModeCustom: string;
+  /** Encabezado del bloque "Personalizado" (3 inputs hex). */
+  paletteCustomTitle: string;
+  paletteCustomAccentLabel: string;
+  paletteCustomBgLabel: string;
+  paletteCustomInkLabel: string;
+  /** Feedback calmo bajo un input hex que no parsea — NO bloquea submit. */
+  paletteCustomHexInvalid: string;
+  /** Sufijo aria-label del `<input type="color">` por canal. */
+  paletteCustomPickerSuffix: string;
 }

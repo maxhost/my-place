@@ -104,6 +104,15 @@ export default async function CrearPage({ params }: Props) {
     assistApplyPalette: t("assistApplyPalette"),
     assistApplyDescription: t("assistApplyDescription"),
     assistApplied: t("assistApplied"),
+    paletteModeLabel: t("paletteModeLabel"),
+    paletteModePreset: t("paletteModePreset"),
+    paletteModeCustom: t("paletteModeCustom"),
+    paletteCustomTitle: t("paletteCustomTitle"),
+    paletteCustomAccentLabel: t("paletteCustomAccentLabel"),
+    paletteCustomBgLabel: t("paletteCustomBgLabel"),
+    paletteCustomInkLabel: t("paletteCustomInkLabel"),
+    paletteCustomHexInvalid: t("paletteCustomHexInvalid"),
+    paletteCustomPickerSuffix: t("paletteCustomPickerSuffix"),
   };
 
   return (

@@ -75,6 +75,15 @@ const LABELS: WizardLabels = {
   assistApplyPalette: "Usar estos colores",
   assistApplyDescription: "Usar este texto",
   assistApplied: "Aplicado",
+  paletteModeLabel: "¿Cómo elegís los colores?",
+  paletteModePreset: "Predefinidas",
+  paletteModeCustom: "Personalizado",
+  paletteCustomTitle: "Tus colores",
+  paletteCustomAccentLabel: "Color principal",
+  paletteCustomBgLabel: "Fondo",
+  paletteCustomInkLabel: "Texto",
+  paletteCustomHexInvalid: "Hex inválido (#rrggbb).",
+  paletteCustomPickerSuffix: "(selector de color)",
 };
 
 const SUGGESTION: StyleSuggestionResult = {
@@ -239,6 +248,11 @@ describe("S10b — isla propose-only", () => {
       ),
     );
 
+    // Tras aplicar la propuesta del LLM, el wizard queda en modo
+    // "Personalizado" (consecuencia del derivado: customPalette no-null).
+    // Volver a un preset es explícito (cozytech `producto.md` §30): primero
+    // se elige "Predefinidas", después el preset.
+    await user.click(screen.getByRole("radio", { name: "Predefinidas" }));
     const bosque = screen.getByRole("radio", { name: "Bosque" });
     await user.click(bosque);
     expect(bosque).toBeChecked();

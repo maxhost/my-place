@@ -323,6 +323,15 @@
     "assistApplyPalette": "Usar estos colores",
     "assistApplyDescription": "Usar este texto",
     "assistApplied": "Aplicado",
-    "accountFailedNotice": "No pudimos crear la cuenta. Quizás ya tengas una con ese email — probá iniciar sesión."
+    "accountFailedNotice": "No pudimos crear la cuenta. Quizás ya tengas una con ese email — probá iniciar sesión.",
+    "paletteModeLabel": "¿Cómo elegís los colores?",
+    "paletteModePreset": "Predefinidas",
+    "paletteModeCustom": "Personalizado",
+    "paletteCustomTitle": "Tus colores",
+    "paletteCustomAccentLabel": "Color principal",
+    "paletteCustomBgLabel": "Fondo",
+    "paletteCustomInkLabel": "Texto",
+    "paletteCustomHexInvalid": "Hex inválido (#rrggbb).",
+    "paletteCustomPickerSuffix": "(selector de color)"
   }
 }

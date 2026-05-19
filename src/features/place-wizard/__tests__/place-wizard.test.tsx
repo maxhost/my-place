@@ -78,6 +78,15 @@ const LABELS: WizardLabels = {
   assistApplyPalette: "Usar estos colores",
   assistApplyDescription: "Usar este texto",
   assistApplied: "Aplicado",
+  paletteModeLabel: "¿Cómo elegís los colores?",
+  paletteModePreset: "Predefinidas",
+  paletteModeCustom: "Personalizado",
+  paletteCustomTitle: "Tus colores",
+  paletteCustomAccentLabel: "Color principal",
+  paletteCustomBgLabel: "Fondo",
+  paletteCustomInkLabel: "Texto",
+  paletteCustomHexInvalid: "Hex inválido (#rrggbb).",
+  paletteCustomPickerSuffix: "(selector de color)",
 };
 
 function setup(
@@ -304,6 +313,42 @@ describe("PlaceWizard — Paso 3 (cuenta) + submit", () => {
     expect(onCreateAccount).toHaveBeenCalledTimes(1);
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.queryByText("Tu lugar está listo")).not.toBeInTheDocument();
+  });
+
+  it("paleta personalizada: el hex editado se persiste en input.theme", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<WizardSubmit>(async () => ({
+      status: "created",
+      placeId: "p1",
+      slug: "mi-club",
+      adjustments: [],
+    }));
+    setup(onSubmit);
+    // Paso 1
+    await user.type(screen.getByLabelText("Nombre del lugar"), "Mi Club");
+    await user.clear(screen.getByLabelText("Dirección"));
+    await user.type(screen.getByLabelText("Dirección"), "mi-club");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    // Paso 2: cambiar a modo "Personalizado" + editar accent.
+    await user.click(screen.getByRole("radio", { name: "Personalizado" }));
+    const accent = screen.getByLabelText<HTMLInputElement>("Color principal");
+    await user.clear(accent);
+    await user.type(accent, "#abcdef");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    // Paso 3
+    await user.type(screen.getByLabelText("Email"), "vos@ejemplo.com");
+    await user.type(screen.getByLabelText("Contraseña"), "supersegura");
+    await user.type(screen.getByLabelText("Tu nombre"), "Ana");
+    await user.click(screen.getByLabelText(/Acepto los/));
+    await user.click(screen.getByRole("button", { name: "Crear mi lugar" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Tu lugar está listo")).toBeInTheDocument(),
+    );
+    const [input] = onSubmit.mock.calls[0];
+    expect(input.theme).toEqual(
+      expect.objectContaining({ accent: "#abcdef" }),
+    );
   });
 
   it("no deja crear sin aceptar los términos", async () => {

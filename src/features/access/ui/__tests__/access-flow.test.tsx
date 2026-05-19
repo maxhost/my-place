@@ -108,6 +108,15 @@ const WIZARD_LABELS: WizardLabels = {
   assistApplyPalette: "Usar estos colores",
   assistApplyDescription: "Usar este texto",
   assistApplied: "Aplicado",
+  paletteModeLabel: "¿Cómo elegís los colores?",
+  paletteModePreset: "Predefinidas",
+  paletteModeCustom: "Personalizado",
+  paletteCustomTitle: "Tus colores",
+  paletteCustomAccentLabel: "Color principal",
+  paletteCustomBgLabel: "Fondo",
+  paletteCustomInkLabel: "Texto",
+  paletteCustomHexInvalid: "Hex inválido (#rrggbb).",
+  paletteCustomPickerSuffix: "(selector de color)",
 };
 
 function makeAuth(over: Partial<AccessSubmit> = {}): AccessSubmit {

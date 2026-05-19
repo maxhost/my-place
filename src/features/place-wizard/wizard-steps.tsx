@@ -1,5 +1,7 @@
 import type { StyleSuggestion } from "@/features/style-assist/public";
-import { PALETTE_PRESETS } from "./palettes";
+import type { Palette } from "@/shared/lib/palette-schema";
+import { PALETTE_PRESET_IDS } from "./palettes";
+import { PaletteModeSelector } from "./palette-mode-selector";
 import { StyleAssistIsland } from "./style-assist-island";
 import type { WizardLabels } from "./wizard-labels";
 
@@ -94,8 +96,12 @@ export function Step2Style(p: {
   description: string;
   descTooLong: boolean;
   selectedPaletteId: string;
+  paletteMode: "preset" | "custom";
+  customPalette: Palette | null;
   onDescription: (v: string) => void;
   onPalette: (id: string) => void;
+  onPaletteMode: (mode: "preset" | "custom") => void;
+  onCustomHex: (token: "accent" | "bg" | "ink", value: string) => void;
   // Isla propose-only (S10b). `assist` ausente = la ruta no la cableó → no se
   // renderiza (la asistencia es opcional, ADR-0005 §5).
   assist?: {
@@ -147,38 +153,16 @@ export function Step2Style(p: {
         />
       )}
 
-      <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-ink">
-          {l.paletteLabel}
-        </legend>
-        <div className="flex flex-wrap gap-3">
-          {PALETTE_PRESETS.map((preset) => {
-            const id = `palette-${preset.id}`;
-            return (
-              <span key={preset.id} className="inline-flex items-center gap-2">
-                <input
-                  type="radio"
-                  id={id}
-                  name="palette"
-                  checked={p.selectedPaletteId === preset.id}
-                  onChange={() => p.onPalette(preset.id)}
-                />
-                <label
-                  htmlFor={id}
-                  className="inline-flex items-center gap-2 text-sm text-ink"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="inline-block h-4 w-4 rounded-full border border-border"
-                    style={{ background: preset.palette.accent }}
-                  />
-                  {l.paletteNames[preset.id] ?? preset.id}
-                </label>
-              </span>
-            );
-          })}
-        </div>
-      </fieldset>
+      <PaletteModeSelector
+        labels={l}
+        mode={p.paletteMode}
+        presetIds={PALETTE_PRESET_IDS}
+        selectedPresetId={p.selectedPaletteId}
+        customPalette={p.customPalette}
+        onModeChange={p.onPaletteMode}
+        onPresetChange={p.onPalette}
+        onCustomHexChange={p.onCustomHex}
+      />
     </>
   );
 }
