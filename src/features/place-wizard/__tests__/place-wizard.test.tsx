@@ -253,6 +253,37 @@ describe("PlaceWizard — Paso 2 (estilo) y navegación", () => {
     await user.click(bosque);
     expect(bosque).toBeChecked();
   });
+
+  // Bug histórico (pre-ADR-0020): el modo `paletteMode` era derivado de
+  // `customPalette != null`, por lo que volver a "Predefinidas" obligaba a
+  // `setCustomPalette(null)` — y el siguiente viaje a "Personalizado" perdía
+  // las ediciones del owner. El fix separa `paletteMode` (useState propio) de
+  // `customPalette` (que persiste a través del viaje de modos).
+  it("paleta personalizada persiste tras viaje Preset → Custom → Preset → Custom", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.type(screen.getByLabelText("Nombre del lugar"), "Mi Club");
+    await user.clear(screen.getByLabelText("Dirección"));
+    await user.type(screen.getByLabelText("Dirección"), "mi-club");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    // 1. Entra a modo Personalizado y edita el accent.
+    await user.click(screen.getByRole("radio", { name: "Personalizado" }));
+    const accent = screen.getByLabelText<HTMLInputElement>("Color principal");
+    await user.clear(accent);
+    await user.type(accent, "#abcdef");
+    expect(accent.value.toLowerCase()).toBe("#abcdef");
+
+    // 2. Vuelve a Predefinidas (los inputs hex desaparecen del DOM).
+    await user.click(screen.getByRole("radio", { name: "Predefinidas" }));
+    expect(screen.queryByLabelText("Color principal")).not.toBeInTheDocument();
+
+    // 3. Vuelve a Personalizado: el accent editado debe persistir.
+    await user.click(screen.getByRole("radio", { name: "Personalizado" }));
+    const accentAgain =
+      screen.getByLabelText<HTMLInputElement>("Color principal");
+    expect(accentAgain.value.toLowerCase()).toBe("#abcdef");
+  });
 });
 
 describe("PlaceWizard — Paso 3 (cuenta) + submit", () => {

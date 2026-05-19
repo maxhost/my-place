@@ -62,22 +62,31 @@ export function usePlaceWizard(opts: {
   const account = useAccountStep();
 
   const style = useStyleStep();
+  // El LLM aplica `setCustomPalette(...)` directamente; con el modo `paletteMode`
+  // explícito (no derivado, post-bug-fix), también hay que bascular el modo a
+  // "custom" para que el preview/submit usen la propuesta. Wrapper acá para que
+  // `useStyleAssist` no necesite conocer el modo.
   const assist = useStyleAssist({
     onSuggest: opts.onSuggest,
     description: style.description,
-    setCustomPalette: style.setCustomPalette,
+    setCustomPalette: (p) => {
+      style.setCustomPalette(p);
+      style.setPaletteMode("custom");
+    },
     setDescription: style.setDescription,
   });
 
-  // Envoltorios del cruce LLM↔preset: elegir un preset (directo o vía modo)
-  // invalida el "Aplicado" del LLM (`producto.md` §30 — preset gana).
+  // Envoltorios del cruce LLM↔paleta: cambiar de preset o volver al modo
+  // "preset" invalida el "Aplicado" del LLM (`producto.md` §30 — el owner
+  // tomó una decisión que reemplaza la propuesta). Pasar a "custom" no
+  // resetea (la propuesta del LLM se aplica AL custom, son coherentes).
   function choosePreset(id: string) {
     style.choosePreset(id);
     assist.resetPaletteApplied();
   }
   function setPaletteMode(mode: PaletteMode) {
-    if (mode === "custom") style.activateCustomFromPreset();
-    else choosePreset(style.paletteId);
+    style.setPaletteMode(mode);
+    if (mode === "preset") assist.resetPaletteApplied();
   }
 
   // Validez por paso (cross-domain — se compone acá) + validez del submit
