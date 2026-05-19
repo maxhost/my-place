@@ -5,6 +5,8 @@
 - **Alcance:** producto (onboarding), arquitectura (saga signup, routing), modelo de datos, auth, billing (trial), IA
 - **Ajusta:** el principio "Customización activa, no algorítmica" de `docs/producto.md` (ver §Decisión 6); no supersede ninguna ADR
 
+> ⚠️ **CORRECCIÓN 2026-05-19 — leer antes de aplicar esta ADR.** El premise de **implementación** de §1 ("single submit" = signup + `app_user` + place en **una sola invocación** de Server Action) quedó **INVÁLIDO** a partir del 2026-05-19 (evidencia en prod: el token de `signUp` es de sesión opaco, no JWT; `auth.token()` necesita la cookie que `signUp` no expone en la misma invocación). **Rige ADR-0018**: place-first es **two-phase** (signup → create authed). El "single submit" sigue válido a nivel **producto** (un click); el resto de ADR-0005 (§§2–9: IA, billing, routing, cuenta-sin-place §4) **sigue vigente**.
+
 Las ADR son registro histórico: no se editan, se reemplazan con una nueva ADR que la supersede.
 
 ## Contexto

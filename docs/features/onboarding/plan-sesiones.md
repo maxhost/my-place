@@ -2,6 +2,8 @@
 
 Plan de implementación de la tanda de registro (auth + creación de place). **Reescrito 2026-05-17 para el modelo D** (ADR-0012: creación vía función `SECURITY DEFINER`, INSERT directo denegado por RLS). Reemplaza el plan previo, que asumía `WITH CHECK` self-only por-RLS (superseded por ADR-0012 §1 — dejaba escalación de ownership, verificado empíricamente).
 
+> ⚠️ **CORRECCIÓN 2026-05-19 (rige sobre todo lo de abajo).** Este log de sesiones contiene afirmaciones de S4b/S5b/S9 ahora **INVÁLIDAS** (registro histórico, no se reescriben): el token de `signUp`/`getSession` es de **sesión opaco, no JWT**; `auth.getAccessToken()` es OAuth de proveedor; place-first **NO** es single-invocation. **Rige ADR-0018**: el JWT se obtiene con `auth.token()`; place-first es **two-phase** (signup → create authed); el signup crea solo identidad (`ensureAppUser` diferido). Cualquier mención abajo a "token de signUp / getAccessToken / misma invocación / S5b token" se lee a la luz de ADR-0018. Verificado en prod 2026-05-19 (place `the-company`).
+
 > **Ejecución (decidido 2026-05-17):** secuencial, un solo hilo, **sin agentes en paralelo**. El núcleo auth/RLS/creación (S2–S6) es cadena de dependencias dura + estado compartido (un branch Neon, migraciones seriales); paralelizar ahí cambia corrección por velocidad. Hojas tardías (S7/S10) podrían paralelizarse a futuro; por ahora también en serie.
 
 ## Disciplina de trabajo (obligatoria, toda sesión)

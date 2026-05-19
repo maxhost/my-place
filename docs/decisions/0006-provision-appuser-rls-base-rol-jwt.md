@@ -5,6 +5,8 @@
 - **Alcance:** auth (fundamento), arquitectura (saga signup), multi-tenancy (RLS), modelo de datos
 - **Ajusta:** ADR-0005 §2 (mecanismo de creación de `app_user`) y cierra los TBD acotados de RLS/rol no-admin de ADR-0004. No supersede: refina con hechos verificados.
 
+> ⚠️ **CORRECCIÓN 2026-05-19 — leer antes de aplicar esta ADR.** El TBD de §Consecuencias ("método exacto de obtención del token de sesión de Neon Auth para el backend") fue **resuelto MAL** en `auth-config.ts`/`stack.md`/`multi-tenancy.md` (afirmaban `auth.getAccessToken()` "verificado 2026-05-18" — falso: eso es token OAuth de proveedor; el de `signUp`/`getSession` es de sesión opaco, no JWT). **Queda CERRADO por ADR-0018**: el JWT JWKS-verificable se obtiene con **`auth.token()`** (endpoint `/token`, plugin JWT). El resto de ADR-0006 (provisión `app_user` vía Server Action + guard JIT `ensureAppUser`, modelo rol/JWT, RLS base) **sigue vigente**.
+
 Las ADR son registro histórico: no se editan, se reemplazan con una nueva ADR que la supersede.
 
 ## Contexto

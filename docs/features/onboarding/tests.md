@@ -2,6 +2,8 @@
 
 Mandato y casos críticos. **No** diseña los tests en detalle (eso es trabajo de cada sesión) — fija qué se prueba primero, qué es bloqueante y la estrategia de DB de test.
 
+> ⚠️ **CORRECCIÓN 2026-05-19.** Las menciones de S5b/S9 a "token de signUp / cookie misma invocación / token JWKS-verificable de sesión" son **registro histórico inválido**. **Rige ADR-0018**: JWT vía `auth.token()`, place-first **two-phase**, signup solo-identidad. Verificado en prod.
+
 ## Mandato
 
 - **TDD obligatorio en el core** (`CLAUDE.md`): tests primero → ver fallar → implementar → ver pasar. Sin excepciones en el core (saga, RLS, invariantes, invitación).

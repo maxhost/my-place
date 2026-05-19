@@ -5,6 +5,8 @@
 - **Alcance:** producto (onboarding/login), arquitectura (saga en dos modos), landing, modelo de datos (estado cuenta-sin-place)
 - **Extiende:** ADR-0005 §1 (flujo único owner-first) y §4 (cuenta-sin-place como excepción)
 
+> ⚠️ **CORRECCIÓN 2026-05-19 — leer antes de aplicar esta ADR.** El wording de §2 ("crea la identidad: Neon Auth `signUp` **+ `ensureAppUser`**, sin place") quedó **INVÁLIDO en su detalle de implementación** a partir del 2026-05-19. **Rige ADR-0018**: el signup crea **solo la identidad** (`signUp`); `ensureAppUser` se **difiere** a la TX1 del create authed (idempotente; "cuenta sin place" §4 sigue siendo legítimo). El resto de ADR-0008 (dos vías CTA/Acceso, dos modos de saga, §4 cuenta-sin-place) **sigue vigente**.
+
 Las ADR son registro histórico: no se editan, se reemplazan con una nueva ADR que la supersede.
 
 ## Contexto

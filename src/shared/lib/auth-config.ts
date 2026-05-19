@@ -8,10 +8,12 @@ type NeonAuthConfig = Parameters<typeof createNeonAuth>[0];
 // runtime del SDK → testeable determinístico en vitest/node). El wiring del
 // SDK vive en `./auth.ts`; acá vive sólo el contrato + el test-guard.
 //
-// El JWT del backend se obtiene con `auth.getAccessToken()` (endpoint
-// `get-access-token`), NO `getSession().access_token` (verificado
-// empíricamente contra `@neondatabase/auth@0.4.1-beta`, 2026-05-18; cierra el
-// TBD impl de ADR-0006, doc reconciliada en `multi-tenancy.md`/`stack.md`).
+// El JWT del backend se obtiene con `auth.token()` (endpoint `/token` del
+// plugin JWT de Neon Auth/Better Auth). NO `auth.getAccessToken()` (es token
+// OAuth de proveedor) NI el token de `signUp`/`getSession` (sesión OPACA, no
+// JWT → `ERR_JWS_INVALID`). Verificado en prod 2026-05-19; cierra el TBD de
+// ADR-0006 — canónico en ADR-0018 (la afirmación previa de `getAccessToken`
+// "verificada 2026-05-18" era incorrecta y quedó superada).
 //
 // El place es multi-tenant por subdominio (`multi-tenancy.md`): la cookie de
 // sesión DEBE llevar `Domain=.<apex>` para viajar a `*.<apex>`. Sin punto
