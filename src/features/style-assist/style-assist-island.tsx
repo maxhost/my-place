@@ -1,19 +1,24 @@
-import type { StyleSuggestion } from "@/features/style-assist/public";
-import type { WizardLabels } from "./wizard-labels";
+"use client";
 
-// Isla de asistencia LLM propose-only del Paso 2 (S10b, ADR-0005 §5/§6 /
-// ADR-0007). PRESENTACIONAL: sin estado ni red — la máquina vive en
-// `usePlaceWizard`, el Server Action vivo se inyecta en la ruta (seam-split).
-// `producto.md` cozytech: el botón NO es la CTA (no grita), los avisos son
-// calmos y NO bloquean, y NADA se auto-aplica — el owner aplica cada parte.
-// Tailwind sólo layout/spacing; chrome con tokens del producto; los colores
-// PROPUESTOS del place van inline (como el preview), nunca clases Tailwind.
+import type { StyleSuggestion } from "./domain/style-suggestion";
+import type { StyleAssistLabels } from "./labels";
+
+// Isla de asistencia LLM propose-only del Paso 2 (ADR-0005 §5/§6 / ADR-0007).
+// Vive en `style-assist` (ADR-0019, dueño del concern LLM). PRESENTACIONAL:
+// sin estado ni red — la máquina vive en `useStyleAssist`, el Server Action
+// vivo se inyecta en la ruta (seam-split). El consumer (wizard) importa la
+// isla vía `./public` y le pasa un `labels` que satisface `StyleAssistLabels`
+// (su `WizardLabels` extiende este contrato narrow). `producto.md` cozytech:
+// el botón NO es la CTA (no grita), los avisos son calmos y NO bloquean, y
+// NADA se auto-aplica — el owner aplica cada parte. Tailwind sólo layout/
+// spacing; chrome con tokens del producto; los colores PROPUESTOS del place
+// van inline (como el preview), nunca clases Tailwind.
 
 const quietBtn =
   "inline-flex min-h-[2.25rem] items-center rounded-lg border border-border px-3 text-sm text-ink disabled:opacity-40";
 
 export function StyleAssistIsland(p: {
-  labels: WizardLabels;
+  labels: StyleAssistLabels;
   phase: "idle" | "loading" | "ready" | "unavailable";
   suggestReady: boolean;
   canSuggest: boolean;

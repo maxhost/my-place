@@ -2,11 +2,17 @@ import type {
   CreatePlaceInput,
   CreatePlaceResult,
 } from "@/features/place-creation/public";
-import type { StyleSuggestionResult } from "@/features/style-assist/public";
+import type {
+  StyleAssistLabels,
+  SuggestStyle,
+} from "@/features/style-assist/public";
 
 // Tipos del wizard (S8b). Separados del componente para no exceder el límite
 // de archivo (CLAUDE.md ≤300) y para que la ruta + los pasos compartan el
-// contrato de textos sin acoplarse al cliente.
+// contrato de textos sin acoplarse al cliente. `WizardLabels` compone
+// `StyleAssistLabels` (los 12 keys i18n de la isla LLM viven en su slice
+// dueño, ADR-0019); `guardrailNotice` viene de allí y lo shareea con el
+// `place-preview` del wizard (ambos consumers del mismo key — sin duplicar).
 
 export interface PlaceFirstCredentials {
   email: string;
@@ -35,19 +41,18 @@ export type WizardSignUp = (
   credentials: PlaceFirstCredentials,
 ) => Promise<{ status: string }>;
 
-// Asistencia LLM propose-only (S10b, ADR-0005 §5/§6 / ADR-0007). Seam-split
-// idéntico a `WizardSubmit`: el Server Action vivo (`suggestStyleAction` del
-// slice `style-assist`) se inyecta como prop en la ruta — el wizard no importa
-// `style-assist` (sólo el tipo del resultado vía su `public.ts`: arista
-// feature→feature type-only, unidireccional, acíclica — ADR-0015). La firma
-// espeja exactamente `suggestStyleAction(description)`. Es OPCIONAL: si la ruta
-// no la cablea, la isla no se renderiza (la asistencia es opcional por
-// principio — ADR-0005 §5; degradación elegante también ante `unavailable`).
-export type WizardSuggest = (
-  description: string,
-) => Promise<StyleSuggestionResult>;
+// Asistencia LLM propose-only (ADR-0005 §5/§6 / ADR-0007). Seam-split: el
+// Server Action vivo se inyecta como prop en la ruta. Alias del tipo del
+// Server Action de `style-assist` (ADR-0019: el slice LLM es dueño del
+// contrato; aquí re-exportamos como alias para preservar la API del wizard).
+export type WizardSuggest = SuggestStyle;
 
-export interface WizardLabels {
+// `WizardLabels` extiende `StyleAssistLabels` (ADR-0019): los 12 keys i18n
+// que la isla LLM consume viven en `style-assist`. El wizard sigue siendo
+// dueño del bag completo de labels + i18n; el subconjunto LLM viene tipado
+// desde el slice dueño. Liskov: cualquier `WizardLabels` es estructuralmente
+// válido como `StyleAssistLabels` (TS estructural, sin runtime change).
+export interface WizardLabels extends StyleAssistLabels {
   title: string;
   /** Plantilla con `{n}` y `{total}`, ej. "Paso {n} de {total}". */
   progress: string;
@@ -68,7 +73,6 @@ export interface WizardLabels {
   nameRequired: string;
   previewLabel: string;
   previewEmptyName: string;
-  guardrailNotice: string;
   descriptionLabel: string;
   descriptionPlaceholder: string;
   descriptionHint: string;
@@ -100,21 +104,6 @@ export interface WizardLabels {
   errorNotice: string;
   /** Place-first: no se pudo crear la cuenta (p. ej. email ya registrado). */
   accountFailedNotice: string;
-  // Isla de asistencia propose-only (S10b). Tono calmo, nada grita
-  // (`producto.md` cozytech); nada se auto-aplica (ADR-0005 §6).
-  assistButton: string;
-  assistLoading: string;
-  /** Cuando no hay descripción todavía: por qué el botón está en pausa. */
-  assistNeedDescription: string;
-  /** `unavailable` / falla: aviso tranquilo que NO bloquea. */
-  assistUnavailable: string;
-  assistProposedTitle: string;
-  assistProposedHint: string;
-  assistPaletteLabel: string;
-  assistDescriptionLabel: string;
-  assistApplyPalette: string;
-  assistApplyDescription: string;
-  assistApplied: string;
   // Modo de paleta: predefinidas vs. personalizado (custom hex). El owner
   // elige uno explícitamente (`producto.md` §30 customización activa).
   /** Label del segmented control "¿Cómo elegís los colores?". */

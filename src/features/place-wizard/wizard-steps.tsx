@@ -1,8 +1,10 @@
-import type { StyleSuggestion } from "@/features/style-assist/public";
+import {
+  StyleAssistIsland,
+  type StyleSuggestion,
+} from "@/features/style-assist/public";
 import type { Palette } from "@/shared/lib/palette-schema";
 import { PALETTE_PRESET_IDS } from "./palettes";
 import { PaletteModeSelector } from "./palette-mode-selector";
-import { StyleAssistIsland } from "./style-assist-island";
 import type { WizardLabels } from "./wizard-labels";
 
 // Cuerpos presentacionales de los 3 pasos del wizard (S8b). Sin estado: el

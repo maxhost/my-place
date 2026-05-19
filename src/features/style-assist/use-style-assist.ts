@@ -1,17 +1,25 @@
+"use client";
+
 import { useRef, useState } from "react";
-import type { StyleSuggestion } from "@/features/style-assist/public";
 import type { Palette } from "@/shared/lib/palette-schema";
-import type { WizardSuggest } from "./wizard-labels";
+import type { StyleSuggestion } from "./domain/style-suggestion";
+import type { suggestStyleAction } from "./suggest-style-action";
 
-// Sub-hook 4/6: máquina de la isla LLM propose-only (ADR-0005 §5-§6).
-// Recibe description (gating) + setters de use-style-step (aplicar propuesta).
-// NUNCA auto-aplica; falla → unavailable (no rompe wizard). `resetPaletteApplied`
-// lo consume el orquestador para el cruce. Ver mapa en `use-place-wizard.ts`.
+// Máquina de la isla LLM propose-only (ADR-0005 §5-§6). Vive en `style-assist`
+// (ADR-0019, dueño del concern LLM: saga + Server Action + UI glue). El
+// consumer (wizard) la importa vía `./public`. Recibe la descripción para
+// gating + setters externos para aplicar la propuesta (paleta y texto).
+// NUNCA auto-aplica; falla → `unavailable` (no rompe el wizard).
+// `resetPaletteApplied` lo consume el orquestador del wizard para el cruce
+// LLM↔preset.
 
+// Tipo del Server Action local (evita import circular pasando por `./public`,
+// que re-exporta este hook).
+type SuggestStyle = typeof suggestStyleAction;
 type SuggestPhase = "idle" | "loading" | "ready" | "unavailable";
 
 export function useStyleAssist(opts: {
-  onSuggest?: WizardSuggest;
+  onSuggest?: SuggestStyle;
   description: string;
   setCustomPalette: (p: Palette) => void;
   setDescription: (d: string) => void;

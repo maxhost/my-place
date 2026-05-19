@@ -1,8 +1,8 @@
 import { useId } from "react";
+import { useStyleAssist } from "@/features/style-assist/public";
 import { useAccountStep } from "./use-account-step";
 import { useCreateSubmit } from "./use-create-submit";
 import { useIdentityStep } from "./use-identity-step";
-import { useStyleAssist } from "./use-style-assist";
 import { type PaletteMode, useStyleStep } from "./use-style-step";
 import { useWizardNav } from "./use-wizard-nav";
 import type {
