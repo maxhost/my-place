@@ -1,5 +1,6 @@
 import type { ContrastAdjustment } from "@/shared/lib/contrast";
 import { ensureAppUser } from "@/shared/lib/ensure-app-user";
+import { obs, obsErr } from "@/shared/lib/obs";
 import {
   OnboardingDomainError,
   type PlaceCreationArgs,
@@ -60,7 +61,15 @@ export async function createPlace(
 
   // 2. Identidad (borde cross-system, ADR-0005 §2). Si falla `signUp` acá,
   //    no se creó nada y no se llega a la DB.
-  const ident = await ports.acquireIdentity();
+  obs("saga:domain-ok", { slug: args.slug });
+  let ident: Awaited<ReturnType<typeof ports.acquireIdentity>>;
+  try {
+    ident = await ports.acquireIdentity();
+  } catch (err) {
+    obsErr("saga:acquireIdentity", err);
+    throw err;
+  }
+  obs("saga:identity-ok", { tokenLen: ident.accessToken.length });
 
   // 3. TX 1 — ensureAppUser commitea en su PROPIA tx. Compartir tx con
   //    create_place haría que el rollback de slug-dup borre el `app_user`
@@ -68,16 +77,24 @@ export async function createPlace(
   //    Identidad = `claims.sub` VERIFICADO (lo que RLS lee), NO el user.id de
   //    la respuesta de signUp → si difirieran, `au_self` rechaza y luego
   //    `app.create_place` caería en P0002.
-  await ports.runAuthedTx(ident.accessToken, (sql, claims) =>
-    ensureAppUser(sql, {
-      authUserId: claims.sub,
-      email: ident.email,
-      displayName: ident.displayName,
-    }),
-  );
+  obs("saga:tx1-start");
+  try {
+    await ports.runAuthedTx(ident.accessToken, (sql, claims) =>
+      ensureAppUser(sql, {
+        authUserId: claims.sub,
+        email: ident.email,
+        displayName: ident.displayName,
+      }),
+    );
+  } catch (err) {
+    obsErr("saga:tx1-ensureAppUser", err);
+    throw err;
+  }
+  obs("saga:tx1-ok");
 
   // 4. TX 2 — `app.create_place` en tx SEPARADA. Sus 3 inserts son atómicos
   //    DENTRO de la función (ADR-0012 §3); si falla, sólo rollbackea esta tx.
+  obs("saga:tx2-start");
   try {
     const placeId = await ports.runAuthedTx(ident.accessToken, async (sql) => {
       const rows = await sql(
@@ -92,6 +109,7 @@ export async function createPlace(
       );
       return rows[0]?.place_id as string;
     });
+    obs("saga:tx2-ok", { placeId });
     return {
       status: "created",
       placeId,
@@ -102,7 +120,11 @@ export async function createPlace(
     // Slug ocupado: la cuenta ya quedó (TX 1 commiteada) → estado "creá tu
     // place", sin error fatal. Cualquier otro fallo propaga: la cuenta
     // persiste igual por construcción ("cuenta sin place").
-    if (isUniqueViolation(err)) return { status: "slug_taken" };
+    if (isUniqueViolation(err)) {
+      obs("saga:tx2-slug-taken");
+      return { status: "slug_taken" };
+    }
+    obsErr("saga:tx2-create_place", err);
     throw err;
   }
 }

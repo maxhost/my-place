@@ -1,7 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
 import { getAuth } from "@/shared/lib/auth";
 import { getAuthenticatedDb } from "@/shared/lib/db";
+import { obs, obsErr } from "@/shared/lib/obs";
 import { type CreatePlaceResult, createPlace } from "./create-place";
 import type { AcquireIdentity } from "./ports";
 
@@ -37,10 +39,28 @@ function requireToken(token: string | null | undefined): string {
 // sin token) → la saga no llega a la DB (nada creado).
 function placeFirstIdentity(c: PlaceFirstCredentials): AcquireIdentity {
   return async () => {
-    const { data } = await getAuth().signUp.email({
-      email: c.email,
-      password: c.password,
-      name: c.displayName,
+    obs("signup:start", { emailLen: c.email.length });
+    let res: unknown;
+    try {
+      res = await getAuth().signUp.email({
+        email: c.email,
+        password: c.password,
+        name: c.displayName,
+      });
+    } catch (err) {
+      obsErr("signup:threw", err);
+      throw err;
+    }
+    const { data, error } = res as {
+      data?: { token?: string | null } | null;
+      error?: { status?: unknown; message?: string } | null;
+    };
+    obs("signup:result", {
+      dataPresent: !!data,
+      tokenPresent: !!data?.token,
+      tokenLen: data?.token?.length ?? 0,
+      errorStatus: error?.status,
+      errorMessage: error?.message,
     });
     return {
       accessToken: requireToken(data?.token),
@@ -56,6 +76,11 @@ function placeFirstIdentity(c: PlaceFirstCredentials): AcquireIdentity {
 function authedIdentity(): AcquireIdentity {
   return async () => {
     const { data } = await getAuth().getSession();
+    obs("authed:session", {
+      sessionPresent: !!data?.session,
+      tokenPresent: !!data?.session.token,
+      tokenLen: data?.session.token?.length ?? 0,
+    });
     return {
       accessToken: requireToken(data?.session.token),
       email: data?.user.email ?? "",
@@ -73,10 +98,31 @@ export async function createPlaceAction(
   input: unknown,
   credentials?: PlaceFirstCredentials,
 ): Promise<CreatePlaceResult> {
-  return createPlace(input, {
-    acquireIdentity: credentials
-      ? placeFirstIdentity(credentials)
-      : authedIdentity(),
-    runAuthedTx: getAuthenticatedDb,
-  });
+  try {
+    const h = await headers();
+    obs("action:invoked", {
+      mode: credentials ? "place-first" : "authed",
+      host: h.get("host"),
+      xfHost: h.get("x-forwarded-host"),
+      origin: h.get("origin"),
+      hasDbUrl: !!process.env.DATABASE_URL,
+      hasJwks: !!process.env.NEON_AUTH_JWKS_URL,
+      hasBaseUrl: !!process.env.NEON_AUTH_BASE_URL,
+    });
+  } catch (err) {
+    obsErr("action:headers", err);
+  }
+  try {
+    const result = await createPlace(input, {
+      acquireIdentity: credentials
+        ? placeFirstIdentity(credentials)
+        : authedIdentity(),
+      runAuthedTx: getAuthenticatedDb,
+    });
+    obs("action:result", { status: result.status });
+    return result;
+  } catch (err) {
+    obsErr("action:threw", err);
+    throw err;
+  }
 }

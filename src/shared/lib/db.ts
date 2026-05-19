@@ -1,5 +1,7 @@
+import type { PoolClient } from "@neondatabase/serverless";
 import { pool } from "@/db/client";
 import { type VerifiedClaims, verifyAccessToken } from "./jwt";
+import { obs, obsErr } from "./obs";
 
 // Ejecutor SQL parametrizado (posicional, estilo node-postgres) sobre la tx
 // autenticada. Los seams de seguridad (ensureAppUser, aceptación de
@@ -22,8 +24,23 @@ export async function getAuthenticatedDb<T>(
   accessToken: string,
   fn: (sql: SqlExecutor, claims: VerifiedClaims) => Promise<T>,
 ): Promise<T> {
-  const claims = await verifyAccessToken(accessToken);
-  const client = await pool.connect();
+  let claims: VerifiedClaims;
+  try {
+    claims = await verifyAccessToken(accessToken);
+  } catch (err) {
+    obsErr("db:verifyToken", err);
+    throw err;
+  }
+  obs("db:verifyToken-ok", { sub: claims.sub });
+
+  let client: PoolClient;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    obsErr("db:poolConnect", err);
+    throw err;
+  }
+  obs("db:connected");
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('request.jwt.claims', $1, true)", [
@@ -35,6 +52,7 @@ export async function getAuthenticatedDb<T>(
     await client.query("COMMIT");
     return result;
   } catch (err) {
+    obsErr("db:tx", err);
     await client.query("ROLLBACK").catch(() => {});
     throw err;
   } finally {
