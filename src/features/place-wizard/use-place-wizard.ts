@@ -1,15 +1,13 @@
 import { useId, useRef, useState } from "react";
+import { useIdentityStep } from "./use-identity-step";
 import { useWizardNav } from "./use-wizard-nav";
 import type { StyleSuggestion } from "@/features/style-assist/public";
-import { isReservedSlug } from "@/shared/config/reserved-slugs";
 import { hexColorSchema, type Palette } from "@/shared/lib/palette-schema";
 import {
   type CreatePlaceInput,
   type CreatePlaceResult,
-  slugSchema,
 } from "@/features/place-creation/public";
 import { DEFAULT_PRESET_ID, PALETTE_PRESETS } from "./palettes";
-import { slugify } from "./slugify";
 import type {
   WizardLabels,
   WizardSignUp,
@@ -21,16 +19,7 @@ import type {
 // límite de archivo (CLAUDE.md ≤300) y para testear la UI por comportamiento.
 // El estado vive client-side hasta el submit; idempotencia por ref.
 
-type SlugState = "idle" | "reserved" | "invalid" | "valid";
 type Notice = "slug_taken" | "invalid" | "error" | "account" | null;
-
-function classifySlug(raw: string): { state: SlugState; normalized: string } {
-  if (raw.trim() === "") return { state: "idle", normalized: "" };
-  const parsed = slugSchema.safeParse(raw);
-  if (parsed.success) return { state: "valid", normalized: parsed.data };
-  if (isReservedSlug(raw)) return { state: "reserved", normalized: "" };
-  return { state: "invalid", normalized: "" };
-}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -70,10 +59,17 @@ export function usePlaceWizard(opts: {
   const stepCount = labels.stepTitles.length;
   const nav = useWizardNav(stepCount);
   const { currentStep, isLastStep } = nav;
-  const [name, setName] = useState("");
-  const [nameTouched, setNameTouched] = useState(false);
-  const [slug, setSlug] = useState("");
-  const [slugTouched, setSlugTouched] = useState(false);
+  const identity = useIdentityStep();
+  const {
+    name,
+    nameTouched,
+    nameValid,
+    slug,
+    slugState,
+    normalized,
+    isValid: step1Valid,
+    onNameChange,
+  } = identity;
   const [description, setDescription] = useState("");
   const [paletteId, setPaletteId] = useState(DEFAULT_PRESET_ID);
   // Override de paleta cuando el owner aplica la propuesta del LLM (S10b).
@@ -106,15 +102,12 @@ export function usePlaceWizard(opts: {
     displayName: useId(),
   };
 
-  const { state: slugState, normalized } = classifySlug(slug);
-  const nameValid = name.trim().length >= 1 && name.trim().length <= 80;
   const descTooLong = description.trim().length > 500;
   const emailValid = EMAIL_RE.test(email.trim());
   const passwordValid = password.length >= 8;
   const displayNameValid =
     displayName.trim().length >= 1 && displayName.trim().length <= 80;
 
-  const step1Valid = nameValid && slugState === "valid";
   const step3Valid = emailValid && passwordValid && displayNameValid && terms;
   const stepValid = [step1Valid, !descTooLong, step3Valid];
   // Validez del último paso para habilitar "Crear": en authed el último paso
@@ -131,11 +124,6 @@ export function usePlaceWizard(opts: {
   const canSuggest =
     !!opts.onSuggest && suggestPhase !== "loading";
   const suggestReady = description.trim().length > 0;
-
-  function onNameChange(value: string) {
-    setName(value);
-    if (!slugTouched) setSlug(slugify(value));
-  }
 
   // Envoltorios de `nav.goNext`/`goBack` para sumar el guard de validez +
   // limpiar `notice` (cruce documentado en el header del orquestador).
@@ -318,9 +306,9 @@ export function usePlaceWizard(opts: {
     displayNameValid,
     terms,
     onNameChange,
-    setNameTouched,
-    setSlug,
-    setSlugTouched,
+    setNameTouched: identity.setNameTouched,
+    setSlug: identity.setSlug,
+    setSlugTouched: identity.setSlugTouched,
     setDescription,
     setPaletteId,
     choosePreset,
