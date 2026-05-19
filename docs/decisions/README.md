@@ -21,5 +21,6 @@ Registro de decisiones arquitectónicas con fecha, alternativas rechazadas y con
 - [0017 — Aprovisionamiento de entornos por migraciones; el deploy las corre; Neon branches efímeras](0017-aprovisionamiento-entornos-por-migraciones.md) — 2026-05-18
 - [0018 — Adquisición del JWT de Neon Auth (`auth.token()`) y place-first two-phase](0018-jwt-neon-auth-y-place-first-two-phase.md) — 2026-05-19 · cierra TBD de 0006, corrige 0005 §1 / 0008 §2
 - [0019 — `style-assist` también es dueño de su UI glue (hook + isla + labels contract)](0019-style-assist-owns-llm-ui-glue.md) — 2026-05-20 · refina 0015 · cierra deuda de slice place-wizard >1500
+- [0020 — Pausa de la asistencia LLM propose-only en el onboarding del MVP](0020-pausa-asistencia-llm-onboarding.md) — 2026-05-19 · pausa parcial 0005 §5 / 0007 / 0019 · refina 0015 · también retira el campo "Descripción" del wizard
 
 > Los números de ADR se asignan al redactarse, no se reservan por adelantado. La ADR de comisión/pricing (referida en `docs/landingpage/`) tomará el número que corresponda cuando se cierre.

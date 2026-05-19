@@ -1,5 +1,7 @@
 # 0005 — Onboarding del owner: creación de place y cuenta
 
+> **Pausada parcialmente por ADR-0020 (2026-05-19):** §5 (asistencia LLM propose-only) no está vigente en el MVP; el wizard usa sólo presets curados + custom hex. El campo "Descripción" del Paso 2 también se retira (la columna en DB queda dormida, forward-compat para `/settings`). La ADR queda como histórico del diseño original; el alcance del LLM se reactivará cuando ADR-0020 sea superseded.
+
 - **Fecha:** 2026-05-16
 - **Estado:** Aceptada
 - **Alcance:** producto (onboarding), arquitectura (saga signup, routing), modelo de datos, auth, billing (trial), IA

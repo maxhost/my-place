@@ -1,5 +1,7 @@
 # 0007 — Ajuste: el LLM del onboarding no propone horario; horario default
 
+> **Pausada por ADR-0020 (2026-05-19):** queda sin objeto porque la asistencia LLM completa está oculta del onboarding del MVP. La parte de "horario default 09:00–20:00 tz-owner al crear el place" sigue vigente (es decisión de producto, no del LLM — separable de esta ADR).
+
 - **Fecha:** 2026-05-16
 - **Estado:** Aceptada
 - **Alcance:** producto (onboarding), IA, modelo de datos (`opening_hours`)

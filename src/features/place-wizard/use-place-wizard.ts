@@ -1,37 +1,34 @@
 import { useId } from "react";
-import { useStyleAssist } from "@/features/style-assist/public";
 import { useAccountStep } from "./use-account-step";
 import { useCreateSubmit } from "./use-create-submit";
 import { useIdentityStep } from "./use-identity-step";
-import { type PaletteMode, useStyleStep } from "./use-style-step";
+import { useStyleStep } from "./use-style-step";
 import { useWizardNav } from "./use-wizard-nav";
 import type {
   WizardLabels,
   WizardSignUp,
   WizardSubmit,
-  WizardSuggest,
 } from "./wizard-labels";
 
 /**
- * usePlaceWizard — máquina del wizard place-first. Orquesta 6 sub-hooks
+ * usePlaceWizard — máquina del wizard place-first. Orquesta 5 sub-hooks
  * por dominio. Mapa para navegar el código:
  *
  *   1. Navegación (paso actual, next/back)     → ./use-wizard-nav.ts
  *   2. Paso 1 — identidad (nombre + slug)      → ./use-identity-step.ts
- *   3. Paso 2 — estilo (desc + paleta)         → ./use-style-step.ts
- *   4. Paso 2 — asistencia LLM (propose-only)  → ./use-style-assist.ts
- *   5. Paso 3 — cuenta (place-first)           → ./use-account-step.ts
- *   6. Submit two-phase + avisos               → ./use-create-submit.ts
+ *   3. Paso 2 — estilo (paleta preset/custom)  → ./use-style-step.ts
+ *   4. Paso 3 — cuenta (place-first)           → ./use-account-step.ts
+ *   5. Submit two-phase + avisos               → ./use-create-submit.ts
  *
  * Cruces (wireados acá para no contaminar los sub-hooks):
- *   - `choosePreset` y `setPaletteMode("preset")` también resetean
- *     `paletteApplied` del LLM (3+4). Se compone acá (los sub-hooks son
- *     autónomos: ninguno conoce al otro).
- *   - `goNext`/`goBack` también limpian `notice` del submit (1+6).
+ *   - `goNext`/`goBack` también limpian `notice` del submit (1+5).
  *
- * Refactor 2026-05-20 (cierra deuda de 342 LOC > 300 — CLAUDE.md). El
- * contrato de retorno es el mismo que antes del refactor; ningún consumer
- * (place-wizard.tsx, wizard-steps.tsx, tests) cambia.
+ * Histórico:
+ *   - Refactor 2026-05-20: 342 LOC → sub-hooks (CLAUDE.md ≤300/archivo).
+ *   - ADR-0019 (2026-05-20): UI glue del LLM movida a slice `style-assist`.
+ *   - ADR-0020 (2026-05-19): asistencia LLM pausada — sub-hook 4/6 anterior
+ *     (`use-style-assist`) y sus cruces con choosePreset/setPaletteMode
+ *     eliminados; el orquestador pasa de 6 a 5 sub-hooks.
  */
 export function usePlaceWizard(opts: {
   labels: WizardLabels;
@@ -47,11 +44,6 @@ export function usePlaceWizard(opts: {
    * sesión) antes del `onSubmit` authed. Requerido cuando `!authed`.
    */
   onCreateAccount?: WizardSignUp;
-  /**
-   * Asistencia LLM propose-only (S10b). OPCIONAL: si no se cablea, la isla
-   * no se renderiza (la asistencia es opcional — ADR-0005 §5).
-   */
-  onSuggest?: WizardSuggest;
 }) {
   const { labels, authed = false } = opts;
   const stepCount = labels.stepTitles.length;
@@ -60,37 +52,7 @@ export function usePlaceWizard(opts: {
   const { currentStep, isLastStep } = nav;
   const identity = useIdentityStep();
   const account = useAccountStep();
-
   const style = useStyleStep();
-  // El LLM aplica `setCustomPalette(...)` directamente; con el modo `paletteMode`
-  // explícito (no derivado, post-bug-fix), también hay que bascular el modo a
-  // "custom" para que el preview/submit usen la propuesta. Wrapper acá para que
-  // `useStyleAssist` no necesite conocer el modo. La descripción se eliminó
-  // del wizard (ADR-0020): se pasa string vacío al hook (gating de la isla
-  // queda en "necesita descripción" — innocuo: la isla también se elimina en
-  // el commit siguiente del mismo ADR).
-  const assist = useStyleAssist({
-    onSuggest: opts.onSuggest,
-    description: "",
-    setCustomPalette: (p) => {
-      style.setCustomPalette(p);
-      style.setPaletteMode("custom");
-    },
-    setDescription: () => {},
-  });
-
-  // Envoltorios del cruce LLM↔paleta: cambiar de preset o volver al modo
-  // "preset" invalida el "Aplicado" del LLM (`producto.md` §30 — el owner
-  // tomó una decisión que reemplaza la propuesta). Pasar a "custom" no
-  // resetea (la propuesta del LLM se aplica AL custom, son coherentes).
-  function choosePreset(id: string) {
-    style.choosePreset(id);
-    assist.resetPaletteApplied();
-  }
-  function setPaletteMode(mode: PaletteMode) {
-    style.setPaletteMode(mode);
-    if (mode === "preset") assist.resetPaletteApplied();
-  }
 
   // Validez por paso (cross-domain — se compone acá) + validez del submit
   // (en authed el último paso es Estilo; en place-first es Cuenta). El Paso 2
@@ -153,16 +115,14 @@ export function usePlaceWizard(opts: {
       }[submit.notice]
     : null;
 
-  // Spread de los sub-hooks (cada uno expone su superficie pública). Las
-  // wrappers cross-domain (goNext/goBack/choosePreset/setPaletteMode) van
-  // explícitas al final para sobreescribir las versiones planas si las hay.
-  // Los derivados cross-domain (stepValid/submitValid/progress/noticeText/
-  // ids) también explícitos.
+  // Spread de los sub-hooks (cada uno expone su superficie pública). Los
+  // wrappers cross-domain (goNext/goBack) van explícitos al final para
+  // sobreescribir las versiones planas. Los derivados cross-domain
+  // (stepValid/submitValid/progress/noticeText/ids) también explícitos.
   return {
     ...nav,
     ...identity,
     ...style,
-    ...assist,
     ...account,
     ...submit,
     ids,
@@ -170,8 +130,6 @@ export function usePlaceWizard(opts: {
     noticeText,
     stepValid,
     submitValid,
-    choosePreset,
-    setPaletteMode,
     goNext,
     goBack,
   };

@@ -6,7 +6,6 @@ import type {
   WizardLabels,
   WizardSignUp,
   WizardSubmit,
-  WizardSuggest,
 } from "./wizard-labels";
 import { Step1Identity, Step2Style, Step3Account } from "./wizard-steps";
 import { SuccessPanel } from "./wizard-success";
@@ -15,7 +14,6 @@ export type {
   WizardLabels,
   WizardSubmit,
   WizardSignUp,
-  WizardSuggest,
   PlaceFirstCredentials,
 } from "./wizard-labels";
 
@@ -37,7 +35,6 @@ export function PlaceWizard({
   privacyHref,
   onSubmit,
   onCreateAccount,
-  onSuggest,
   authed = false,
 }: {
   labels: WizardLabels;
@@ -52,12 +49,6 @@ export function PlaceWizard({
    * se inyecta en la ruta.
    */
   onCreateAccount?: WizardSignUp;
-  /**
-   * Asistencia LLM propose-only (S10b). Opcional: si la ruta no la cablea,
-   * la isla del Paso 2 no se renderiza (ADR-0005 §5). Seam-split: el Server
-   * Action vivo se inyecta acá (como `onSubmit`).
-   */
-  onSuggest?: WizardSuggest;
   /** Vía "Acceso" (S9): reutiliza el wizard sin el Paso 3 (cuenta). */
   authed?: boolean;
 }) {
@@ -65,7 +56,6 @@ export function PlaceWizard({
     labels,
     onSubmit,
     onCreateAccount,
-    onSuggest,
     authed,
   });
 
@@ -133,21 +123,6 @@ export function PlaceWizard({
             onPalette={w.choosePreset}
             onPaletteMode={w.setPaletteMode}
             onCustomHex={w.setCustomHex}
-            assist={
-              w.suggestEnabled
-                ? {
-                    phase: w.suggestPhase,
-                    suggestReady: w.suggestReady,
-                    canSuggest: w.canSuggest,
-                    suggestion: w.suggestion,
-                    paletteApplied: w.paletteApplied,
-                    descriptionApplied: w.descriptionApplied,
-                    onSuggest: w.handleSuggest,
-                    onApplyPalette: w.applySuggestedPalette,
-                    onApplyDescription: w.applySuggestedDescription,
-                  }
-                : undefined
-            }
           />
         )}
 

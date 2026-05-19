@@ -1,5 +1,7 @@
 # 0019 — `style-assist` también es dueño de su UI glue (hook + isla + `StyleAssistLabels`)
 
+> **Pausada parcialmente por ADR-0020 (2026-05-19):** la UI glue del LLM (hook `use-style-assist`, componente `style-assist-island`, contrato `StyleAssistLabels`) se eliminó del slice; quedan sólo la saga + Server Action + dominio (testeados) como código dormido. La ADR queda como histórico del diseño de slices acíclico — el patrón "el slice dueño del concern es también dueño de su UI glue + labels contract" sigue siendo válido y se aplicaría si se reactiva el LLM.
+
 - **Fecha:** 2026-05-20
 - **Estado:** Aceptada
 - **Alcance:** arquitectura de slices (responsabilidad de UI del LLM; contrato de labels narrow; refactor puro de archivos)

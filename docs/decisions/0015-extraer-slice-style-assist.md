@@ -1,5 +1,7 @@
 # 0015 — Extraer la asistencia LLM a un slice propio `style-assist`
 
+> **Refinada por ADR-0020 (2026-05-19):** el slice `style-assist` sigue existiendo y la motivación arquitectónica (acíclico, slice dueño del concern LLM) sigue válida, pero su scope se reduce a saga + Server Action + dominio (sin UI glue, sin consumer activo). La asistencia LLM del wizard está pausada en el MVP.
+
 - **Fecha:** 2026-05-18
 - **Estado:** Aceptada
 - **Alcance:** arquitectura (estructura de vertical slices; primitivo de paleta a `shared/`; sin cambio de comportamiento)

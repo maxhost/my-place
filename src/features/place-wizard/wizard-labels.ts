@@ -2,17 +2,17 @@ import type {
   CreatePlaceInput,
   CreatePlaceResult,
 } from "@/features/place-creation/public";
-import type {
-  StyleAssistLabels,
-  SuggestStyle,
-} from "@/features/style-assist/public";
 
 // Tipos del wizard (S8b). Separados del componente para no exceder el límite
 // de archivo (CLAUDE.md ≤300) y para que la ruta + los pasos compartan el
-// contrato de textos sin acoplarse al cliente. `WizardLabels` compone
-// `StyleAssistLabels` (los 12 keys i18n de la isla LLM viven en su slice
-// dueño, ADR-0019); `guardrailNotice` viene de allí y lo shareea con el
-// `place-preview` del wizard (ambos consumers del mismo key — sin duplicar).
+// contrato de textos sin acoplarse al cliente.
+//
+// `guardrailNotice` vive acá (no en `style-assist`) porque el guardrail de
+// contraste se aplica al preview/success de CUALQUIER paleta (preset o
+// custom hex), no sólo a la propuesta del LLM. Lo consumen `place-preview`
+// y `wizard-success`. La asistencia LLM propose-only está pausada por
+// ADR-0020 — `WizardLabels` ya no extiende `StyleAssistLabels` ni declara
+// keys assist*.
 
 export interface PlaceFirstCredentials {
   email: string;
@@ -41,18 +41,7 @@ export type WizardSignUp = (
   credentials: PlaceFirstCredentials,
 ) => Promise<{ status: string }>;
 
-// Asistencia LLM propose-only (ADR-0005 §5/§6 / ADR-0007). Seam-split: el
-// Server Action vivo se inyecta como prop en la ruta. Alias del tipo del
-// Server Action de `style-assist` (ADR-0019: el slice LLM es dueño del
-// contrato; aquí re-exportamos como alias para preservar la API del wizard).
-export type WizardSuggest = SuggestStyle;
-
-// `WizardLabels` extiende `StyleAssistLabels` (ADR-0019): los 12 keys i18n
-// que la isla LLM consume viven en `style-assist`. El wizard sigue siendo
-// dueño del bag completo de labels + i18n; el subconjunto LLM viene tipado
-// desde el slice dueño. Liskov: cualquier `WizardLabels` es estructuralmente
-// válido como `StyleAssistLabels` (TS estructural, sin runtime change).
-export interface WizardLabels extends StyleAssistLabels {
+export interface WizardLabels {
   title: string;
   /** Plantilla con `{n}` y `{total}`, ej. "Paso {n} de {total}". */
   progress: string;
@@ -73,6 +62,8 @@ export interface WizardLabels extends StyleAssistLabels {
   nameRequired: string;
   previewLabel: string;
   previewEmptyName: string;
+  /** Aviso calmo cuando el guardrail de contraste ajusta un color (preview/success). */
+  guardrailNotice: string;
   paletteLabel: string;
   /** id de preset → nombre traducido. */
   paletteNames: Record<string, string>;

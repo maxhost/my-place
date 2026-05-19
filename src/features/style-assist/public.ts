@@ -1,21 +1,20 @@
 // Interfaz pública de la feature `style-assist` (paradigma vertical-slice:
 // las demás features / rutas importan SÓLO desde acá, nunca de internos).
 // Asistencia LLM propose-only del onboarding (ADR-0005 §5 / ADR-0007),
-// extraída de `place-creation` por ADR-0015. Por ADR-0019 el slice también
-// es dueño de su UI glue: el hook `useStyleAssist` (máquina propose-only),
-// el componente `StyleAssistIsland` (presentacional) y el contrato narrow
-// de labels (`StyleAssistLabels`). El wizard de `place-wizard` los consume
-// vía esta interfaz (`WizardLabels extends StyleAssistLabels`, el wrapper
-// del Server Action se inyecta como prop). `style-assist` no importa de
-// ninguna feature (solo `shared/` + react): acíclico.
+// extraída de `place-creation` por ADR-0015.
+//
+// ADR-0020 (2026-05-19): la asistencia LLM está PAUSADA en el MVP. La UI
+// glue (hook `use-style-assist`, componente `style-assist-island`, contrato
+// `StyleAssistLabels`) se eliminó del slice. La saga + Server Action +
+// dominio quedan **dormidos y testeados** (`__tests__/suggest-style.test.ts`
+// sigue verde) — listos para reactivar cuando ADR-0020 sea superseded.
+//
+// Sin consumer activo de producción: `grep -rn "@/features/style-assist"`
+// debería matchear sólo este archivo (re-exports internos). Si esa búsqueda
+// devuelve un consumer activo, revisar — puede indicar reactivación o leak.
 
 export { suggestStyleAction } from "./suggest-style-action";
 export type { StyleSuggestion } from "./domain/style-suggestion";
 export type { StyleSuggestionResult } from "./suggest-style";
 export type SuggestStyle =
   typeof import("./suggest-style-action").suggestStyleAction;
-
-// UI glue (ADR-0019).
-export { useStyleAssist } from "./use-style-assist";
-export { StyleAssistIsland } from "./style-assist-island";
-export type { StyleAssistLabels } from "./labels";

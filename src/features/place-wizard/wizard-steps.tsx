@@ -1,7 +1,3 @@
-import {
-  StyleAssistIsland,
-  type StyleSuggestion,
-} from "@/features/style-assist/public";
 import type { Palette } from "@/shared/lib/palette-schema";
 import { PALETTE_PRESET_IDS } from "./palettes";
 import { PaletteModeSelector } from "./palette-mode-selector";
@@ -100,51 +96,19 @@ export function Step2Style(p: {
   onPalette: (id: string) => void;
   onPaletteMode: (mode: "preset" | "custom") => void;
   onCustomHex: (token: "accent" | "bg" | "ink", value: string) => void;
-  // Isla propose-only (S10b). `assist` ausente = la ruta no la cableó → no se
-  // renderiza (la asistencia es opcional, ADR-0005 §5). Pausada en el MVP
-  // por ADR-0020 — ningún consumer activo la cablea, queda el guard por si
-  // se reactiva en el futuro.
-  assist?: {
-    phase: "idle" | "loading" | "ready" | "unavailable";
-    suggestReady: boolean;
-    canSuggest: boolean;
-    suggestion: StyleSuggestion | null;
-    paletteApplied: boolean;
-    descriptionApplied: boolean;
-    onSuggest: () => void;
-    onApplyPalette: () => void;
-    onApplyDescription: () => void;
-  };
 }) {
   const { labels: l } = p;
   return (
-    <>
-      {p.assist && (
-        <StyleAssistIsland
-          labels={l}
-          phase={p.assist.phase}
-          suggestReady={p.assist.suggestReady}
-          canSuggest={p.assist.canSuggest}
-          suggestion={p.assist.suggestion}
-          paletteApplied={p.assist.paletteApplied}
-          descriptionApplied={p.assist.descriptionApplied}
-          onSuggest={p.assist.onSuggest}
-          onApplyPalette={p.assist.onApplyPalette}
-          onApplyDescription={p.assist.onApplyDescription}
-        />
-      )}
-
-      <PaletteModeSelector
-        labels={l}
-        mode={p.paletteMode}
-        presetIds={PALETTE_PRESET_IDS}
-        selectedPresetId={p.selectedPaletteId}
-        customPalette={p.customPalette}
-        onModeChange={p.onPaletteMode}
-        onPresetChange={p.onPalette}
-        onCustomHexChange={p.onCustomHex}
-      />
-    </>
+    <PaletteModeSelector
+      labels={l}
+      mode={p.paletteMode}
+      presetIds={PALETTE_PRESET_IDS}
+      selectedPresetId={p.selectedPaletteId}
+      customPalette={p.customPalette}
+      onModeChange={p.onPaletteMode}
+      onPresetChange={p.onPalette}
+      onCustomHexChange={p.onCustomHex}
+    />
   );
 }
 

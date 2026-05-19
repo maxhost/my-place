@@ -7,7 +7,6 @@ import {
   PlaceWizard,
   type WizardLabels,
 } from "@/features/place-wizard/public";
-import { suggestStyleAction } from "@/features/style-assist/public";
 
 // Ruta de la vía place-first (CTA de la landing). Server Component: traduce
 // el namespace `wizard` → `labels` (el wizard no carga runtime i18n en
@@ -89,17 +88,6 @@ export default async function CrearPage({ params }: Props) {
     invalidNotice: t("invalidNotice"),
     errorNotice: t("errorNotice"),
     accountFailedNotice: t("accountFailedNotice"),
-    assistButton: t("assistButton"),
-    assistLoading: t("assistLoading"),
-    assistNeedDescription: t("assistNeedDescription"),
-    assistUnavailable: t("assistUnavailable"),
-    assistProposedTitle: t("assistProposedTitle"),
-    assistProposedHint: t("assistProposedHint"),
-    assistPaletteLabel: t("assistPaletteLabel"),
-    assistDescriptionLabel: t("assistDescriptionLabel"),
-    assistApplyPalette: t("assistApplyPalette"),
-    assistApplyDescription: t("assistApplyDescription"),
-    assistApplied: t("assistApplied"),
     paletteModeLabel: t("paletteModeLabel"),
     paletteModePreset: t("paletteModePreset"),
     paletteModeCustom: t("paletteModeCustom"),
@@ -120,7 +108,6 @@ export default async function CrearPage({ params }: Props) {
         privacyHref={`/${locale}/privacidad`}
         onSubmit={createPlaceAction}
         onCreateAccount={signUpAccountAction}
-        onSuggest={suggestStyleAction}
       />
     </main>
   );
