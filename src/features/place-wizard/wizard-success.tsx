@@ -1,4 +1,4 @@
-import type { CreatePlaceResult } from "../create-place";
+import type { CreatePlaceResult } from "@/features/place-creation/public";
 import type { WizardLabels } from "./wizard-labels";
 
 // Pantalla de éxito (reemplaza el wizard al crear). Las URLs públicas son

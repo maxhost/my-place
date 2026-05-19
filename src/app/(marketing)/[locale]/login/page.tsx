@@ -7,11 +7,11 @@ import {
   loginAction,
   signUpAccountAction,
 } from "@/features/access/public";
+import { createPlaceAction } from "@/features/place-creation/public";
 import {
   PALETTE_PRESET_IDS,
   type WizardLabels,
-  createPlaceAction,
-} from "@/features/place-creation/public";
+} from "@/features/place-wizard/public";
 import { suggestStyleAction } from "@/features/style-assist/public";
 
 // Ruta de la vía "Acceso" (S9, ADR-0008/0009): item distinto del CTA. Server

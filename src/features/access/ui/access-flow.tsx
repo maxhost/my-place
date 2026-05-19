@@ -5,7 +5,7 @@ import {
   type WizardLabels,
   type WizardSubmit,
   type WizardSuggest,
-} from "@/features/place-creation/public";
+} from "@/features/place-wizard/public";
 import type { AccessLabels, AccessSubmit } from "./access-labels";
 import { useAccessForm } from "./use-access-form";
 

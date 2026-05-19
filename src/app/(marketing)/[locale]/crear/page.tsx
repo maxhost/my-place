@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { createPlaceAction } from "@/features/place-creation/public";
 import {
   PALETTE_PRESET_IDS,
   PlaceWizard,
   type WizardLabels,
-  createPlaceAction,
-} from "@/features/place-creation/public";
+} from "@/features/place-wizard/public";
 import { suggestStyleAction } from "@/features/style-assist/public";
 
 // Ruta de la vía place-first (CTA de la landing). Server Component: traduce

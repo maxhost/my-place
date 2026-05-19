@@ -1,5 +1,5 @@
-import { PAPEL_PALETTE } from "../domain/defaults";
-import type { Palette } from "../domain/schema";
+import { PAPEL_PALETTE } from "@/features/place-creation/public";
+import type { Palette } from "@/shared/lib/palette-schema";
 
 // Paleta ACOTADA del wizard (ADR-0007: el owner elige entre opciones, no un
 // picker libre — cozytech: sin abrumar). Default = Papel (marca). Cada preset

@@ -25,7 +25,7 @@ Plan de implementación de la tanda de registro (auth + creación de place). **R
 S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3✅ fn create_place ─┐
                           │                                  ├─> S5a✅ → S5b✅ Saga ┬─> S8a✅/S8b✅ Wizard ─> S9✅ Vía "Acceso" ─> S9.5✅ Split slice
                           └─> S4 Auth wiring ─────────────────┤                  │
-                                                              └─> S6✅ Inv fn    └─> S10a✅ LLM svc ─> S10a.5✅ Split slice ─> S10b isla
+                                                              └─> S6✅ Inv fn    └─> S10a✅ svc ─> S10a.5✅ split ─> S10b✅ isla ─> S10b.5✅ split wizard
               S1 ─> S7✅ Routing host-based ──────────────────────────────────────┘ (S5b para servir place real)
 ```
 
@@ -232,6 +232,14 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 
 - **Cierre:** nada se auto-aplica (el owner confirma cada parte); `unavailable` degrada sin bloquear; sin horario en la UI.
 
+**Resultado (2026-05-18, con deuda estructural abierta — ver ⚠️).** TDD estricto (rojo→verde): test de la isla escrito primero, verificado fallando (botón ausente), luego implementación. Tipo-contrato `WizardSuggest` (type-only desde `@/features/style-assist/public` — arista feature→feature acíclica de ADR-0015; el wizard NO importa `style-assist`, sólo el tipo del resultado). **Seam-split:** el Server Action vivo `suggestStyleAction` se inyecta como prop `onSuggest` en las rutas `crear` y `login`→`AccessFlow` (igual que `onSubmit`); **opcional** — si la ruta no lo cablea, la isla no se renderiza (asistencia opcional, ADR-0005 §5). `usePlaceWizard`: máquina de sugerencia (`idle/loading/ready/unavailable`) + override de paleta custom (el preset gana al elegirse a mano) + flags de "aplicado"; **nada se auto-aplica** — el owner aplica paleta y/o texto por separado (ADR-0005 §6). `unavailable`/throw → aviso calmo que NO bloquea (cozytech). Isla presentacional aparte (`style-assist-island.tsx`). 9 tests nuevos (jsdom, fake `onSuggest`): no-render sin cablear, gating por descripción, propose-only (preview no cambia hasta aplicar), aplicar paleta/texto por separado, preset revierte la paleta sugerida, `unavailable`/throw degradan sin bloquear, aviso de guardrail. **Cierre verde:** `pnpm test` 188/188 (179 + 9; sin cambio de aserción existente), `pnpm typecheck`, `pnpm lint` (0 problems), `pnpm build` (crear/login/terminos/privacidad SSG ×4 locales + `ƒ /api/auth/[...path]` + `Proxy` intactos). Archivos: `src/features/place-creation/ui/{style-assist-island.tsx (nuevo),use-place-wizard.ts,wizard-steps.tsx,place-wizard.tsx,wizard-labels.ts}`, `…/ui/__tests__/style-assist-island.test.tsx` (nuevo, 9 tests) + `place-wizard.test.tsx`/`access-flow.test.tsx` (labels), `public.ts` (+`WizardSuggest`), `access/ui/access-flow.tsx` (+`onSuggest`), rutas `crear`/`login` (+wiring), `src/i18n/messages/es.json` (+11 keys `assist*`).
+
+> ✅ **Deuda estructural CERRADA por S10b.5 (ADR-0016, 2026-05-18).** Tras S10b el slice `src/features/place-creation/` totalizaba **1646 líneas (no-test) > 1500** (límite duro `CLAUDE.md` § Límites / `architecture.md` §37) — la UI del wizard (~1177) dominaba el slice. No se improvisó: el trabajo funcional de S10b se cerró verde y se commiteó como rollback (`4b61c76`), la decisión se elevó al owner (extraer la UI del wizard a su propio slice) y se ejecutó como **sesión propia ADR-backed (S10b.5)** ("dividir antes de continuar"; mismo precedente exacto que S9 → S9.5 y S10a → S10a.5).
+
+### S10b.5 — Extraer la UI del wizard al slice `place-wizard` ✅ HECHA (2026-05-18, ADR-0016)
+
+**Resultado.** Reestructura pura, **sin cambio de comportamiento** — la suite de 188 es la red de regresión (sigue 188/188 sin cambiar una aserción). ADR-0016 escrita ANTES de implementar (decisión arquitectónica: slice nuevo). Slice nuevo `src/features/place-wizard/` con su `public.ts` (expone `PlaceWizard` + `WizardLabels`/`WizardSubmit`/`WizardSuggest`/`PlaceFirstCredentials` + `PALETTE_PRESET_IDS`): los 9 archivos de UI + 4 tests movidos con `git mv` (historial preservado). `place-creation` conserva dominio/saga/actions/public y deja de exponer UI; su `public.ts` pasa a exponer los tipos del contrato de creación + `slugSchema` + `PAPEL_PALETTE` (primitivos que el wizard consume vía la interfaz pública — patrón ADR-0014, no un ciclo). **Aristas resultantes (diagnóstico, no asumido):** `place-wizard → place-creation` (tipos + `slugSchema`), `place-wizard → style-assist` (tipo `StyleSuggestion`, arista de ADR-0015 intacta), `access → place-wizard` (renderiza `PlaceWizard` authed) y `access → place-creation` — todas unidireccionales, vía `public.ts`, acíclicas; las rutas componen los slices e inyectan los Server Actions vivos. `place-creation` no importa ninguna feature. Tercer ejemplo canónico del patrón ADR-0014. **Cierre verde:** `pnpm test` 188/188 (sin cambio de aserción), `pnpm typecheck`, `pnpm lint` (0 problems), `pnpm build` (crear/login/terminos/privacidad SSG ×4 locales + `ƒ /api/auth/[...path]` + `Proxy` intactos). **Tamaños:** `place-creation` 466 / `place-wizard` 1200 / `style-assist` 185 / `access` 537 no-test (los cuatro < 1500). Deuda 1646>1500 cerrada. Watch (fuera de alcance, ADR-0016): `use-place-wizard.ts` y `wizard-steps.tsx` en el techo de 300/archivo — se dividen en sesión propia si crecen. Archivos: `src/features/place-wizard/**` (movidos vía `git mv` salvo `public.ts` nuevo), `src/features/place-creation/public.ts` (sin UI; +`slugSchema`/`PAPEL_PALETTE`), `src/features/access/{public.ts,ui/access-flow.tsx,ui/__tests__/access-flow.test.tsx}` (retarget a `place-wizard/public`), rutas `crear`/`login` (retarget), `docs/decisions/0016-*` (+README).
+
 ---
 
 ## Análisis de gaps (production-grade — sin parches, sin quick-fix)
@@ -276,7 +284,8 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S9.5 ✅ | Split slice `onboarding` → `place-creation` + `access` (ADR-0014; cierra deuda 1885>1500) | refactor | S9 |
 | S10a ✅ | Capa LLM — servicio (dominio Zod + guardrail + saga TDD + Server Action seam + dep `ai`) | backend/servicio | S5a |
 | S10a.5 ✅ | Extraer la asistencia LLM al slice `style-assist` (ADR-0015; cierra deuda 1544>1500) | refactor | S10a |
-| S10b | Capa LLM — isla mínima propose-only en el wizard | frontend | S10a.5, S8b |
+| S10b ✅ | Capa LLM — isla mínima propose-only en el wizard | frontend | S10a.5, S8b |
+| S10b.5 ✅ | Extraer la UI del wizard al slice `place-wizard` (ADR-0016; cierra deuda 1646>1500) | refactor | S10b |
 
 Diferido a sesión propia posterior: `/settings` + gate email, UI `/invite/{token}`, directorio, gate de horario.
 

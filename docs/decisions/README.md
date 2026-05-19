@@ -17,5 +17,6 @@ Registro de decisiones arquitectónicas con fecha, alternativas rechazadas y con
 - [0013 — Cambio de stack: Next.js 15 → 16 (prerequisito de S4)](0013-upgrade-next-16.md) — 2026-05-17
 - [0014 — Split del slice `onboarding` en `place-creation` + `access`](0014-split-onboarding-place-creation-access.md) — 2026-05-18
 - [0015 — Extraer la asistencia LLM a un slice propio `style-assist`](0015-extraer-slice-style-assist.md) — 2026-05-18
+- [0016 — Extraer la UI del wizard a un slice propio `place-wizard`](0016-extraer-slice-place-wizard.md) — 2026-05-18
 
 > Los números de ADR se asignan al redactarse, no se reservan por adelantado. La ADR de comisión/pricing (referida en `docs/landingpage/`) tomará el número que corresponda cuando se cierre.

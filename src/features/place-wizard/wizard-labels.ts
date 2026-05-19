@@ -1,6 +1,8 @@
+import type {
+  CreatePlaceInput,
+  CreatePlaceResult,
+} from "@/features/place-creation/public";
 import type { StyleSuggestionResult } from "@/features/style-assist/public";
-import type { CreatePlaceResult } from "../create-place";
-import type { CreatePlaceInput } from "../domain/schema";
 
 // Tipos del wizard (S8b). Separados del componente para no exceder el límite
 // de archivo (CLAUDE.md ≤300) y para que la ruta + los pasos compartan el

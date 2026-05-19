@@ -2,9 +2,11 @@ import { useId, useRef, useState } from "react";
 import type { StyleSuggestion } from "@/features/style-assist/public";
 import { isReservedSlug } from "@/shared/config/reserved-slugs";
 import type { Palette } from "@/shared/lib/palette-schema";
-import type { CreatePlaceResult } from "../create-place";
-import type { CreatePlaceInput } from "../domain/schema";
-import { slugSchema } from "../domain/schema";
+import {
+  type CreatePlaceInput,
+  type CreatePlaceResult,
+  slugSchema,
+} from "@/features/place-creation/public";
 import { DEFAULT_PRESET_ID, PALETTE_PRESETS } from "./palettes";
 import { slugify } from "./slugify";
 import type {

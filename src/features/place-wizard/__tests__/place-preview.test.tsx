@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { PAPEL_PALETTE } from "../../domain/defaults";
+import { PAPEL_PALETTE } from "@/features/place-creation/public";
 import { PlacePreview } from "../place-preview";
 
 // Guardrail de contraste en el preview (ADR-0005 §7/§8). El aviso calmo
