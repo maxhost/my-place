@@ -29,14 +29,17 @@ export function PlaceWizard({
   termsHref,
   privacyHref,
   onSubmit,
+  authed = false,
 }: {
   labels: WizardLabels;
   rootDomain: string;
   termsHref: string;
   privacyHref: string;
   onSubmit: WizardSubmit;
+  /** Vía "Acceso" (S9): reutiliza el wizard sin el Paso 3 (cuenta). */
+  authed?: boolean;
 }) {
-  const w = usePlaceWizard({ labels, onSubmit });
+  const w = usePlaceWizard({ labels, onSubmit, authed });
 
   if (w.result?.status === "created") {
     return (
@@ -105,7 +108,7 @@ export function PlaceWizard({
           />
         )}
 
-        {w.currentStep === 2 && (
+        {!authed && w.currentStep === 2 && (
           <Step3Account
             labels={labels}
             ids={{
@@ -154,7 +157,7 @@ export function PlaceWizard({
             type="button"
             disabled={
               w.submitting ||
-              (w.isLastStep ? !w.step3Valid : !w.stepValid[w.currentStep])
+              (w.isLastStep ? !w.submitValid : !w.stepValid[w.currentStep])
             }
             onClick={w.isLastStep ? w.handleSubmit : w.goNext}
             className="cta inline-flex min-h-[2.75rem] items-center rounded-lg px-6 text-base font-medium disabled:opacity-40"

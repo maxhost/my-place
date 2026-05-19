@@ -37,8 +37,14 @@ function detectTimezone(): string {
 export function usePlaceWizard(opts: {
   labels: WizardLabels;
   onSubmit: WizardSubmit;
+  /**
+   * Modo authed (S9, vía "Acceso"): el usuario ya está autenticado → se
+   * omite el Paso 3 (cuenta) y el submit no envía credenciales (ADR-0008 §3).
+   * El nº de pasos lo da `labels.stepTitles.length` (la ruta pasa 2 títulos).
+   */
+  authed?: boolean;
 }) {
-  const { labels } = opts;
+  const { labels, authed = false } = opts;
   const [currentStep, setCurrentStep] = useState(0);
   const [name, setName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
@@ -79,6 +85,9 @@ export function usePlaceWizard(opts: {
   const step1Valid = nameValid && slugState === "valid";
   const step3Valid = emailValid && passwordValid && displayNameValid && terms;
   const stepValid = [step1Valid, !descTooLong, step3Valid];
+  // Validez del último paso para habilitar "Crear": en authed el último paso
+  // es Estilo (sin cuenta), en place-first es el Paso 3 (cuenta).
+  const submitValid = authed ? step1Valid && !descTooLong : step3Valid;
 
   const selectedPalette =
     PALETTE_PRESETS.find((p) => p.id === paletteId)?.palette ??
@@ -106,7 +115,7 @@ export function usePlaceWizard(opts: {
   async function handleSubmit() {
     // Idempotencia: el ref bloquea reentradas aunque el estado aún no haya
     // re-renderizado (doble click). El submit nunca dispara dos veces.
-    if (submittingRef.current || !step3Valid) return;
+    if (submittingRef.current || !submitValid) return;
     submittingRef.current = true;
     setSubmitting(true);
     setNotice(null);
@@ -118,11 +127,14 @@ export function usePlaceWizard(opts: {
         theme: selectedPalette,
         ownerTimezone: detectTimezone(),
       };
-      const res = await opts.onSubmit(input, {
-        email: email.trim(),
-        password,
-        displayName: displayName.trim(),
-      });
+      // authed: sin credenciales → `createPlaceAction` rama modo authed
+      // (sesión vigente, no re-pide cuenta, ADR-0008 §3).
+      const res = await opts.onSubmit(
+        input,
+        authed
+          ? undefined
+          : { email: email.trim(), password, displayName: displayName.trim() },
+      );
       if (res.status === "created") setResult(res);
       else if (res.status === "slug_taken") {
         setNotice("slug_taken");
@@ -157,7 +169,7 @@ export function usePlaceWizard(opts: {
     noticeText,
     result,
     submitting,
-    step3Valid,
+    submitValid,
     stepValid,
     selectedPalette,
     name,

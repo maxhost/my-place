@@ -329,3 +329,71 @@ describe("PlaceWizard — Paso 3 (cuenta) + submit", () => {
     );
   });
 });
+
+// Modo authed (S9): la vía "Acceso" reutiliza el wizard SIN el paso de cuenta
+// (el usuario ya está autenticado, ADR-0008 §3). Sólo Identidad + Estilo; el
+// submit llama `onSubmit(input)` SIN credenciales → `createPlaceAction` rama
+// modo authed (sesión vigente, no re-pide cuenta).
+describe("PlaceWizard — modo authed (S9, sin paso de cuenta)", () => {
+  function setupAuthed(
+    onSubmit: WizardSubmit = vi.fn<WizardSubmit>(async () => ({
+      status: "created",
+      placeId: "p1",
+      slug: "mi-club",
+      adjustments: [],
+    })),
+  ) {
+    const utils = render(
+      <PlaceWizard
+        labels={{ ...LABELS, stepTitles: ["Identidad", "Estilo"] }}
+        rootDomain="place.community"
+        termsHref="/es/terminos"
+        privacyHref="/es/privacidad"
+        onSubmit={onSubmit}
+        authed
+      />,
+    );
+    return { ...utils, onSubmit };
+  }
+
+  it("son 2 pasos y nunca pide email/contraseña", async () => {
+    const user = userEvent.setup();
+    setupAuthed();
+    expect(screen.getByText("Paso 1 de 2")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Nombre del lugar"), "Mi Club");
+    await user.clear(screen.getByLabelText("Dirección"));
+    await user.type(screen.getByLabelText("Dirección"), "mi-club");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    expect(screen.getByText("Paso 2 de 2")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Contraseña")).not.toBeInTheDocument();
+  });
+
+  it("crea el lugar llamando onSubmit SIN credenciales", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<WizardSubmit>(async () => ({
+      status: "created",
+      placeId: "p1",
+      slug: "mi-club",
+      adjustments: [],
+    }));
+    setupAuthed(onSubmit);
+
+    await user.type(screen.getByLabelText("Nombre del lugar"), "Mi Club");
+    await user.clear(screen.getByLabelText("Dirección"));
+    await user.type(screen.getByLabelText("Dirección"), "mi-club");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Crear mi lugar" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Tu lugar está listo")).toBeInTheDocument(),
+    );
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const [input, credentials] = onSubmit.mock.calls[0];
+    expect(input).toMatchObject({ name: "Mi Club", slug: "mi-club" });
+    expect(credentials).toBeUndefined();
+  });
+});

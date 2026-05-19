@@ -23,7 +23,7 @@ Plan de implementación de la tanda de registro (auth + creación de place). **R
 
 ```
 S0✅─> S1✅─> S2✅ RLS owner-only+INSERT-deny ─> S3✅ fn create_place ─┐
-                          │                                  ├─> S5a✅ → S5b✅ Saga ┬─> S8a✅/S8b✅ Wizard ─> S9 Vía "Acceso"
+                          │                                  ├─> S5a✅ → S5b✅ Saga ┬─> S8a✅/S8b✅ Wizard ─> S9✅ Vía "Acceso"
                           └─> S4 Auth wiring ─────────────────┤                  │
                                                               └─> S6✅ Inv fn    └─> S10 LLM
               S1 ─> S7✅ Routing host-based ──────────────────────────────────────┘ (S5b para servir place real)
@@ -172,11 +172,23 @@ Diferido a sesión propia POSTERIOR (no en esta tanda): UI `/invite/{token}`, di
 - Paso 2 (descripción + paleta acotada, default Papel, guardrail avisa ante `ink`); Paso 3 (cuenta + T&C + timezone del browser con fallback fijo). Submit → `createPlaceAction(input, credentials)` modo place-first; estados `created` / `slug_taken` ("creá tu place") / `invalid`. Página `src/app/(marketing)/[locale]/crear/page.tsx` (Server Component: traduce el namespace `wizard` → `labels`, inyecta root domain de env). Repunte de los CTAs de la landing `/login` → `/crear`. i18n `wizard` en `es.json`.
 - **Cierre:** tests de componentes (pasos 2/3 + ramificación de submit); revisión `producto.md` (cozytech) + continuidad visual con la landing; `react-best-practices`; verdes (test+typecheck+lint+build).
 
-## S9 — Vía "Acceso": login form + account-first + modo authed (frontend + thin)
+## S9 — Vía "Acceso": login form + account-first + modo authed (frontend + thin) ✅ HECHA (2026-05-18, con deuda estructural abierta — ver ⚠️)
 
 **Responsabilidad:** la segunda vía (ADR-0008). Consume S4b/S5b/S8.
 
-- Item "Acceso" en el menú de la landing. Form login/signup account-first → "Crear mi place" (reusa wizard SIN paso de cuenta; saga modo authed) / "Unirme" = solo directorio → **deshabilitado/"próximamente"** (ADR-0009 §2 / ADR-0010 §3). Invitaciones NO desde acá (van por su token-link).
+**Resultado.** TDD rojo→verde: `access-flow.test.tsx` nuevo (8 casos) + `place-wizard.test.tsx` extendido (2 casos modo authed), verificados fallando (módulo `access-flow` ausente + submit authed bloqueado), luego implementación → verde.
+
+- **Form account-first (login | signup):** toggle de dos tabs; signup pide nombre+email+contraseña+T&C (links a `/{locale}/terminos|privacidad`), login pide email+contraseña. Validación client-side; idempotencia por `submittingRef` (mismo patrón S8b). Avisos calmos (cozytech): `login_failed` (credenciales/transporte) y `signup_failed` (email ya registrado/transporte → el aviso sugiere iniciar sesión, sin afirmar un código de error del SDK no verificado).
+- **Elección post-auth (ADR-0009 §2):** "Crear mi place" (activo) / "Unirme a un place" (**deshabilitado** + badge "Próximamente" + `aria-disabled`). Invitaciones NO desde acá (van por su token-link, diferido).
+- **Modo authed = wizard reutilizado SIN el paso de cuenta (ADR-0008 §3):** `usePlaceWizard({authed})` → `stepCount` lo da `labels.stepTitles.length` (la ruta pasa 2 títulos: Identidad+Estilo); `submitValid = step1Valid && !descTooLong`; `handleSubmit` llama `onSubmit(input)` **sin credenciales** → `createPlaceAction(input)` rama modo authed (`getSession`, no re-pide cuenta). `WizardSubmit` ahora `(input, credentials?)` — espeja exactamente `createPlaceAction`. Los 152 tests place-first siguen verdes (default no-authed sin cambios).
+- **Seam-split (decisión consciente, sin desvío, mismo patrón S5b/S8b):** el form recibe el borde cross-system por prop `auth: AccessSubmit` y el submit del wizard por `onCreatePlace`; la ruta cablea los Server Actions vivos `loginAction`/`signUpAccountAction`/`createPlaceAction`, los tests inyectan fakes. `auth-actions.ts` (`"use server"`) arrastra `next/headers`+Neon → no es vitest-testeable; su correctitud es tipo/build + preview. La máquina pura (form + wizard authed) está 100% TDD-cubierta.
+- **Signup account-first = `signUp` + `ensureAppUser` SIN place (ADR-0008 §2/§4):** "cuenta sin place" es estado legítimo; el token sale de la respuesta de `signUp` (cookie no re-legible en la misma invocación — mismo TBD que la saga S5b). `ensureAppUser` es idempotente: si se difiere, el modo authed lo re-asegura en su TX 1 (no es gap, defensa por construcción).
+- **Ruta** `src/app/(marketing)/[locale]/login/page.tsx` (reemplaza el placeholder; Server Component: traduce `access` → `AccessLabels` y `wizard` → `WizardLabels` con stepTitles de 2; SSG 4 locales). i18n: namespace `login` reemplazado por `access` en `es.json` (sin otros consumidores del viejo `login`). Nav: nuevo item "Acceso" → `/{locale}/login` (link secundario, **distinto del CTA**, ADR-0008 §1; desktop + mobile).
+
+**Cierre verde:** `pnpm test` **162/162** (19 files, +10 vs S8b) · `pnpm typecheck` limpio · `pnpm lint` 0 problemas · `pnpm build` verde (`● /[locale]/login` SSG 4 locales, `/crear` + landing intactas, `ƒ /api/auth/[...path]`, `○ /inbox`, `ƒ /place/[placeSlug]`, `ƒ Proxy`). **Verificación viva pendiente (anotada, NO localhost):** login/signup + modo authed end-to-end (cookie de sesión cross-subdominio, token JWKS-verificable) → preview Vercel, junto con la deuda de S5b/S4b/S8b. Archivos: `src/features/onboarding/ui/{access-flow.tsx,use-access-form.ts,access-labels.ts}` (nuevos), `src/features/onboarding/auth-actions.ts` (nuevo), `src/features/onboarding/ui/{place-wizard.tsx,use-place-wizard.ts,wizard-labels.ts}` (modo authed), `src/features/onboarding/public.ts`, `src/app/(marketing)/[locale]/login/page.tsx` (reescrito), `src/features/landing/components/nav.tsx` (item Acceso), `src/i18n/messages/es.json` (`access` + `nav.acceso`), tests `access-flow.test.tsx` (nuevo) + `place-wizard.test.tsx` (extendido).
+
+> ⚠️ **Deuda estructural abierta (límite duro CLAUDE.md, NO se improvisa).** Tras S9 el slice `src/features/onboarding/` totaliza **1885 líneas (no-test) > 1500** (límite duro `CLAUDE.md` § Límites / `architecture.md` §37/§189). Todos los archivos individuales están ≤300 y la función ≤60; lo que se excede es el **slice completo**. Partir un vertical slice en dos es **decisión arquitectónica** → `CLAUDE.md` manda pausar y consultar + ADR antes de implementar; **no se hace dentro de S9** (cruza capas, >5 archivos, mueve archivos). El trabajo funcional de S9 está completo y verde y se commitea como punto de rollback; la resolución (split del slice en `place-creation` + `access`, o excepción documentada por ADR) es **su propia sesión ADR-backed ANTES de S10** ("dividir antes de continuar"). Pendiente de decisión del owner.
+
 - **Cierre:** tests del form + ramificación; modo authed no re-pide cuenta.
 
 ## S10 — Capa LLM propose-only (servicio + isla mínima)
@@ -226,7 +238,7 @@ Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo 
 | S7 ✅ | Routing host-based + `(marketing)`/`(app)` | routing/app-shell | S1 (S5b para servir) |
 | S8a ✅ | Infra test jsdom + shell + Paso 1 + preview | frontend | S5a, S7 |
 | S8b ✅ | Pasos 2/3 + submit + ruta + repunte CTA + i18n | frontend | S8a, S5b |
-| S9 | Vía "Acceso" + modo authed | frontend | S4b, S5b, S8 |
+| S9 ✅ | Vía "Acceso" + modo authed (⚠️ deuda: slice 1885>1500, split ADR-backed pre-S10) | frontend | S4b, S5b, S8 |
 | S10 | Capa LLM propose-only | servicio | S5a |
 
 Diferido a sesión propia posterior: `/settings` + gate email, UI `/invite/{token}`, directorio, gate de horario.

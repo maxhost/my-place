@@ -11,3 +11,8 @@ export type { CreatePlaceInput } from "./domain/schema";
 export { PlaceWizard } from "./ui/place-wizard";
 export type { WizardLabels, WizardSubmit } from "./ui/place-wizard";
 export { PALETTE_PRESET_IDS } from "./ui/palettes";
+
+// Vía "Acceso" (S9) — la ruta `(marketing)/[locale]/login` la monta.
+export { AccessFlow } from "./ui/access-flow";
+export type { AccessLabels, AccessSubmit } from "./ui/access-labels";
+export { loginAction, signUpAccountAction } from "./auth-actions";

@@ -16,6 +16,7 @@
     "diferencia": "Qué lo hace distinto",
     "precios": "Precios",
     "faq": "Preguntas",
+    "acceso": "Acceso",
     "cta": "Creá tu place"
   },
   "hero": {
@@ -212,10 +213,38 @@
     "body": "Puede que el enlace esté viejo o que la página se haya movido.",
     "cta": "Volver al inicio"
   },
-  "login": {
-    "title": "Place",
-    "body": "El acceso todavía no está disponible. Estamos preparando el lugar.",
-    "back": "Volver"
+  "access": {
+    "title": "Acceso",
+    "subtitle": "Entrá a tu cuenta o creá una nueva.",
+    "loginTab": "Iniciar sesión",
+    "signupTab": "Crear cuenta",
+    "emailLabel": "Email",
+    "emailPlaceholder": "vos@ejemplo.com",
+    "emailInvalid": "Revisá el email",
+    "passwordLabel": "Contraseña",
+    "passwordPlaceholder": "Tu contraseña",
+    "passwordHint": "Al menos 8 caracteres",
+    "passwordTooShort": "La contraseña es muy corta (mín. 8)",
+    "displayNameLabel": "Tu nombre",
+    "displayNamePlaceholder": "Cómo te van a ver",
+    "displayNameRequired": "Poné tu nombre",
+    "terms": "Acepto los {terms} y la {privacy}.",
+    "termsLinkLabel": "términos",
+    "privacyLinkLabel": "política de privacidad",
+    "termsRequired": "Necesitás aceptar los términos",
+    "loginSubmit": "Entrar",
+    "signupSubmit": "Crear mi cuenta",
+    "submitting": "Un momento…",
+    "loginFailedNotice": "No pudimos iniciar sesión. Revisá tu email y contraseña.",
+    "signupFailedNotice": "No pudimos crear la cuenta. ¿Quizás ya tenés una? Probá iniciar sesión.",
+    "choiceTitle": "¿Qué querés hacer?",
+    "choiceSubtitle": "Ya estás dentro. Elegí cómo seguir.",
+    "createPlace": "Crear mi place",
+    "createPlaceDesc": "Armá tu lugar desde cero.",
+    "joinPlace": "Unirme a un place",
+    "joinPlaceDesc": "Entrá a un lugar que ya existe.",
+    "comingSoon": "Próximamente",
+    "back": "Volver al inicio"
   },
   "wizard": {
     "title": "Creá tu lugar",

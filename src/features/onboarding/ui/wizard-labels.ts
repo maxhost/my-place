@@ -11,9 +11,13 @@ export interface PlaceFirstCredentials {
   displayName: string;
 }
 
+// `credentials` es opcional: con credenciales = modo place-first (S8b, la
+// cuenta se crea en el submit); sin ellas = modo authed (S9, la sesión ya
+// existe — la vía "Acceso" reusa el wizard sin el paso de cuenta). La firma
+// espeja exactamente `createPlaceAction(input, credentials?)`.
 export type WizardSubmit = (
   input: CreatePlaceInput,
-  credentials: PlaceFirstCredentials,
+  credentials?: PlaceFirstCredentials,
 ) => Promise<CreatePlaceResult>;
 
 export interface WizardLabels {
