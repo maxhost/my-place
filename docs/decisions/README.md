@@ -18,5 +18,6 @@ Registro de decisiones arquitectónicas con fecha, alternativas rechazadas y con
 - [0014 — Split del slice `onboarding` en `place-creation` + `access`](0014-split-onboarding-place-creation-access.md) — 2026-05-18
 - [0015 — Extraer la asistencia LLM a un slice propio `style-assist`](0015-extraer-slice-style-assist.md) — 2026-05-18
 - [0016 — Extraer la UI del wizard a un slice propio `place-wizard`](0016-extraer-slice-place-wizard.md) — 2026-05-18
+- [0017 — Aprovisionamiento de entornos por migraciones; el deploy las corre; Neon branches efímeras](0017-aprovisionamiento-entornos-por-migraciones.md) — 2026-05-18
 
 > Los números de ADR se asignan al redactarse, no se reservan por adelantado. La ADR de comisión/pricing (referida en `docs/landingpage/`) tomará el número que corresponda cuando se cierre.

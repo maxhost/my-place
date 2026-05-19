@@ -97,6 +97,15 @@ Canónico en **ADR-0006**; spec operativa en `docs/multi-tenancy.md`. Reglas que
 - **Sin Data API y sin rol `anon`.** Todo acceso de dominio es autenticado y verificado server-side. `anon` no recibe grants → no es superficie de riesgo.
 - Las queries a la DB se hacen desde `queries.ts`/`actions.ts` del feature (regla de aislamiento), nunca con el rol admin, siempre tras `ensureAppUser`.
 
+## Migraciones y aprovisionamiento de entornos
+
+Canónico en **ADR-0017** (extiende ADR-0012). Regla que todo entorno respeta:
+
+- **Las migraciones versionadas del repo son la única vía de schema.** Una branch de Neon **no** es una branch de git: no hay `merge` child→parent. Cada branch-entorno (incl. `production`) se aprovisiona corriendo `pnpm db:migrate` (`drizzle-kit migrate`, `DATABASE_URL_MIGRATE` = admin `neondb_owner` del branch destino). Nunca DDL a mano por entorno, nunca promover una branch de dev a primary.
+- **Precondición:** el rol runtime `app_system` (`LOGIN`, `NOBYPASSRLS`) existe en el branch **antes** de migrar (las migraciones lo referencian en GRANT/REVOKE y las policies). Password por-entorno, fuera de banda — nunca en repo/env versionada/chat.
+- **El deploy corre las migraciones contra su branch destino** (paso de pipeline / cutover) → ningún entorno queda atrás. Branches efímeras desde `production` para probar; se promueve el **archivo de migración**, no el estado de la branch; la efímera se descarta.
+- Un entorno **no está listo** hasta: migraciones aplicadas + rol `app_system` + envs verificadas (`DATABASE_URL` app_system@branch, Neon Auth del branch, `NEON_AUTH_COOKIE_SECRET`, `AI_GATEWAY_API_KEY`, `NEXT_PUBLIC_APP_URL`). Síntoma de incumplir esto: `docs/gotchas/neon-branch-sin-migraciones.md`.
+
 ## Gate de horario del place
 
 Fuera del horario, **el miembro** no accede al place: cualquier ruta no-settings devuelve `<PlaceClosedView>`. **El owner es la excepción: accede al place completo fuera de horario** (discusiones, eventos, miembros, settings) — lo ve como si estuviera abierto. No hay rol "admin"; la administración delegada será una feature futura de grupos.

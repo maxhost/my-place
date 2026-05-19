@@ -261,7 +261,26 @@ Revisión del plan D contra "nada de gaps". Cada ítem es decisión consciente, 
 11. **Cookie apex / `__Secure-` HTTPS.** S4 test-guard de build + verificación en preview Vercel (gotcha), no localhost.
 12. **Fuera de la tanda (consciente, no gap):** `/settings` + gate de email verificado (ADR-0005 §9), UI `/invite/{token}`, directorio, gate de horario → sesiones propias posteriores, ya listadas como diferidas.
 
-Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo único pendiente: rotar el password de `app_system` de **producción** fuera de banda antes del cutover (el de dev/test es de desarrollo).
+Sin gaps abiertos para el alcance "auth + creación de place". Riesgo operativo pendiente: el **cutover de `production`** (ADR-0017 — regla; `docs/gotchas/neon-branch-sin-migraciones.md` — síntoma). Incidente 2026-05-18: `production` tenía Neon Auth provisto pero **0 schema** (las migraciones se aplicaron a mano solo a `dev`/`test`) → signup OK pero el place no se crea.
+
+### Runbook de cutover de `production` (orden estricto; irreversible)
+
+Proyecto Neon `prod-place` `odd-mountain-73982304`, branch `production` `br-divine-credit-ap9ty5er`.
+
+1. **Generar el password de `app_system` de producción fuera de banda** (fuerte; NUNCA en repo/chat/env versionada). El de dev/test es de desarrollo, no se reusa.
+2. **Crear el rol en `production`** como admin `neondb_owner` (antes de migrar — las migraciones `0000`/`0001` referencian el rol):
+   ```sql
+   CREATE ROLE app_system LOGIN PASSWORD '<password-fuera-de-banda>' NOBYPASSRLS;
+   GRANT CONNECT ON DATABASE neondb TO app_system;
+   ```
+   `NOBYPASSRLS` es invariante (falso-verde, `tests.md`).
+3. **Correr las 4 migraciones** contra `production`: `DATABASE_URL_MIGRATE` = conexión admin `neondb_owner`@`production` (NO `app_system`) → `pnpm db:migrate`. Aplica `0000_youthful_hydra` (tablas+RLS+grants), `0001_round_forge` (REVOKEs), `0002_create_place_fn`, `0003_accept_invitation_fn`.
+4. **Verificar** (MCP `run_sql` @ `br-divine-credit-ap9ty5er`): `app_schema=1`, `app_funcs` = `accept_invitation, create_place, current_user_id, invitation_preview`, `app_system_role=1`, `public_tables=6`.
+5. **Envs de Vercel (Production):** `DATABASE_URL` = `app_system`@`production`; vars Neon Auth del branch prod; `NEON_AUTH_COOKIE_SECRET` (≥32, valor prod); `AI_GATEWAY_API_KEY`; `NEXT_PUBLIC_APP_URL`/dominio. Re-deploy para que tomen.
+6. **Confirmar Neon Auth en `production`** (`get_neon_auth_config`): verify-email, trusted origins al dominio prod.
+7. **Cuenta huérfana ya creada:** idempotente — el usuario entra por `/login` (vía "Acceso") → wizard authed → crea el place (`app_user` se siembra de `verifyAccessToken().sub`; `UNIQUE` de slug respalda el reintento). Alternativa: borrarla de `neon_auth` y re-registrar.
+
+Pendiente de infra (ADR-0017 watch): automatizar el paso 3 en el pipeline del deploy para que esto no dependa de memoria humana.
 
 ## Resumen
 
