@@ -96,6 +96,7 @@ const WIZARD_LABELS: WizardLabels = {
   slugTakenNotice: "Esa dirección ya tiene dueño, probá con otra",
   invalidNotice: "Revisá los datos e intentá de nuevo",
   errorNotice: "No pudimos crear tu lugar. Probá de nuevo en un momento.",
+  accountFailedNotice: "No pudimos crear la cuenta. Quizás ya tengas una.",
   assistButton: "Sugerir un punto de partida",
   assistLoading: "Pensando una propuesta…",
   assistNeedDescription: "Contanos arriba para quién es tu lugar",
@@ -311,7 +312,8 @@ describe("AccessFlow — modo authed: crear place reutilizando el wizard (S9)", 
       expect(screen.getByText("Tu lugar está listo")).toBeInTheDocument(),
     );
     expect(onCreatePlace).toHaveBeenCalledTimes(1);
-    const [, credentials] = onCreatePlace.mock.calls[0];
-    expect(credentials).toBeUndefined();
+    // authed: el wizard llama onCreatePlace SOLO con el input (sin
+    // credenciales; la sesión ya existe — el JWT lo da el Server Action).
+    expect(onCreatePlace.mock.calls[0]).toHaveLength(1);
   });
 });

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { signUpAccountAction } from "@/features/access/public";
 import { createPlaceAction } from "@/features/place-creation/public";
 import {
   PALETTE_PRESET_IDS,
@@ -91,6 +92,7 @@ export default async function CrearPage({ params }: Props) {
     slugTakenNotice: t("slugTakenNotice"),
     invalidNotice: t("invalidNotice"),
     errorNotice: t("errorNotice"),
+    accountFailedNotice: t("accountFailedNotice"),
     assistButton: t("assistButton"),
     assistLoading: t("assistLoading"),
     assistNeedDescription: t("assistNeedDescription"),
@@ -112,6 +114,7 @@ export default async function CrearPage({ params }: Props) {
         termsHref={`/${locale}/terminos`}
         privacyHref={`/${locale}/privacidad`}
         onSubmit={createPlaceAction}
+        onCreateAccount={signUpAccountAction}
         onSuggest={suggestStyleAction}
       />
     </main>

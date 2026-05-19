@@ -14,14 +14,26 @@ export interface PlaceFirstCredentials {
   displayName: string;
 }
 
-// `credentials` es opcional: con credenciales = modo place-first (S8b, la
-// cuenta se crea en el submit); sin ellas = modo authed (S9, la sesión ya
-// existe — la vía "Acceso" reusa el wizard sin el paso de cuenta). La firma
-// espeja exactamente `createPlaceAction(input, credentials?)`.
+// Creación de place SIEMPRE en modo authed: la sesión ya está establecida
+// (place-first la establece antes vía `WizardSignUp` en una request previa;
+// authed/"Acceso" ya la tiene). `createPlaceAction` adquiere el JWT de la
+// sesión vigente (`auth.token()`), por eso NO recibe credenciales: el token
+// de `signUp` es de sesión opaco, no un JWT (evidencia preview 2026-05-19).
 export type WizardSubmit = (
   input: CreatePlaceInput,
-  credentials?: PlaceFirstCredentials,
 ) => Promise<CreatePlaceResult>;
+
+// Place-first: crear la CUENTA es una request separada y PREVIA a crear el
+// place — Neon Auth `signUp` setea la cookie de sesión en su respuesta pero
+// NO es re-legible en la misma invocación; recién la request siguiente
+// (el `WizardSubmit` authed) la tiene y puede pedir el JWT. `signUp` NO crea
+// `app_user` ("cuenta sin place" es legítimo, ADR-0008 §4): lo asegura la
+// TX 1 del create authed (idempotente). `status === "ok"` = cuenta lista
+// (cookie establecida); cualquier otro = no se pudo (aviso calmo, sin
+// afirmar el detalle del SDK — cozytech). Espeja `signUpAccountAction`.
+export type WizardSignUp = (
+  credentials: PlaceFirstCredentials,
+) => Promise<{ status: string }>;
 
 // Asistencia LLM propose-only (S10b, ADR-0005 §5/§6 / ADR-0007). Seam-split
 // idéntico a `WizardSubmit`: el Server Action vivo (`suggestStyleAction` del
@@ -86,6 +98,8 @@ export interface WizardLabels {
   slugTakenNotice: string;
   invalidNotice: string;
   errorNotice: string;
+  /** Place-first: no se pudo crear la cuenta (p. ej. email ya registrado). */
+  accountFailedNotice: string;
   // Isla de asistencia propose-only (S10b). Tono calmo, nada grita
   // (`producto.md` cozytech); nada se auto-aplica (ADR-0005 §6).
   assistButton: string;

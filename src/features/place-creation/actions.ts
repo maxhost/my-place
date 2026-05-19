@@ -56,49 +56,19 @@ async function acquireSessionJwt(): Promise<string> {
   return token;
 }
 
-// place-first (CTA): `signUp` crea cuenta + sesión; el JWT NO sale de ahí
-// (es token de sesión) sino de `auth.token()` sobre esa sesión. Falla de
-// `signUp` → no se llega a la DB (nada creado, ADR-0005 §2/§4).
-function placeFirstIdentity(c: PlaceFirstCredentials): AcquireIdentity {
-  return async () => {
-    let res: unknown;
-    try {
-      res = await getAuth().signUp.email({
-        email: c.email,
-        password: c.password,
-        name: c.displayName,
-      });
-    } catch (err) {
-      throw tagStep(err, "signup:threw");
-    }
-    const { data, error } = res as {
-      data?: { token?: string | null } | null;
-      error?: { status?: unknown; message?: string } | null;
-    };
-    if (!data?.token) {
-      throw tagStep(
-        new Error(
-          `signUp falló data=${!!data} status=${String(error?.status ?? "")} msg=${error?.message ?? ""}`,
-        ),
-        "signup:failed",
-      );
-    }
-    return {
-      accessToken: await acquireSessionJwt(),
-      email: c.email,
-      displayName: c.displayName,
-    };
-  };
-}
-
-// authed (Acceso → "Crear mi place"): la sesión ya existe. El JWT viene de
-// `auth.token()`; el perfil de `getSession()` (`ensureAppUser` es idempotente:
-// el `app_user` ya existe, email/displayName sólo siembran si faltara).
-function authedIdentity(): AcquireIdentity {
+// Identidad de la sesión VIGENTE (la request ya trae la cookie: authed por
+// "Acceso", o place-first tras la request previa de `signUp`). El JWT sale
+// de `auth.token()` (NO de `getSession().session.token`, que es opaco); el
+// perfil de `getSession()` para sembrar `app_user` (`ensureAppUser` es
+// idempotente: sólo siembra si faltara — "cuenta sin place" legítimo).
+function sessionIdentity(): AcquireIdentity {
   return async () => {
     const { data } = await getAuth().getSession();
     if (!data?.session) {
-      throw tagStep(new Error("getSession sin sesión vigente"), "authed:no-session");
+      throw tagStep(
+        new Error("getSession sin sesión vigente"),
+        "authed:no-session",
+      );
     }
     return {
       accessToken: await acquireSessionJwt(),
@@ -109,19 +79,16 @@ function authedIdentity(): AcquireIdentity {
 }
 
 /**
- * Crea un place. Con `credentials` → modo place-first (signUp). Sin ellas →
- * modo authed (sesión vigente). `input` se valida en el dominio (S5a) dentro
- * de la saga; payload inválido no crea cuenta.
+ * Crea un place con la SESIÓN VIGENTE (siempre authed). Place-first establece
+ * la sesión en una request previa (`signUpAccountAction`); "Acceso" ya la
+ * tiene. `input` se valida en el dominio (S5a); payload inválido no toca DB.
  */
 export async function createPlaceAction(
   input: unknown,
-  credentials?: PlaceFirstCredentials,
 ): Promise<CreatePlaceResult> {
   try {
     return await createPlace(input, {
-      acquireIdentity: credentials
-        ? placeFirstIdentity(credentials)
-        : authedIdentity(),
+      acquireIdentity: sessionIdentity(),
       runAuthedTx: getAuthenticatedDb,
     });
   } catch (err) {

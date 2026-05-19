@@ -322,6 +322,7 @@
     "assistDescriptionLabel": "Texto propuesto",
     "assistApplyPalette": "Usar estos colores",
     "assistApplyDescription": "Usar este texto",
-    "assistApplied": "Aplicado"
+    "assistApplied": "Aplicado",
+    "accountFailedNotice": "No pudimos crear la cuenta. Quizás ya tengas una con ese email — probá iniciar sesión."
   }
 }

@@ -60,6 +60,7 @@ const LABELS: WizardLabels = {
   slugTakenNotice: "Esa dirección ya tiene dueño, probá con otra",
   invalidNotice: "Revisá los datos e intentá de nuevo",
   errorNotice: "No pudimos crear tu lugar. Probá de nuevo en un momento.",
+  accountFailedNotice: "No pudimos crear la cuenta. Quizás ya tengas una.",
   assistButton: "Sugerir un punto de partida",
   assistLoading: "Pensando una propuesta…",
   assistNeedDescription:

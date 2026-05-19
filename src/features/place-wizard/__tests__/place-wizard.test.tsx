@@ -5,6 +5,7 @@ import type { CreatePlaceResult } from "@/features/place-creation/public";
 import {
   PlaceWizard,
   type WizardLabels,
+  type WizardSignUp,
   type WizardSubmit,
 } from "../place-wizard";
 
@@ -65,6 +66,7 @@ const LABELS: WizardLabels = {
   slugTakenNotice: "Esa dirección ya tiene dueño, probá con otra",
   invalidNotice: "Revisá los datos e intentá de nuevo",
   errorNotice: "No pudimos crear tu lugar. Probá de nuevo en un momento.",
+  accountFailedNotice: "No pudimos crear la cuenta. Quizás ya tengas una.",
   assistButton: "Sugerir un punto de partida",
   assistLoading: "Pensando una propuesta…",
   assistNeedDescription: "Contanos arriba para quién es tu lugar",
@@ -85,6 +87,9 @@ function setup(
     slug: "mi-club",
     adjustments: [],
   })),
+  onCreateAccount: WizardSignUp = vi.fn<WizardSignUp>(async () => ({
+    status: "ok",
+  })),
 ) {
   const utils = render(
     <PlaceWizard
@@ -93,9 +98,10 @@ function setup(
       termsHref="/es/terminos"
       privacyHref="/es/privacidad"
       onSubmit={onSubmit}
+      onCreateAccount={onCreateAccount}
     />,
   );
-  return { ...utils, onSubmit };
+  return { ...utils, onSubmit, onCreateAccount };
 }
 
 // Recorre Paso 1 → Paso 2 → Paso 3 con datos válidos.
@@ -241,7 +247,7 @@ describe("PlaceWizard — Paso 2 (estilo) y navegación", () => {
 });
 
 describe("PlaceWizard — Paso 3 (cuenta) + submit", () => {
-  it("crea el lugar y muestra la pantalla de éxito con la URL", async () => {
+  it("two-phase: crea la cuenta y LUEGO el place (authed), pantalla de éxito", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn<WizardSubmit>(async () => ({
       status: "created",
@@ -249,7 +255,8 @@ describe("PlaceWizard — Paso 3 (cuenta) + submit", () => {
       slug: "mi-club",
       adjustments: [],
     }));
-    setup(onSubmit);
+    const onCreateAccount = vi.fn<WizardSignUp>(async () => ({ status: "ok" }));
+    setup(onSubmit, onCreateAccount);
     await fillToAccountStep(user);
     await user.click(screen.getByRole("button", { name: "Crear mi lugar" }));
 
@@ -259,15 +266,44 @@ describe("PlaceWizard — Paso 3 (cuenta) + submit", () => {
     expect(
       screen.getByText("Ya podés entrar en mi-club.place.community."),
     ).toBeInTheDocument();
-    expect(onSubmit).toHaveBeenCalledTimes(1);
-    const [input, credentials] = onSubmit.mock.calls[0];
-    expect(input).toMatchObject({ name: "Mi Club", slug: "mi-club" });
-    expect(input.ownerTimezone).toBeTruthy();
-    expect(credentials).toEqual({
+    // FASE 1: la cuenta se crea con las credenciales (request previa).
+    expect(onCreateAccount).toHaveBeenCalledTimes(1);
+    expect(onCreateAccount.mock.calls[0][0]).toEqual({
       email: "vos@ejemplo.com",
       password: "supersegura",
       displayName: "Ana",
     });
+    // FASE 2: el place se crea authed — SOLO el input, sin credenciales.
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0]).toHaveLength(1);
+    const [input] = onSubmit.mock.calls[0];
+    expect(input).toMatchObject({ name: "Mi Club", slug: "mi-club" });
+    expect(input.ownerTimezone).toBeTruthy();
+  });
+
+  it("place-first: si la cuenta falla, aviso calmo y NO se crea el place", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<WizardSubmit>(async () => ({
+      status: "created" as const,
+      placeId: "p1",
+      slug: "mi-club",
+      adjustments: [],
+    }));
+    const onCreateAccount = vi.fn<WizardSignUp>(async () => ({
+      status: "signup_failed",
+    }));
+    setup(onSubmit, onCreateAccount);
+    await fillToAccountStep(user);
+    await user.click(screen.getByRole("button", { name: "Crear mi lugar" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("No pudimos crear la cuenta. Quizás ya tengas una."),
+      ).toBeInTheDocument(),
+    );
+    expect(onCreateAccount).toHaveBeenCalledTimes(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.queryByText("Tu lugar está listo")).not.toBeInTheDocument();
   });
 
   it("no deja crear sin aceptar los términos", async () => {
@@ -403,8 +439,10 @@ describe("PlaceWizard — modo authed (S9, sin paso de cuenta)", () => {
       expect(screen.getByText("Tu lugar está listo")).toBeInTheDocument(),
     );
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    const [input, credentials] = onSubmit.mock.calls[0];
+    // authed: el wizard llama onSubmit SOLO con el input (sin credenciales;
+    // la sesión ya existe — el JWT lo resuelve el Server Action authed).
+    expect(onSubmit.mock.calls[0]).toHaveLength(1);
+    const [input] = onSubmit.mock.calls[0];
     expect(input).toMatchObject({ name: "Mi Club", slug: "mi-club" });
-    expect(credentials).toBeUndefined();
   });
 });

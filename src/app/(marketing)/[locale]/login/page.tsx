@@ -132,6 +132,7 @@ export default async function LoginPage({ params }: Props) {
     slugTakenNotice: w("slugTakenNotice"),
     invalidNotice: w("invalidNotice"),
     errorNotice: w("errorNotice"),
+    accountFailedNotice: w("accountFailedNotice"),
     assistButton: w("assistButton"),
     assistLoading: w("assistLoading"),
     assistNeedDescription: w("assistNeedDescription"),

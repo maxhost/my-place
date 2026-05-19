@@ -11,6 +11,7 @@ import { DEFAULT_PRESET_ID, PALETTE_PRESETS } from "./palettes";
 import { slugify } from "./slugify";
 import type {
   WizardLabels,
+  WizardSignUp,
   WizardSubmit,
   WizardSuggest,
 } from "./wizard-labels";
@@ -20,7 +21,7 @@ import type {
 // El estado vive client-side hasta el submit; idempotencia por ref.
 
 type SlugState = "idle" | "reserved" | "invalid" | "valid";
-type Notice = "slug_taken" | "invalid" | "error" | null;
+type Notice = "slug_taken" | "invalid" | "error" | "account" | null;
 
 function classifySlug(raw: string): { state: SlugState; normalized: string } {
   if (raw.trim() === "") return { state: "idle", normalized: "" };
@@ -53,6 +54,11 @@ export function usePlaceWizard(opts: {
    * El nº de pasos lo da `labels.stepTitles.length` (la ruta pasa 2 títulos).
    */
   authed?: boolean;
+  /**
+   * Place-first: crea la cuenta en una request PREVIA (establece la cookie de
+   * sesión) antes del `onSubmit` authed. Requerido cuando `!authed`.
+   */
+  onCreateAccount?: WizardSignUp;
   /**
    * Asistencia LLM propose-only (S10b). OPCIONAL: si no se cablea, la isla
    * no se renderiza (la asistencia es opcional — ADR-0005 §5).
@@ -150,6 +156,23 @@ export function usePlaceWizard(opts: {
     setSubmitting(true);
     setNotice(null);
     try {
+      // FASE 1 (solo place-first): crear la cuenta. Es una request propia
+      // que establece la cookie de sesión; sin "ok" no seguimos (sin sesión
+      // la FASE 2 no podría obtener el JWT). En authed la sesión ya existe.
+      if (!authed) {
+        const acc = await opts.onCreateAccount?.({
+          email: email.trim(),
+          password,
+          displayName: displayName.trim(),
+        });
+        if (!acc || acc.status !== "ok") {
+          setNotice("account");
+          return;
+        }
+      }
+      // FASE 2: crear el place en modo authed. La cookie de la FASE 1 (o la
+      // sesión preexistente en authed) viaja en ESTA request → el Server
+      // Action obtiene el JWT vía `auth.token()`.
       const input: CreatePlaceInput = {
         name: name.trim(),
         slug: normalized,
@@ -157,14 +180,7 @@ export function usePlaceWizard(opts: {
         theme: selectedPalette,
         ownerTimezone: detectTimezone(),
       };
-      // authed: sin credenciales → `createPlaceAction` rama modo authed
-      // (sesión vigente, no re-pide cuenta, ADR-0008 §3).
-      const res = await opts.onSubmit(
-        input,
-        authed
-          ? undefined
-          : { email: email.trim(), password, displayName: displayName.trim() },
-      );
+      const res = await opts.onSubmit(input);
       if (res.status === "created") setResult(res);
       else if (res.status === "slug_taken") {
         setNotice("slug_taken");
@@ -232,14 +248,14 @@ export function usePlaceWizard(opts: {
     .replace("{n}", String(currentStep + 1))
     .replace("{total}", String(stepCount));
 
-  const noticeText =
-    notice === "slug_taken"
-      ? labels.slugTakenNotice
-      : notice === "invalid"
-        ? labels.invalidNotice
-        : notice === "error"
-          ? labels.errorNotice
-          : null;
+  const noticeText: string | null = notice
+    ? {
+        slug_taken: labels.slugTakenNotice,
+        account: labels.accountFailedNotice,
+        invalid: labels.invalidNotice,
+        error: labels.errorNotice,
+      }[notice]
+    : null;
 
   return {
     ids,

@@ -4,6 +4,7 @@ import { PlacePreview } from "./place-preview";
 import { usePlaceWizard } from "./use-place-wizard";
 import type {
   WizardLabels,
+  WizardSignUp,
   WizardSubmit,
   WizardSuggest,
 } from "./wizard-labels";
@@ -13,6 +14,7 @@ import { SuccessPanel } from "./wizard-success";
 export type {
   WizardLabels,
   WizardSubmit,
+  WizardSignUp,
   WizardSuggest,
   PlaceFirstCredentials,
 } from "./wizard-labels";
@@ -34,6 +36,7 @@ export function PlaceWizard({
   termsHref,
   privacyHref,
   onSubmit,
+  onCreateAccount,
   onSuggest,
   authed = false,
 }: {
@@ -43,6 +46,13 @@ export function PlaceWizard({
   privacyHref: string;
   onSubmit: WizardSubmit;
   /**
+   * Place-first: crea la cuenta (request previa que establece la cookie de
+   * sesión) ANTES del `onSubmit` authed. Requerido cuando `!authed`; en modo
+   * authed no se usa (la sesión ya existe). Seam-split: el Server Action vivo
+   * se inyecta en la ruta.
+   */
+  onCreateAccount?: WizardSignUp;
+  /**
    * Asistencia LLM propose-only (S10b). Opcional: si la ruta no la cablea,
    * la isla del Paso 2 no se renderiza (ADR-0005 §5). Seam-split: el Server
    * Action vivo se inyecta acá (como `onSubmit`).
@@ -51,7 +61,13 @@ export function PlaceWizard({
   /** Vía "Acceso" (S9): reutiliza el wizard sin el Paso 3 (cuenta). */
   authed?: boolean;
 }) {
-  const w = usePlaceWizard({ labels, onSubmit, onSuggest, authed });
+  const w = usePlaceWizard({
+    labels,
+    onSubmit,
+    onCreateAccount,
+    onSuggest,
+    authed,
+  });
 
   if (w.result?.status === "created") {
     return (

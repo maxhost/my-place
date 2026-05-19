@@ -1,8 +1,7 @@
 "use server";
 
 import { getAuth } from "@/shared/lib/auth";
-import { getAuthenticatedDb } from "@/shared/lib/db";
-import { ensureAppUser } from "@/shared/lib/ensure-app-user";
+import { onbLine } from "@/shared/lib/obs";
 import type { AccessCredentials, AccessResult } from "./ui/access-labels";
 
 // Borde cross-system de la vía "Acceso" (S9, ADR-0008/0009). Es el wiring
@@ -35,12 +34,14 @@ export async function loginAction(
 }
 
 /**
- * Signup account-first (ADR-0008 §2): crea la identidad (Neon Auth `signUp`)
- * + `app_user` SIN place — "cuenta sin place" es estado legítimo (ADR-0008
- * §4). El token sale de la RESPUESTA de `signUp` (la cookie no es re-legible
- * en la misma invocación — mismo TBD que la saga place-first, S5b). El
- * `ensureAppUser` acá es idempotente: si se difiere, el modo authed lo
- * re-asegura en su TX 1 — no es gap, es defensa por construcción.
+ * Signup account-first (ADR-0008 §2): crea SÓLO la identidad (Neon Auth
+ * `signUp`), que setea la cookie de sesión en su respuesta. NO crea
+ * `app_user`: "cuenta sin place" es estado legítimo (ADR-0008 §4) y el
+ * `ensureAppUser` es idempotente — lo asegura la TX 1 del create authed en
+ * la request SIGUIENTE (donde la cookie ya viaja y `auth.token()` da el JWT).
+ * Hacerlo acá rompía: `data.token` es token de SESIÓN opaco, no un JWT
+ * (evidencia preview 2026-05-19) → `getAuthenticatedDb` fallaba y el signup
+ * entero se reportaba como fallido aunque la cuenta SÍ se creaba.
  */
 export async function signUpAccountAction(
   c: AccessCredentials,
@@ -51,16 +52,17 @@ export async function signUpAccountAction(
       password: c.password,
       name: c.displayName,
     });
-    if (error || !data?.token) return { status: "signup_failed" };
-    await getAuthenticatedDb(data.token, (sql, claims) =>
-      ensureAppUser(sql, {
-        authUserId: claims.sub,
-        email: c.email,
-        displayName: c.displayName,
-      }),
-    );
+    // `data.token` (token de sesión) presente = signUp OK + cookie seteada.
+    if (error || !data?.token) {
+      const e = error as { status?: unknown; message?: string } | null;
+      console.error(
+        `[onb] FAIL:signup|${String(e?.status ?? "")}|signUpAccount|${e?.message ?? "sin token"}`,
+      );
+      return { status: "signup_failed" };
+    }
     return { status: "ok" };
-  } catch {
+  } catch (err) {
+    console.error(onbLine(err));
     return { status: "signup_failed" };
   }
 }
