@@ -15,5 +15,9 @@ export type { CreatePlaceInput } from "./domain/schema";
 // UI del wizard (S8) — la ruta `(marketing)/[locale]/crear` la monta;
 // `access` la reusa en modo authed vía esta interfaz.
 export { PlaceWizard } from "./ui/place-wizard";
-export type { WizardLabels, WizardSubmit } from "./ui/place-wizard";
+export type {
+  WizardLabels,
+  WizardSubmit,
+  WizardSuggest,
+} from "./ui/place-wizard";
 export { PALETTE_PRESET_IDS } from "./ui/palettes";

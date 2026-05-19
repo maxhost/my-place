@@ -12,6 +12,7 @@ import {
   type WizardLabels,
   createPlaceAction,
 } from "@/features/place-creation/public";
+import { suggestStyleAction } from "@/features/style-assist/public";
 
 // Ruta de la vía "Acceso" (S9, ADR-0008/0009): item distinto del CTA. Server
 // Component: traduce los namespaces `access` (form/elección) y `wizard`
@@ -128,6 +129,17 @@ export default async function LoginPage({ params }: Props) {
     slugTakenNotice: w("slugTakenNotice"),
     invalidNotice: w("invalidNotice"),
     errorNotice: w("errorNotice"),
+    assistButton: w("assistButton"),
+    assistLoading: w("assistLoading"),
+    assistNeedDescription: w("assistNeedDescription"),
+    assistUnavailable: w("assistUnavailable"),
+    assistProposedTitle: w("assistProposedTitle"),
+    assistProposedHint: w("assistProposedHint"),
+    assistPaletteLabel: w("assistPaletteLabel"),
+    assistDescriptionLabel: w("assistDescriptionLabel"),
+    assistApplyPalette: w("assistApplyPalette"),
+    assistApplyDescription: w("assistApplyDescription"),
+    assistApplied: w("assistApplied"),
   };
 
   const auth: AccessSubmit = {
@@ -142,6 +154,7 @@ export default async function LoginPage({ params }: Props) {
         wizardLabels={wizardLabels}
         auth={auth}
         onCreatePlace={createPlaceAction}
+        onSuggest={suggestStyleAction}
         rootDomain={rootDomain()}
         termsHref={`/${locale}/terminos`}
         privacyHref={`/${locale}/privacidad`}

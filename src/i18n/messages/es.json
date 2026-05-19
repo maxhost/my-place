@@ -84,10 +84,22 @@
       "audienceLabel": "Una audiencia",
       "communityLabel": "Una comunidad",
       "rows": [
-        { "audience": "Crece sin techo", "community": "Hasta 150 — todos se conocen" },
-        { "audience": "Feed ordenado por algoritmo", "community": "Conversaciones por turnos, cronológicas" },
-        { "audience": "Métricas y comparación", "community": "Pertenencia y rol, sin ranking" },
-        { "audience": "Te persigue con notificaciones", "community": "Tiene horario y cierra" }
+        {
+          "audience": "Crece sin techo",
+          "community": "Hasta 150 — todos se conocen"
+        },
+        {
+          "audience": "Feed ordenado por algoritmo",
+          "community": "Conversaciones por turnos, cronológicas"
+        },
+        {
+          "audience": "Métricas y comparación",
+          "community": "Pertenencia y rol, sin ranking"
+        },
+        {
+          "audience": "Te persigue con notificaciones",
+          "community": "Tiene horario y cierra"
+        }
       ]
     },
     "dunbar": "150 no es el límite de un plan: es una decisión de diseño. Es cerca del número de Dunbar — la cantidad de personas con las que alguien sostiene un vínculo real."
@@ -299,6 +311,17 @@
     "successOpen": "Abrir mi lugar",
     "slugTakenNotice": "Esa dirección ya tiene dueño, probá con otra",
     "invalidNotice": "Revisá los datos e intentá de nuevo",
-    "errorNotice": "No pudimos crear tu lugar. Probá de nuevo en un momento."
+    "errorNotice": "No pudimos crear tu lugar. Probá de nuevo en un momento.",
+    "assistButton": "Sugerir un punto de partida",
+    "assistLoading": "Pensando una propuesta…",
+    "assistNeedDescription": "Contanos arriba para quién es tu lugar y te proponemos un punto de partida",
+    "assistUnavailable": "No pudimos sugerir ahora. Seguí eligiendo a mano, sin apuro.",
+    "assistProposedTitle": "Una propuesta para empezar",
+    "assistProposedHint": "Es solo un punto de partida. Aplicá lo que te guste; el resto, a mano.",
+    "assistPaletteLabel": "Colores propuestos",
+    "assistDescriptionLabel": "Texto propuesto",
+    "assistApplyPalette": "Usar estos colores",
+    "assistApplyDescription": "Usar este texto",
+    "assistApplied": "Aplicado"
   }
 }

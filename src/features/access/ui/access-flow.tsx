@@ -4,6 +4,7 @@ import {
   PlaceWizard,
   type WizardLabels,
   type WizardSubmit,
+  type WizardSuggest,
 } from "@/features/place-creation/public";
 import type { AccessLabels, AccessSubmit } from "./access-labels";
 import { useAccessForm } from "./use-access-form";
@@ -25,6 +26,7 @@ export function AccessFlow({
   wizardLabels,
   auth,
   onCreatePlace,
+  onSuggest,
   rootDomain,
   termsHref,
   privacyHref,
@@ -34,6 +36,8 @@ export function AccessFlow({
   wizardLabels: WizardLabels;
   auth: AccessSubmit;
   onCreatePlace: WizardSubmit;
+  /** Asistencia LLM propose-only (S10b): se inyecta tal cual al wizard. */
+  onSuggest?: WizardSuggest;
   rootDomain: string;
   termsHref: string;
   privacyHref: string;
@@ -52,6 +56,7 @@ export function AccessFlow({
         termsHref={termsHref}
         privacyHref={privacyHref}
         onSubmit={onCreatePlace}
+        onSuggest={onSuggest}
         authed
       />
     );

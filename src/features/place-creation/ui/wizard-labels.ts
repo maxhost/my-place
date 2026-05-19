@@ -1,3 +1,4 @@
+import type { StyleSuggestionResult } from "@/features/style-assist/public";
 import type { CreatePlaceResult } from "../create-place";
 import type { CreatePlaceInput } from "../domain/schema";
 
@@ -19,6 +20,18 @@ export type WizardSubmit = (
   input: CreatePlaceInput,
   credentials?: PlaceFirstCredentials,
 ) => Promise<CreatePlaceResult>;
+
+// Asistencia LLM propose-only (S10b, ADR-0005 §5/§6 / ADR-0007). Seam-split
+// idéntico a `WizardSubmit`: el Server Action vivo (`suggestStyleAction` del
+// slice `style-assist`) se inyecta como prop en la ruta — el wizard no importa
+// `style-assist` (sólo el tipo del resultado vía su `public.ts`: arista
+// feature→feature type-only, unidireccional, acíclica — ADR-0015). La firma
+// espeja exactamente `suggestStyleAction(description)`. Es OPCIONAL: si la ruta
+// no la cablea, la isla no se renderiza (la asistencia es opcional por
+// principio — ADR-0005 §5; degradación elegante también ante `unavailable`).
+export type WizardSuggest = (
+  description: string,
+) => Promise<StyleSuggestionResult>;
 
 export interface WizardLabels {
   title: string;
@@ -71,4 +84,19 @@ export interface WizardLabels {
   slugTakenNotice: string;
   invalidNotice: string;
   errorNotice: string;
+  // Isla de asistencia propose-only (S10b). Tono calmo, nada grita
+  // (`producto.md` cozytech); nada se auto-aplica (ADR-0005 §6).
+  assistButton: string;
+  assistLoading: string;
+  /** Cuando no hay descripción todavía: por qué el botón está en pausa. */
+  assistNeedDescription: string;
+  /** `unavailable` / falla: aviso tranquilo que NO bloquea. */
+  assistUnavailable: string;
+  assistProposedTitle: string;
+  assistProposedHint: string;
+  assistPaletteLabel: string;
+  assistDescriptionLabel: string;
+  assistApplyPalette: string;
+  assistApplyDescription: string;
+  assistApplied: string;
 }

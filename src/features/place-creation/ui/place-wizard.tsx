@@ -2,13 +2,18 @@
 
 import { PlacePreview } from "./place-preview";
 import { usePlaceWizard } from "./use-place-wizard";
-import type { WizardLabels, WizardSubmit } from "./wizard-labels";
+import type {
+  WizardLabels,
+  WizardSubmit,
+  WizardSuggest,
+} from "./wizard-labels";
 import { Step1Identity, Step2Style, Step3Account } from "./wizard-steps";
 import { SuccessPanel } from "./wizard-success";
 
 export type {
   WizardLabels,
   WizardSubmit,
+  WizardSuggest,
   PlaceFirstCredentials,
 } from "./wizard-labels";
 
@@ -29,6 +34,7 @@ export function PlaceWizard({
   termsHref,
   privacyHref,
   onSubmit,
+  onSuggest,
   authed = false,
 }: {
   labels: WizardLabels;
@@ -36,10 +42,16 @@ export function PlaceWizard({
   termsHref: string;
   privacyHref: string;
   onSubmit: WizardSubmit;
+  /**
+   * Asistencia LLM propose-only (S10b). Opcional: si la ruta no la cablea,
+   * la isla del Paso 2 no se renderiza (ADR-0005 §5). Seam-split: el Server
+   * Action vivo se inyecta acá (como `onSubmit`).
+   */
+  onSuggest?: WizardSuggest;
   /** Vía "Acceso" (S9): reutiliza el wizard sin el Paso 3 (cuenta). */
   authed?: boolean;
 }) {
-  const w = usePlaceWizard({ labels, onSubmit, authed });
+  const w = usePlaceWizard({ labels, onSubmit, onSuggest, authed });
 
   if (w.result?.status === "created") {
     return (
@@ -104,7 +116,22 @@ export function PlaceWizard({
             descTooLong={w.descTooLong}
             selectedPaletteId={w.paletteId}
             onDescription={w.setDescription}
-            onPalette={w.setPaletteId}
+            onPalette={w.choosePreset}
+            assist={
+              w.suggestEnabled
+                ? {
+                    phase: w.suggestPhase,
+                    suggestReady: w.suggestReady,
+                    canSuggest: w.canSuggest,
+                    suggestion: w.suggestion,
+                    paletteApplied: w.paletteApplied,
+                    descriptionApplied: w.descriptionApplied,
+                    onSuggest: w.handleSuggest,
+                    onApplyPalette: w.applySuggestedPalette,
+                    onApplyDescription: w.applySuggestedDescription,
+                  }
+                : undefined
+            }
           />
         )}
 

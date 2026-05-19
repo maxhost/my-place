@@ -6,6 +6,7 @@ import {
   type WizardLabels,
   createPlaceAction,
 } from "@/features/place-creation/public";
+import { suggestStyleAction } from "@/features/style-assist/public";
 
 // Ruta de la vía place-first (CTA de la landing). Server Component: traduce
 // el namespace `wizard` → `labels` (el wizard no carga runtime i18n en
@@ -87,6 +88,17 @@ export default async function CrearPage({ params }: Props) {
     slugTakenNotice: t("slugTakenNotice"),
     invalidNotice: t("invalidNotice"),
     errorNotice: t("errorNotice"),
+    assistButton: t("assistButton"),
+    assistLoading: t("assistLoading"),
+    assistNeedDescription: t("assistNeedDescription"),
+    assistUnavailable: t("assistUnavailable"),
+    assistProposedTitle: t("assistProposedTitle"),
+    assistProposedHint: t("assistProposedHint"),
+    assistPaletteLabel: t("assistPaletteLabel"),
+    assistDescriptionLabel: t("assistDescriptionLabel"),
+    assistApplyPalette: t("assistApplyPalette"),
+    assistApplyDescription: t("assistApplyDescription"),
+    assistApplied: t("assistApplied"),
   };
 
   return (
@@ -97,6 +109,7 @@ export default async function CrearPage({ params }: Props) {
         termsHref={`/${locale}/terminos`}
         privacyHref={`/${locale}/privacidad`}
         onSubmit={createPlaceAction}
+        onSuggest={suggestStyleAction}
       />
     </main>
   );

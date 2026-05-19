@@ -1,4 +1,6 @@
+import type { StyleSuggestion } from "@/features/style-assist/public";
 import { PALETTE_PRESETS } from "./palettes";
+import { StyleAssistIsland } from "./style-assist-island";
 import type { WizardLabels } from "./wizard-labels";
 
 // Cuerpos presentacionales de los 3 pasos del wizard (S8b). Sin estado: el
@@ -94,6 +96,19 @@ export function Step2Style(p: {
   selectedPaletteId: string;
   onDescription: (v: string) => void;
   onPalette: (id: string) => void;
+  // Isla propose-only (S10b). `assist` ausente = la ruta no la cableó → no se
+  // renderiza (la asistencia es opcional, ADR-0005 §5).
+  assist?: {
+    phase: "idle" | "loading" | "ready" | "unavailable";
+    suggestReady: boolean;
+    canSuggest: boolean;
+    suggestion: StyleSuggestion | null;
+    paletteApplied: boolean;
+    descriptionApplied: boolean;
+    onSuggest: () => void;
+    onApplyPalette: () => void;
+    onApplyDescription: () => void;
+  };
 }) {
   const { labels: l } = p;
   return (
@@ -116,6 +131,21 @@ export function Step2Style(p: {
           <p className="text-sm text-muted">{l.descriptionHint}</p>
         )}
       </div>
+
+      {p.assist && (
+        <StyleAssistIsland
+          labels={l}
+          phase={p.assist.phase}
+          suggestReady={p.assist.suggestReady}
+          canSuggest={p.assist.canSuggest}
+          suggestion={p.assist.suggestion}
+          paletteApplied={p.assist.paletteApplied}
+          descriptionApplied={p.assist.descriptionApplied}
+          onSuggest={p.assist.onSuggest}
+          onApplyPalette={p.assist.onApplyPalette}
+          onApplyDescription={p.assist.onApplyDescription}
+        />
+      )}
 
       <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-medium text-ink">

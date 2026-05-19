@@ -65,6 +65,17 @@ const LABELS: WizardLabels = {
   slugTakenNotice: "Esa dirección ya tiene dueño, probá con otra",
   invalidNotice: "Revisá los datos e intentá de nuevo",
   errorNotice: "No pudimos crear tu lugar. Probá de nuevo en un momento.",
+  assistButton: "Sugerir un punto de partida",
+  assistLoading: "Pensando una propuesta…",
+  assistNeedDescription: "Contanos arriba para quién es tu lugar",
+  assistUnavailable: "No pudimos sugerir ahora. Seguí a mano, sin apuro.",
+  assistProposedTitle: "Una propuesta para empezar",
+  assistProposedHint: "Es solo un punto de partida.",
+  assistPaletteLabel: "Colores propuestos",
+  assistDescriptionLabel: "Texto propuesto",
+  assistApplyPalette: "Usar estos colores",
+  assistApplyDescription: "Usar este texto",
+  assistApplied: "Aplicado",
 };
 
 function setup(

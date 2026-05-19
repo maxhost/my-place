@@ -1,11 +1,17 @@
 import { useId, useRef, useState } from "react";
+import type { StyleSuggestion } from "@/features/style-assist/public";
 import { isReservedSlug } from "@/shared/config/reserved-slugs";
+import type { Palette } from "@/shared/lib/palette-schema";
 import type { CreatePlaceResult } from "../create-place";
 import type { CreatePlaceInput } from "../domain/schema";
 import { slugSchema } from "../domain/schema";
 import { DEFAULT_PRESET_ID, PALETTE_PRESETS } from "./palettes";
 import { slugify } from "./slugify";
-import type { WizardLabels, WizardSubmit } from "./wizard-labels";
+import type {
+  WizardLabels,
+  WizardSubmit,
+  WizardSuggest,
+} from "./wizard-labels";
 
 // Máquina de estado del wizard (S8b), separada del render para no exceder el
 // límite de archivo (CLAUDE.md ≤300) y para testear la UI por comportamiento.
@@ -34,6 +40,8 @@ function detectTimezone(): string {
   }
 }
 
+type SuggestPhase = "idle" | "loading" | "ready" | "unavailable";
+
 export function usePlaceWizard(opts: {
   labels: WizardLabels;
   onSubmit: WizardSubmit;
@@ -43,6 +51,11 @@ export function usePlaceWizard(opts: {
    * El nº de pasos lo da `labels.stepTitles.length` (la ruta pasa 2 títulos).
    */
   authed?: boolean;
+  /**
+   * Asistencia LLM propose-only (S10b). OPCIONAL: si no se cablea, la isla
+   * no se renderiza (la asistencia es opcional — ADR-0005 §5).
+   */
+  onSuggest?: WizardSuggest;
 }) {
   const { labels, authed = false } = opts;
   const [currentStep, setCurrentStep] = useState(0);
@@ -52,6 +65,14 @@ export function usePlaceWizard(opts: {
   const [slugTouched, setSlugTouched] = useState(false);
   const [description, setDescription] = useState("");
   const [paletteId, setPaletteId] = useState(DEFAULT_PRESET_ID);
+  // Override de paleta cuando el owner aplica la propuesta del LLM (S10b).
+  // `null` = manda el preset; al elegir un preset se limpia (el preset gana).
+  const [customPalette, setCustomPalette] = useState<Palette | null>(null);
+  const [suggestPhase, setSuggestPhase] = useState<SuggestPhase>("idle");
+  const [suggestion, setSuggestion] = useState<StyleSuggestion | null>(null);
+  const [paletteApplied, setPaletteApplied] = useState(false);
+  const [descriptionApplied, setDescriptionApplied] = useState(false);
+  const suggestingRef = useRef(false);
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState("");
@@ -89,9 +110,16 @@ export function usePlaceWizard(opts: {
   // es Estilo (sin cuenta), en place-first es el Paso 3 (cuenta).
   const submitValid = authed ? step1Valid && !descTooLong : step3Valid;
 
-  const selectedPalette =
+  const presetPalette =
     PALETTE_PRESETS.find((p) => p.id === paletteId)?.palette ??
     PALETTE_PRESETS[0].palette;
+  // La paleta aplicada del LLM (si la hay) gana sobre el preset hasta que el
+  // owner elige un preset a mano (propose-only — nada queda fijado solo).
+  const selectedPalette = customPalette ?? presetPalette;
+
+  const canSuggest =
+    !!opts.onSuggest && suggestPhase !== "loading";
+  const suggestReady = description.trim().length > 0;
 
   const stepCount = labels.stepTitles.length;
   const isLastStep = currentStep === stepCount - 1;
@@ -148,6 +176,56 @@ export function usePlaceWizard(opts: {
     }
   }
 
+  // Elegir un preset a mano gana sobre la paleta sugerida (propose-only).
+  function choosePreset(id: string) {
+    setPaletteId(id);
+    setCustomPalette(null);
+    setPaletteApplied(false);
+  }
+
+  // Pide la propuesta. NUNCA lanza: la asistencia es opcional — falla/red/
+  // `unavailable` → aviso calmo, se sigue a mano (ADR-0005 §5). Nada se
+  // auto-aplica: sólo deja la propuesta visible (ADR-0005 §6).
+  async function handleSuggest() {
+    if (!opts.onSuggest || suggestingRef.current || !suggestReady) return;
+    suggestingRef.current = true;
+    setSuggestPhase("loading");
+    try {
+      const res = await opts.onSuggest(description.trim());
+      if (res.status === "suggested") {
+        setSuggestion({
+          palette: res.palette,
+          accentStrong: res.accentStrong,
+          adjustments: res.adjustments,
+          descriptionDraft: res.descriptionDraft,
+        });
+        setSuggestPhase("ready");
+        setPaletteApplied(false);
+        setDescriptionApplied(false);
+      } else {
+        setSuggestion(null);
+        setSuggestPhase("unavailable");
+      }
+    } catch {
+      setSuggestion(null);
+      setSuggestPhase("unavailable");
+    } finally {
+      suggestingRef.current = false;
+    }
+  }
+
+  function applySuggestedPalette() {
+    if (!suggestion) return;
+    setCustomPalette(suggestion.palette);
+    setPaletteApplied(true);
+  }
+
+  function applySuggestedDescription() {
+    if (!suggestion) return;
+    setDescription(suggestion.descriptionDraft);
+    setDescriptionApplied(true);
+  }
+
   const progress = labels.progress
     .replace("{n}", String(currentStep + 1))
     .replace("{total}", String(stepCount));
@@ -181,6 +259,13 @@ export function usePlaceWizard(opts: {
     description,
     descTooLong,
     paletteId,
+    suggestEnabled: !!opts.onSuggest,
+    suggestPhase,
+    suggestReady,
+    canSuggest,
+    suggestion,
+    paletteApplied,
+    descriptionApplied,
     email,
     emailTouched,
     emailValid,
@@ -197,6 +282,10 @@ export function usePlaceWizard(opts: {
     setSlugTouched,
     setDescription,
     setPaletteId,
+    choosePreset,
+    handleSuggest,
+    applySuggestedPalette,
+    applySuggestedDescription,
     setEmail,
     setEmailTouched,
     setPassword,
