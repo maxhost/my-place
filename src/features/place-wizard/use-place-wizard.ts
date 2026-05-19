@@ -1,14 +1,13 @@
 import { useId, useRef, useState } from "react";
 import { useAccountStep } from "./use-account-step";
 import { useIdentityStep } from "./use-identity-step";
+import { useStyleStep } from "./use-style-step";
 import { useWizardNav } from "./use-wizard-nav";
 import type { StyleSuggestion } from "@/features/style-assist/public";
-import { hexColorSchema, type Palette } from "@/shared/lib/palette-schema";
 import {
   type CreatePlaceInput,
   type CreatePlaceResult,
 } from "@/features/place-creation/public";
-import { DEFAULT_PRESET_ID, PALETTE_PRESETS } from "./palettes";
 import type {
   WizardLabels,
   WizardSignUp,
@@ -83,11 +82,19 @@ export function usePlaceWizard(opts: {
     terms,
     isValid: step3Valid,
   } = account;
-  const [description, setDescription] = useState("");
-  const [paletteId, setPaletteId] = useState(DEFAULT_PRESET_ID);
-  // Override de paleta cuando el owner aplica la propuesta del LLM (S10b).
-  // `null` = manda el preset; al elegir un preset se limpia (el preset gana).
-  const [customPalette, setCustomPalette] = useState<Palette | null>(null);
+  // El cruce LLM↔preset se cablea acá: cuando el owner elige un preset (o
+  // pasa a modo "preset") se resetea `paletteApplied` del LLM.
+  const style = useStyleStep({ onPresetChosen: () => setPaletteApplied(false) });
+  const {
+    description,
+    descTooLong,
+    paletteId,
+    customPalette,
+    selectedPalette,
+    paletteMode,
+    setDescription,
+    setCustomPalette,
+  } = style;
   const [suggestPhase, setSuggestPhase] = useState<SuggestPhase>("idle");
   const [suggestion, setSuggestion] = useState<StyleSuggestion | null>(null);
   const [paletteApplied, setPaletteApplied] = useState(false);
@@ -108,18 +115,10 @@ export function usePlaceWizard(opts: {
     displayName: useId(),
   };
 
-  const descTooLong = description.trim().length > 500;
   const stepValid = [step1Valid, !descTooLong, step3Valid];
   // Validez del último paso para habilitar "Crear": en authed el último paso
   // es Estilo (sin cuenta), en place-first es el Paso 3 (cuenta).
   const submitValid = authed ? step1Valid && !descTooLong : step3Valid;
-
-  const presetPalette =
-    PALETTE_PRESETS.find((p) => p.id === paletteId)?.palette ??
-    PALETTE_PRESETS[0].palette;
-  // La paleta aplicada del LLM (si la hay) gana sobre el preset hasta que el
-  // owner elige un preset a mano (propose-only — nada queda fijado solo).
-  const selectedPalette = customPalette ?? presetPalette;
 
   const canSuggest =
     !!opts.onSuggest && suggestPhase !== "loading";
@@ -181,33 +180,6 @@ export function usePlaceWizard(opts: {
       submittingRef.current = false;
       setSubmitting(false);
     }
-  }
-
-  // Elegir un preset a mano gana sobre la paleta sugerida (propose-only).
-  function choosePreset(id: string) {
-    setPaletteId(id);
-    setCustomPalette(null);
-    setPaletteApplied(false);
-  }
-
-  // Modo de paleta DERIVADO (`producto.md` §30 customización activa):
-  // `customPalette` no-null ⇒ "custom". Cambiar a "custom" sin paleta custom
-  // copia el preset actual (caso borde: el modo nunca "se vuelve solo" a
-  // preset). Cambiar a "preset" limpia custom (reusa `choosePreset`).
-  const paletteMode: "preset" | "custom" = customPalette ? "custom" : "preset";
-  function setPaletteMode(mode: "preset" | "custom") {
-    if (mode === "custom" && !customPalette) setCustomPalette(presetPalette);
-    else if (mode === "preset") choosePreset(paletteId);
-  }
-
-  // Actualiza un canal de la paleta custom si parsea (`hexColorSchema`). Si
-  // no parsea, no-op (preserva el último válido). La UI muestra el aviso
-  // calmo a partir de su buffer local; ese caso no rompe el preview.
-  function setCustomHex(token: "accent" | "bg" | "ink", value: string) {
-    const parsed = hexColorSchema.safeParse(value);
-    if (!parsed.success) return;
-    const base = customPalette ?? presetPalette;
-    setCustomPalette({ ...base, [token]: parsed.data });
   }
 
   // Pide la propuesta. NUNCA lanza: la asistencia es opcional — falla/red/
@@ -309,11 +281,11 @@ export function usePlaceWizard(opts: {
     setNameTouched: identity.setNameTouched,
     setSlug: identity.setSlug,
     setSlugTouched: identity.setSlugTouched,
-    setDescription,
-    setPaletteId,
-    choosePreset,
-    setPaletteMode,
-    setCustomHex,
+    setDescription: style.setDescription,
+    setPaletteId: style.setPaletteId,
+    choosePreset: style.choosePreset,
+    setPaletteMode: style.setPaletteMode,
+    setCustomHex: style.setCustomHex,
     handleSuggest,
     applySuggestedPalette,
     applySuggestedDescription,
