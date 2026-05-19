@@ -24,10 +24,11 @@ export function tagStep(err: unknown, step: string): unknown {
   return err;
 }
 
-/** Línea única, veredicto adelante. `step` y `code` en los primeros chars. */
+/** Línea única, CODE+NAME adelante (el visor trunca ~30 chars y el prefijo
+ *  largo se comía el código). Formato: `[onb] <code>|<name>|@<step>|<msg>`. */
 export function onbLine(err: unknown): string {
   const e = (err ?? {}) as Tagged;
-  const code = e.code ?? e.cause?.code ?? "";
+  const code = e.code ?? e.cause?.code ?? "noCode";
   const msg = (e.message ?? e.cause?.message ?? String(err)).slice(0, 80);
-  return `[onb] FAIL:${e.onbStep ?? "unknown"}|${String(code)}|${e.name ?? ""}|${msg}`;
+  return `[onb] ${String(code)}|${e.name ?? ""}|@${e.onbStep ?? "unknown"}|${msg}`;
 }
