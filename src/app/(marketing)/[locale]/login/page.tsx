@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { redirect } from "next/navigation";
 import {
   AccessFlow,
   type AccessLabels,
@@ -13,6 +14,7 @@ import {
   type WizardLabels,
 } from "@/features/place-wizard/public";
 import { rootDomain } from "@/shared/lib/root-domain";
+import { getSessionJwt } from "@/shared/lib/session";
 
 // Ruta de la vía "Acceso" (S9, ADR-0008/0009): item distinto del CTA. Server
 // Component: traduce los namespaces `access` (form/elección) y `wizard`
@@ -33,6 +35,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function LoginPage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
+
+  // Guard: el user ya logueado se manda al Hub (S5b del Hub V1,
+  // `docs/features/inbox/spec.md` §"Auth + redirects"). El /login del apex es
+  // SÓLO para anónimos; con sesión vigente la vía natural es el Hub. Sin esto
+  // un user logueado caería en el form de login y crearía la sesión otra vez.
+  const token = await getSessionJwt();
+  if (token !== null) {
+    redirect(`https://app.place.community/${locale}/`);
+  }
+
   const t = await getTranslations({ locale, namespace: "access" });
   const w = await getTranslations({ locale, namespace: "wizard" });
 

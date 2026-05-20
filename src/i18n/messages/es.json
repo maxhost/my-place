@@ -318,5 +318,31 @@
     "paletteCustomInkLabel": "Texto",
     "paletteCustomHexInvalid": "Hex inválido (#rrggbb).",
     "paletteCustomPickerSuffix": "(selector de color)"
+  },
+  "inbox": {
+    "viewTitle": "Tus lugares",
+    "cardEnter": "Entrar",
+    "cardSettings": "Configurar",
+    "cardMemberSince": "Miembro desde {date}",
+    "statusPaymentPending": "Pago pendiente",
+    "statusInactivationProcess": "En recuperación",
+    "statusInactive": "Cerrado",
+    "emptyTitle": "Todavía no tenés ningún lugar.",
+    "emptyBody": "Podés crear el tuyo o sumarte a uno con una invitación.",
+    "emptyCreateAction": "Crear un lugar",
+    "emptyJoinAction": "Sumarme a un lugar",
+    "emptyJoinComingSoon": "Próximamente"
+  },
+  "navHub": {
+    "appName": "Place",
+    "sidebarToggleOpen": "Abrir menú",
+    "sidebarToggleClose": "Cerrar menú",
+    "sidebarPlaces": "Tus lugares",
+    "sidebarMessages": "Mensajes",
+    "sidebarActivity": "Actividad",
+    "sidebarComingSoon": "Próximamente",
+    "accountMenuLabel": "Menú de cuenta",
+    "logout": "Cerrar sesión",
+    "logoutConfirming": "Cerrando sesión…"
   }
 }
