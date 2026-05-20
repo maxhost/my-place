@@ -7,6 +7,7 @@ import {
   PlaceWizard,
   type WizardLabels,
 } from "@/features/place-wizard/public";
+import { rootDomain } from "@/shared/lib/root-domain";
 
 // Ruta de la vía place-first (CTA de la landing). Server Component: traduce
 // el namespace `wizard` → `labels` (el wizard no carga runtime i18n en
@@ -16,17 +17,6 @@ import {
 // `(marketing)/[locale]` → hereda `<html>`/skip-link del layout (S7).
 
 type Props = { params: Promise<{ locale: string }> };
-
-// Root domain del subdominio público (mismo origen que el routing host-based,
-// S7). Las URLs públicas son subdominio, sin path.
-function rootDomain(): string {
-  try {
-    return new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://place.community")
-      .host;
-  } catch {
-    return "place.community";
-  }
-}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;

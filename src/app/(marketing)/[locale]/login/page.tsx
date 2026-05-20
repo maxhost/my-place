@@ -12,6 +12,7 @@ import {
   PALETTE_PRESET_IDS,
   type WizardLabels,
 } from "@/features/place-wizard/public";
+import { rootDomain } from "@/shared/lib/root-domain";
 
 // Ruta de la vía "Acceso" (S9, ADR-0008/0009): item distinto del CTA. Server
 // Component: traduce los namespaces `access` (form/elección) y `wizard`
@@ -22,15 +23,6 @@ import {
 // `<html>`/skip-link del layout (S7); SSG en los 4 locales.
 
 type Props = { params: Promise<{ locale: string }> };
-
-function rootDomain(): string {
-  try {
-    return new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://place.community")
-      .host;
-  } catch {
-    return "place.community";
-  }
-}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
