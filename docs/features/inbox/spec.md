@@ -1,6 +1,6 @@
 # Hub post-login (`app.place.community`) — V1: lista de tus lugares
 
-> _Spec creado 2026-05-19, revisado 2026-05-19 (audit + sidebar/mobile-first)_. Status: V1 listo para implementar. Cierra los gaps que `multi-tenancy.md:10`, `architecture.md:49+54` y ADR-0001 §36 dejaron prometidos pero no especificados.
+> _Spec creado 2026-05-19, revisado 2026-05-19 (audit + sidebar/mobile-first). Última edición 2026-05-19: corregido el SQL de `app.get_inbox_payload()` para reflejar el shape canónico `theme_config.colors.accent` (no `theme_config.accent`) y para construir el JSON con `jsonb_build_object` explícito (no `row_to_jsonb` sobre subquery)._ Status: V1 listo para implementar (sesiones 1-2 completadas; ver `plan-sesiones.md`). Cierra los gaps que `multi-tenancy.md:10`, `architecture.md:49+54` y ADR-0001 §36 dejaron prometidos pero no especificados.
 
 ## Contexto
 
@@ -317,14 +317,31 @@ BEGIN
 
   -- Places del user (owner OR member activo, ordenados owner-first + alfabético)
   -- Visible bajo RLS post-ADR-0021 (place_sel + membership_sel extendidos)
-  SELECT coalesce(jsonb_agg(row_to_jsonb(p) ORDER BY p.is_owner DESC, lower(p.name) ASC), '[]'::jsonb)
+  SELECT coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'id',           p.id,
+        'slug',         p.slug,
+        'name',         p.name,
+        'theme_accent', p.theme_accent,
+        'status',       p.status,
+        'is_owner',     p.is_owner,
+        'joined_at',    p.joined_at
+      )
+      ORDER BY p.is_owner DESC, lower(p.name) ASC
+    ),
+    '[]'::jsonb
+  )
   INTO v_places
   FROM (
     SELECT
       p.id,
       p.slug,
       p.name,
-      p.theme_config->>'accent' AS theme_accent,
+      -- theme_config tiene shape canónico {colors: {accent, bg, ink}}
+      -- (data-model §"Shapes JSON canónicos" + json-shapes.ts); el accent
+      -- vive UN nivel abajo de colors, no en la raíz.
+      p.theme_config->'colors'->>'accent' AS theme_accent,
       p.subscription_status::text AS status,
       EXISTS (
         SELECT 1 FROM place_ownership po

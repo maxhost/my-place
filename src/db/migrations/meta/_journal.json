@@ -36,6 +36,13 @@
       "when": 1779243649468,
       "tag": "0004_member_read",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779244443873,
+      "tag": "0005_inbox_payload_fn",
+      "breakpoints": true
     }
   ]
 }
