@@ -15,19 +15,21 @@ Cada place tiene su propia URL con subdomain. La estructura de URLs refuerza la 
 
 > El slug de URL `thread` es **deliberado**: técnico/universal en la ruta, mientras el objeto canónico de producto es **Discusión** (`docs/ontologia/conversaciones.md`). Consistente con "código en inglés, docs/UI en español" (`CLAUDE.md`). Un barrido de consistencia no debe "corregir" esto.
 
-> **Estado (S7, implementado 2026-05-18 — ADR-0005 §10):** el routing host-based está implementado en `src/proxy.ts` (Next 16 renombró `middleware.ts`→`proxy.ts`, ADR-0013). El apex `place.community` sirve la landing/onboarding con i18n bajo `[locale]`; `{slug}.place.community` sirve el place (placeholder hasta S5b: gate estructural `isServiceableSlug`, resolución por DB en S5b); `app.place.community` sirve el inbox. El i18n de next-intl se **integra** (no se duplica): el proxy delega en su middleware solo en la zona marketing.
+> **Estado (S7, implementado 2026-05-18 — ADR-0005 §10):** el routing host-based está implementado en `src/proxy.ts` (Next 16 renombró `middleware.ts`→`proxy.ts`, ADR-0013). El apex `place.community` sirve la landing/onboarding con i18n bajo `[locale]`; `{slug}.place.community` sirve el place (placeholder hasta S5b: gate estructural `isServiceableSlug`, resolución por DB en S5b); `app.place.community` sirve el Hub con i18n bajo `[locale]`. El i18n de next-intl se **integra** (no se duplica): el proxy delega en su middleware en la zona marketing **y en la zona Hub** (S5a del Hub V1, 2026-05-20).
 
 ## Implementación en Next.js
 
 `src/proxy.ts` (raíz de `src/`, NO `src/app/`) inspecciona el `host` de cada request. La clasificación pura vive en `src/shared/lib/host-routing.ts` (`resolveHost`, unit-testeada sin red/DB):
 
-- subdomain `app` → zona **inbox**.
+- subdomain `app` → zona **Hub** (S5a/S5b/S5c del Hub V1, 2026-05-20 — antes "inbox"; el slice y los paths internos siguen llamándose `inbox` por razones históricas, el producto se renombró a Hub al integrar i18n).
 - subdomain `www` / apex / `localhost` / `*.vercel.app` / host desconocido → zona **marketing** (los custom domains se resuelven por `place_domain` verificado en una feature posterior; hasta entonces el fallback seguro es marketing — nunca servir el place de otro en un host ajeno).
 - cualquier otro subdomain → zona **place** con ese slug (normalizado a minúsculas).
 
-**Rewrite con prefijo estático (decisión de implementación, S7).** Next prohíbe dos segmentos dinámicos con nombres distintos en la misma posición de URL **aunque estén en route groups distintos** — `(marketing)/[locale]` y `(app)/[placeSlug]` no pueden coexistir en la raíz. El proxy resuelve esto reescribiendo a un path con **prefijo estático interno**: place → `/place/{slug}{path}`, inbox → `/inbox{path}`; marketing delega en el middleware i18n (`/` → `/{locale}`). El prefijo lo pone el proxy, **nunca aparece en la URL pública** → "URLs públicas = subdominio" se mantiene intacto.
+**Rewrite con prefijo estático (decisión de implementación, S7).** Next prohíbe dos segmentos dinámicos con nombres distintos en la misma posición de URL **aunque estén en route groups distintos** — `(marketing)/[locale]` y `(app)/[placeSlug]` no pueden coexistir en la raíz. El proxy resuelve esto reescribiendo a un path con **prefijo estático interno**: place → `/place/{slug}{path}`, Hub → `/inbox/{locale}{path}`; marketing delega en el middleware i18n (`/` → `/{locale}`). El prefijo lo pone el proxy, **nunca aparece en la URL pública** → "URLs públicas = subdominio" se mantiene intacto.
 
-Estructura de rutas (real, S7):
+**Composición intl en la zona Hub (S5a del Hub V1, 2026-05-20).** El Hub también tiene i18n always-prefix bajo `[locale]` (mismo patrón que marketing — UX consistente con la landing/onboarding). El proxy lo compone: cuando el host es `app.*`, primero corre el `intlMiddleware` de next-intl (que negocia el locale por path / cookie `NEXT_LOCALE` / `Accept-Language`) y después reescribe `/{locale}{path}` → `/inbox/{locale}{path}` para el route-group `(app)`. La cookie `NEXT_LOCALE` se comparte cross-subdomain (apex↔app); la decisión empírica de fijar `localeCookie.domain = ".place.community"` o no se toma en el smoke de S5c (si no persiste automáticamente, mini-commit aparte).
+
+Estructura de rutas (real, post-S5a del Hub V1):
 
 ```
 src/app/
@@ -35,21 +37,34 @@ src/app/
 │   ├── layout.tsx          <html> raíz de la zona marketing
 │   ├── page.tsx            landing
 │   ├── not-found.tsx
-│   ├── login/ terminos/ privacidad/
-├── (app)/                  zona autenticada (español, sin [locale])
-│   ├── layout.tsx          <html> raíz de la zona app (multi-root layout)
-│   ├── not-found.tsx       404 de slug no servible / inexistente
-│   ├── inbox/page.tsx      ← app.place.community  (proxy: /inbox)
+│   ├── login/ terminos/ privacidad/ crear/
+├── (app)/                  zona autenticada (multi-root layout)
+│   ├── inbox/[locale]/     ← app.place.community/{locale} (proxy: /inbox/{locale})
+│   │   ├── layout.tsx      <html> raíz de la zona Hub
+│   │   └── page.tsx        Hub V1 (vista "Tus lugares")
 │   └── place/[placeSlug]/  ← {slug}.place.community (proxy: /place/{slug})
+│       ├── layout.tsx      <html> raíz de la zona place
+│       ├── not-found.tsx   404 de slug no servible / inexistente
 │       └── page.tsx        + futuros [zone]/ thread/[id]/ settings/ (S8+)
 ├── api/                    route handlers (auth; webhooks/cron — a definir)
 └── globals.css
 
-src/proxy.ts                 # host-based + delega i18n en marketing
+src/proxy.ts                 # host-based + delega i18n en marketing Y Hub
 src/shared/lib/host-routing.ts  # resolveHost / isServiceableSlug (puro)
 ```
 
-> Route groups (`(marketing)`/`(app)`) NO aparecen en la URL. Sin `app/layout.tsx` único: cada grupo provee su propio `<html>` (multi-root layout de Next 16). La resolución real del place por DB (`{slug}` inexistente → 404) y el patrón de streaming agresivo del shell entran con los datos en S5b/S8 (placeholder hasta entonces).
+> Route groups (`(marketing)`/`(app)`) NO aparecen en la URL. Sin `app/layout.tsx` único: cada sub-grupo (`(marketing)/[locale]`, `(app)/inbox/[locale]`, `(app)/place/[placeSlug]`) provee su propio `<html>` (multi-root layout de Next 16). La resolución real del place por DB (`{slug}` inexistente → 404) entra en S5b+ del place (no del Hub); el patrón de streaming agresivo del shell entra con los datos.
+
+## Zona Hub (`app.place.community`)
+
+URL canónica del usuario logueado: `https://app.place.community/{locale}/` (y futuras sub-vistas `/{locale}/dms`, `/{locale}/actividad`, en el roadmap). El Hub V1 (S1-S5 del plan, 2026-05-20) sirve **una sola vista**: "Tus lugares" — la lista de places del que el caller es miembro, con su shell de navegación (sidebar mobile-first + drawer + topbar con menú de cuenta).
+
+- **Path interno**: `(app)/inbox/[locale]/page.tsx`. El nombre `inbox` es histórico del slice (S1 lo provisionó como "inbox universal"); el producto se renombró a "Hub" al integrar i18n en S5a sin tocar el slice (preservar costo de refactor). La URL pública nunca expone "inbox".
+- **i18n**: namespaces `inbox` (vista) + `navHub` (shell) en `src/i18n/messages/{locale}.json`. La page mapea explícitamente los JSON keys a los contracts `InboxLabels` / `NavHubLabels` de cada slice (el JSON sigue el spec, el contract sigue el componente — el mapeo vive en el wiring de la page).
+- **Auth guard**: cookie cross-subdomain de Neon Auth (`Domain=.place.community`). La page hace `await getSessionJwt()` (shared helper de S5a); sin token → `redirect("https://place.community/${locale}/login")`. Por lo mismo es `dynamic = "force-dynamic"` (no SSG cacheable). El layout sí prerendera los 4 locales.
+- **Co-location**: la zona Hub es DB-bound (lee `app.get_inbox_payload()`). `preferredRegion = "iad1"` para co-locar con Neon (ADR-0006 §Region, `docs/stack.md` §Región).
+- **Redirects bidireccionales (S5b)**: `/{locale}/login` y `/{locale}/crear` del apex hacen el mirror — si la cookie de sesión está vigente, redirigen al Hub. Excepción: `/{locale}/crear?from=hub` (CTA "Crear un lugar" del estado vacío del Hub) deja pasar al wizard en modo **authed** (Identidad + Estilo, sin Paso 3 de cuenta — ADR-0008 §3, S5c). La sesión la levanta `createPlaceAction` server-side (`auth.token()`).
+- **Logout**: `logoutAction(locale)` borra la cookie cross-subdomain (`signOut()` del SDK) y devuelve `redirectTo` al apex (`https://place.community/${locale}`). El Server Action está bound con `locale` desde la page (`logoutAction.bind(null, locale)`) para satisfacer la firma del prop `onLogout` del Client Component `NavHubLayout`.
 
 ## DNS y Vercel
 

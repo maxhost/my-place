@@ -11,12 +11,23 @@ import {
 import { rootDomain } from "@/shared/lib/root-domain";
 import { getSessionJwt } from "@/shared/lib/session";
 
-// Ruta de la vía place-first (CTA de la landing). Server Component: traduce
+// Ruta de la vía place-first (CTA de la landing) + entrada authed desde el
+// Hub (CTA "Crear un lugar" del estado vacío, S5c del Hub V1,
+// `docs/features/inbox/spec.md` §"Empty state"). Server Component: traduce
 // el namespace `wizard` → `labels` (el wizard no carga runtime i18n en
 // cliente, S8a) e inyecta el root domain de env. El Server Action
-// `createPlaceAction` se pasa como prop `onSubmit` (patrón canónico
+// `createPlaceAction` se pasa como prop `onSubmit`; `signUpAccountAction` se
+// pasa como `onCreateAccount` SÓLO en modo place-first (anónimo) — en modo
+// authed (?from=hub) no se usa porque la sesión ya existe (patrón canónico
 // Server→Client; el wizard se testea con un fake, S8b). Vive bajo
 // `(marketing)/[locale]` → hereda `<html>`/skip-link del layout (S7).
+//
+// Dos modos según query string:
+//   - place-first (default): 3 pasos (Identidad, Estilo, Cuenta). Anónimo;
+//     el wizard crea la cuenta antes de crear el place (two-phase).
+//   - authed (?from=hub): 2 pasos (Identidad, Estilo). El user YA está
+//     logueado; el guard deja pasar SÓLO con `?from=hub` y el wizard
+//     omite el Paso 3 (`authed={true}`) — ADR-0008 §3.
 
 type Props = {
   params: Promise<{ locale: string }>;
@@ -41,7 +52,7 @@ export default async function CrearPage({ params, searchParams }: Props) {
   // mandamos al Hub (S5b del Hub V1, `docs/features/inbox/spec.md`
   // §"Auth + redirects"). La excepción `?from=hub` cubre el CTA del estado
   // vacío del Hub ("Crear un lugar") — ese caso es entrada intencional al
-  // wizard authed (S5c cablea el modo authed; en S5b sólo pasa el guard).
+  // wizard authed.
   const { from } = await searchParams;
   const fromHub = from === "hub";
   const token = await getSessionJwt();
@@ -55,13 +66,20 @@ export default async function CrearPage({ params, searchParams }: Props) {
     PALETTE_PRESET_IDS.map((id) => [id, t(`palettes.${id}`)]),
   );
 
+  // stepTitles define el step count del wizard (use-place-wizard.ts:49). En
+  // modo authed el wizard omite el Paso 3 (cuenta) — pasamos 2 títulos; en
+  // place-first pasamos los 3.
+  const stepTitles = fromHub
+    ? [t("steps.identity"), t("steps.style")]
+    : [t("steps.identity"), t("steps.style"), t("steps.account")];
+
   const labels: WizardLabels = {
     title: t("title"),
     // Plantillas que el wizard rellena client-side ({n}, {slug}, {terms},
     // {url}): `t.raw` evita que next-intl corra el formatter ICU y tire
     // FORMATTING_ERROR por placeholders no provistos (ver gotcha).
     progress: t.raw("progress"),
-    stepTitles: [t("steps.identity"), t("steps.style"), t("steps.account")],
+    stepTitles,
     next: t("next"),
     back: t("back"),
     create: t("create"),
@@ -119,7 +137,8 @@ export default async function CrearPage({ params, searchParams }: Props) {
         termsHref={`/${locale}/terminos`}
         privacyHref={`/${locale}/privacidad`}
         onSubmit={createPlaceAction}
-        onCreateAccount={signUpAccountAction}
+        onCreateAccount={fromHub ? undefined : signUpAccountAction}
+        authed={fromHub}
       />
     </main>
   );
