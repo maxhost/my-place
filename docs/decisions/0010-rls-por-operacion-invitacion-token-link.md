@@ -1,5 +1,7 @@
 # 0010 — RLS por-operación + invitación solo por token-link
 
+> **Refinada por ADR-0021 (2026-05-19):** cierra el TBD de §1 "el acceso de miembros se agrega por-feature, encima, después" eligiendo el patrón canónico — extender la policy `_sel` con `OR exists(membership activa)`. El primer caso de uso es la spec del Hub (`docs/features/inbox/`), aplicado en migration `0004_member_read.sql`.
+
 - **Fecha:** 2026-05-17
 - **Estado:** Aceptada
 - **Alcance:** auth (fundamento), multi-tenancy (RLS), producto (invitación), modelo de datos
