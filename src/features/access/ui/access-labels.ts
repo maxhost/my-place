@@ -1,9 +1,14 @@
 import type { PlaceFirstCredentials } from "@/features/place-creation/public";
 
-// Tipos/contratos de la vía "Acceso" (S9, ADR-0008/0009). Separados del
-// componente para no exceder el límite de archivo (CLAUDE.md ≤300) y para que
-// la ruta y el cliente compartan el contrato sin acoplarse. Mismo seam-split
-// que S8b: textos por `labels`, borde cross-system (Neon Auth) por puertos.
+// Tipos/contratos de la vía "Acceso" (S9, ADR-0008/0009 — simplificada por
+// S5c del Hub V1). Separados del componente para no exceder el límite de
+// archivo (CLAUDE.md ≤300) y para que la ruta y el cliente compartan el
+// contrato sin acoplarse. Mismo seam-split que S8b: textos por `labels`, borde
+// cross-system (Neon Auth) por puertos. La elección post-auth ("crear mi
+// place" / "unirme") se eliminó en S5c: post-login se navega al Hub
+// (`app.place.community/{locale}/`) y desde ahí salen los CTAs del estado
+// vacío. Esa simplificación dropea 7 keys (choiceTitle/Subtitle, createPlace/
+// Desc, joinPlace/Desc, comingSoon) y la dependencia de `place-wizard`.
 
 /** Datos de cuenta para el signup account-first (= shape del wizard). */
 export type AccessCredentials = PlaceFirstCredentials;
@@ -56,12 +61,5 @@ export interface AccessLabels {
   submitting: string;
   loginFailedNotice: string;
   signupFailedNotice: string;
-  choiceTitle: string;
-  choiceSubtitle: string;
-  createPlace: string;
-  createPlaceDesc: string;
-  joinPlace: string;
-  joinPlaceDesc: string;
-  comingSoon: string;
   back: string;
 }

@@ -1,96 +1,57 @@
 "use client";
 
-import {
-  PlaceWizard,
-  type WizardLabels,
-  type WizardSubmit,
-} from "@/features/place-wizard/public";
 import type { AccessLabels, AccessSubmit } from "./access-labels";
 import { useAccessForm } from "./use-access-form";
 
-// Vía "Acceso" (S9, ADR-0008/0009): form account-first (login | signup) →
-// elección post-auth → wizard reutilizado en modo authed. Componente CLIENTE;
-// la máquina vive en `useAccessForm`. Textos por prop `labels` (serializable,
-// sin runtime i18n — mismo ethos que el wizard, S8a) y el borde cross-system
-// por prop `auth`/`onCreatePlace` (seam-split: la ruta cablea los Server
-// Actions vivos, los tests inyectan fakes — el SDK Neon Auth no es
-// vitest-testeable). `producto.md` cozytech: nada alarma, avisos calmos.
+// Vía "Acceso" (S9, ADR-0008/0009 — simplificada por S5c del Hub V1,
+// `docs/features/inbox/spec.md` §"Auth + redirects"): form account-first
+// (login | signup) → navigate cross-subdomain al Hub
+// (`app.place.community/{locale}/`). La elección post-auth se eliminó: el Hub
+// ya cubre "Crear un lugar" (CTA del estado vacío → `/crear?from=hub` →
+// wizard authed) y "Unirme" (deshabilitado, ADR-0009 §2). Esta simplificación
+// elimina la dependencia de `place-wizard` y deja el slice acíclico puro
+// (sólo `place-creation` para el tipo `PlaceFirstCredentials`).
+//
+// Componente CLIENTE; la máquina vive en `useAccessForm`. Textos por prop
+// `labels` (serializable, sin runtime i18n — mismo ethos que el wizard, S8a)
+// y el borde cross-system por puertos: `auth` (Neon Auth) + `navigate`
+// (window.location.assign por default, mockeable en tests sin tocar el global
+// — mismo patrón que `NavHubLayout` del Hub). `producto.md` cozytech: nada
+// alarma, avisos calmos.
 
 const fieldClass =
   "min-h-[2.75rem] rounded-lg border border-border bg-surface px-3 text-base text-ink";
 const errClass = "text-sm text-accent-strong";
 
+function defaultNavigate(url: string) {
+  window.location.assign(url);
+}
+
 export function AccessFlow({
   labels,
-  wizardLabels,
   auth,
-  onCreatePlace,
-  rootDomain,
+  locale,
   termsHref,
   privacyHref,
   homeHref,
+  navigate = defaultNavigate,
 }: {
   labels: AccessLabels;
-  wizardLabels: WizardLabels;
   auth: AccessSubmit;
-  onCreatePlace: WizardSubmit;
-  rootDomain: string;
+  /** Locale activo para construir la URL del Hub post-auth. */
+  locale: string;
   termsHref: string;
   privacyHref: string;
   homeHref: string;
+  /** Inyectable para tests; en prod default = window.location.assign. */
+  navigate?: (url: string) => void;
 }) {
-  const a = useAccessForm({ labels, auth });
+  const a = useAccessForm({
+    labels,
+    auth,
+    onSuccess: () => navigate(`https://app.place.community/${locale}/`),
+  });
   const l = labels;
-
-  // Modo authed: la saga reutiliza el wizard SIN el paso de cuenta (ADR-0008
-  // §3) — el usuario ya está autenticado, no se re-pide cuenta.
-  if (a.phase === "create") {
-    return (
-      <PlaceWizard
-        labels={wizardLabels}
-        rootDomain={rootDomain}
-        termsHref={termsHref}
-        privacyHref={privacyHref}
-        onSubmit={onCreatePlace}
-        authed
-      />
-    );
-  }
-
-  if (a.phase === "choice") {
-    return (
-      <section className="mx-auto flex w-full max-w-[40rem] flex-col gap-6 px-6 py-16">
-        <header className="flex flex-col gap-1 text-center">
-          <h1 className="text-3xl text-ink">{l.choiceTitle}</h1>
-          <p className="text-sm text-muted">{l.choiceSubtitle}</p>
-        </header>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={a.goCreate}
-            className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-5 text-left hover:border-accent-strong"
-          >
-            <span className="text-lg text-ink">{l.createPlace}</span>
-            <span className="text-sm text-muted">{l.createPlaceDesc}</span>
-          </button>
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            className="flex flex-col gap-1 rounded-xl border border-border bg-surface p-5 text-left opacity-60"
-          >
-            <span className="flex items-center gap-2 text-lg text-ink">
-              {l.joinPlace}
-              <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                {l.comingSoon}
-              </span>
-            </span>
-            <span className="text-sm text-muted">{l.joinPlaceDesc}</span>
-          </button>
-        </div>
-      </section>
-    );
-  }
 
   const termsParts = l.terms.split(/(\{terms\}|\{privacy\})/);
 

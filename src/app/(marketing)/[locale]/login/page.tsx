@@ -8,21 +8,16 @@ import {
   loginAction,
   signUpAccountAction,
 } from "@/features/access/public";
-import { createPlaceAction } from "@/features/place-creation/public";
-import {
-  PALETTE_PRESET_IDS,
-  type WizardLabels,
-} from "@/features/place-wizard/public";
-import { rootDomain } from "@/shared/lib/root-domain";
 import { getSessionJwt } from "@/shared/lib/session";
 
-// Ruta de la vía "Acceso" (S9, ADR-0008/0009): item distinto del CTA. Server
-// Component: traduce los namespaces `access` (form/elección) y `wizard`
-// (wizard reusado en modo authed, SIN el paso de cuenta → stepTitles de 2) →
-// `labels`. Los Server Actions vivos (`loginAction`/`signUpAccountAction`/
-// `createPlaceAction`) se pasan como props (patrón canónico Server→Client; el
-// flujo se testea con fakes, S9). Bajo `(marketing)/[locale]` → hereda
-// `<html>`/skip-link del layout (S7); SSG en los 4 locales.
+// Ruta de la vía "Acceso" (S9, ADR-0008/0009 — simplificada por S5c del Hub
+// V1, `docs/features/inbox/spec.md` §"Auth + redirects"). Server Component:
+// traduce el namespace `access` → `labels` y pasa el locale al AccessFlow
+// para que arme la URL del Hub post-auth. Los Server Actions vivos
+// (`loginAction`/`signUpAccountAction`) se pasan como props (patrón canónico
+// Server→Client; el flujo se testea con fakes, S9). Bajo `(marketing)/[locale]`
+// → hereda `<html>`/skip-link del layout (S7). Tras S5c queda Dynamic (no
+// SSG) por el guard de cookie del Hub.
 
 type Props = { params: Promise<{ locale: string }> };
 
@@ -46,7 +41,6 @@ export default async function LoginPage({ params }: Props) {
   }
 
   const t = await getTranslations({ locale, namespace: "access" });
-  const w = await getTranslations({ locale, namespace: "wizard" });
 
   const labels: AccessLabels = {
     title: t("title"),
@@ -74,73 +68,7 @@ export default async function LoginPage({ params }: Props) {
     submitting: t("submitting"),
     loginFailedNotice: t("loginFailedNotice"),
     signupFailedNotice: t("signupFailedNotice"),
-    choiceTitle: t("choiceTitle"),
-    choiceSubtitle: t("choiceSubtitle"),
-    createPlace: t("createPlace"),
-    createPlaceDesc: t("createPlaceDesc"),
-    joinPlace: t("joinPlace"),
-    joinPlaceDesc: t("joinPlaceDesc"),
-    comingSoon: t("comingSoon"),
     back: t("back"),
-  };
-
-  const paletteNames: Record<string, string> = Object.fromEntries(
-    PALETTE_PRESET_IDS.map((id) => [id, w(`palettes.${id}`)]),
-  );
-
-  // Wizard reusado en modo authed: 2 pasos (Identidad + Estilo), sin cuenta.
-  const wizardLabels: WizardLabels = {
-    title: w("title"),
-    // Plantillas que el wizard rellena client-side: `w.raw` (ver gotcha).
-    progress: w.raw("progress"),
-    stepTitles: [w("steps.identity"), w("steps.style")],
-    next: w("next"),
-    back: w("back"),
-    create: w("create"),
-    creating: w("creating"),
-    nameLabel: w("nameLabel"),
-    namePlaceholder: w("namePlaceholder"),
-    slugLabel: w("slugLabel"),
-    slugHint: w.raw("slugHint"),
-    slugReserved: w("slugReserved"),
-    slugFormat: w("slugFormat"),
-    slugAvailableHint: w("slugAvailableHint"),
-    nameRequired: w("nameRequired"),
-    previewLabel: w("previewLabel"),
-    previewEmptyName: w("previewEmptyName"),
-    guardrailNotice: w("guardrailNotice"),
-    paletteLabel: w("paletteLabel"),
-    paletteNames,
-    emailLabel: w("emailLabel"),
-    emailPlaceholder: w("emailPlaceholder"),
-    emailInvalid: w("emailInvalid"),
-    passwordLabel: w("passwordLabel"),
-    passwordPlaceholder: w("passwordPlaceholder"),
-    passwordHint: w("passwordHint"),
-    passwordTooShort: w("passwordTooShort"),
-    displayNameLabel: w("displayNameLabel"),
-    displayNamePlaceholder: w("displayNamePlaceholder"),
-    displayNameRequired: w("displayNameRequired"),
-    terms: w.raw("terms"),
-    termsLinkLabel: w("termsLinkLabel"),
-    privacyLinkLabel: w("privacyLinkLabel"),
-    termsRequired: w("termsRequired"),
-    successTitle: w("successTitle"),
-    successBody: w.raw("successBody"),
-    successOpen: w("successOpen"),
-    slugTakenNotice: w("slugTakenNotice"),
-    invalidNotice: w("invalidNotice"),
-    errorNotice: w("errorNotice"),
-    accountFailedNotice: w("accountFailedNotice"),
-    paletteModeLabel: w("paletteModeLabel"),
-    paletteModePreset: w("paletteModePreset"),
-    paletteModeCustom: w("paletteModeCustom"),
-    paletteCustomTitle: w("paletteCustomTitle"),
-    paletteCustomAccentLabel: w("paletteCustomAccentLabel"),
-    paletteCustomBgLabel: w("paletteCustomBgLabel"),
-    paletteCustomInkLabel: w("paletteCustomInkLabel"),
-    paletteCustomHexInvalid: w("paletteCustomHexInvalid"),
-    paletteCustomPickerSuffix: w("paletteCustomPickerSuffix"),
   };
 
   const auth: AccessSubmit = {
@@ -152,10 +80,8 @@ export default async function LoginPage({ params }: Props) {
     <main id="contenido">
       <AccessFlow
         labels={labels}
-        wizardLabels={wizardLabels}
         auth={auth}
-        onCreatePlace={createPlaceAction}
-        rootDomain={rootDomain()}
+        locale={locale}
         termsHref={`/${locale}/terminos`}
         privacyHref={`/${locale}/privacidad`}
         homeHref={`/${locale}`}

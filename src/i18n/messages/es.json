@@ -249,13 +249,6 @@
     "submitting": "Un momento…",
     "loginFailedNotice": "No pudimos iniciar sesión. Revisá tu email y contraseña.",
     "signupFailedNotice": "No pudimos crear la cuenta. ¿Quizás ya tenés una? Probá iniciar sesión.",
-    "choiceTitle": "¿Qué querés hacer?",
-    "choiceSubtitle": "Ya estás dentro. Elegí cómo seguir.",
-    "createPlace": "Crear mi place",
-    "createPlaceDesc": "Armá tu lugar desde cero.",
-    "joinPlace": "Unirme a un place",
-    "joinPlaceDesc": "Entrá a un lugar que ya existe.",
-    "comingSoon": "Próximamente",
     "back": "Volver al inicio"
   },
   "wizard": {

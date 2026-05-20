@@ -1,14 +1,17 @@
 import { useId, useRef, useState } from "react";
 import type { AccessLabels, AccessSubmit } from "./access-labels";
 
-// Máquina de estado de la vía "Acceso" (S9, ADR-0008/0009), separada del
-// render por el límite de archivo (CLAUDE.md ≤300) y para testear por
-// comportamiento. account-first: login | signup → al autenticar se ofrece
-// "Crear mi place" (modo authed) / "Unirme" (deshabilitado, ADR-0009 §2).
-// Idempotencia por ref (mismo patrón que el wizard, S8b).
+// Máquina de estado de la vía "Acceso" (S9, ADR-0008/0009 — simplificada por
+// S5c del Hub V1, `docs/features/inbox/spec.md` §"Auth + redirects"),
+// separada del render por el límite de archivo (CLAUDE.md ≤300) y para
+// testear por comportamiento. account-first: login | signup → al autenticar
+// se dispara `onSuccess()` (la ruta lo cablea para navegar al Hub
+// cross-subdomain). La elección post-auth y el modo "create" del wizard
+// authed (que vivía en este slice) se eliminaron: el Hub V1 ya cubre esos
+// flujos (CTA "Crear un lugar" del estado vacío → `/crear?from=hub` →
+// wizard authed). Idempotencia por ref (mismo patrón que el wizard, S8b).
 
 type Mode = "login" | "signup";
-type Phase = "form" | "choice" | "create";
 type Notice = "login_failed" | "signup_failed" | null;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -16,10 +19,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function useAccessForm(opts: {
   labels: AccessLabels;
   auth: AccessSubmit;
+  /** Callback disparado en login/signup exitoso (la ruta navega al Hub). */
+  onSuccess: () => void;
 }) {
   const { labels } = opts;
   const [mode, setMode] = useState<Mode>("login");
-  const [phase, setPhase] = useState<Phase>("form");
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState("");
@@ -69,7 +73,7 @@ export function useAccessForm(opts: {
             displayName: displayName.trim(),
           })
         : await opts.auth.login(email.trim(), password);
-      if (res.status === "ok") setPhase("choice");
+      if (res.status === "ok") opts.onSuccess();
       else setNotice(res.status);
     } catch {
       setNotice(isSignup ? "signup_failed" : "login_failed");
@@ -77,10 +81,6 @@ export function useAccessForm(opts: {
       submittingRef.current = false;
       setSubmitting(false);
     }
-  }
-
-  function goCreate() {
-    setPhase("create");
   }
 
   const noticeText =
@@ -94,7 +94,6 @@ export function useAccessForm(opts: {
     ids,
     mode,
     isSignup,
-    phase,
     email,
     emailTouched,
     emailValid,
@@ -117,6 +116,5 @@ export function useAccessForm(opts: {
     setTerms,
     switchMode,
     handleSubmit,
-    goCreate,
   };
 }

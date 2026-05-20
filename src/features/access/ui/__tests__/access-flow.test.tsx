@@ -1,20 +1,17 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type {
-  WizardLabels,
-  WizardSubmit,
-} from "@/features/place-wizard/public";
 import { AccessFlow } from "../access-flow";
 import type { AccessLabels, AccessSubmit } from "../access-labels";
 
-// Tests de componente de la vía "Acceso" (S9, ADR-0008/0009): form
-// account-first (login | signup) → elección post-auth ("Crear mi place"
-// funcional / "Unirme" deshabilitado "próximamente", ADR-0009 §2) → wizard
-// reutilizado en modo authed (sin paso de cuenta). jsdom + RTL. Mismo
-// seam-split que S8b: el form recibe textos por `labels` y el borde
-// cross-system por props (`auth`, `onCreatePlace`); el wiring vivo del SDK
-// Neon Auth se verifica en preview, no en vitest.
+// Tests de componente de la vía "Acceso" (S9, ADR-0008/0009 — simplificada por
+// S5c del Hub V1, `docs/features/inbox/spec.md` §"Auth + redirects"): form
+// account-first (login | signup) → navigate cross-subdomain al Hub. La
+// elección post-auth se eliminó: el Hub V1 ya cubre "Crear un lugar" (CTA del
+// estado vacío) y "Unirme" (deshabilitado allí también). jsdom + RTL.
+// Seam-split: el form recibe textos por `labels` y el borde cross-system
+// (Neon Auth + `window.location`) por props (`auth`, `navigate`); el wiring
+// vivo del SDK Neon Auth se verifica en preview, no en vitest.
 
 const LABELS: AccessLabels = {
   title: "Acceso",
@@ -41,67 +38,7 @@ const LABELS: AccessLabels = {
   loginFailedNotice: "No pudimos iniciar sesión. Revisá tus datos.",
   signupFailedNotice:
     "No pudimos crear la cuenta. ¿Quizás ya tenés una? Probá iniciar sesión.",
-  choiceTitle: "¿Qué querés hacer?",
-  choiceSubtitle: "Ya estás dentro.",
-  createPlace: "Crear mi place",
-  createPlaceDesc: "Armá tu lugar desde cero",
-  joinPlace: "Unirme a un place",
-  joinPlaceDesc: "Entrá a un lugar que ya existe",
-  comingSoon: "Próximamente",
   back: "Volver al inicio",
-};
-
-const WIZARD_LABELS: WizardLabels = {
-  title: "Creá tu lugar",
-  progress: "Paso {n} de {total}",
-  stepTitles: ["Identidad", "Estilo"],
-  next: "Siguiente",
-  back: "Atrás",
-  create: "Crear mi lugar",
-  creating: "Creando…",
-  nameLabel: "Nombre del lugar",
-  namePlaceholder: "El nombre que verán al entrar",
-  slugLabel: "Dirección",
-  slugHint: "{slug}.{domain}",
-  slugReserved: "Esa dirección está reservada",
-  slugFormat: "Solo minúsculas, números y guiones (mín. 3)",
-  slugAvailableHint: "La disponibilidad final se confirma al crear el lugar",
-  nameRequired: "Poné un nombre para tu lugar",
-  previewLabel: "Así se va a ver",
-  previewEmptyName: "Tu lugar",
-  guardrailNotice: "Ajustamos un color para que se lea bien",
-  paletteLabel: "Colores",
-  paletteNames: { papel: "Papel", bosque: "Bosque", tinta: "Tinta", arcilla: "Arcilla" },
-  emailLabel: "Email",
-  emailPlaceholder: "vos@ejemplo.com",
-  emailInvalid: "Revisá el email",
-  passwordLabel: "Contraseña",
-  passwordPlaceholder: "Al menos 8 caracteres",
-  passwordHint: "Al menos 8 caracteres",
-  passwordTooShort: "La contraseña es muy corta",
-  displayNameLabel: "Tu nombre",
-  displayNamePlaceholder: "Cómo te van a ver",
-  displayNameRequired: "Poné tu nombre",
-  terms: "Acepto los {terms} y la {privacy}.",
-  termsLinkLabel: "términos",
-  privacyLinkLabel: "privacidad",
-  termsRequired: "Necesitás aceptar los términos",
-  successTitle: "Tu lugar está listo",
-  successBody: "Ya podés entrar en {url}.",
-  successOpen: "Abrir mi lugar",
-  slugTakenNotice: "Esa dirección ya tiene dueño, probá con otra",
-  invalidNotice: "Revisá los datos e intentá de nuevo",
-  errorNotice: "No pudimos crear tu lugar. Probá de nuevo en un momento.",
-  accountFailedNotice: "No pudimos crear la cuenta. Quizás ya tengas una.",
-  paletteModeLabel: "¿Cómo elegís los colores?",
-  paletteModePreset: "Predefinidas",
-  paletteModeCustom: "Personalizado",
-  paletteCustomTitle: "Tus colores",
-  paletteCustomAccentLabel: "Color principal",
-  paletteCustomBgLabel: "Fondo",
-  paletteCustomInkLabel: "Texto",
-  paletteCustomHexInvalid: "Hex inválido (#rrggbb).",
-  paletteCustomPickerSuffix: "(selector de color)",
 };
 
 function makeAuth(over: Partial<AccessSubmit> = {}): AccessSubmit {
@@ -112,32 +49,21 @@ function makeAuth(over: Partial<AccessSubmit> = {}): AccessSubmit {
   };
 }
 
-function setup(opts: {
-  auth?: AccessSubmit;
-  onCreatePlace?: WizardSubmit;
-} = {}) {
+function setup(opts: { auth?: AccessSubmit; navigate?: (url: string) => void } = {}) {
   const auth = opts.auth ?? makeAuth();
-  const onCreatePlace =
-    opts.onCreatePlace ??
-    vi.fn<WizardSubmit>(async () => ({
-      status: "created",
-      placeId: "p1",
-      slug: "mi-club",
-      adjustments: [],
-    }));
+  const navigate = opts.navigate ?? vi.fn();
   const utils = render(
     <AccessFlow
       labels={LABELS}
-      wizardLabels={WIZARD_LABELS}
       auth={auth}
-      onCreatePlace={onCreatePlace}
-      rootDomain="place.community"
+      locale="es"
       termsHref="/es/terminos"
       privacyHref="/es/privacidad"
       homeHref="/es"
+      navigate={navigate}
     />,
   );
-  return { ...utils, auth, onCreatePlace };
+  return { ...utils, auth, navigate };
 }
 
 async function login(user: ReturnType<typeof userEvent.setup>) {
@@ -146,7 +72,7 @@ async function login(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Entrar" }));
 }
 
-describe("AccessFlow — form account-first (S9)", () => {
+describe("AccessFlow — form account-first (S9, S5c)", () => {
   it("arranca en login (email+contraseña, sin nombre) y alterna a signup", async () => {
     const user = userEvent.setup();
     setup();
@@ -159,26 +85,20 @@ describe("AccessFlow — form account-first (S9)", () => {
     expect(screen.getByText(/Acepto los/)).toBeInTheDocument();
   });
 
-  it("login exitoso → pantalla de elección (crear activo, unirme próximamente)", async () => {
+  it("login exitoso → navigate cross-subdomain al Hub en el locale activo", async () => {
     const user = userEvent.setup();
-    const { auth } = setup();
+    const { auth, navigate } = setup();
     await login(user);
 
     await waitFor(() =>
-      expect(screen.getByText("¿Qué querés hacer?")).toBeInTheDocument(),
+      expect(navigate).toHaveBeenCalledWith("https://app.place.community/es/"),
     );
     expect(auth.login).toHaveBeenCalledWith("vos@ejemplo.com", "supersegura");
-    expect(
-      screen.getByRole("button", { name: /Crear mi place/ }),
-    ).toBeEnabled();
-    const join = screen.getByRole("button", { name: /Unirme a un place/ });
-    expect(join).toBeDisabled();
-    expect(screen.getByText("Próximamente")).toBeInTheDocument();
   });
 
-  it("login fallido → aviso calmo, sigue en el form", async () => {
+  it("login fallido → aviso calmo, sigue en el form (no navega)", async () => {
     const user = userEvent.setup();
-    setup({
+    const { navigate } = setup({
       auth: makeAuth({
         login: vi.fn<AccessSubmit["login"]>(async () => ({
           status: "login_failed",
@@ -192,12 +112,12 @@ describe("AccessFlow — form account-first (S9)", () => {
         screen.getByText("No pudimos iniciar sesión. Revisá tus datos."),
       ).toBeInTheDocument(),
     );
-    expect(screen.queryByText("¿Qué querés hacer?")).not.toBeInTheDocument();
+    expect(navigate).not.toHaveBeenCalled();
   });
 
-  it("signup llama auth.signUp con los datos de cuenta y avanza a elección", async () => {
+  it("signup llama auth.signUp con los datos de cuenta y navega al Hub", async () => {
     const user = userEvent.setup();
-    const { auth } = setup();
+    const { auth, navigate } = setup();
     await user.click(screen.getByRole("button", { name: "Crear cuenta" }));
     await user.type(screen.getByLabelText("Tu nombre"), "Ana");
     await user.type(screen.getByLabelText("Email"), "ana@ejemplo.com");
@@ -206,7 +126,7 @@ describe("AccessFlow — form account-first (S9)", () => {
     await user.click(screen.getByRole("button", { name: "Crear mi cuenta" }));
 
     await waitFor(() =>
-      expect(screen.getByText("¿Qué querés hacer?")).toBeInTheDocument(),
+      expect(navigate).toHaveBeenCalledWith("https://app.place.community/es/"),
     );
     expect(auth.signUp).toHaveBeenCalledWith({
       email: "ana@ejemplo.com",
@@ -228,9 +148,9 @@ describe("AccessFlow — form account-first (S9)", () => {
     ).toBeDisabled();
   });
 
-  it("signup fallido → aviso calmo que sugiere iniciar sesión", async () => {
+  it("signup fallido → aviso calmo que sugiere iniciar sesión (no navega)", async () => {
     const user = userEvent.setup();
-    setup({
+    const { navigate } = setup({
       auth: makeAuth({
         signUp: vi.fn<AccessSubmit["signUp"]>(async () => ({
           status: "signup_failed",
@@ -251,6 +171,7 @@ describe("AccessFlow — form account-first (S9)", () => {
         ),
       ).toBeInTheDocument(),
     );
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it("idempotencia: doble click no dispara dos autenticaciones", async () => {
@@ -261,7 +182,7 @@ describe("AccessFlow — form account-first (S9)", () => {
         () => new Promise((r) => (resolve = () => r({ status: "ok" }))),
       ),
     });
-    setup({ auth });
+    const { navigate } = setup({ auth });
     await user.type(screen.getByLabelText("Email"), "vos@ejemplo.com");
     await user.type(screen.getByLabelText("Contraseña"), "supersegura");
     const btn = screen.getByRole("button", { name: "Entrar" });
@@ -270,44 +191,8 @@ describe("AccessFlow — form account-first (S9)", () => {
     expect(auth.login).toHaveBeenCalledTimes(1);
     resolve();
     await waitFor(() =>
-      expect(screen.getByText("¿Qué querés hacer?")).toBeInTheDocument(),
+      expect(navigate).toHaveBeenCalledWith("https://app.place.community/es/"),
     );
-  });
-});
-
-describe("AccessFlow — modo authed: crear place reutilizando el wizard (S9)", () => {
-  it("'Crear mi place' monta el wizard authed y crea sin re-pedir cuenta", async () => {
-    const user = userEvent.setup();
-    const onCreatePlace = vi.fn<WizardSubmit>(async () => ({
-      status: "created",
-      placeId: "p1",
-      slug: "mi-club",
-      adjustments: [],
-    }));
-    setup({ onCreatePlace });
-    await login(user);
-    await waitFor(() =>
-      expect(screen.getByText("¿Qué querés hacer?")).toBeInTheDocument(),
-    );
-
-    await user.click(screen.getByRole("button", { name: /Crear mi place/ }));
-
-    // Wizard en modo authed: 2 pasos, nunca pide email/contraseña.
-    expect(screen.getByText("Paso 1 de 2")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Contraseña")).not.toBeInTheDocument();
-
-    await user.type(screen.getByLabelText("Nombre del lugar"), "Mi Club");
-    await user.clear(screen.getByLabelText("Dirección"));
-    await user.type(screen.getByLabelText("Dirección"), "mi-club");
-    await user.click(screen.getByRole("button", { name: "Siguiente" }));
-    await user.click(screen.getByRole("button", { name: "Crear mi lugar" }));
-
-    await waitFor(() =>
-      expect(screen.getByText("Tu lugar está listo")).toBeInTheDocument(),
-    );
-    expect(onCreatePlace).toHaveBeenCalledTimes(1);
-    // authed: el wizard llama onCreatePlace SOLO con el input (sin
-    // credenciales; la sesión ya existe — el JWT lo da el Server Action).
-    expect(onCreatePlace.mock.calls[0]).toHaveLength(1);
+    expect(navigate).toHaveBeenCalledTimes(1);
   });
 });
