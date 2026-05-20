@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { AccountMenu, computeInitials } from "../ui/account-menu";
+import { AccountMenu } from "../ui/account-menu";
 
 // Tests del menú de cuenta (S3 del Hub V1). Dropdown anclado al avatar de la
 // topbar. V1 sólo tiene "Cerrar sesión"; futuro: "Mi perfil", "Notificaciones",
@@ -13,6 +13,10 @@ import { AccountMenu, computeInitials } from "../ui/account-menu";
 // componente navega vía la prop `navigate` (default `window.location.assign`).
 // En tests se inyecta `navigate={vi.fn()}` para verificar la URL — jsdom
 // no permite spyOn estable sobre `window.location.assign`.
+//
+// `computeInitials` se testea aparte en `src/shared/lib/__tests__/initials.test.ts`
+// — se movió a shared en S4 porque el slice `inbox` también lo consume (slices
+// no se importan entre sí; sólo desde `shared/`).
 
 describe("AccountMenu — dropdown de cuenta del hub", () => {
   it("por default el menú está cerrado: sólo el botón avatar visible", () => {
@@ -128,29 +132,5 @@ describe("AccountMenu — dropdown de cuenta del hub", () => {
     expect(
       screen.queryByRole("menuitem", { name: /cerrar sesión/i }),
     ).not.toBeInTheDocument();
-  });
-});
-
-describe("computeInitials — derivación de iniciales del displayName", () => {
-  it("dos palabras → primeras 2 iniciales en upper", () => {
-    expect(computeInitials("Ana López")).toBe("AL");
-  });
-
-  it("una palabra → primera inicial", () => {
-    expect(computeInitials("Ana")).toBe("A");
-  });
-
-  it("tres o más palabras → sólo las 2 primeras iniciales", () => {
-    expect(computeInitials("Maria de los Ángeles")).toBe("MD");
-  });
-
-  it("whitespace extra se normaliza", () => {
-    expect(computeInitials("  ana   maría  ")).toBe("AM");
-  });
-
-  it("null o vacío → null", () => {
-    expect(computeInitials(null)).toBeNull();
-    expect(computeInitials("")).toBeNull();
-    expect(computeInitials("   ")).toBeNull();
   });
 });

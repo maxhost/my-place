@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { computeInitials } from "@/shared/lib/initials";
 import { LogoutIcon } from "./icons";
 
 // Account menu del hub (S3 del Hub V1). Dropdown anclado al avatar de la
@@ -137,19 +138,4 @@ function Avatar({ displayName }: { displayName: string | null }) {
     );
   }
   return <span className="text-sm font-medium">{initials}</span>;
-}
-
-/**
- * Convierte un nombre a iniciales (máx 2 letras). `null`/`""` → `null`.
- * "Ana López" → "AL"; "Ana" → "A"; "  ana   maría  " → "AM".
- */
-export function computeInitials(displayName: string | null): string | null {
-  if (!displayName) return null;
-  const words = displayName.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return null;
-  const letters = words
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
-  return letters || null;
 }

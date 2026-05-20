@@ -21,6 +21,15 @@
   --accent: #c4632f;
   --accent-strong: #a8501e;
   --accent-ink: #ffffff;
+  /*
+   * Status tones (S4 del Hub — `docs/features/inbox/spec.md` §"Badges +
+   * acciones por estado"). Cálido para "Pago pendiente" (atención sin urgencia
+   * — ámbar/miel claro), frío para "En recuperación" (contención — gris
+   * azulado). Texto ink (#1c1b22) sobre ambos contrasta >9:1 (WCAG AAA);
+   * cumple "nada grita" del producto al ser claros y no saturados.
+   */
+  --warn: #f0c97a;
+  --info: #b8cbd9;
 }
 
 @theme inline {
@@ -32,6 +41,8 @@
   --color-accent: var(--accent);
   --color-accent-strong: var(--accent-strong);
   --color-accent-ink: var(--accent-ink);
+  --color-warn: var(--warn);
+  --color-info: var(--info);
   --font-sans: var(--font-inter);
   --font-serif: var(--font-fraunces);
 }
