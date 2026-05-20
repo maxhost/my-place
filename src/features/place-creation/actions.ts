@@ -2,6 +2,7 @@
 
 import { getAuth } from "@/shared/lib/auth";
 import { getAuthenticatedDb } from "@/shared/lib/db";
+import { requireSessionJwt } from "@/shared/lib/session";
 import { type CreatePlaceResult, createPlace } from "./create-place";
 import type { AcquireIdentity } from "./ports";
 
@@ -9,6 +10,13 @@ import type { AcquireIdentity } from "./ports";
 // wiring VIVO del borde cross-system (Neon Auth SDK); su correctitud es de
 // tipo/build + preview Vercel, NO vitest (arrastra `next/headers` + Neon
 // vivo). La saga pura está testeada en `create-place.test.ts` con puertos.
+//
+// El JWT JWKS-verificable de la sesión vigente (ADR-0018) se obtiene vía
+// `requireSessionJwt()` (`shared/lib/session.ts`) — extraído del local
+// `acquireSessionJwt` en S5a del Hub para compartirlo con el guard del page
+// del Hub (semántica distinta: el Hub usa `getSessionJwt()` que retorna
+// `null` si no hay sesión). El comportamiento fail-closed acá es idéntico al
+// previo: sin JWT no se llega a la DB.
 
 export interface PlaceFirstCredentials {
   email: string;
@@ -16,47 +24,12 @@ export interface PlaceFirstCredentials {
   displayName: string;
 }
 
-// TBD de ADR-0006/S5b RESUELTO POR EVIDENCIA (preview Vercel, 2026-05-19):
-// `signUp.email().data.token` y `getSession().session.token` son el TOKEN DE
-// SESIÓN OPACO de Neon Auth (Better Auth) — NO un JWT. Pasárselo a
-// `verifyAccessToken`/`jwtVerify` da `ERR_JWS_INVALID`. El JWT que el JWKS
-// verifica (y que RLS lee en `request.jwt.claims.sub`) se emite por el
-// endpoint `/token` del plugin JWT → método server `auth.token()`
-// (`get-access-token` es OAuth, otro concepto; el SDK server no expone
-// `getJWTToken`). La correctitud del wiring vivo es de tipo/build + preview,
-// NO vitest (seam-split: arrastra el SDK + red).
-//
-// El SDK tipa la acción del plugin con `fetchOptions?: any` y devuelve
-// `{ data, error }` (`fetchOptions.throw:false` en NeonAuthAdapterCore); se
-// lee `data.token` defensivamente — la forma exacta es del SDK, no nuestra.
-type SessionJwtResult = {
-  data?: { token?: string | null } | null;
-  error?: { status?: unknown; message?: string } | null;
-};
-
-// Adquiere el JWT JWKS-verificable de la sesión vigente (cookie del request,
-// que la cubre el adapter Next del SDK como en `getSession()`). Fail-closed:
-// sin JWT no se llega a la DB.
-async function acquireSessionJwt(): Promise<string> {
-  const res = (await (
-    getAuth() as unknown as {
-      token: (fetchOptions?: unknown) => Promise<SessionJwtResult>;
-    }
-  ).token()) as SessionJwtResult;
-  const token = res.data?.token;
-  if (typeof token !== "string" || token.length === 0) {
-    throw new Error(
-      `Neon Auth no devolvió JWT (auth.token): status=${String(res.error?.status ?? "")} ${res.error?.message ?? ""}`,
-    );
-  }
-  return token;
-}
-
 // Identidad de la sesión VIGENTE (la request ya trae la cookie: authed por
 // "Acceso", o place-first tras la request previa de `signUp`). El JWT sale
-// de `auth.token()` (NO de `getSession().session.token`, que es opaco); el
-// perfil de `getSession()` para sembrar `app_user` (`ensureAppUser` es
-// idempotente: sólo siembra si faltara — "cuenta sin place" legítimo).
+// de `auth.token()` vía `requireSessionJwt` (NO de `getSession().session.token`,
+// que es opaco); el perfil de `getSession()` para sembrar `app_user`
+// (`ensureAppUser` es idempotente: sólo siembra si faltara — "cuenta sin
+// place" legítimo).
 function sessionIdentity(): AcquireIdentity {
   return async () => {
     const { data } = await getAuth().getSession();
@@ -64,7 +37,7 @@ function sessionIdentity(): AcquireIdentity {
       throw new Error("Neon Auth: no hay sesión vigente (getSession)");
     }
     return {
-      accessToken: await acquireSessionJwt(),
+      accessToken: await requireSessionJwt(),
       email: data.user.email ?? "",
       displayName: data.user.name ?? "",
     };

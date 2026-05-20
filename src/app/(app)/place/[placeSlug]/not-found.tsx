@@ -1,9 +1,10 @@
-// 404 de la zona `(app)`: lo dispara la page de place cuando el slug no es
+// 404 de la zona Place: lo dispara la page del place cuando el slug no es
 // servible (reservado/formato inválido — gate estructural S7) y, desde S5b,
-// cuando el place no existe en DB. Español (zona producto, CLAUDE.md); sin
-// i18n de URL (eso es marketing). Sin dependencia del slice landing (regla de
-// aislamiento: `(app)` no importa de `features/`).
-export default function AppNotFound() {
+// cuando el place no existe en DB. Movido en S5a del Hub desde
+// `(app)/not-found.tsx` al sub-árbol `place/[placeSlug]/` (restructure
+// multi-root: el layout `(app)/` se eliminó, cada sub-grupo provee su
+// `<html>` y su 404 propio).
+export default function PlaceNotFound() {
   return (
     <main
       id="contenido"
