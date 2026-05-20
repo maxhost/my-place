@@ -2,7 +2,7 @@
 
 Inventario de todo lo que Place incluye o quiere incluir. Es el **backlog y mapa**, no el spec.
 
-> _Última actualización: 2026-05-16._ Documento vivo. Compilado desde los docs canónicos (ontología, ADRs, stack) + lo que el owner bajó de la cabeza. No se taggea MVP por feature: **casi todo entra**; lo que es posterior se marca como `Roadmap`/`Parked` acá y la **landing** decide qué muestra como "futuro / próximamente".
+> _Última actualización: 2026-05-19._ Documento vivo. Compilado desde los docs canónicos (ontología, ADRs, stack) + lo que el owner bajó de la cabeza. No se taggea MVP por feature: **casi todo entra**; lo que es posterior se marca como `Roadmap`/`Parked` acá y la **landing** decide qué muestra como "futuro / próximamente".
 
 **Convención de specs:** cada feature, cuando se va a construir, tiene `docs/features/<slug>/spec.md` (un archivo por feature; si crece, la carpeta admite anexos). Spec antes de código (ver `CLAUDE.md`). Este README los enlaza cuando existan.
 
@@ -29,6 +29,7 @@ Inventario de todo lo que Place incluye o quiere incluir. Es el **backlog y mapa
 | Place branding | Logo/icono del place + colores propios (theming) | Plataforma (depende de Storage TBD) | `producto.md` § identidad visual |
 | Elegir zonas | El owner activa las que necesita: discusiones (siempre), eventos, biblioteca | Plataforma | `data-model.md`, `ontologia/*` |
 | Multi-tenancy subdomain | `{slug}.place.community` + routing por hostname | Plataforma | `multi-tenancy.md` |
+| Hub post-login | Navegador del usuario en `app.place.community/{locale}` (topbar + sidebar mobile-first). V1 entrega la vista "Tus lugares" (owner + miembro). V2 sumará DMs y Actividad como vistas en el mismo hub | Plataforma | [`features/inbox/`](inbox/spec.md) |
 | Custom domains | Dominio propio del place vía Vercel API + OIDC client por dominio | Plataforma | `multi-tenancy.md`, ADR-0001 |
 | Gate de horario | Place accesible solo en horario; owner exceptuado | Plataforma | `architecture.md` § Gate |
 | Settings del owner | Activar/desactivar zonas, horario, theming, ownership | Plataforma | `data-model.md` |
