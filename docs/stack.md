@@ -70,6 +70,10 @@ NEXT_PUBLIC_APP_URL=https://place.community
 NEXT_PUBLIC_APP_DOMAIN=place.community
 
 # Custom domains (Vercel Domains API — alta/verificación programática)
+# Consumidas por `src/shared/lib/vercel/domains.ts` (ADR-0026, feature
+# custom-domain V1: `addDomain`/`getDomainStatus`/`removeDomain`). Sin estas
+# dos en Vercel env, el wrapper retorna `vercel_error` (defensivo, no crash);
+# en dev local sin tokens el slice `/settings/domain` no opera.
 VERCEL_API_TOKEN=
 VERCEL_PROJECT_ID=
 ```
