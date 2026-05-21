@@ -1,357 +1,366 @@
 {
   "meta": {
-    "title": "Place — un lugar, no una plataforma",
-    "description": "Un lugar para hasta 150 personas que se conocen. Entrás, te ponés al día, participás si querés, y salís. Sin FOMO, sin métricas, sin algoritmo."
+    "title": "Place — un lloc, no una plataforma",
+    "description": "Un lloc per a fins a 150 persones que es coneixen. Entres, et poses al dia, participes si vols, i surts. Sense FOMO, sense mètriques, sense algoritme."
   },
   "a11y": {
-    "skipToContent": "Saltar al contenido",
-    "openMenu": "Abrir menú",
-    "closeMenu": "Cerrar menú",
-    "primaryNav": "Navegación principal",
+    "skipToContent": "Salta al contingut",
+    "openMenu": "Obre el menú",
+    "closeMenu": "Tanca el menú",
+    "primaryNav": "Navegació principal",
     "language": "Idioma"
   },
   "nav": {
     "brand": "Place",
-    "comoFunciona": "Cómo funciona",
-    "diferencia": "Qué lo hace distinto",
-    "precios": "Precios",
-    "faq": "Preguntas",
-    "acceso": "Acceso",
-    "cta": "Creá tu place"
+    "comoFunciona": "Com funciona",
+    "diferencia": "Què el fa diferent",
+    "precios": "Preus",
+    "faq": "Preguntes",
+    "acceso": "Accés",
+    "cta": "Crea el teu Place"
   },
   "hero": {
-    "kicker": "Un lugar, no una plataforma",
-    "title": "Un lugar, no una plataforma.",
-    "subhead": "Hasta 150 personas que se conocen. Sin FOMO, sin métricas, sin algoritmo.",
-    "cta": "Creá tu place",
-    "ctaHint": "30 días gratis. Sin tarjeta para empezar.",
-    "summary": "Entrás, te ponés al día, participás si querés, y salís."
+    "kicker": "Un lloc, no una plataforma",
+    "title": "Un lloc, no una plataforma.",
+    "subhead": "Fins a 150 persones que es coneixen. Sense FOMO, sense mètriques, sense algoritme.",
+    "cta": "Crea el teu Place",
+    "ctaHint": "30 dies gratis. Sense targeta per començar.",
+    "summary": "Entres, et poses al dia, participes si vols, i surts."
   },
   "socialProof": {
-    "text": "Para clubes, talleres, equipos y comunidades de hasta 150 personas."
+    "text": "Per a clubs, tallers, equips i comunitats de fins a 150 persones."
   },
   "problema": {
     "kicker": "El problema",
-    "title": "Las plataformas de comunidad no están de tu lado.",
+    "title": "Les plataformes de comunitat no estan del teu costat.",
     "points": [
       {
-        "title": "Te tratan como generador de engagement",
-        "body": "Su negocio mejora cuando vos y tu gente pasan más tiempo adentro. El tuyo, no necesariamente."
+        "title": "Et tracten com a generador d'engagement",
+        "body": "El seu negoci millora quan tu i la teva gent passeu més temps a dins. El teu, no necessàriament."
       },
       {
-        "title": "Tratan a tu gente como audiencia",
-        "body": "Métricas, feeds que no terminan, notificaciones que persiguen. Personas convertidas en números que suben."
+        "title": "Tracten la teva gent com a audiència",
+        "body": "Mètriques, feeds que no acaben, notificacions que persegueixen. Persones convertides en números que pugen."
       },
       {
-        "title": "Te cobran comisión por tu propia comunidad",
-        "body": "Un porcentaje de lo que tu gente paga, que se va antes de llegar a vos."
+        "title": "Et cobren comissió per la teva pròpia comunitat",
+        "body": "Un percentatge del que la teva gent paga, que se'n va abans d'arribar a tu."
       }
     ]
   },
   "comoFunciona": {
-    "kicker": "Cómo funciona",
-    "title": "Un lugar con su propio ritmo.",
-    "intro": "Mecanismos pensados para que sea un lugar, no una máquina de atención.",
+    "kicker": "Com funciona",
+    "title": "Un lloc amb el seu propi ritme.",
+    "intro": "Mecanismes pensats perquè sigui un lloc, no una màquina d'atenció.",
     "mechanisms": [
       {
-        "title": "Conversaciones por turnos",
-        "body": "Se habla por turnos, no en un chat que corre. Lo dicho queda y se lee con calma."
+        "title": "Converses per torns",
+        "body": "Es parla per torns, no en un xat que corre. El que es diu queda i es llegeix amb calma."
       },
       {
-        "title": "Presencia silenciosa",
-        "body": "Ves quién está por una señal visual discreta. Nunca un texto ansioso ni una animación que reclama."
+        "title": "Presència silenciosa",
+        "body": "Veus qui hi és per un senyal visual discret. Mai un text ansiós ni una animació que reclama."
       },
       {
-        "title": "El place tiene horario",
-        "body": "Abre y cierra cuando sus miembros deciden. Fuera de hora, el lugar descansa — y vos también."
+        "title": "El Place té horari",
+        "body": "Obre i tanca quan els seus membres ho decideixen. Fora d'hora, el lloc descansa — i tu també."
       },
       {
-        "title": "Los temas no mueren",
-        "body": "Una conversación de hace meses revive con un solo mensaje. Nada caduca por inactividad."
+        "title": "Els temes no moren",
+        "body": "Una conversa de fa mesos reviu amb un sol missatge. Res no caduca per inactivitat."
       },
       {
-        "title": "Identidad visual propia",
-        "body": "Cada place elige sus colores y su tono. Se siente tuyo, no una plantilla más."
+        "title": "Identitat visual pròpia",
+        "body": "Cada Place tria els seus colors i el seu to. Es nota teu, no una plantilla més."
       }
     ],
-    "cta": "Creá tu place"
+    "cta": "Crea el teu Place"
   },
   "diferenciacion": {
-    "kicker": "Qué lo hace distinto",
-    "title": "Una comunidad, no una audiencia.",
-    "body": "Las demás plataformas ganan más cuanto más grande y más adicta es tu comunidad. Nosotros ponemos el techo en 150 y no te cobramos comisión por tu gente. Nuestro incentivo es que tu lugar sea bueno, no infinito.",
+    "kicker": "Què el fa diferent",
+    "title": "Una comunitat, no una audiència.",
+    "body": "Les altres plataformes guanyen més com més gran i més addicta és la teva comunitat. Nosaltres posem el sostre a 150 i no et cobrem comissió per la teva gent. El nostre incentiu és que el teu lloc sigui bo, no infinit.",
     "comparison": {
-      "audienceLabel": "Una audiencia",
-      "communityLabel": "Una comunidad",
+      "audienceLabel": "Una audiència",
+      "communityLabel": "Una comunitat",
       "rows": [
         {
-          "audience": "Crece sin techo",
-          "community": "Hasta 150 — todos se conocen"
+          "audience": "Creix sense sostre",
+          "community": "Fins a 150 — tothom es coneix"
         },
         {
-          "audience": "Feed ordenado por algoritmo",
-          "community": "Conversaciones por turnos, cronológicas"
+          "audience": "Feed ordenat per algoritme",
+          "community": "Converses per torns, cronològiques"
         },
         {
-          "audience": "Métricas y comparación",
-          "community": "Pertenencia y rol, sin ranking"
+          "audience": "Mètriques i comparació",
+          "community": "Pertinença i rol, sense rànquing"
         },
         {
-          "audience": "Te persigue con notificaciones",
-          "community": "Tiene horario y cierra"
+          "audience": "Et persegueix amb notificacions",
+          "community": "Té horari i tanca"
         }
       ]
     },
-    "dunbar": "150 no es el límite de un plan: es una decisión de diseño. Es cerca del número de Dunbar — la cantidad de personas con las que alguien sostiene un vínculo real."
+    "dunbar": "150 no és el límit d'un pla: és una decisió de disseny. És a prop del nombre de Dunbar — la quantitat de persones amb qui algú manté un vincle real."
   },
   "paraQuien": {
-    "kicker": "Para quién",
-    "title": "Tu lugar, sea lo que sea que reúnas.",
+    "kicker": "Per a qui",
+    "title": "El teu lloc, sigui el que sigui que reuneixis.",
     "tabs": [
       {
         "id": "creador",
-        "label": "Creadores",
-        "headline": "Tu comunidad, no tu audiencia.",
-        "body": "Para el creador cansado del modelo de engagement: un lugar para tu gente cercana, donde lo que pagan llega a vos y nadie compite por la atención de nadie.",
-        "cta": "Creá tu place"
+        "label": "Creadors",
+        "headline": "La teva comunitat, no la teva audiència.",
+        "body": "Per al creador cansat del model d'engagement: un lloc per a la teva gent propera, on el que paguen t'arriba a tu i ningú no competeix per l'atenció de ningú.",
+        "cta": "Crea el teu Place"
       },
       {
         "id": "organizacion",
-        "label": "Organizaciones",
-        "headline": "El club, el taller, el grupo — con un lugar propio.",
-        "body": "Para clubes, talleres y grupos que ya existen y necesitan un lugar tranquilo donde encontrarse, recordar y organizarse, sin que se vuelva otra red social.",
-        "cta": "Creá tu place"
+        "label": "Organitzacions",
+        "headline": "El club, el taller, el grup — amb un lloc propi.",
+        "body": "Per a clubs, tallers i grups que ja existeixen i necessiten un lloc tranquil on trobar-se, recordar i organitzar-se, sense que es torni una altra xarxa social.",
+        "cta": "Crea el teu Place"
       },
       {
         "id": "empresa",
-        "label": "Empresas",
-        "headline": "Una intranet que se siente como un lugar.",
-        "body": "Para equipos que quieren una comunidad interna calma — no otro canal que grita. Identidad propia, dominio propio, ritmo propio.",
-        "cta": "Solicitá una demo"
+        "label": "Empreses",
+        "headline": "Una intranet que se sent com un lloc.",
+        "body": "Per a equips que volen una comunitat interna calmada — no un altre canal que crida. Identitat pròpia, domini propi, ritme propi.",
+        "cta": "Demana una demo"
       }
     ]
   },
   "pricing": {
-    "kicker": "Precios",
-    "title": "Transparente, sin costos escondidos.",
-    "subhead": "0% de comisión en el plan Comunidad. Lo que tu comunidad paga, llega a vos.",
-    "freeTrial": "30 días gratis",
-    "freeTrialNote": "Probás el lugar completo. Sin tarjeta para empezar.",
+    "kicker": "Preus",
+    "title": "Transparent, sense costos amagats.",
+    "subhead": "0 % de comissió al pla Comunitat. El que la teva comunitat paga, t'arriba a tu.",
+    "freeTrial": "30 dies gratis",
+    "freeTrialNote": "Proves el lloc complet. Sense targeta per començar.",
     "plans": [
       {
         "id": "hobby",
         "name": "Hobby",
         "price": "$7",
         "period": "/mes",
-        "description": "Para empezar tu lugar y ver cómo se siente.",
-        "cta": "Empezá gratis"
+        "description": "Per començar el teu lloc i veure com es sent.",
+        "cta": "Comença gratis"
       },
       {
         "id": "comunidad",
-        "name": "Comunidad",
+        "name": "Comunitat",
         "price": "$30",
         "period": "/mes",
-        "description": "El lugar completo, con 0% de comisión sobre lo que tu comunidad paga.",
-        "cta": "Creá tu place",
+        "description": "El lloc complet, amb 0 % de comissió sobre el que la teva comunitat paga.",
+        "cta": "Crea el teu Place",
         "highlight": true
       }
     ],
-    "commissionLine": "0% de comisión. Tu comunidad no es nuestro producto.",
-    "footnote": "El techo de 150 no es un límite de plan: es la decisión de diseño que hace que sea un lugar."
+    "commissionLine": "0 % de comissió. La teva comunitat no és el nostre producte.",
+    "footnote": "El sostre de 150 no és un límit de pla: és la decisió de disseny que fa que sigui un lloc."
   },
   "faq": {
-    "kicker": "Preguntas",
-    "title": "Lo que te estás preguntando.",
+    "kicker": "Preguntes",
+    "title": "El que t'estàs preguntant.",
     "items": [
       {
-        "q": "Sin notificaciones agresivas, ¿no se muere?",
-        "a": "Al revés. Los temas dormidos no mueren: cualquier mensaje revive una conversación de hace meses. El horario no apaga la comunidad — la vuelve un lugar al que se vuelve, no una app que te persigue."
+        "q": "Sense notificacions agressives, no es mor?",
+        "a": "Al contrari. Els temes adormits no moren: qualsevol missatge reviu una conversa de fa mesos. L'horari no apaga la comunitat — la converteix en un lloc al qual es torna, no en una app que et persegueix."
       },
       {
-        "q": "¿Y si somos más de 150?",
-        "a": "150 es deliberado: cerca del número de Dunbar, la cantidad de vínculos reales que alguien sostiene. Si son más, probablemente sean varias comunidades — podés tener más de un place."
+        "q": "I si som més de 150?",
+        "a": "150 és deliberat: a prop del nombre de Dunbar, la quantitat de vincles reals que algú manté. Si sou més, probablement sigueu diverses comunitats — pots tenir més d'un Place."
       },
       {
-        "q": "¿Mis datos y los de mi gente?",
-        "a": "Sin lock-in y con derecho al olvido: cada persona puede irse y borrar su rastro. Tu comunidad es tuya, no un activo que retenemos."
+        "q": "I les meves dades i les de la meva gent?",
+        "a": "Sense lock-in i amb dret a l'oblit: cada persona se'n pot anar i esborrar el seu rastre. La teva comunitat és teva, no un actiu que retenim."
       },
       {
-        "q": "¿En qué idiomas está?",
-        "a": "Español desde el día uno. Inglés, francés y portugués en camino. Lo que escribe tu gente queda en el idioma en que lo escribió: nunca lo traducimos por vos."
+        "q": "En quins idiomes està disponible?",
+        "a": "Espanyol des del primer dia. Anglès, francès i portuguès en camí. El que escriu la teva gent es queda en l'idioma en què ho ha escrit: mai ho traduïm per tu."
       },
       {
-        "q": "¿Por qué pago una suscripción?",
-        "a": "Porque así no te cobramos comisión por tu gente. Pagás un precio fijo y transparente; lo que tu comunidad aporta, llega a vos."
+        "q": "Per què pago una subscripció?",
+        "a": "Perquè així no et cobrem comissió per la teva gent. Pagues un preu fix i transparent; el que la teva comunitat aporta, t'arriba a tu."
       }
     ]
   },
   "ctaFinal": {
-    "title": "Tu lugar te espera cuando quieras abrirlo.",
-    "subhead": "30 días gratis. Sin apuro, sin tarjeta para empezar.",
-    "cta": "Creá tu place"
+    "title": "El teu lloc t'espera quan el vulguis obrir.",
+    "subhead": "30 dies gratis. Sense pressa, sense targeta per començar.",
+    "cta": "Crea el teu Place"
   },
   "footer": {
-    "tagline": "Un lugar, no una plataforma.",
-    "navTitle": "Producto",
-    "comoFunciona": "Cómo funciona",
-    "precios": "Precios",
-    "faq": "Preguntas",
+    "tagline": "Un lloc, no una plataforma.",
+    "navTitle": "Producte",
+    "comoFunciona": "Com funciona",
+    "precios": "Preus",
+    "faq": "Preguntes",
     "legalTitle": "Legal",
-    "terminos": "Términos",
-    "privacidad": "Privacidad",
-    "contactoTitle": "Contacto",
+    "terminos": "Termes",
+    "privacidad": "Privacitat",
+    "contactoTitle": "Contacte",
     "contacto": "hola@place.community",
     "languageTitle": "Idioma",
     "rights": "Place"
   },
   "captures": {
-    "comoFunciona": "[CAPTURA: vista de una conversación por turnos dentro de un place, con la presencia silenciosa de quién está leyendo]",
-    "paraQuien": "[CAPTURA: el mismo place con identidad visual propia — colores y tono configurados por su owner]"
+    "comoFunciona": "[CAPTURA: vista d'una conversa per torns dins d'un Place, amb la presència silenciosa de qui llegeix]",
+    "paraQuien": "[CAPTURA: el mateix Place amb identitat visual pròpia — colors i to configurats pel seu owner]"
   },
   "legal": {
     "terminos": {
-      "title": "Términos del servicio",
-      "updated": "Última actualización: 16 de mayo de 2026",
-      "body": "Borrador inicial. El contenido legal definitivo se redacta antes del lanzamiento público. Para consultas, escribí a hola@place.community."
+      "title": "Termes del servei",
+      "updated": "Última actualització: 16 de maig de 2026",
+      "body": "Esborrany inicial. El contingut legal definitiu es redacta abans del llançament públic. Per a consultes, escriu a hola@place.community."
     },
     "privacidad": {
-      "title": "Privacidad",
-      "updated": "Última actualización: 16 de mayo de 2026",
-      "body": "Borrador inicial. Place se diseña con derecho al olvido y sin lock-in: cada persona puede irse y borrar su rastro. La política definitiva se redacta antes del lanzamiento público. Para consultas, escribí a hola@place.community."
+      "title": "Privacitat",
+      "updated": "Última actualització: 16 de maig de 2026",
+      "body": "Esborrany inicial. Place es dissenya amb dret a l'oblit i sense lock-in: cada persona se'n pot anar i esborrar el seu rastre. La política definitiva es redacta abans del llançament públic. Per a consultes, escriu a hola@place.community."
     }
   },
   "notFound": {
-    "title": "Esta página no existe.",
-    "body": "Puede que el enlace esté viejo o que la página se haya movido.",
-    "cta": "Volver al inicio"
+    "title": "Aquesta pàgina no existeix.",
+    "body": "Pot ser que l'enllaç sigui antic o que la pàgina s'hagi mogut.",
+    "cta": "Tornar a l'inici"
   },
   "access": {
-    "title": "Acceso",
-    "subtitle": "Entrá a tu cuenta o creá una nueva.",
-    "loginTab": "Iniciar sesión",
-    "signupTab": "Crear cuenta",
-    "emailLabel": "Email",
-    "emailPlaceholder": "vos@ejemplo.com",
-    "emailInvalid": "Revisá el email",
-    "passwordLabel": "Contraseña",
-    "passwordPlaceholder": "Tu contraseña",
-    "passwordHint": "Al menos 8 caracteres",
-    "passwordTooShort": "La contraseña es muy corta (mín. 8)",
-    "displayNameLabel": "Tu nombre",
-    "displayNamePlaceholder": "Cómo te van a ver",
-    "displayNameRequired": "Poné tu nombre",
-    "terms": "Acepto los {terms} y la {privacy}.",
-    "termsLinkLabel": "términos",
-    "privacyLinkLabel": "política de privacidad",
-    "termsRequired": "Necesitás aceptar los términos",
+    "title": "Accés",
+    "subtitle": "Entra al teu compte o crea'n un de nou.",
+    "loginTab": "Iniciar sessió",
+    "signupTab": "Crear compte",
+    "emailLabel": "Correu electrònic",
+    "emailPlaceholder": "tu@exemple.com",
+    "emailInvalid": "Revisa el correu",
+    "passwordLabel": "Contrasenya",
+    "passwordPlaceholder": "La teva contrasenya",
+    "passwordHint": "Almenys 8 caràcters",
+    "passwordTooShort": "La contrasenya és massa curta (mín. 8)",
+    "displayNameLabel": "El teu nom",
+    "displayNamePlaceholder": "Com et veuran",
+    "displayNameRequired": "Posa el teu nom",
+    "terms": "Accepto els {terms} i la {privacy}.",
+    "termsLinkLabel": "termes",
+    "privacyLinkLabel": "política de privacitat",
+    "termsRequired": "Has d'acceptar els termes",
     "loginSubmit": "Entrar",
-    "signupSubmit": "Crear mi cuenta",
-    "submitting": "Un momento…",
-    "loginFailedNotice": "No pudimos iniciar sesión. Revisá tu email y contraseña.",
-    "signupFailedNotice": "No pudimos crear la cuenta. ¿Quizás ya tenés una? Probá iniciar sesión.",
-    "back": "Volver al inicio"
+    "signupSubmit": "Crear el meu compte",
+    "submitting": "Un moment…",
+    "loginFailedNotice": "No hem pogut iniciar la sessió. Revisa el correu i la contrasenya.",
+    "signupFailedNotice": "No hem pogut crear el compte. Potser ja en tens un? Prova d'iniciar sessió.",
+    "back": "Tornar a l'inici"
   },
   "wizard": {
-    "title": "Creá tu lugar",
-    "progress": "Paso {n} de {total}",
+    "title": "Crea el teu lloc",
+    "progress": "Pas {n} de {total}",
     "steps": {
-      "identity": "Identidad",
-      "style": "Estilo",
-      "account": "Tu cuenta"
+      "identity": "Identitat",
+      "style": "Estil",
+      "account": "El teu compte"
     },
-    "next": "Siguiente",
-    "back": "Atrás",
-    "create": "Crear mi lugar",
-    "creating": "Creando tu lugar…",
-    "nameLabel": "Nombre del lugar",
-    "namePlaceholder": "El nombre que verán al entrar",
-    "slugLabel": "Dirección",
-    "slugHint": "Tu lugar va a vivir en {slug}.{domain}",
-    "slugReserved": "Esa dirección está reservada, elegí otra",
-    "slugFormat": "Solo minúsculas, números y guiones (mínimo 3 caracteres)",
-    "slugAvailableHint": "La disponibilidad final se confirma al crear el lugar",
-    "nameRequired": "Poné un nombre para tu lugar",
-    "previewLabel": "Así se va a ver",
-    "previewEmptyName": "Tu lugar",
-    "guardrailNotice": "Ajustamos un color para que el texto se lea bien",
-    "paletteLabel": "Colores",
+    "next": "Següent",
+    "back": "Enrere",
+    "create": "Crear el meu lloc",
+    "creating": "Creant el teu lloc…",
+    "nameLabel": "Nom del lloc",
+    "namePlaceholder": "El nom que veuran en entrar",
+    "slugLabel": "Adreça",
+    "slugHint": "El teu lloc viurà a {slug}.{domain}",
+    "slugReserved": "Aquesta adreça està reservada, tria'n una altra",
+    "slugFormat": "Només minúscules, números i guions (mínim 3 caràcters)",
+    "slugAvailableHint": "La disponibilitat final es confirma en crear el lloc",
+    "nameRequired": "Posa un nom al teu lloc",
+    "previewLabel": "Així es veurà",
+    "previewEmptyName": "El teu lloc",
+    "guardrailNotice": "Hem ajustat un color perquè el text es llegeixi bé",
+    "paletteLabel": "Colors",
     "palettes": {
-      "papel": "Papel",
-      "bosque": "Bosque",
+      "papel": "Paper",
+      "bosque": "Bosc",
       "tinta": "Tinta",
-      "arcilla": "Arcilla"
+      "arcilla": "Argila"
     },
-    "emailLabel": "Email",
-    "emailPlaceholder": "vos@ejemplo.com",
-    "emailInvalid": "Revisá el email",
-    "passwordLabel": "Contraseña",
-    "passwordPlaceholder": "Al menos 8 caracteres",
-    "passwordHint": "Al menos 8 caracteres",
-    "passwordTooShort": "La contraseña tiene que tener al menos 8 caracteres",
-    "displayNameLabel": "Tu nombre",
-    "displayNamePlaceholder": "Cómo te van a ver en tu lugar",
-    "displayNameRequired": "Poné tu nombre",
-    "terms": "Acepto los {terms} y la {privacy}.",
-    "termsLinkLabel": "términos",
-    "privacyLinkLabel": "política de privacidad",
-    "termsRequired": "Necesitás aceptar los términos para crear tu lugar",
-    "successTitle": "Tu lugar está listo",
-    "successBody": "Ya podés entrar en {url}.",
-    "successOpen": "Abrir mi lugar",
-    "slugTakenNotice": "Esa dirección ya tiene dueño, probá con otra",
-    "invalidNotice": "Revisá los datos e intentá de nuevo",
-    "errorNotice": "No pudimos crear tu lugar. Probá de nuevo en un momento.",
-    "accountFailedNotice": "No pudimos crear la cuenta. Quizás ya tengas una con ese email — probá iniciar sesión.",
-    "paletteModeLabel": "¿Cómo elegís los colores?",
-    "paletteModePreset": "Predefinidas",
-    "paletteModeCustom": "Personalizado",
-    "paletteCustomTitle": "Tus colores",
+    "emailLabel": "Correu electrònic",
+    "emailPlaceholder": "tu@exemple.com",
+    "emailInvalid": "Revisa el correu",
+    "passwordLabel": "Contrasenya",
+    "passwordPlaceholder": "Almenys 8 caràcters",
+    "passwordHint": "Almenys 8 caràcters",
+    "passwordTooShort": "La contrasenya ha de tenir almenys 8 caràcters",
+    "displayNameLabel": "El teu nom",
+    "displayNamePlaceholder": "Com et veuran al teu lloc",
+    "displayNameRequired": "Posa el teu nom",
+    "terms": "Accepto els {terms} i la {privacy}.",
+    "termsLinkLabel": "termes",
+    "privacyLinkLabel": "política de privacitat",
+    "termsRequired": "Has d'acceptar els termes per crear el teu lloc",
+    "successTitle": "El teu lloc està a punt",
+    "successBody": "Ja pots entrar a {url}.",
+    "successOpen": "Obrir el meu lloc",
+    "slugTakenNotice": "Aquesta adreça ja té propietari, prova'n una altra",
+    "invalidNotice": "Revisa les dades i torna-ho a provar",
+    "errorNotice": "No hem pogut crear el teu lloc. Torna-ho a provar d'aquí a una estona.",
+    "accountFailedNotice": "No hem pogut crear el compte. Potser ja en tens un amb aquest correu — prova d'iniciar sessió.",
+    "paletteModeLabel": "Com tries els colors?",
+    "paletteModePreset": "Predefinits",
+    "paletteModeCustom": "Personalitzats",
+    "paletteCustomTitle": "Els teus colors",
     "paletteCustomAccentLabel": "Color principal",
-    "paletteCustomBgLabel": "Fondo",
-    "paletteCustomInkLabel": "Texto",
-    "paletteCustomHexInvalid": "Hex inválido (#rrggbb).",
-    "paletteCustomPickerSuffix": "(selector de color)"
+    "paletteCustomBgLabel": "Fons",
+    "paletteCustomInkLabel": "Text",
+    "paletteCustomHexInvalid": "Hex no vàlid (#rrggbb).",
+    "paletteCustomPickerSuffix": "(selector de color)",
+    "defaultLocaleLabel": "En quin idioma parla el teu lloc?",
+    "locales": {
+      "es": "Español",
+      "en": "English",
+      "fr": "Français",
+      "pt": "Português",
+      "de": "Deutsch",
+      "ca": "Català"
+    }
   },
   "inbox": {
-    "viewTitle": "Tus lugares",
+    "viewTitle": "Els teus llocs",
     "cardEnter": "Entrar",
     "cardSettings": "Configurar",
-    "cardMemberSince": "Miembro desde {date}",
-    "statusPaymentPending": "Pago pendiente",
-    "statusInactivationProcess": "En recuperación",
-    "statusInactive": "Cerrado",
-    "emptyTitle": "Todavía no tenés ningún lugar.",
-    "emptyBody": "Podés crear el tuyo o sumarte a uno con una invitación.",
-    "emptyCreateAction": "Crear un lugar",
-    "emptyJoinAction": "Sumarme a un lugar",
-    "emptyJoinComingSoon": "Próximamente"
+    "cardMemberSince": "Membre des de {date}",
+    "statusPaymentPending": "Pagament pendent",
+    "statusInactivationProcess": "En recuperació",
+    "statusInactive": "Tancat",
+    "emptyTitle": "Encara no tens cap lloc.",
+    "emptyBody": "Pots crear el teu o unir-te a un amb una invitació.",
+    "emptyCreateAction": "Crear un lloc",
+    "emptyJoinAction": "Unir-me a un lloc",
+    "emptyJoinComingSoon": "Pròximament"
   },
   "navHub": {
     "appName": "Place",
-    "sidebarToggleOpen": "Abrir menú",
-    "sidebarToggleClose": "Cerrar menú",
-    "sidebarPlaces": "Tus lugares",
-    "sidebarMessages": "Mensajes",
-    "sidebarActivity": "Actividad",
-    "sidebarComingSoon": "Próximamente",
-    "accountMenuLabel": "Menú de cuenta",
-    "logout": "Cerrar sesión",
-    "logoutConfirming": "Cerrando sesión…"
+    "sidebarToggleOpen": "Obre el menú",
+    "sidebarToggleClose": "Tanca el menú",
+    "sidebarPlaces": "Els teus llocs",
+    "sidebarMessages": "Missatges",
+    "sidebarActivity": "Activitat",
+    "sidebarComingSoon": "Pròximament",
+    "accountMenuLabel": "Menú del compte",
+    "logout": "Tancar sessió",
+    "logoutConfirming": "Tancant sessió…"
   },
   "placeSettings": {
-    "title": "Configurar tu lugar",
+    "title": "Configura el teu lloc",
     "sidebar": {
-      "language": "Idioma del place",
-      "members": "Miembros",
-      "appearance": "Apariencia",
-      "hours": "Horario",
-      "billing": "Billing",
-      "domain": "Dominio custom",
-      "comingSoon": "Próximamente"
+      "language": "Idioma del Place",
+      "members": "Membres",
+      "appearance": "Aparença",
+      "hours": "Horari",
+      "billing": "Facturació",
+      "domain": "Domini propi",
+      "comingSoon": "Pròximament"
     },
     "language": {
-      "title": "Idioma del place",
-      "description": "Es el idioma en el que se mostrará tu lugar a quienes lo visiten. Podés cambiarlo cuando quieras.",
+      "title": "Idioma del Place",
+      "description": "És l'idioma en què es mostrarà el teu lloc a qui el visiti. Pots canviar-lo quan vulguis.",
       "label": "Idioma",
       "options": {
         "es": "Español",
@@ -361,11 +370,11 @@
         "de": "Deutsch",
         "ca": "Català"
       },
-      "save": "Guardar",
-      "saving": "Guardando…",
-      "successTitle": "Idioma actualizado.",
-      "successBody": "La próxima carga aparecerá en {language}.",
-      "errorNotice": "No pudimos guardar el idioma. Probá de nuevo."
+      "save": "Desar",
+      "saving": "Desant…",
+      "successTitle": "Idioma actualitzat.",
+      "successBody": "La pròxima càrrega apareixerà en {language}.",
+      "errorNotice": "No hem pogut desar l'idioma. Torna-ho a provar."
     }
   }
 }

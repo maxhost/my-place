@@ -1,0 +1,380 @@
+{
+  "meta": {
+    "title": "Place — a place, not a platform",
+    "description": "A place for up to 150 people who know each other. You come in, catch up, take part if you want, and leave. No FOMO, no metrics, no algorithm."
+  },
+  "a11y": {
+    "skipToContent": "Skip to content",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "primaryNav": "Primary navigation",
+    "language": "Language"
+  },
+  "nav": {
+    "brand": "Place",
+    "comoFunciona": "How it works",
+    "diferencia": "What makes it different",
+    "precios": "Pricing",
+    "faq": "Questions",
+    "acceso": "Sign in",
+    "cta": "Create your Place"
+  },
+  "hero": {
+    "kicker": "A place, not a platform",
+    "title": "A place, not a platform.",
+    "subhead": "Up to 150 people who know each other. No FOMO, no metrics, no algorithm.",
+    "cta": "Create your Place",
+    "ctaHint": "30 days free. No card to start.",
+    "summary": "You come in, catch up, take part if you want, and leave."
+  },
+  "socialProof": {
+    "text": "For clubs, workshops, teams and communities of up to 150 people."
+  },
+  "problema": {
+    "kicker": "The problem",
+    "title": "Community platforms are not on your side.",
+    "points": [
+      {
+        "title": "They treat you as an engagement generator",
+        "body": "Their business improves when you and your people spend more time inside. Yours, not necessarily."
+      },
+      {
+        "title": "They treat your people as audience",
+        "body": "Metrics, endless feeds, notifications that chase. People turned into numbers that go up."
+      },
+      {
+        "title": "They take commission on your own community",
+        "body": "A percentage of what your people pay, gone before it reaches you."
+      }
+    ]
+  },
+  "comoFunciona": {
+    "kicker": "How it works",
+    "title": "A place with its own rhythm.",
+    "intro": "Mechanisms designed so it's a place, not an attention machine.",
+    "mechanisms": [
+      {
+        "title": "Conversations by turns",
+        "body": "People speak in turns, not in a chat that scrolls away. What's said stays and is read calmly."
+      },
+      {
+        "title": "Silent presence",
+        "body": "You see who's here through a discreet visual cue. Never an anxious text or an animation that begs."
+      },
+      {
+        "title": "The Place has open hours",
+        "body": "It opens and closes when its members decide. After hours, the place rests — and so do you."
+      },
+      {
+        "title": "Topics don't die",
+        "body": "A conversation from months ago comes back with a single message. Nothing expires from inactivity."
+      },
+      {
+        "title": "Its own visual identity",
+        "body": "Every Place picks its colors and tone. It feels yours, not just another template."
+      }
+    ],
+    "cta": "Create your Place"
+  },
+  "diferenciacion": {
+    "kicker": "What makes it different",
+    "title": "A community, not an audience.",
+    "body": "Other platforms earn more the bigger and more addicted your community gets. We set the ceiling at 150 and don't take commission from your people. Our incentive is for your place to be good, not infinite.",
+    "comparison": {
+      "audienceLabel": "An audience",
+      "communityLabel": "A community",
+      "rows": [
+        {
+          "audience": "Grows with no ceiling",
+          "community": "Up to 150 — everyone knows each other"
+        },
+        {
+          "audience": "Feed sorted by algorithm",
+          "community": "Conversations by turns, chronological"
+        },
+        {
+          "audience": "Metrics and comparison",
+          "community": "Belonging and role, no ranking"
+        },
+        {
+          "audience": "Chases you with notifications",
+          "community": "Has open hours and closes"
+        }
+      ]
+    },
+    "dunbar": "150 isn't a plan limit: it's a design decision. It's close to Dunbar's number — the count of people someone keeps a real bond with."
+  },
+  "paraQuien": {
+    "kicker": "Who it's for",
+    "title": "Your place, whatever you bring together.",
+    "tabs": [
+      {
+        "id": "creador",
+        "label": "Creators",
+        "headline": "Your community, not your audience.",
+        "body": "For the creator tired of the engagement model: a place for your close people, where what they pay reaches you and no one competes for anyone's attention.",
+        "cta": "Create your Place"
+      },
+      {
+        "id": "organizacion",
+        "label": "Organizations",
+        "headline": "The club, the workshop, the group — with a place of its own.",
+        "body": "For clubs, workshops and groups that already exist and need a quiet place to meet, remember, and get organized — without it turning into another social network.",
+        "cta": "Create your Place"
+      },
+      {
+        "id": "empresa",
+        "label": "Companies",
+        "headline": "An intranet that feels like a place.",
+        "body": "For teams that want a calm internal community — not another channel that shouts. Own identity, own domain, own rhythm.",
+        "cta": "Request a demo"
+      }
+    ]
+  },
+  "pricing": {
+    "kicker": "Pricing",
+    "title": "Transparent, no hidden costs.",
+    "subhead": "0% commission on the Community plan. What your community pays reaches you.",
+    "freeTrial": "30 days free",
+    "freeTrialNote": "You try the whole place. No card to start.",
+    "plans": [
+      {
+        "id": "hobby",
+        "name": "Hobby",
+        "price": "$7",
+        "period": "/month",
+        "description": "To start your place and see how it feels.",
+        "cta": "Start for free"
+      },
+      {
+        "id": "comunidad",
+        "name": "Community",
+        "price": "$30",
+        "period": "/month",
+        "description": "The full place, with 0% commission on what your community pays.",
+        "cta": "Create your Place",
+        "highlight": true
+      }
+    ],
+    "commissionLine": "0% commission. Your community isn't our product.",
+    "footnote": "The 150 ceiling isn't a plan limit: it's the design decision that makes it a place."
+  },
+  "faq": {
+    "kicker": "Questions",
+    "title": "What you're wondering.",
+    "items": [
+      {
+        "q": "Without aggressive notifications, doesn't it die?",
+        "a": "The opposite. Dormant topics don't die: any message revives a conversation from months ago. Open hours don't switch off the community — they make it a place you come back to, not an app that chases you."
+      },
+      {
+        "q": "What if we're more than 150?",
+        "a": "150 is deliberate: close to Dunbar's number, the count of real bonds someone keeps. If you're more, you're probably several communities — you can have more than one Place."
+      },
+      {
+        "q": "What about my data and my people's?",
+        "a": "No lock-in and right to be forgotten: each person can leave and erase their trace. Your community is yours, not an asset we hold on to."
+      },
+      {
+        "q": "What languages is it available in?",
+        "a": "Spanish from day one. English, French and Portuguese on the way. What your people write stays in the language they wrote it in: we never translate it for you."
+      },
+      {
+        "q": "Why do I pay a subscription?",
+        "a": "Because that way we don't charge you commission for your people. You pay a fixed, transparent price; what your community contributes reaches you."
+      }
+    ]
+  },
+  "ctaFinal": {
+    "title": "Your place is waiting whenever you want to open it.",
+    "subhead": "30 days free. No rush, no card to start.",
+    "cta": "Create your Place"
+  },
+  "footer": {
+    "tagline": "A place, not a platform.",
+    "navTitle": "Product",
+    "comoFunciona": "How it works",
+    "precios": "Pricing",
+    "faq": "Questions",
+    "legalTitle": "Legal",
+    "terminos": "Terms",
+    "privacidad": "Privacy",
+    "contactoTitle": "Contact",
+    "contacto": "hola@place.community",
+    "languageTitle": "Language",
+    "rights": "Place"
+  },
+  "captures": {
+    "comoFunciona": "[SCREENSHOT: view of a conversation by turns inside a Place, with the silent presence of who's reading]",
+    "paraQuien": "[SCREENSHOT: the same Place with its own visual identity — colors and tone configured by its owner]"
+  },
+  "legal": {
+    "terminos": {
+      "title": "Terms of service",
+      "updated": "Last updated: May 16, 2026",
+      "body": "Initial draft. The final legal content is written before public launch. For inquiries, write to hola@place.community."
+    },
+    "privacidad": {
+      "title": "Privacy",
+      "updated": "Last updated: May 16, 2026",
+      "body": "Initial draft. Place is designed with right to be forgotten and no lock-in: each person can leave and erase their trace. The final policy is written before public launch. For inquiries, write to hola@place.community."
+    }
+  },
+  "notFound": {
+    "title": "This page doesn't exist.",
+    "body": "The link may be old or the page may have moved.",
+    "cta": "Back to home"
+  },
+  "access": {
+    "title": "Sign in",
+    "subtitle": "Sign in to your account or create a new one.",
+    "loginTab": "Log in",
+    "signupTab": "Create account",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "emailInvalid": "Check the email",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Your password",
+    "passwordHint": "At least 8 characters",
+    "passwordTooShort": "The password is too short (min. 8)",
+    "displayNameLabel": "Your name",
+    "displayNamePlaceholder": "How you'll be seen",
+    "displayNameRequired": "Enter your name",
+    "terms": "I accept the {terms} and the {privacy}.",
+    "termsLinkLabel": "terms",
+    "privacyLinkLabel": "privacy policy",
+    "termsRequired": "You need to accept the terms",
+    "loginSubmit": "Log in",
+    "signupSubmit": "Create my account",
+    "submitting": "One moment…",
+    "loginFailedNotice": "We couldn't sign you in. Check your email and password.",
+    "signupFailedNotice": "We couldn't create the account. Maybe you already have one? Try signing in.",
+    "back": "Back to home"
+  },
+  "wizard": {
+    "title": "Create your place",
+    "progress": "Step {n} of {total}",
+    "steps": {
+      "identity": "Identity",
+      "style": "Style",
+      "account": "Your account"
+    },
+    "next": "Next",
+    "back": "Back",
+    "create": "Create my place",
+    "creating": "Creating your place…",
+    "nameLabel": "Name of the place",
+    "namePlaceholder": "The name people will see on entering",
+    "slugLabel": "Address",
+    "slugHint": "Your place will live at {slug}.{domain}",
+    "slugReserved": "That address is reserved, pick another one",
+    "slugFormat": "Lowercase, numbers and hyphens only (3 characters minimum)",
+    "slugAvailableHint": "Final availability is confirmed when the place is created",
+    "nameRequired": "Give your place a name",
+    "previewLabel": "This is how it will look",
+    "previewEmptyName": "Your place",
+    "guardrailNotice": "We adjusted a color so the text reads well",
+    "paletteLabel": "Colors",
+    "palettes": {
+      "papel": "Paper",
+      "bosque": "Forest",
+      "tinta": "Ink",
+      "arcilla": "Clay"
+    },
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "emailInvalid": "Check the email",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "At least 8 characters",
+    "passwordHint": "At least 8 characters",
+    "passwordTooShort": "The password must be at least 8 characters",
+    "displayNameLabel": "Your name",
+    "displayNamePlaceholder": "How you'll be seen in your place",
+    "displayNameRequired": "Enter your name",
+    "terms": "I accept the {terms} and the {privacy}.",
+    "termsLinkLabel": "terms",
+    "privacyLinkLabel": "privacy policy",
+    "termsRequired": "You need to accept the terms to create your place",
+    "successTitle": "Your place is ready",
+    "successBody": "You can now enter at {url}.",
+    "successOpen": "Open my place",
+    "slugTakenNotice": "That address already has an owner, try another one",
+    "invalidNotice": "Check the data and try again",
+    "errorNotice": "We couldn't create your place. Try again in a moment.",
+    "accountFailedNotice": "We couldn't create the account. Maybe you already have one with this email — try signing in.",
+    "paletteModeLabel": "How do you pick the colors?",
+    "paletteModePreset": "Preset",
+    "paletteModeCustom": "Custom",
+    "paletteCustomTitle": "Your colors",
+    "paletteCustomAccentLabel": "Main color",
+    "paletteCustomBgLabel": "Background",
+    "paletteCustomInkLabel": "Text",
+    "paletteCustomHexInvalid": "Invalid hex (#rrggbb).",
+    "paletteCustomPickerSuffix": "(color picker)",
+    "defaultLocaleLabel": "What language does your place speak?",
+    "locales": {
+      "es": "Español",
+      "en": "English",
+      "fr": "Français",
+      "pt": "Português",
+      "de": "Deutsch",
+      "ca": "Català"
+    }
+  },
+  "inbox": {
+    "viewTitle": "Your places",
+    "cardEnter": "Enter",
+    "cardSettings": "Settings",
+    "cardMemberSince": "Member since {date}",
+    "statusPaymentPending": "Payment pending",
+    "statusInactivationProcess": "In recovery",
+    "statusInactive": "Closed",
+    "emptyTitle": "You don't have a place yet.",
+    "emptyBody": "You can create your own or join one with an invitation.",
+    "emptyCreateAction": "Create a place",
+    "emptyJoinAction": "Join a place",
+    "emptyJoinComingSoon": "Coming soon"
+  },
+  "navHub": {
+    "appName": "Place",
+    "sidebarToggleOpen": "Open menu",
+    "sidebarToggleClose": "Close menu",
+    "sidebarPlaces": "Your places",
+    "sidebarMessages": "Messages",
+    "sidebarActivity": "Activity",
+    "sidebarComingSoon": "Coming soon",
+    "accountMenuLabel": "Account menu",
+    "logout": "Log out",
+    "logoutConfirming": "Logging out…"
+  },
+  "placeSettings": {
+    "title": "Configure your place",
+    "sidebar": {
+      "language": "Place language",
+      "members": "Members",
+      "appearance": "Appearance",
+      "hours": "Open hours",
+      "billing": "Billing",
+      "domain": "Custom domain",
+      "comingSoon": "Coming soon"
+    },
+    "language": {
+      "title": "Place language",
+      "description": "It's the language your place will be shown in to whoever visits it. You can change it whenever you want.",
+      "label": "Language",
+      "options": {
+        "es": "Español",
+        "en": "English",
+        "fr": "Français",
+        "pt": "Português",
+        "de": "Deutsch",
+        "ca": "Català"
+      },
+      "save": "Save",
+      "saving": "Saving…",
+      "successTitle": "Language updated.",
+      "successBody": "The next load will appear in {language}.",
+      "errorNotice": "We couldn't save the language. Try again."
+    }
+  }
+}

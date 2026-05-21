@@ -1,0 +1,380 @@
+{
+  "meta": {
+    "title": "Place — um lugar, não uma plataforma",
+    "description": "Um lugar para até 150 pessoas que se conhecem. Você entra, se atualiza, participa se quiser, e sai. Sem FOMO, sem métricas, sem algoritmo."
+  },
+  "a11y": {
+    "skipToContent": "Pular para o conteúdo",
+    "openMenu": "Abrir menu",
+    "closeMenu": "Fechar menu",
+    "primaryNav": "Navegação principal",
+    "language": "Idioma"
+  },
+  "nav": {
+    "brand": "Place",
+    "comoFunciona": "Como funciona",
+    "diferencia": "O que o torna diferente",
+    "precios": "Preços",
+    "faq": "Perguntas",
+    "acceso": "Entrar",
+    "cta": "Crie o seu Place"
+  },
+  "hero": {
+    "kicker": "Um lugar, não uma plataforma",
+    "title": "Um lugar, não uma plataforma.",
+    "subhead": "Até 150 pessoas que se conhecem. Sem FOMO, sem métricas, sem algoritmo.",
+    "cta": "Crie o seu Place",
+    "ctaHint": "30 dias grátis. Sem cartão para começar.",
+    "summary": "Você entra, se atualiza, participa se quiser, e sai."
+  },
+  "socialProof": {
+    "text": "Para clubes, oficinas, equipes e comunidades de até 150 pessoas."
+  },
+  "problema": {
+    "kicker": "O problema",
+    "title": "As plataformas de comunidade não estão do seu lado.",
+    "points": [
+      {
+        "title": "Te tratam como gerador de engajamento",
+        "body": "O negócio delas melhora quando você e a sua gente passam mais tempo dentro. O seu, não necessariamente."
+      },
+      {
+        "title": "Tratam a sua gente como audiência",
+        "body": "Métricas, feeds que não terminam, notificações que perseguem. Pessoas convertidas em números que sobem."
+      },
+      {
+        "title": "Cobram comissão pela sua própria comunidade",
+        "body": "Uma porcentagem do que a sua gente paga, que vai embora antes de chegar até você."
+      }
+    ]
+  },
+  "comoFunciona": {
+    "kicker": "Como funciona",
+    "title": "Um lugar com o próprio ritmo.",
+    "intro": "Mecanismos pensados para que seja um lugar, não uma máquina de atenção.",
+    "mechanisms": [
+      {
+        "title": "Conversas por turnos",
+        "body": "Fala-se por turnos, não num chat que corre. O que se diz fica e se lê com calma."
+      },
+      {
+        "title": "Presença silenciosa",
+        "body": "Você vê quem está por um sinal visual discreto. Nunca um texto ansioso nem uma animação que reclama."
+      },
+      {
+        "title": "O Place tem horário",
+        "body": "Abre e fecha quando os seus membros decidem. Fora do horário, o lugar descansa — e você também."
+      },
+      {
+        "title": "Os temas não morrem",
+        "body": "Uma conversa de meses atrás revive com uma única mensagem. Nada caduca por inatividade."
+      },
+      {
+        "title": "Identidade visual própria",
+        "body": "Cada Place escolhe as suas cores e o seu tom. Sente-se seu, não mais um template."
+      }
+    ],
+    "cta": "Crie o seu Place"
+  },
+  "diferenciacion": {
+    "kicker": "O que o torna diferente",
+    "title": "Uma comunidade, não uma audiência.",
+    "body": "As outras plataformas ganham mais quanto maior e mais viciada está a sua comunidade. Nós colocamos o teto em 150 e não cobramos comissão pela sua gente. O nosso incentivo é que o seu lugar seja bom, não infinito.",
+    "comparison": {
+      "audienceLabel": "Uma audiência",
+      "communityLabel": "Uma comunidade",
+      "rows": [
+        {
+          "audience": "Cresce sem teto",
+          "community": "Até 150 — todo mundo se conhece"
+        },
+        {
+          "audience": "Feed ordenado por algoritmo",
+          "community": "Conversas por turnos, cronológicas"
+        },
+        {
+          "audience": "Métricas e comparação",
+          "community": "Pertencimento e papel, sem ranking"
+        },
+        {
+          "audience": "Te persegue com notificações",
+          "community": "Tem horário e fecha"
+        }
+      ]
+    },
+    "dunbar": "150 não é o limite de um plano: é uma decisão de design. É perto do número de Dunbar — a quantidade de pessoas com quem alguém sustenta um vínculo real."
+  },
+  "paraQuien": {
+    "kicker": "Para quem",
+    "title": "O seu lugar, seja o que for que você reúna.",
+    "tabs": [
+      {
+        "id": "creador",
+        "label": "Criadores",
+        "headline": "A sua comunidade, não a sua audiência.",
+        "body": "Para o criador cansado do modelo de engajamento: um lugar para a sua gente próxima, onde o que pagam chega até você e ninguém disputa a atenção de ninguém.",
+        "cta": "Crie o seu Place"
+      },
+      {
+        "id": "organizacion",
+        "label": "Organizações",
+        "headline": "O clube, a oficina, o grupo — com um lugar próprio.",
+        "body": "Para clubes, oficinas e grupos que já existem e precisam de um lugar tranquilo onde se encontrar, lembrar e se organizar, sem que vire mais uma rede social.",
+        "cta": "Crie o seu Place"
+      },
+      {
+        "id": "empresa",
+        "label": "Empresas",
+        "headline": "Uma intranet que se sente como um lugar.",
+        "body": "Para equipes que querem uma comunidade interna calma — não mais um canal que grita. Identidade própria, domínio próprio, ritmo próprio.",
+        "cta": "Solicitar uma demo"
+      }
+    ]
+  },
+  "pricing": {
+    "kicker": "Preços",
+    "title": "Transparente, sem custos escondidos.",
+    "subhead": "0 % de comissão no plano Comunidade. O que a sua comunidade paga chega até você.",
+    "freeTrial": "30 dias grátis",
+    "freeTrialNote": "Você prova o lugar completo. Sem cartão para começar.",
+    "plans": [
+      {
+        "id": "hobby",
+        "name": "Hobby",
+        "price": "$7",
+        "period": "/mês",
+        "description": "Para começar o seu lugar e ver como se sente.",
+        "cta": "Começar grátis"
+      },
+      {
+        "id": "comunidad",
+        "name": "Comunidade",
+        "price": "$30",
+        "period": "/mês",
+        "description": "O lugar completo, com 0 % de comissão sobre o que a sua comunidade paga.",
+        "cta": "Crie o seu Place",
+        "highlight": true
+      }
+    ],
+    "commissionLine": "0 % de comissão. A sua comunidade não é o nosso produto.",
+    "footnote": "O teto de 150 não é um limite de plano: é a decisão de design que faz com que seja um lugar."
+  },
+  "faq": {
+    "kicker": "Perguntas",
+    "title": "O que você está se perguntando.",
+    "items": [
+      {
+        "q": "Sem notificações agressivas, não morre?",
+        "a": "Pelo contrário. Os temas adormecidos não morrem: qualquer mensagem revive uma conversa de meses atrás. O horário não desliga a comunidade — torna-a um lugar ao qual se volta, não um app que te persegue."
+      },
+      {
+        "q": "E se formos mais de 150?",
+        "a": "150 é deliberado: perto do número de Dunbar, a quantidade de vínculos reais que alguém mantém. Se vocês são mais, provavelmente são várias comunidades — você pode ter mais de um Place."
+      },
+      {
+        "q": "E os meus dados e os da minha gente?",
+        "a": "Sem lock-in e com direito ao esquecimento: cada pessoa pode ir embora e apagar o seu rastro. A sua comunidade é sua, não um ativo que retemos."
+      },
+      {
+        "q": "Em quais idiomas está disponível?",
+        "a": "Espanhol desde o primeiro dia. Inglês, francês e português a caminho. O que a sua gente escreve fica no idioma em que foi escrito: nunca traduzimos por você."
+      },
+      {
+        "q": "Por que pago uma assinatura?",
+        "a": "Porque assim não cobramos comissão pela sua gente. Você paga um preço fixo e transparente; o que a sua comunidade aporta chega até você."
+      }
+    ]
+  },
+  "ctaFinal": {
+    "title": "O seu lugar te espera quando quiser abri-lo.",
+    "subhead": "30 dias grátis. Sem pressa, sem cartão para começar.",
+    "cta": "Crie o seu Place"
+  },
+  "footer": {
+    "tagline": "Um lugar, não uma plataforma.",
+    "navTitle": "Produto",
+    "comoFunciona": "Como funciona",
+    "precios": "Preços",
+    "faq": "Perguntas",
+    "legalTitle": "Legal",
+    "terminos": "Termos",
+    "privacidad": "Privacidade",
+    "contactoTitle": "Contato",
+    "contacto": "hola@place.community",
+    "languageTitle": "Idioma",
+    "rights": "Place"
+  },
+  "captures": {
+    "comoFunciona": "[CAPTURA: vista de uma conversa por turnos dentro de um Place, com a presença silenciosa de quem lê]",
+    "paraQuien": "[CAPTURA: o mesmo Place com identidade visual própria — cores e tom configurados pelo seu owner]"
+  },
+  "legal": {
+    "terminos": {
+      "title": "Termos de serviço",
+      "updated": "Última atualização: 16 de maio de 2026",
+      "body": "Rascunho inicial. O conteúdo legal definitivo é redigido antes do lançamento público. Para consultas, escreva para hola@place.community."
+    },
+    "privacidad": {
+      "title": "Privacidade",
+      "updated": "Última atualização: 16 de maio de 2026",
+      "body": "Rascunho inicial. Place é desenhado com direito ao esquecimento e sem lock-in: cada pessoa pode ir embora e apagar o seu rastro. A política definitiva é redigida antes do lançamento público. Para consultas, escreva para hola@place.community."
+    }
+  },
+  "notFound": {
+    "title": "Esta página não existe.",
+    "body": "Pode ser que o link esteja antigo ou que a página tenha sido movida.",
+    "cta": "Voltar ao início"
+  },
+  "access": {
+    "title": "Entrar",
+    "subtitle": "Entre na sua conta ou crie uma nova.",
+    "loginTab": "Iniciar sessão",
+    "signupTab": "Criar conta",
+    "emailLabel": "E-mail",
+    "emailPlaceholder": "voce@exemplo.com",
+    "emailInvalid": "Confira o e-mail",
+    "passwordLabel": "Senha",
+    "passwordPlaceholder": "Sua senha",
+    "passwordHint": "Pelo menos 8 caracteres",
+    "passwordTooShort": "A senha é muito curta (mín. 8)",
+    "displayNameLabel": "Seu nome",
+    "displayNamePlaceholder": "Como vão te ver",
+    "displayNameRequired": "Coloque o seu nome",
+    "terms": "Aceito os {terms} e a {privacy}.",
+    "termsLinkLabel": "termos",
+    "privacyLinkLabel": "política de privacidade",
+    "termsRequired": "Você precisa aceitar os termos",
+    "loginSubmit": "Entrar",
+    "signupSubmit": "Criar a minha conta",
+    "submitting": "Um momento…",
+    "loginFailedNotice": "Não conseguimos iniciar a sessão. Confira o e-mail e a senha.",
+    "signupFailedNotice": "Não conseguimos criar a conta. Talvez já tenha uma? Tente iniciar sessão.",
+    "back": "Voltar ao início"
+  },
+  "wizard": {
+    "title": "Crie o seu lugar",
+    "progress": "Passo {n} de {total}",
+    "steps": {
+      "identity": "Identidade",
+      "style": "Estilo",
+      "account": "Sua conta"
+    },
+    "next": "Próximo",
+    "back": "Voltar",
+    "create": "Criar o meu lugar",
+    "creating": "Criando o seu lugar…",
+    "nameLabel": "Nome do lugar",
+    "namePlaceholder": "O nome que vão ver ao entrar",
+    "slugLabel": "Endereço",
+    "slugHint": "O seu lugar vai viver em {slug}.{domain}",
+    "slugReserved": "Esse endereço está reservado, escolha outro",
+    "slugFormat": "Apenas minúsculas, números e hífens (mínimo 3 caracteres)",
+    "slugAvailableHint": "A disponibilidade final é confirmada ao criar o lugar",
+    "nameRequired": "Coloque um nome para o seu lugar",
+    "previewLabel": "É assim que vai ficar",
+    "previewEmptyName": "Seu lugar",
+    "guardrailNotice": "Ajustamos uma cor para que o texto se leia bem",
+    "paletteLabel": "Cores",
+    "palettes": {
+      "papel": "Papel",
+      "bosque": "Floresta",
+      "tinta": "Tinta",
+      "arcilla": "Argila"
+    },
+    "emailLabel": "E-mail",
+    "emailPlaceholder": "voce@exemplo.com",
+    "emailInvalid": "Confira o e-mail",
+    "passwordLabel": "Senha",
+    "passwordPlaceholder": "Pelo menos 8 caracteres",
+    "passwordHint": "Pelo menos 8 caracteres",
+    "passwordTooShort": "A senha precisa ter pelo menos 8 caracteres",
+    "displayNameLabel": "Seu nome",
+    "displayNamePlaceholder": "Como vão te ver no seu lugar",
+    "displayNameRequired": "Coloque o seu nome",
+    "terms": "Aceito os {terms} e a {privacy}.",
+    "termsLinkLabel": "termos",
+    "privacyLinkLabel": "política de privacidade",
+    "termsRequired": "Você precisa aceitar os termos para criar o seu lugar",
+    "successTitle": "Seu lugar está pronto",
+    "successBody": "Você já pode entrar em {url}.",
+    "successOpen": "Abrir o meu lugar",
+    "slugTakenNotice": "Esse endereço já tem dono, tente outro",
+    "invalidNotice": "Confira os dados e tente de novo",
+    "errorNotice": "Não conseguimos criar o seu lugar. Tente de novo em um momento.",
+    "accountFailedNotice": "Não conseguimos criar a conta. Talvez você já tenha uma com esse e-mail — tente iniciar sessão.",
+    "paletteModeLabel": "Como você escolhe as cores?",
+    "paletteModePreset": "Predefinidas",
+    "paletteModeCustom": "Personalizadas",
+    "paletteCustomTitle": "Suas cores",
+    "paletteCustomAccentLabel": "Cor principal",
+    "paletteCustomBgLabel": "Fundo",
+    "paletteCustomInkLabel": "Texto",
+    "paletteCustomHexInvalid": "Hex inválido (#rrggbb).",
+    "paletteCustomPickerSuffix": "(seletor de cor)",
+    "defaultLocaleLabel": "Em que idioma fala o seu lugar?",
+    "locales": {
+      "es": "Español",
+      "en": "English",
+      "fr": "Français",
+      "pt": "Português",
+      "de": "Deutsch",
+      "ca": "Català"
+    }
+  },
+  "inbox": {
+    "viewTitle": "Seus lugares",
+    "cardEnter": "Entrar",
+    "cardSettings": "Configurar",
+    "cardMemberSince": "Membro desde {date}",
+    "statusPaymentPending": "Pagamento pendente",
+    "statusInactivationProcess": "Em recuperação",
+    "statusInactive": "Fechado",
+    "emptyTitle": "Você ainda não tem nenhum lugar.",
+    "emptyBody": "Você pode criar o seu ou entrar em um com um convite.",
+    "emptyCreateAction": "Criar um lugar",
+    "emptyJoinAction": "Entrar em um lugar",
+    "emptyJoinComingSoon": "Em breve"
+  },
+  "navHub": {
+    "appName": "Place",
+    "sidebarToggleOpen": "Abrir menu",
+    "sidebarToggleClose": "Fechar menu",
+    "sidebarPlaces": "Seus lugares",
+    "sidebarMessages": "Mensagens",
+    "sidebarActivity": "Atividade",
+    "sidebarComingSoon": "Em breve",
+    "accountMenuLabel": "Menu da conta",
+    "logout": "Sair",
+    "logoutConfirming": "Saindo…"
+  },
+  "placeSettings": {
+    "title": "Configure o seu lugar",
+    "sidebar": {
+      "language": "Idioma do Place",
+      "members": "Membros",
+      "appearance": "Aparência",
+      "hours": "Horário",
+      "billing": "Cobrança",
+      "domain": "Domínio próprio",
+      "comingSoon": "Em breve"
+    },
+    "language": {
+      "title": "Idioma do Place",
+      "description": "É o idioma em que o seu lugar será mostrado para quem o visita. Você pode mudar quando quiser.",
+      "label": "Idioma",
+      "options": {
+        "es": "Español",
+        "en": "English",
+        "fr": "Français",
+        "pt": "Português",
+        "de": "Deutsch",
+        "ca": "Català"
+      },
+      "save": "Salvar",
+      "saving": "Salvando…",
+      "successTitle": "Idioma atualizado.",
+      "successBody": "No próximo carregamento aparecerá em {language}.",
+      "errorNotice": "Não conseguimos salvar o idioma. Tente de novo."
+    }
+  }
+}

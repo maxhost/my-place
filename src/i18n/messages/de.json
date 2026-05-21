@@ -1,358 +1,367 @@
 {
   "meta": {
-    "title": "Place — un lugar, no una plataforma",
-    "description": "Un lugar para hasta 150 personas que se conocen. Entrás, te ponés al día, participás si querés, y salís. Sin FOMO, sin métricas, sin algoritmo."
+    "title": "Place — ein Ort, keine Plattform",
+    "description": "Ein Ort für bis zu 150 Menschen, die sich kennen. Du kommst rein, bleibst auf dem Laufenden, machst mit, wenn du willst, und gehst wieder. Ohne FOMO, ohne Metriken, ohne Algorithmus."
   },
   "a11y": {
-    "skipToContent": "Saltar al contenido",
-    "openMenu": "Abrir menú",
-    "closeMenu": "Cerrar menú",
-    "primaryNav": "Navegación principal",
-    "language": "Idioma"
+    "skipToContent": "Zum Inhalt springen",
+    "openMenu": "Menü öffnen",
+    "closeMenu": "Menü schließen",
+    "primaryNav": "Hauptnavigation",
+    "language": "Sprache"
   },
   "nav": {
     "brand": "Place",
-    "comoFunciona": "Cómo funciona",
-    "diferencia": "Qué lo hace distinto",
-    "precios": "Precios",
-    "faq": "Preguntas",
-    "acceso": "Acceso",
-    "cta": "Creá tu place"
+    "comoFunciona": "So funktioniert es",
+    "diferencia": "Was es anders macht",
+    "precios": "Preise",
+    "faq": "Fragen",
+    "acceso": "Anmelden",
+    "cta": "Erstelle deinen Place"
   },
   "hero": {
-    "kicker": "Un lugar, no una plataforma",
-    "title": "Un lugar, no una plataforma.",
-    "subhead": "Hasta 150 personas que se conocen. Sin FOMO, sin métricas, sin algoritmo.",
-    "cta": "Creá tu place",
-    "ctaHint": "30 días gratis. Sin tarjeta para empezar.",
-    "summary": "Entrás, te ponés al día, participás si querés, y salís."
+    "kicker": "Ein Ort, keine Plattform",
+    "title": "Ein Ort, keine Plattform.",
+    "subhead": "Bis zu 150 Menschen, die sich kennen. Ohne FOMO, ohne Metriken, ohne Algorithmus.",
+    "cta": "Erstelle deinen Place",
+    "ctaHint": "30 Tage kostenlos. Keine Karte nötig.",
+    "summary": "Du kommst rein, bleibst auf dem Laufenden, machst mit, wenn du willst, und gehst wieder."
   },
   "socialProof": {
-    "text": "Para clubes, talleres, equipos y comunidades de hasta 150 personas."
+    "text": "Für Clubs, Workshops, Teams und Gemeinschaften von bis zu 150 Menschen."
   },
   "problema": {
-    "kicker": "El problema",
-    "title": "Las plataformas de comunidad no están de tu lado.",
+    "kicker": "Das Problem",
+    "title": "Community-Plattformen stehen nicht auf deiner Seite.",
     "points": [
       {
-        "title": "Te tratan como generador de engagement",
-        "body": "Su negocio mejora cuando vos y tu gente pasan más tiempo adentro. El tuyo, no necesariamente."
+        "title": "Sie behandeln dich als Engagement-Generator",
+        "body": "Ihr Geschäft läuft besser, wenn du und deine Leute mehr Zeit drin verbringen. Deines nicht unbedingt."
       },
       {
-        "title": "Tratan a tu gente como audiencia",
-        "body": "Métricas, feeds que no terminan, notificaciones que persiguen. Personas convertidas en números que suben."
+        "title": "Sie behandeln deine Leute als Publikum",
+        "body": "Metriken, endlose Feeds, Benachrichtigungen, die verfolgen. Menschen, die in Zahlen verwandelt werden, die steigen."
       },
       {
-        "title": "Te cobran comisión por tu propia comunidad",
-        "body": "Un porcentaje de lo que tu gente paga, que se va antes de llegar a vos."
+        "title": "Sie nehmen Provision für deine eigene Community",
+        "body": "Ein Prozentsatz von dem, was deine Leute zahlen, der weg ist, bevor er bei dir ankommt."
       }
     ]
   },
   "comoFunciona": {
-    "kicker": "Cómo funciona",
-    "title": "Un lugar con su propio ritmo.",
-    "intro": "Mecanismos pensados para que sea un lugar, no una máquina de atención.",
+    "kicker": "So funktioniert es",
+    "title": "Ein Ort mit seinem eigenen Rhythmus.",
+    "intro": "Mechanismen, damit es ein Ort ist, keine Aufmerksamkeitsmaschine.",
     "mechanisms": [
       {
-        "title": "Conversaciones por turnos",
-        "body": "Se habla por turnos, no en un chat que corre. Lo dicho queda y se lee con calma."
+        "title": "Gespräche der Reihe nach",
+        "body": "Gesprochen wird nacheinander, nicht in einem Chat, der davonläuft. Das Gesagte bleibt und wird in Ruhe gelesen."
       },
       {
-        "title": "Presencia silenciosa",
-        "body": "Ves quién está por una señal visual discreta. Nunca un texto ansioso ni una animación que reclama."
+        "title": "Stille Präsenz",
+        "body": "Du siehst, wer da ist, durch ein dezentes visuelles Signal. Nie ein hektischer Text oder eine Animation, die ruft."
       },
       {
-        "title": "El place tiene horario",
-        "body": "Abre y cierra cuando sus miembros deciden. Fuera de hora, el lugar descansa — y vos también."
+        "title": "Der Place hat Öffnungszeiten",
+        "body": "Er öffnet und schließt, wenn seine Mitglieder es entscheiden. Außerhalb der Zeiten ruht der Ort — und du auch."
       },
       {
-        "title": "Los temas no mueren",
-        "body": "Una conversación de hace meses revive con un solo mensaje. Nada caduca por inactividad."
+        "title": "Themen sterben nicht",
+        "body": "Ein Gespräch von vor Monaten lebt mit einer einzigen Nachricht wieder auf. Nichts verfällt durch Inaktivität."
       },
       {
-        "title": "Identidad visual propia",
-        "body": "Cada place elige sus colores y su tono. Se siente tuyo, no una plantilla más."
+        "title": "Eigene visuelle Identität",
+        "body": "Jeder Place wählt seine Farben und seinen Ton. Er fühlt sich wie deiner an, nicht wie eine weitere Vorlage."
       }
     ],
-    "cta": "Creá tu place"
+    "cta": "Erstelle deinen Place"
   },
   "diferenciacion": {
-    "kicker": "Qué lo hace distinto",
-    "title": "Una comunidad, no una audiencia.",
-    "body": "Las demás plataformas ganan más cuanto más grande y más adicta es tu comunidad. Nosotros ponemos el techo en 150 y no te cobramos comisión por tu gente. Nuestro incentivo es que tu lugar sea bueno, no infinito.",
+    "kicker": "Was es anders macht",
+    "title": "Eine Gemeinschaft, kein Publikum.",
+    "body": "Die anderen Plattformen verdienen mehr, je größer und süchtiger deine Community ist. Wir setzen die Grenze bei 150 und nehmen keine Provision von deinen Leuten. Unser Anreiz ist, dass dein Ort gut ist, nicht unendlich.",
     "comparison": {
-      "audienceLabel": "Una audiencia",
-      "communityLabel": "Una comunidad",
+      "audienceLabel": "Ein Publikum",
+      "communityLabel": "Eine Gemeinschaft",
       "rows": [
         {
-          "audience": "Crece sin techo",
-          "community": "Hasta 150 — todos se conocen"
+          "audience": "Wächst ohne Obergrenze",
+          "community": "Bis zu 150 — alle kennen sich"
         },
         {
-          "audience": "Feed ordenado por algoritmo",
-          "community": "Conversaciones por turnos, cronológicas"
+          "audience": "Feed nach Algorithmus sortiert",
+          "community": "Gespräche der Reihe nach, chronologisch"
         },
         {
-          "audience": "Métricas y comparación",
-          "community": "Pertenencia y rol, sin ranking"
+          "audience": "Metriken und Vergleich",
+          "community": "Zugehörigkeit und Rolle, ohne Ranking"
         },
         {
-          "audience": "Te persigue con notificaciones",
-          "community": "Tiene horario y cierra"
+          "audience": "Verfolgt dich mit Benachrichtigungen",
+          "community": "Hat Öffnungszeiten und schließt"
         }
       ]
     },
-    "dunbar": "150 no es el límite de un plan: es una decisión de diseño. Es cerca del número de Dunbar — la cantidad de personas con las que alguien sostiene un vínculo real."
+    "dunbar": "150 ist nicht das Limit eines Plans: es ist eine Designentscheidung. Es liegt nahe an der Dunbar-Zahl — der Anzahl von Menschen, mit denen jemand eine echte Verbindung aufrechterhält."
   },
   "paraQuien": {
-    "kicker": "Para quién",
-    "title": "Tu lugar, sea lo que sea que reúnas.",
+    "kicker": "Für wen",
+    "title": "Dein Ort, was auch immer du zusammenbringst.",
     "tabs": [
       {
         "id": "creador",
-        "label": "Creadores",
-        "headline": "Tu comunidad, no tu audiencia.",
-        "body": "Para el creador cansado del modelo de engagement: un lugar para tu gente cercana, donde lo que pagan llega a vos y nadie compite por la atención de nadie.",
-        "cta": "Creá tu place"
+        "label": "Creators",
+        "headline": "Deine Community, nicht dein Publikum.",
+        "body": "Für den Creator, der das Engagement-Modell satt hat: ein Ort für deine nahestehenden Leute, wo das, was sie zahlen, bei dir ankommt und niemand um die Aufmerksamkeit von jemandem konkurriert.",
+        "cta": "Erstelle deinen Place"
       },
       {
         "id": "organizacion",
-        "label": "Organizaciones",
-        "headline": "El club, el taller, el grupo — con un lugar propio.",
-        "body": "Para clubes, talleres y grupos que ya existen y necesitan un lugar tranquilo donde encontrarse, recordar y organizarse, sin que se vuelva otra red social.",
-        "cta": "Creá tu place"
+        "label": "Organisationen",
+        "headline": "Der Club, der Workshop, die Gruppe — mit einem eigenen Ort.",
+        "body": "Für Clubs, Workshops und Gruppen, die bereits existieren und einen ruhigen Ort brauchen, um sich zu treffen, zu erinnern und zu organisieren, ohne dass es zu einem weiteren sozialen Netzwerk wird.",
+        "cta": "Erstelle deinen Place"
       },
       {
         "id": "empresa",
-        "label": "Empresas",
-        "headline": "Una intranet que se siente como un lugar.",
-        "body": "Para equipos que quieren una comunidad interna calma — no otro canal que grita. Identidad propia, dominio propio, ritmo propio.",
-        "cta": "Solicitá una demo"
+        "label": "Unternehmen",
+        "headline": "Ein Intranet, das sich wie ein Ort anfühlt.",
+        "body": "Für Teams, die eine ruhige interne Gemeinschaft wollen — keinen weiteren Kanal, der schreit. Eigene Identität, eigene Domain, eigener Rhythmus.",
+        "cta": "Demo anfragen"
       }
     ]
   },
   "pricing": {
-    "kicker": "Precios",
-    "title": "Transparente, sin costos escondidos.",
-    "subhead": "0% de comisión en el plan Comunidad. Lo que tu comunidad paga, llega a vos.",
-    "freeTrial": "30 días gratis",
-    "freeTrialNote": "Probás el lugar completo. Sin tarjeta para empezar.",
+    "kicker": "Preise",
+    "title": "Transparent, ohne versteckte Kosten.",
+    "subhead": "0 % Provision im Community-Plan. Was deine Community zahlt, kommt bei dir an.",
+    "freeTrial": "30 Tage kostenlos",
+    "freeTrialNote": "Du probierst den ganzen Ort. Keine Karte zum Anfangen.",
     "plans": [
       {
         "id": "hobby",
         "name": "Hobby",
         "price": "$7",
-        "period": "/mes",
-        "description": "Para empezar tu lugar y ver cómo se siente.",
-        "cta": "Empezá gratis"
+        "period": "/Monat",
+        "description": "Um deinen Ort zu starten und zu sehen, wie er sich anfühlt.",
+        "cta": "Kostenlos starten"
       },
       {
         "id": "comunidad",
-        "name": "Comunidad",
+        "name": "Community",
         "price": "$30",
-        "period": "/mes",
-        "description": "El lugar completo, con 0% de comisión sobre lo que tu comunidad paga.",
-        "cta": "Creá tu place",
+        "period": "/Monat",
+        "description": "Der vollständige Ort, mit 0 % Provision auf das, was deine Community zahlt.",
+        "cta": "Erstelle deinen Place",
         "highlight": true
       }
     ],
-    "commissionLine": "0% de comisión. Tu comunidad no es nuestro producto.",
-    "footnote": "El techo de 150 no es un límite de plan: es la decisión de diseño que hace que sea un lugar."
+    "commissionLine": "0 % Provision. Deine Community ist nicht unser Produkt.",
+    "footnote": "Das Limit von 150 ist keine Plan-Grenze: es ist die Designentscheidung, die es zu einem Ort macht."
   },
   "faq": {
-    "kicker": "Preguntas",
-    "title": "Lo que te estás preguntando.",
+    "kicker": "Fragen",
+    "title": "Was du dich gerade fragst.",
     "items": [
       {
-        "q": "Sin notificaciones agresivas, ¿no se muere?",
-        "a": "Al revés. Los temas dormidos no mueren: cualquier mensaje revive una conversación de hace meses. El horario no apaga la comunidad — la vuelve un lugar al que se vuelve, no una app que te persigue."
+        "q": "Ohne aggressive Benachrichtigungen, stirbt es nicht?",
+        "a": "Im Gegenteil. Schlafende Themen sterben nicht: jede Nachricht weckt ein Gespräch von vor Monaten wieder auf. Die Öffnungszeiten schalten die Community nicht ab — sie machen sie zu einem Ort, zu dem man zurückkehrt, nicht zu einer App, die dich verfolgt."
       },
       {
-        "q": "¿Y si somos más de 150?",
-        "a": "150 es deliberado: cerca del número de Dunbar, la cantidad de vínculos reales que alguien sostiene. Si son más, probablemente sean varias comunidades — podés tener más de un place."
+        "q": "Und wenn wir mehr als 150 sind?",
+        "a": "150 ist bewusst gewählt: nahe an der Dunbar-Zahl, der Anzahl echter Verbindungen, die jemand aufrechterhält. Wenn ihr mehr seid, seid ihr wahrscheinlich mehrere Communitys — du kannst mehr als einen Place haben."
       },
       {
-        "q": "¿Mis datos y los de mi gente?",
-        "a": "Sin lock-in y con derecho al olvido: cada persona puede irse y borrar su rastro. Tu comunidad es tuya, no un activo que retenemos."
+        "q": "Was ist mit meinen Daten und denen meiner Leute?",
+        "a": "Ohne Lock-in und mit Recht auf Vergessenwerden: jede Person kann gehen und ihre Spuren löschen. Deine Community gehört dir, nicht uns als Asset, das wir festhalten."
       },
       {
-        "q": "¿En qué idiomas está?",
-        "a": "Español desde el día uno. Inglés, francés y portugués en camino. Lo que escribe tu gente queda en el idioma en que lo escribió: nunca lo traducimos por vos."
+        "q": "In welchen Sprachen ist es verfügbar?",
+        "a": "Spanisch ab dem ersten Tag. Englisch, Französisch und Portugiesisch sind unterwegs. Was deine Leute schreiben, bleibt in der Sprache, in der sie es geschrieben haben: wir übersetzen es nie für dich."
       },
       {
-        "q": "¿Por qué pago una suscripción?",
-        "a": "Porque así no te cobramos comisión por tu gente. Pagás un precio fijo y transparente; lo que tu comunidad aporta, llega a vos."
+        "q": "Warum zahle ich ein Abo?",
+        "a": "Weil wir dir so keine Provision für deine Leute berechnen. Du zahlst einen festen, transparenten Preis; was deine Community beiträgt, kommt bei dir an."
       }
     ]
   },
   "ctaFinal": {
-    "title": "Tu lugar te espera cuando quieras abrirlo.",
-    "subhead": "30 días gratis. Sin apuro, sin tarjeta para empezar.",
-    "cta": "Creá tu place"
+    "title": "Dein Ort wartet, wann immer du ihn öffnen willst.",
+    "subhead": "30 Tage kostenlos. Ohne Eile, ohne Karte zum Anfangen.",
+    "cta": "Erstelle deinen Place"
   },
   "footer": {
-    "tagline": "Un lugar, no una plataforma.",
-    "navTitle": "Producto",
-    "comoFunciona": "Cómo funciona",
-    "precios": "Precios",
-    "faq": "Preguntas",
-    "legalTitle": "Legal",
-    "terminos": "Términos",
-    "privacidad": "Privacidad",
-    "contactoTitle": "Contacto",
+    "tagline": "Ein Ort, keine Plattform.",
+    "navTitle": "Produkt",
+    "comoFunciona": "So funktioniert es",
+    "precios": "Preise",
+    "faq": "Fragen",
+    "legalTitle": "Rechtliches",
+    "terminos": "Bedingungen",
+    "privacidad": "Datenschutz",
+    "contactoTitle": "Kontakt",
     "contacto": "hola@place.community",
-    "languageTitle": "Idioma",
+    "languageTitle": "Sprache",
     "rights": "Place"
   },
   "captures": {
-    "comoFunciona": "[CAPTURA: vista de una conversación por turnos dentro de un place, con la presencia silenciosa de quién está leyendo]",
-    "paraQuien": "[CAPTURA: el mismo place con identidad visual propia — colores y tono configurados por su owner]"
+    "comoFunciona": "[BILD: Ansicht eines Gesprächs der Reihe nach in einem Place, mit der stillen Präsenz derer, die lesen]",
+    "paraQuien": "[BILD: derselbe Place mit eigener visueller Identität — Farben und Ton vom Owner konfiguriert]"
   },
   "legal": {
     "terminos": {
-      "title": "Términos del servicio",
-      "updated": "Última actualización: 16 de mayo de 2026",
-      "body": "Borrador inicial. El contenido legal definitivo se redacta antes del lanzamiento público. Para consultas, escribí a hola@place.community."
+      "title": "Nutzungsbedingungen",
+      "updated": "Zuletzt aktualisiert: 16. Mai 2026",
+      "body": "Erster Entwurf. Der endgültige rechtliche Inhalt wird vor der öffentlichen Einführung verfasst. Für Anfragen schreibe an hola@place.community."
     },
     "privacidad": {
-      "title": "Privacidad",
-      "updated": "Última actualización: 16 de mayo de 2026",
-      "body": "Borrador inicial. Place se diseña con derecho al olvido y sin lock-in: cada persona puede irse y borrar su rastro. La política definitiva se redacta antes del lanzamiento público. Para consultas, escribí a hola@place.community."
+      "title": "Datenschutz",
+      "updated": "Zuletzt aktualisiert: 16. Mai 2026",
+      "body": "Erster Entwurf. Place wird mit Recht auf Vergessenwerden und ohne Lock-in entwickelt: jede Person kann gehen und ihre Spuren löschen. Die endgültige Richtlinie wird vor der öffentlichen Einführung verfasst. Für Anfragen schreibe an hola@place.community."
     }
   },
   "notFound": {
-    "title": "Esta página no existe.",
-    "body": "Puede que el enlace esté viejo o que la página se haya movido.",
-    "cta": "Volver al inicio"
+    "title": "Diese Seite existiert nicht.",
+    "body": "Vielleicht ist der Link veraltet oder die Seite wurde verschoben.",
+    "cta": "Zurück zur Startseite"
   },
   "access": {
-    "title": "Acceso",
-    "subtitle": "Entrá a tu cuenta o creá una nueva.",
-    "loginTab": "Iniciar sesión",
-    "signupTab": "Crear cuenta",
-    "emailLabel": "Email",
-    "emailPlaceholder": "vos@ejemplo.com",
-    "emailInvalid": "Revisá el email",
-    "passwordLabel": "Contraseña",
-    "passwordPlaceholder": "Tu contraseña",
-    "passwordHint": "Al menos 8 caracteres",
-    "passwordTooShort": "La contraseña es muy corta (mín. 8)",
-    "displayNameLabel": "Tu nombre",
-    "displayNamePlaceholder": "Cómo te van a ver",
-    "displayNameRequired": "Poné tu nombre",
-    "terms": "Acepto los {terms} y la {privacy}.",
-    "termsLinkLabel": "términos",
-    "privacyLinkLabel": "política de privacidad",
-    "termsRequired": "Necesitás aceptar los términos",
-    "loginSubmit": "Entrar",
-    "signupSubmit": "Crear mi cuenta",
-    "submitting": "Un momento…",
-    "loginFailedNotice": "No pudimos iniciar sesión. Revisá tu email y contraseña.",
-    "signupFailedNotice": "No pudimos crear la cuenta. ¿Quizás ya tenés una? Probá iniciar sesión.",
-    "back": "Volver al inicio"
+    "title": "Anmelden",
+    "subtitle": "Melde dich an oder erstelle ein neues Konto.",
+    "loginTab": "Anmelden",
+    "signupTab": "Konto erstellen",
+    "emailLabel": "E-Mail",
+    "emailPlaceholder": "du@beispiel.com",
+    "emailInvalid": "Überprüfe die E-Mail",
+    "passwordLabel": "Passwort",
+    "passwordPlaceholder": "Dein Passwort",
+    "passwordHint": "Mindestens 8 Zeichen",
+    "passwordTooShort": "Das Passwort ist zu kurz (mind. 8)",
+    "displayNameLabel": "Dein Name",
+    "displayNamePlaceholder": "Wie du gesehen wirst",
+    "displayNameRequired": "Gib deinen Namen ein",
+    "terms": "Ich akzeptiere die {terms} und die {privacy}.",
+    "termsLinkLabel": "Bedingungen",
+    "privacyLinkLabel": "Datenschutzerklärung",
+    "termsRequired": "Du musst die Bedingungen akzeptieren",
+    "loginSubmit": "Anmelden",
+    "signupSubmit": "Mein Konto erstellen",
+    "submitting": "Einen Moment…",
+    "loginFailedNotice": "Wir konnten dich nicht anmelden. Überprüfe E-Mail und Passwort.",
+    "signupFailedNotice": "Wir konnten das Konto nicht erstellen. Hast du vielleicht schon eines? Versuche, dich anzumelden.",
+    "back": "Zurück zur Startseite"
   },
   "wizard": {
-    "title": "Creá tu lugar",
-    "progress": "Paso {n} de {total}",
+    "title": "Erstelle deinen Ort",
+    "progress": "Schritt {n} von {total}",
     "steps": {
-      "identity": "Identidad",
-      "style": "Estilo",
-      "account": "Tu cuenta"
+      "identity": "Identität",
+      "style": "Stil",
+      "account": "Dein Konto"
     },
-    "next": "Siguiente",
-    "back": "Atrás",
-    "create": "Crear mi lugar",
-    "creating": "Creando tu lugar…",
-    "nameLabel": "Nombre del lugar",
-    "namePlaceholder": "El nombre que verán al entrar",
-    "slugLabel": "Dirección",
-    "slugHint": "Tu lugar va a vivir en {slug}.{domain}",
-    "slugReserved": "Esa dirección está reservada, elegí otra",
-    "slugFormat": "Solo minúsculas, números y guiones (mínimo 3 caracteres)",
-    "slugAvailableHint": "La disponibilidad final se confirma al crear el lugar",
-    "nameRequired": "Poné un nombre para tu lugar",
-    "previewLabel": "Así se va a ver",
-    "previewEmptyName": "Tu lugar",
-    "guardrailNotice": "Ajustamos un color para que el texto se lea bien",
-    "paletteLabel": "Colores",
+    "next": "Weiter",
+    "back": "Zurück",
+    "create": "Meinen Ort erstellen",
+    "creating": "Dein Ort wird erstellt…",
+    "nameLabel": "Name des Ortes",
+    "namePlaceholder": "Der Name, der beim Eintreten zu sehen sein wird",
+    "slugLabel": "Adresse",
+    "slugHint": "Dein Ort wird unter {slug}.{domain} leben",
+    "slugReserved": "Diese Adresse ist reserviert, wähle eine andere",
+    "slugFormat": "Nur Kleinbuchstaben, Zahlen und Bindestriche (mindestens 3 Zeichen)",
+    "slugAvailableHint": "Die endgültige Verfügbarkeit wird beim Erstellen des Ortes bestätigt",
+    "nameRequired": "Gib deinem Ort einen Namen",
+    "previewLabel": "So wird er aussehen",
+    "previewEmptyName": "Dein Ort",
+    "guardrailNotice": "Wir haben eine Farbe angepasst, damit der Text gut lesbar ist",
+    "paletteLabel": "Farben",
     "palettes": {
-      "papel": "Papel",
-      "bosque": "Bosque",
-      "tinta": "Tinta",
-      "arcilla": "Arcilla"
+      "papel": "Papier",
+      "bosque": "Wald",
+      "tinta": "Tinte",
+      "arcilla": "Ton"
     },
-    "emailLabel": "Email",
-    "emailPlaceholder": "vos@ejemplo.com",
-    "emailInvalid": "Revisá el email",
-    "passwordLabel": "Contraseña",
-    "passwordPlaceholder": "Al menos 8 caracteres",
-    "passwordHint": "Al menos 8 caracteres",
-    "passwordTooShort": "La contraseña tiene que tener al menos 8 caracteres",
-    "displayNameLabel": "Tu nombre",
-    "displayNamePlaceholder": "Cómo te van a ver en tu lugar",
-    "displayNameRequired": "Poné tu nombre",
-    "terms": "Acepto los {terms} y la {privacy}.",
-    "termsLinkLabel": "términos",
-    "privacyLinkLabel": "política de privacidad",
-    "termsRequired": "Necesitás aceptar los términos para crear tu lugar",
-    "successTitle": "Tu lugar está listo",
-    "successBody": "Ya podés entrar en {url}.",
-    "successOpen": "Abrir mi lugar",
-    "slugTakenNotice": "Esa dirección ya tiene dueño, probá con otra",
-    "invalidNotice": "Revisá los datos e intentá de nuevo",
-    "errorNotice": "No pudimos crear tu lugar. Probá de nuevo en un momento.",
-    "accountFailedNotice": "No pudimos crear la cuenta. Quizás ya tengas una con ese email — probá iniciar sesión.",
-    "paletteModeLabel": "¿Cómo elegís los colores?",
-    "paletteModePreset": "Predefinidas",
-    "paletteModeCustom": "Personalizado",
-    "paletteCustomTitle": "Tus colores",
-    "paletteCustomAccentLabel": "Color principal",
-    "paletteCustomBgLabel": "Fondo",
-    "paletteCustomInkLabel": "Texto",
-    "paletteCustomHexInvalid": "Hex inválido (#rrggbb).",
-    "paletteCustomPickerSuffix": "(selector de color)"
+    "emailLabel": "E-Mail",
+    "emailPlaceholder": "du@beispiel.com",
+    "emailInvalid": "Überprüfe die E-Mail",
+    "passwordLabel": "Passwort",
+    "passwordPlaceholder": "Mindestens 8 Zeichen",
+    "passwordHint": "Mindestens 8 Zeichen",
+    "passwordTooShort": "Das Passwort muss mindestens 8 Zeichen haben",
+    "displayNameLabel": "Dein Name",
+    "displayNamePlaceholder": "Wie du an deinem Ort gesehen wirst",
+    "displayNameRequired": "Gib deinen Namen ein",
+    "terms": "Ich akzeptiere die {terms} und die {privacy}.",
+    "termsLinkLabel": "Bedingungen",
+    "privacyLinkLabel": "Datenschutzerklärung",
+    "termsRequired": "Du musst die Bedingungen akzeptieren, um deinen Ort zu erstellen",
+    "successTitle": "Dein Ort ist bereit",
+    "successBody": "Du kannst jetzt unter {url} eintreten.",
+    "successOpen": "Meinen Ort öffnen",
+    "slugTakenNotice": "Diese Adresse ist schon vergeben, versuche eine andere",
+    "invalidNotice": "Überprüfe die Daten und versuche es erneut",
+    "errorNotice": "Wir konnten deinen Ort nicht erstellen. Versuche es gleich noch einmal.",
+    "accountFailedNotice": "Wir konnten das Konto nicht erstellen. Vielleicht hast du schon eines mit dieser E-Mail — versuche, dich anzumelden.",
+    "paletteModeLabel": "Wie wählst du die Farben?",
+    "paletteModePreset": "Vordefiniert",
+    "paletteModeCustom": "Eigene",
+    "paletteCustomTitle": "Deine Farben",
+    "paletteCustomAccentLabel": "Hauptfarbe",
+    "paletteCustomBgLabel": "Hintergrund",
+    "paletteCustomInkLabel": "Text",
+    "paletteCustomHexInvalid": "Ungültiger Hex (#rrggbb).",
+    "paletteCustomPickerSuffix": "(Farbwähler)",
+    "defaultLocaleLabel": "In welcher Sprache spricht dein Ort?",
+    "locales": {
+      "es": "Español",
+      "en": "English",
+      "fr": "Français",
+      "pt": "Português",
+      "de": "Deutsch",
+      "ca": "Català"
+    }
   },
   "inbox": {
-    "viewTitle": "Tus lugares",
-    "cardEnter": "Entrar",
-    "cardSettings": "Configurar",
-    "cardMemberSince": "Miembro desde {date}",
-    "statusPaymentPending": "Pago pendiente",
-    "statusInactivationProcess": "En recuperación",
-    "statusInactive": "Cerrado",
-    "emptyTitle": "Todavía no tenés ningún lugar.",
-    "emptyBody": "Podés crear el tuyo o sumarte a uno con una invitación.",
-    "emptyCreateAction": "Crear un lugar",
-    "emptyJoinAction": "Sumarme a un lugar",
-    "emptyJoinComingSoon": "Próximamente"
+    "viewTitle": "Deine Orte",
+    "cardEnter": "Eintreten",
+    "cardSettings": "Konfigurieren",
+    "cardMemberSince": "Mitglied seit {date}",
+    "statusPaymentPending": "Zahlung ausstehend",
+    "statusInactivationProcess": "In Wiederherstellung",
+    "statusInactive": "Geschlossen",
+    "emptyTitle": "Du hast noch keinen Ort.",
+    "emptyBody": "Du kannst deinen eigenen erstellen oder dich mit einer Einladung anschließen.",
+    "emptyCreateAction": "Einen Ort erstellen",
+    "emptyJoinAction": "Einem Ort beitreten",
+    "emptyJoinComingSoon": "Demnächst"
   },
   "navHub": {
     "appName": "Place",
-    "sidebarToggleOpen": "Abrir menú",
-    "sidebarToggleClose": "Cerrar menú",
-    "sidebarPlaces": "Tus lugares",
-    "sidebarMessages": "Mensajes",
-    "sidebarActivity": "Actividad",
-    "sidebarComingSoon": "Próximamente",
-    "accountMenuLabel": "Menú de cuenta",
-    "logout": "Cerrar sesión",
-    "logoutConfirming": "Cerrando sesión…"
+    "sidebarToggleOpen": "Menü öffnen",
+    "sidebarToggleClose": "Menü schließen",
+    "sidebarPlaces": "Deine Orte",
+    "sidebarMessages": "Nachrichten",
+    "sidebarActivity": "Aktivität",
+    "sidebarComingSoon": "Demnächst",
+    "accountMenuLabel": "Kontomenü",
+    "logout": "Abmelden",
+    "logoutConfirming": "Wird abgemeldet…"
   },
   "placeSettings": {
-    "title": "Configurar tu lugar",
+    "title": "Konfiguriere deinen Ort",
     "sidebar": {
-      "language": "Idioma del place",
-      "members": "Miembros",
-      "appearance": "Apariencia",
-      "hours": "Horario",
-      "billing": "Billing",
-      "domain": "Dominio custom",
-      "comingSoon": "Próximamente"
+      "language": "Sprache des Ortes",
+      "members": "Mitglieder",
+      "appearance": "Erscheinungsbild",
+      "hours": "Öffnungszeiten",
+      "billing": "Abrechnung",
+      "domain": "Eigene Domain",
+      "comingSoon": "Demnächst"
     },
     "language": {
-      "title": "Idioma del place",
-      "description": "Es el idioma en el que se mostrará tu lugar a quienes lo visiten. Podés cambiarlo cuando quieras.",
-      "label": "Idioma",
+      "title": "Sprache des Ortes",
+      "description": "Es ist die Sprache, in der dein Ort denjenigen angezeigt wird, die ihn besuchen. Du kannst sie jederzeit ändern.",
+      "label": "Sprache",
       "options": {
         "es": "Español",
         "en": "English",
@@ -361,11 +370,11 @@
         "de": "Deutsch",
         "ca": "Català"
       },
-      "save": "Guardar",
-      "saving": "Guardando…",
-      "successTitle": "Idioma actualizado.",
-      "successBody": "La próxima carga aparecerá en {language}.",
-      "errorNotice": "No pudimos guardar el idioma. Probá de nuevo."
+      "save": "Speichern",
+      "saving": "Wird gespeichert…",
+      "successTitle": "Sprache aktualisiert.",
+      "successBody": "Beim nächsten Laden erscheint alles auf {language}.",
+      "errorNotice": "Wir konnten die Sprache nicht speichern. Versuche es erneut."
     }
   }
 }
