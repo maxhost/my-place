@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { CreatePlaceResult } from "@/features/place-creation/public";
+import type { Locale } from "@/i18n/routing";
 import {
   PlaceWizard,
   type WizardLabels,
@@ -84,6 +85,7 @@ function setup(
   onCreateAccount: WizardSignUp = vi.fn<WizardSignUp>(async () => ({
     status: "ok",
   })),
+  opts: { defaultLocale?: Locale } = {},
 ) {
   const utils = render(
     <PlaceWizard
@@ -93,6 +95,7 @@ function setup(
       privacyHref="/es/privacidad"
       onSubmit={onSubmit}
       onCreateAccount={onCreateAccount}
+      defaultLocale={opts.defaultLocale}
     />,
   );
   return { ...utils, onSubmit, onCreateAccount };
@@ -488,5 +491,47 @@ describe("PlaceWizard — modo authed (S9, sin paso de cuenta)", () => {
     expect(onSubmit.mock.calls[0]).toHaveLength(1);
     const [input] = onSubmit.mock.calls[0];
     expect(input).toMatchObject({ name: "Mi Club", slug: "mi-club" });
+  });
+});
+
+// S2b.1 (ADR-0022 + ADR-0024): el wizard propaga `defaultLocale` desde la prop
+// hasta el payload del `onSubmit`. La prop refleja el locale del path (lo
+// cablea `crear/page.tsx` en S2b.2); hasta entonces el default 'es' espeja el
+// zod (`routing.defaultLocale`) sin regresión. El UI selector visible al owner
+// llega en S2b.2 — esta sesión sólo cierra el plumbing interno (state +
+// orquestador + prop + assert end-to-end del input).
+describe("PlaceWizard — locale del place (S2b.1: plumbing)", () => {
+  it("submit incluye defaultLocale='de' cuando la prop lo dice", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<WizardSubmit>(async () => ({
+      status: "created",
+      placeId: "p1",
+      slug: "mi-club",
+      adjustments: [],
+    }));
+    setup(onSubmit, undefined, { defaultLocale: "de" });
+    await fillToAccountStep(user);
+    await user.click(screen.getByRole("button", { name: "Crear mi lugar" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const [input] = onSubmit.mock.calls[0];
+    expect(input.defaultLocale).toBe("de");
+  });
+
+  it("submit default a 'es' cuando la prop no se pasa (backward-compat)", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<WizardSubmit>(async () => ({
+      status: "created",
+      placeId: "p1",
+      slug: "mi-club",
+      adjustments: [],
+    }));
+    setup(onSubmit);
+    await fillToAccountStep(user);
+    await user.click(screen.getByRole("button", { name: "Crear mi lugar" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const [input] = onSubmit.mock.calls[0];
+    expect(input.defaultLocale).toBe("es");
   });
 });

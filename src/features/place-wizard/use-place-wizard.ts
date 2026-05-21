@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { type Locale, routing } from "@/i18n/routing";
 import { useAccountStep } from "./use-account-step";
 import { useCreateSubmit } from "./use-create-submit";
 import { useIdentityStep } from "./use-identity-step";
@@ -44,13 +45,21 @@ export function usePlaceWizard(opts: {
    * sesión) antes del `onSubmit` authed. Requerido cuando `!authed`.
    */
   onCreateAccount?: WizardSignUp;
+  /**
+   * Locale inicial del Paso 1 (ADR-0022 + ADR-0024). El owner puede cambiarlo
+   * con el selector del Paso 1 (UI en S2b.2). Optional con default
+   * `routing.defaultLocale` ('es') para no regresar mientras `crear/page.tsx`
+   * aún no cablea explícitamente el locale del path — el zod hoy también
+   * defaultea a 'es', así que el comportamiento end-to-end es idéntico.
+   */
+  defaultLocale?: Locale;
 }) {
   const { labels, authed = false } = opts;
   const stepCount = labels.stepTitles.length;
 
   const nav = useWizardNav(stepCount);
   const { currentStep, isLastStep } = nav;
-  const identity = useIdentityStep();
+  const identity = useIdentityStep(opts.defaultLocale ?? routing.defaultLocale);
   const account = useAccountStep();
   const style = useStyleStep();
 
@@ -70,6 +79,9 @@ export function usePlaceWizard(opts: {
       name: identity.name.trim(),
       slug: identity.normalized,
       theme: style.selectedPalette,
+      // ADR-0022 + ADR-0024: el locale del place viaja del Paso 1 al payload.
+      // Zod lo valida contra `routing.locales` y lo propaga al SP (S2a.2).
+      defaultLocale: identity.defaultLocale,
     }),
     buildCredentials: () => ({
       email: account.email.trim(),

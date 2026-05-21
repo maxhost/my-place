@@ -1,5 +1,6 @@
 "use client";
 
+import type { Locale } from "@/i18n/routing";
 import { PlacePreview } from "./place-preview";
 import { usePlaceWizard } from "./use-place-wizard";
 import type {
@@ -36,6 +37,7 @@ export function PlaceWizard({
   onSubmit,
   onCreateAccount,
   authed = false,
+  defaultLocale,
 }: {
   labels: WizardLabels;
   rootDomain: string;
@@ -51,12 +53,20 @@ export function PlaceWizard({
   onCreateAccount?: WizardSignUp;
   /** Vía "Acceso" (S9): reutiliza el wizard sin el Paso 3 (cuenta). */
   authed?: boolean;
+  /**
+   * Locale inicial del Paso 1 (ADR-0022 + ADR-0024). La ruta `crear/page.tsx`
+   * lo cablea desde el segmento `[locale]` en S2b.2. Optional en S2b.1: el
+   * default ('es' vía `routing.defaultLocale`) espeja el zod del Server
+   * Action, así que omitir la prop reproduce el comportamiento previo.
+   */
+  defaultLocale?: Locale;
 }) {
   const w = usePlaceWizard({
     labels,
     onSubmit,
     onCreateAccount,
     authed,
+    defaultLocale,
   });
 
   if (w.result?.status === "created") {
