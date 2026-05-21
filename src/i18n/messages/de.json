@@ -373,7 +373,7 @@
       "save": "Speichern",
       "saving": "Wird gespeichert…",
       "successTitle": "Sprache aktualisiert.",
-      "successBody": "Beim nächsten Laden erscheint alles auf {language}.",
+      "successBody": "Dein Ort erscheint jetzt auf {language}.",
       "errorNotice": "Wir konnten die Sprache nicht speichern. Versuche es erneut."
     }
   }

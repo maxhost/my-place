@@ -45,7 +45,7 @@ const LABELS: LocaleSectionLabels = {
   save: "Guardar",
   saving: "Guardando…",
   successTitle: "Idioma actualizado.",
-  successBody: "La próxima carga aparecerá en {language}.",
+  successBody: "Tu lugar ahora aparece en {language}.",
   errorNotice: "No pudimos guardar el idioma. Probá de nuevo.",
 };
 
@@ -124,7 +124,7 @@ describe("LocaleSection — form Idioma del place (S7)", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText(/La próxima carga aparecerá en Deutsch\./),
+        screen.getByText(/Tu lugar ahora aparece en Deutsch\./),
       ).toBeInTheDocument(),
     );
     expect(screen.getByText("Idioma actualizado.")).toBeInTheDocument();
@@ -174,7 +174,7 @@ describe("LocaleSection — form Idioma del place (S7)", () => {
     resolve({ status: "ok" });
     await waitFor(() =>
       expect(
-        screen.getByText(/La próxima carga aparecerá en Français\./),
+        screen.getByText(/Tu lugar ahora aparece en Français\./),
       ).toBeInTheDocument(),
     );
   });
@@ -195,7 +195,7 @@ describe("LocaleSection — form Idioma del place (S7)", () => {
     resolve({ status: "ok" });
     await waitFor(() =>
       expect(
-        screen.getByText(/La próxima carga aparecerá en Português\./),
+        screen.getByText(/Tu lugar ahora aparece en Português\./),
       ).toBeInTheDocument(),
     );
   });

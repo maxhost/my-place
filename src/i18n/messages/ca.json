@@ -373,7 +373,7 @@
       "save": "Desar",
       "saving": "Desant…",
       "successTitle": "Idioma actualitzat.",
-      "successBody": "La pròxima càrrega apareixerà en {language}.",
+      "successBody": "El teu lloc ara apareix en {language}.",
       "errorNotice": "No hem pogut desar l'idioma. Torna-ho a provar."
     }
   }

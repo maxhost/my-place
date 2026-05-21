@@ -373,7 +373,7 @@
       "save": "Enregistrer",
       "saving": "Enregistrement…",
       "successTitle": "Langue mise à jour.",
-      "successBody": "Au prochain chargement tout apparaîtra en {language}.",
+      "successBody": "Ton lieu apparaît maintenant en {language}.",
       "errorNotice": "Nous n'avons pas pu enregistrer la langue. Réessaie."
     }
   }

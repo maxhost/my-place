@@ -373,7 +373,7 @@
       "save": "Guardar",
       "saving": "Guardando…",
       "successTitle": "Idioma actualizado.",
-      "successBody": "La próxima carga aparecerá en {language}.",
+      "successBody": "Tu lugar ahora aparece en {language}.",
       "errorNotice": "No pudimos guardar el idioma. Probá de nuevo."
     }
   }

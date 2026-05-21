@@ -373,7 +373,7 @@
       "save": "Save",
       "saving": "Saving…",
       "successTitle": "Language updated.",
-      "successBody": "The next load will appear in {language}.",
+      "successBody": "Your place now appears in {language}.",
       "errorNotice": "We couldn't save the language. Try again."
     }
   }
