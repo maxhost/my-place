@@ -48,6 +48,10 @@ export type PlaceCreationArgs = {
   description: string | null;
   themeConfig: ThemeConfig;
   openingHours: OpeningHours;
+  /** Locale del chrome del place (ADR-0022 + ADR-0024). Validado por zod
+   *  contra `routing.locales`; el caller lo pasa como 6º arg de
+   *  `app.create_place` (overload de migration 0007). */
+  defaultLocale: string;
   /** Avisos del guardrail para mostrarle al owner (ADR-0005 §8). */
   adjustments: ContrastAdjustment[];
 };
@@ -75,6 +79,8 @@ export function buildPlaceCreation(raw: unknown): PlaceCreationArgs {
     // calculan en render, no se persisten.
     themeConfig: { colors: palette },
     openingHours: input.openingHours ?? defaultOpeningHours(input.ownerTimezone),
+    // Zod ya aplicó default 'es' si el wizard no setea el campo (ADR-0024).
+    defaultLocale: input.defaultLocale,
     adjustments,
   };
 }

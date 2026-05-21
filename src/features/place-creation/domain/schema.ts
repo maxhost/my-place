@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isReservedSlug } from "@/shared/config/reserved-slugs";
+import { routing } from "@/i18n/routing";
 import {
   hexColorSchema,
   type Palette,
@@ -100,8 +101,23 @@ export const createPlaceInputSchema = z.object({
   theme: paletteSchema.optional(),
   ownerTimezone: timezoneSchema,
   openingHours: openingHoursSchema.optional(),
+  // ADR-0022 (place.default_locale editable por owner) + ADR-0024 (6 locales
+  // operativos día uno). Source of truth de la lista: `routing.locales` —
+  // mismo set que la cookie i18n y el path `/[locale]`. La DB tiene CHECK
+  // constraint con la misma lista (migration 0006) como defense-in-depth.
+  // Default 'es' (ADR-0024 + `routing.defaultLocale`): si el wizard no toca
+  // el campo (Paso 1 vacío), el place nace 'es' como hoy.
+  defaultLocale: z.enum(routing.locales).default(routing.defaultLocale),
 });
 
-export type CreatePlaceInput = z.infer<typeof createPlaceInputSchema>;
+// INPUT del wire (pre-parse). El Server Action recibe esto desde el wizard
+// y lo parsea internamente con `buildPlaceCreation` → defaults aplicados +
+// transforms (lowercase slug, trim name, etc.). Hasta S2a.1 el schema no tenía
+// `.default()` activos así que `z.infer` (= output) y `z.input` eran iguales
+// modulo transforms inmutables-de-tipo; con `defaultLocale: z.enum(...).default('es')`
+// la asimetría se vuelve real — el campo es opcional al INPUT pero garantizado
+// al OUTPUT. Tipar el contrato cliente↔servidor como INPUT permite que el
+// wizard omita defaultLocale hasta que S2b agregue el selector del Paso 1.
+export type CreatePlaceInput = z.input<typeof createPlaceInputSchema>;
 export type { Palette };
 export type { ThemeConfig };

@@ -80,14 +80,18 @@ export async function createPlace(
   //    DENTRO de la función (ADR-0012 §3); si falla, sólo rollbackea esta tx.
   try {
     const placeId = await ports.runAuthedTx(ident.accessToken, async (sql) => {
+      // Overload 6-arg de migration 0007 (S2a.1) — el 6º param es
+      // `default_locale`. La signature 5-arg de migration 0002 queda intacta
+      // como compatibility surface, pero el caller nuevo SIEMPRE invoca este.
       const rows = await sql(
-        "SELECT app.create_place($1, $2, $3, $4::jsonb, $5::jsonb) AS place_id",
+        "SELECT app.create_place($1, $2, $3, $4::jsonb, $5::jsonb, $6) AS place_id",
         [
           args.slug,
           args.name,
           args.description,
           JSON.stringify(args.themeConfig),
           JSON.stringify(args.openingHours),
+          args.defaultLocale,
         ],
       );
       return rows[0]?.place_id as string;

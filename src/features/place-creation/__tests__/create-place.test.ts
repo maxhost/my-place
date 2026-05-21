@@ -19,6 +19,10 @@ interface PlaceRow {
   id: string;
   ownerAuth: string;
   members: string[];
+  /** S2a.2: 6º arg de `app.create_place` — valida que la saga propaga el
+   *  locale del payload hasta el SP (zod default 'es' → caller → SP).
+   *  `undefined` significa que la saga llamó al overload 5-arg viejo. */
+  defaultLocale: string | undefined;
 }
 
 class FakeDb {
@@ -53,7 +57,10 @@ class FakeDb {
       }
       if (text.includes("app.create_place")) {
         this.calls.push("create_place");
-        const [slug] = params as string[];
+        // S2a.2: overload 6-arg de migration 0007. El 6º param es
+        // `default_locale`; se preserva en el row para que los tests assertten
+        // que la saga lo propaga desde el zod (default 'es' o el explícito).
+        const [slug, , , , , defaultLocale] = params as string[];
         const caller = appUsers.get(claims.sub);
         if (!caller) {
           throw Object.assign(new Error("app_user inexistente"), {
@@ -65,7 +72,12 @@ class FakeDb {
         }
         const id = `place-${++this.seq}`;
         // mín 1 owner: la función crea ownership+membership del caller, atómico.
-        places.set(slug, { id, ownerAuth: claims.sub, members: [claims.sub] });
+        places.set(slug, {
+          id,
+          ownerAuth: claims.sub,
+          members: [claims.sub],
+          defaultLocale,
+        });
         return [{ place_id: id }];
       }
       throw new Error(`query no modelada: ${text}`);
@@ -185,6 +197,7 @@ describe("createPlace — saga de orquestación (ADR-0005/0008/0012)", () => {
       id: "place-x",
       ownerAuth: "otro",
       members: ["otro"],
+      defaultLocale: "es",
     });
     const res = await createPlace(VALID_INPUT, {
       acquireIdentity: async () => ({
@@ -201,6 +214,41 @@ describe("createPlace — saga de orquestación (ADR-0005/0008/0012)", () => {
     // Atomicidad: ni place propio ni ownership/membership huérfanos.
     expect(db.places.get("mi-comunidad")?.ownerAuth).toBe("otro");
     expect(db.places.size).toBe(1);
+  });
+
+  // S2a.2 (ADR-0022/0024): `defaultLocale` viaja del payload del wizard al SP.
+  // Zod default 'es' si el campo no aparece; el caller envía SIEMPRE el overload
+  // 6-arg de migration 0007. El zod cierra el set a los 6 locales operativos.
+
+  it("defaultLocale: zod default 'es' cuando el payload no lo especifica", async () => {
+    const db = new FakeDb();
+    const res = await createPlace(VALID_INPUT, {
+      acquireIdentity: async () => ({
+        accessToken: token("auth-loc-1"),
+        email: "l@example.com",
+        displayName: "L",
+      }),
+      runAuthedTx: db.runAuthedTx,
+    });
+    expect(res.status).toBe("created");
+    expect(db.places.get("mi-comunidad")?.defaultLocale).toBe("es");
+  });
+
+  it("defaultLocale: 'de' explícito en payload se propaga al SP (6º arg)", async () => {
+    const db = new FakeDb();
+    const res = await createPlace(
+      { ...VALID_INPUT, defaultLocale: "de" },
+      {
+        acquireIdentity: async () => ({
+          accessToken: token("auth-loc-2"),
+          email: "d@example.com",
+          displayName: "D",
+        }),
+        runAuthedTx: db.runAuthedTx,
+      },
+    );
+    expect(res.status).toBe("created");
+    expect(db.places.get("mi-comunidad")?.defaultLocale).toBe("de");
   });
 
   it("error DB inesperado en create_place → propaga; cuenta persiste igual", async () => {
