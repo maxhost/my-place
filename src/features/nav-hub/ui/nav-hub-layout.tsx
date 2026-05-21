@@ -1,20 +1,25 @@
-"use client";
-
 import type { ReactNode } from "react";
+import { AppShell } from "@/shared/ui/app-shell/public";
+import { buildNavHubSidebarItems } from "./nav-hub-items";
 import type { NavHubActiveSection, NavHubLabels } from "./nav-hub-labels";
-import { Sidebar } from "./sidebar";
-import { Topbar } from "./topbar";
 
-// Shell de navegación del hub (S3 del Hub V1, spec en `docs/features/inbox/`).
-// Layout responsivo: topbar arriba + sidebar a la izquierda en desktop +
-// drawer mobile (gestionado por la propia topbar). El `<main>` recibe los
-// children — typicamente la vista de places (S4).
+// Thin wrapper del Hub V1 sobre el shell agnóstico (ADR-0023 §4). El
+// componente NO contiene markup propio del frame: traduce el contract
+// del slice (`NavHubLabels` + `activeSection`) al shape genérico del
+// shell y delega todo el render a `<AppShell>`. La estructura responsive
+// (topbar + drawer mobile + sidebar desktop + main) vive en
+// `src/shared/ui/app-shell/`.
 //
-// Mobile-first: estructura base es columnar (topbar + main); en md+ se mete
-// la sidebar fija a la izquierda. La sidebar se duplica en el DOM (desktop
-// `<aside>` con `hidden md:block` + drawer mobile que la renderea sólo
-// cuando se abre), pero las dos instancias nunca son visibles a la vez —
-// `display: none` la oculta semánticamente para AT.
+// Server Component (sin `"use client"`): no usa hooks ni state — sólo
+// compone props serializables. El shell también es Server compose con
+// sub-componentes Client (drawer + account menu) para el state UI; el
+// patrón se mantiene íntegro acá.
+//
+// Lo que este wrapper aporta sobre llamar `<AppShell>` directo desde la
+// page: (a) encapsula la lógica de mapping items del Hub (`buildNavHubSidebarItems`),
+// (b) mantiene el contract público estable (`NavHubLayout` puede evolucionar
+// internamente sin romper consumers), (c) preserva la semántica de
+// `activeSection` con su union type fuerte (`"places" | "messages" | "activity"`).
 
 type LogoutResult = { redirectTo: string };
 
@@ -37,22 +42,16 @@ export function NavHubLayout({
   children,
 }: Props) {
   return (
-    <div className="flex min-h-screen flex-col bg-bg">
-      <Topbar
-        labels={labels}
-        displayName={displayName}
-        onLogout={onLogout}
-        navigate={navigate}
-        mobileDrawerContent={
-          <Sidebar labels={labels} activeSection={activeSection} />
-        }
-      />
-      <div className="flex flex-1">
-        <aside className="hidden md:block md:w-64 shrink-0 border-r border-border bg-surface">
-          <Sidebar labels={labels} activeSection={activeSection} />
-        </aside>
-        <main className="flex-1">{children}</main>
-      </div>
-    </div>
+    <AppShell
+      title={labels.appName}
+      sidebarItems={buildNavHubSidebarItems(labels)}
+      activeKey={activeSection}
+      displayName={displayName}
+      onLogout={onLogout}
+      navigate={navigate}
+      labels={labels}
+    >
+      {children}
+    </AppShell>
   );
 }
