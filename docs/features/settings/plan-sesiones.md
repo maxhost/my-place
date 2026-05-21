@@ -1,17 +1,18 @@
-# Plan de implementación — Settings + i18n del place (12 sesiones)
+# Plan de implementación — Settings + i18n del place (13 sesiones)
 
-> _Creado 2026-05-20_. Divide el [spec del settings](./spec.md) en sesiones cortas y atómicas. TDD obligatorio (CLAUDE.md §47) donde aplique. Green-close completo antes de commit. Compact entre sesiones para mantener ventana de contexto limpia.
+> _Creado 2026-05-20. Última actualización: 2026-05-21 (split S1 → S1.a + S1.b)._ Divide el [spec del settings](./spec.md) en sesiones cortas y atómicas. TDD obligatorio (CLAUDE.md §47) donde aplique. Green-close completo antes de commit. Compact entre sesiones para mantener ventana de contexto limpia.
 
 ## Resumen
 
-12 sesiones secuenciales (no paralelizables — cada una habilita la siguiente):
+13 sesiones secuenciales (no paralelizables — cada una habilita la siguiente):
 
 | Sesión | Scope | Files | Capa |
 |---|---|---|---|
 | **S0a** | Docs del feature (spec + plan + tests + ADR-0022 + decisions/README) | 5 | docs |
 | **S0b** | ADRs técnicos (0023 app-shell, 0024 fallback i18n) + updates transversales | 5 | docs |
 | **S0c** | producto.md + data-model.md + CLAUDE.md + landingpage banners | 5 | docs |
-| **S1** | i18n foundation (6 locales + deep-merge fallback + check-translations) | 5 | infra |
+| **S1.a** | i18n foundation (6 locales + deepMerge testeable + try/catch defensivo + de.json) | 5 | infra |
+| **S1.b** | i18n stubs (ca.json) + script `check-translations.mjs` informativo | 2 | infra |
 | **S1.5** | Smoke `getTranslations({locale})` override + gotcha | 1-2 | infra |
 | **S2a** | DB infra (migration 0006 + 0007 additive + schema + zod + create-place) | 5 | DB |
 | **S2b** | Wizard selector idioma Paso 1 | 5 | UI |
@@ -21,7 +22,7 @@
 | **S6** | Settings page shell vacío + i18n del place + html lang dinámico + skip-link | 5 | wiring |
 | **S7** | Sección "Idioma del place" + Server Action UPDATE | 5 | feature |
 
-S0a/S0b/S0c son docs only (sin código). S1 a S7 ejecutan. Cada sesión cumple `≤5 archivos` (CLAUDE.md "Un prompt = una responsabilidad").
+S0a/S0b/S0c son docs only (sin código). S1.a a S7 ejecutan. Cada sesión cumple `≤5 archivos` (CLAUDE.md "Un prompt = una responsabilidad"). _Split S1 (2026-05-21):_ la S1 original (5 archivos canónicos del plan) colisionaba con TDD obligatorio aislado del helper `deepMerge` (extracción a `shared/lib` per ADR-0024 §147 + test unitario = 7 archivos). Se dividió en S1.a (5) + S1.b (2), commits atómicos independientes, sin perder rigor.
 
 ---
 
@@ -112,58 +113,122 @@ Cerrar la documentación canónica: principio de producto ("locale propio del pl
 
 ---
 
-## Sesión S1 — i18n foundation (6 locales + deep-merge fallback + check-translations)
+## Sesión S1 — i18n foundation (split 2026-05-21 → S1.a + S1.b)
 
-### Objetivo
+> **Split aplicado 2026-05-21 al iniciar la implementación.** La S1 original listaba 5 archivos (routing + request + de.json + ca.json + check-translations.mjs). El diagnóstico empírico mostró que `deepMerge` no existía en el repo y, per ADR-0024 §147, debía vivir en `src/shared/lib/deep-merge.ts` con test unitario aislado (TDD strict obligatorio en infra core). Extraer el helper + agregar su test → 7 archivos, excediendo ≤5. Se dividió en S1.a (foundation + deep-merge testeable + de.json) + S1.b (ca.json + script). Commits atómicos, cada uno con green-close completo. El cuerpo histórico de S1 se preserva debajo del split para registro.
 
-Habilitar los 6 locales operativos en toda la app + infra de fallback runtime + script informativo de drift.
+### Hallazgos empíricos de diagnóstico (2026-05-21)
 
-### Pre-condiciones
+- `src/i18n/routing.ts` declara 4 locales (`es,en,fr,pt`); el plan los lleva a 6 (`+de,+ca`).
+- `src/i18n/messages/` contiene **sólo `es.json`** físicamente. `en/fr/pt.json` están declarados pero ausentes.
+- `src/i18n/request.ts` actualmente carga **siempre `${defaultLocale}.json`** (ignora el locale del request) — por eso el gap "4 declarados vs 1 archivo" no rompe builds hoy.
+- `grep -rn "deepMerge\|deep-merge\|deepmerge" src/ scripts/ package.json` → vacío. **No hay helper preexistente**; hay que crearlo.
+- ADR-0024 §147 ubica `deepMerge` en `src/shared/lib/deep-merge.ts` (no en `src/i18n/`) — slices y módulos i18n consumen `shared/`, no crean utilities propios.
+- ADR-0024 §152 explícita: para los 3 locales sin archivo (`en/fr/pt`), no es necesario crear stubs físicos en S1.a — el **try/catch defensivo** en `request.ts` (prefer-degrade per ADR-0024) cubre el caso `Cannot find module`. Si en el futuro la operación de producto quiere stubs densos (mejor UX para traductor humano), van en sesión aparte sin bloquear S1.
+
+### Sesión S1.a — Foundation + deepMerge testeable + de.json
+
+#### Objetivo
+
+Habilitar los 6 locales operativos + infraestructura de fallback runtime production-grade (deep-merge + try/catch defensivo) + 1 stub denso (`de.json`).
+
+#### Pre-condiciones
 
 - S0c mergeada (docs canónicos primero).
 - `git status` limpio.
 - `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` verdes en main local.
 
-### Trabajo
+#### Trabajo (orden TDD strict)
 
-1. **Modificar `src/i18n/routing.ts`** — agregar `de`, `ca` a `locales`. `locales: ["es", "en", "fr", "pt", "de", "ca"]`. Default sigue `es`.
-2. **Modificar `src/i18n/request.ts`** — agregar deep-merge runtime. Pseudocódigo:
+1. **TDD rojo**: crear `src/shared/lib/__tests__/deep-merge.test.ts` con ~10-12 casos (merge plano, anidado, leaf override, subtree override, key del base inexistente en override, key del override inexistente en base, ambos vacíos, base/override vacío, arrays = replace, colisión de tipos, immutabilidad de inputs). Correr → **falla por módulo inexistente**.
+2. **Implementar**: `src/shared/lib/deep-merge.ts` — función pura ~20 LOC con `isPlainObject` guard + recursión. Tipado `Record<string, unknown>` (caller castea si necesita). Correr test → **verde**.
+3. **Modificar `src/i18n/routing.ts`** — `locales: ["es", "en", "fr", "pt", "de", "ca"]`. Default sigue `es`.
+4. **Modificar `src/i18n/request.ts`** — deep-merge runtime con try/catch defensivo. Pseudocódigo:
    ```ts
    const defaultMessages = (await import(`./messages/${routing.defaultLocale}.json`)).default;
-   const localeMessages = locale === routing.defaultLocale
-     ? defaultMessages
-     : (await import(`./messages/${locale}.json`)).default;
-   const messages = deepMerge(defaultMessages, localeMessages);
+   if (locale === routing.defaultLocale) return { locale, messages: defaultMessages };
+   try {
+     const localeMessages = (await import(`./messages/${locale}.json`)).default;
+     return { locale, messages: deepMerge(defaultMessages, localeMessages) };
+   } catch {
+     // Archivo del locale no existe (en/fr/pt en S1.a — ADR-0024). Degrade silencioso.
+     return { locale, messages: defaultMessages };
+   }
    ```
-   `deepMerge` es función pura ~15 LOC; testeable. Si already exists alguna util en el repo, reusar.
-3. **Crear `src/i18n/messages/de.json`** — copia de `es.json` (placeholder hasta traducción real).
-4. **Crear `src/i18n/messages/ca.json`** — idem.
-5. **Crear `scripts/check-translations.mjs`** — compara keys recursivamente entre los 6 JSONs; output informativo `[check-translations] de.json: 12 keys missing vs es.json`. NO `process.exit(1)` — informativo, no fail-closed.
+5. **Crear `src/i18n/messages/de.json`** — copia exacta de `es.json` (per ADR-0024 §94 recomendación "(a) copia": archivo denso facilita traducción in-place posterior).
 
-**Decisión sobre en/fr/pt**: si NO existen físicamente hoy, el deep-merge runtime + el routing.ts.locales = ["es","en","fr","pt","de","ca"] generaría error en `await import(./messages/en.json)`. Mitigaciones:
-- (a) Crear stubs vacíos `{}` para los faltantes — el deep-merge usa default 100%.
-- (b) Copiar `es.json` como stub — UX cae a español pero los nombres de keys validan.
+#### Files (5 — cumple ≤5)
 
-**Recomendado**: (b) copia. Más simple, menos código, garantiza que ninguna key falta. El check-translations alertará drift cuando se agreguen keys nuevas.
-
-Si la decisión es (a) stub vacío y queremos minimizar files, podemos crear los 5 (en, fr, pt, de, ca) en esta sesión — pero excede ≤5 archivos. Mantener S1 a 5 archivos: solo `de` y `ca` se crean (las que están explícitamente requeridas por el feature). `en`, `fr`, `pt` se completan en `S2b` o `S6` cuando se agregue el namespace `placeSettings`.
-
-**Revisión empírica antes de implementar**: verificar si `en/fr/pt.json` existen en `src/i18n/messages/`. Si no, decidir si crearlos como copias de es.json en S1 (suma 3 archivos → 8 total → dividir S1) o tratarlos como gap separado. **Defer la decisión al inicio de S1** post-empírico.
-
-### Files
-
+- **Crear**: `src/shared/lib/__tests__/deep-merge.test.ts`, `src/shared/lib/deep-merge.ts`, `src/i18n/messages/de.json`.
 - **Modificar**: `src/i18n/routing.ts`, `src/i18n/request.ts`.
-- **Crear**: `src/i18n/messages/de.json`, `src/i18n/messages/ca.json`, `scripts/check-translations.mjs`.
 
-### Verificación
+#### Verificación
 
-- `pnpm build` genera SSG para los 6 locales en `[locale]` paths (marketing/hub).
-- `node scripts/check-translations.mjs` corre y reporta sin abortar.
-- `pnpm test` verde (sin regresión).
+- TDD rojo → verde (`pnpm test deep-merge`).
+- Suite total `pnpm test` verde — +10-12 tests, ningún test existente rompe (el try/catch en request.ts mantiene comportamiento UX para en/fr/pt cuando faltan archivos).
+- `pnpm typecheck` verde.
+- `pnpm lint` 0 problemas.
+- `pnpm build` verde — SSG genera rutas para los 6 locales del `[locale]` segment.
+- LOC: `deep-merge.ts` ≤30; `request.ts` ≤40.
 
-### Commit
+#### Commit
 
-`feat(i18n): 6 locales operativos + deep-merge fallback + check-translations script`
+`feat(i18n): 6 locales operativos + deepMerge testeable + try/catch defensivo (S1.a)`
+
+---
+
+### Sesión S1.b — Stub ca.json + script `check-translations.mjs`
+
+#### Objetivo
+
+Cerrar S1 completa: agregar `ca.json` como stub denso (mismo pattern que `de.json` en S1.a) + script informativo de drift entre locales.
+
+#### Pre-condiciones
+
+- S1.a mergeada (deepMerge + try/catch + 6 locales declarados).
+
+#### Trabajo
+
+1. **Crear `src/i18n/messages/ca.json`** — copia exacta de `es.json` (ADR-0024 §94).
+2. **Crear `scripts/check-translations.mjs`** — Node ESM standalone. Lee los 6 JSONs (`es,en,fr,pt,de,ca`), compara keys recursivamente vs `defaultLocale.json` (`es.json`). Output informativo:
+   ```
+   [check-translations] es.json: reference (NNN keys total)
+   [check-translations] de.json: 0 keys missing, 0 extras
+   [check-translations] en.json: file missing (degrades to default at runtime — ADR-0024)
+   ...
+   ```
+   - Locales sin archivo físico reportan `file missing` (informativo, no error).
+   - `process.exit(0)` siempre — informativo, no fail-closed (ADR-0024).
+   - NO importar de `@/shared/lib/deep-merge.ts` (es código TS dentro de Next; el script es Node ESM puro). Si conviene reusar la función pura, copiarla o trasladarla a una versión `.mjs` standalone — decisión empírica al implementar S1.b.
+
+#### Files (2 — cumple ≤5)
+
+- **Crear**: `src/i18n/messages/ca.json`, `scripts/check-translations.mjs`.
+
+#### Verificación
+
+- `node scripts/check-translations.mjs` corre y reporta sin abortar (exit code 0).
+- `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` verdes (sin regresión — los .mjs no entran al build).
+
+#### Commit
+
+`feat(i18n): ca.json stub + scripts/check-translations.mjs informativo (S1.b)`
+
+---
+
+### Cuerpo histórico de la S1 original (pre-split)
+
+> _Preservado por registro — mismo pattern que ADR-0005/0006/0008. El plan vigente son S1.a + S1.b arriba._
+
+**Trabajo original (5 archivos en una sesión):**
+
+1. Modificar `src/i18n/routing.ts` — agregar `de`, `ca` a `locales`.
+2. Modificar `src/i18n/request.ts` — deep-merge runtime con `deepMerge` (sin precisar dónde vive el helper).
+3. Crear `src/i18n/messages/de.json` — copia de es.json.
+4. Crear `src/i18n/messages/ca.json` — idem.
+5. Crear `scripts/check-translations.mjs` — informativo.
+
+**Por qué se dividió:** el plan original asumía `deepMerge` inline en `request.ts` (sin test aislado). El diagnóstico empírico mostró que ADR-0024 §147 lo ubica en `src/shared/lib/` con test unitario — esto suma 2 archivos y excede ≤5. La división en S1.a (foundation + deep-merge testeable + 1 stub) y S1.b (1 stub + script) preserva TDD strict + límite de archivos sin perder el alcance.
 
 ---
 
