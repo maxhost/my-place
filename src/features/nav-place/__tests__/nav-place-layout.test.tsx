@@ -12,8 +12,8 @@ import { NavPlaceLayout } from "../ui/nav-place-layout";
 // `src/shared/ui/app-shell/__tests__/app-shell.test.tsx` — no se re-testean
 // acá. Estos tests cubren la integración específica de la zona settings:
 // que el wrapper arme los 4 grupos en orden con los 9 items correctos,
-// los iconos iconoir cableados, y sólo "language" activa (1 link + 8
-// disabled).
+// los iconos iconoir cableados, y las 2 secciones navegables ("language"
+// + "domain", custom-domain V1 ADR-0026) vs los 7 items aún disabled.
 //
 // jsdom no computa media queries — assertions de responsive sobre clases
 // Tailwind (paralelo al patrón del shell agnóstico).
@@ -111,7 +111,7 @@ describe("NavPlaceLayout — wrapper del settings agrupado V1.1 (ADR-0025)", () 
     expect(active).toHaveAttribute("href", "/settings");
   });
 
-  it("los 8 items restantes (appearance/domain/zones/hours/billing/members/groups/tiers) son disabled — aria-disabled + tooltip 'Próximamente', sin role link", () => {
+  it("activeSection='language' → 'Dominio' renderea como link a /settings/domain (V1.1 custom-domain, ADR-0026); los 7 items restantes (appearance/zones/hours/billing/members/groups/tiers) son disabled — aria-disabled + tooltip 'Próximamente', sin role link", () => {
     render(
       <NavPlaceLayout
         labels={LABELS}
@@ -123,14 +123,22 @@ describe("NavPlaceLayout — wrapper del settings agrupado V1.1 (ADR-0025)", () 
         <p>x</p>
       </NavPlaceLayout>,
     );
-    // Sólo "Idioma del place" es link (único item con href + sin disabled).
+    // 2 links: "Idioma del place" (active) + "Dominio" (navegable, NO active).
     const links = screen.getAllByRole("link");
-    expect(links).toHaveLength(1);
-    expect(links[0]).toHaveTextContent("Idioma del place");
+    expect(links).toHaveLength(2);
+    expect(links.map((l) => l.textContent)).toEqual([
+      "Idioma del place",
+      "Dominio",
+    ]);
+    // Idioma: aria-current="page" (active) + href "/settings".
+    expect(links[0]).toHaveAttribute("aria-current", "page");
+    expect(links[0]).toHaveAttribute("href", "/settings");
+    // Dominio: navegable pero NO active → sin aria-current="page", href subdomain.
+    expect(links[1]).not.toHaveAttribute("aria-current", "page");
+    expect(links[1]).toHaveAttribute("href", "/settings/domain");
 
     const disabledLabels = [
       "Apariencia",
-      "Dominio",
       "Zonas",
       "Horario",
       "Billing",

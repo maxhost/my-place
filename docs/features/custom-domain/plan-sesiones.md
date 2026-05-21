@@ -1,6 +1,8 @@
 # Plan de implementación — Feature Custom Domain V1 (sección "Dominio" en `/settings`)
 
 > _Creado 2026-05-21_. Referencia abreviada del plan canónico vivo en `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md`. Las sesiones de implementación se documentan acá de forma resumida; el plan vivo, detallado, con pseudocódigo, riesgos y matriz de archivos, vive en el plan file referenciado. Si hay desacuerdo entre este doc y el plan, gana el plan.
+>
+> **Nota retroactiva (2026-05-21, S4 close)**: este plan describe los paths bajo `src/features/place-settings/{ui,actions,types}/...domain*` que fueron la asunción de S0. **En S4 se promovió** el sub-feature Dominio a slice propio `src/features/custom-domain/` (ADR-0028: cap LOC ≤1500 del slice anfitrión + ADR/spec/migration propias). Los archivos viven actualmente en `src/features/custom-domain/{ui,actions,types,__tests__}/`. El comportamiento, la spec, las migrations y los tests son idénticos — sólo cambió el namespace físico. Las referencias debajo a `place-settings/{ui,actions,types}/...domain*` se mantienen como histórico del plan original.
 
 ## Resumen
 
@@ -8,11 +10,11 @@
 
 | Sesión | Objetivo | Files | Status |
 |---|---|---|---|
-| **S0** | Docs + ADR-0026 + tag baseline | 8 docs | in-progress |
-| **S1** | Schema delta: partial unique index `(domain) WHERE archived_at IS NULL` | 4 (schema + migration + 2 tests) | pending |
-| **S2** | Foundations `shared/lib/` — validate + reserved + Vercel wrapper | 8 (3 src + 3 tests + 1 barrel + 1 doc) | pending |
-| **S3** | Server Actions del slice `place-settings/domain` | 7 (5 src + 2 tests del pure helper) | pending |
-| **S4** | UI `<DomainSection>` + page sub-ruta + activación sidebar | 10 (4 código + 6 i18n) | pending |
+| **S0** | Docs + ADR-0026 + tag baseline | 8 docs | **closed** (2026-05-21) |
+| **S1** | Schema delta: partial unique index `(domain) WHERE archived_at IS NULL` | 4 (schema + migration + 2 tests) | **closed** (2026-05-21) |
+| **S2** | Foundations `shared/lib/` — validate + reserved + Vercel wrapper | 8 (3 src + 3 tests + 1 barrel + 1 doc) | **closed** (2026-05-21) |
+| **S3** | Server Actions del slice `custom-domain` (originalmente plan: `place-settings/domain`) | 7 (5 src + 2 tests del pure helper) | **closed** (2026-05-21) |
+| **S4** | UI `<DomainSection>` + page sub-ruta + activación sidebar + **promoción a slice propio** (ADR-0028) | 14 (4 código + 6 i18n + 1 page + 2 ADR/docs + slice refactor) | **closed** (2026-05-21) |
 | **S5** | Docs final close + manual smoke + push autorizado | 4 docs + push | pending |
 | **S6** | Cron safety net (opcional V1.1) | 3-4 (route + test + vercel.json + env) | pending |
 

@@ -1,6 +1,6 @@
 # Custom Domain V1 — sección "Dominio" en `/settings`
 
-> _Spec creado 2026-05-21. Status: **en plan**, sesiones S0–S5 (S6 cron opcional V1.1). Activa el item "Dominio" del sidebar de `/settings` (V1.1, ADR-0025) que hoy está `disabled: true`. Refinada operativamente por ADR-0026 sobre el contexto macro de ADR-0001._
+> _Spec creado 2026-05-21. Status: **S4 implementada (UI + sub-ruta + sidebar activado, 2026-05-21)** — S5 (docs final + smoke + push) pendiente, S6 cron opcional V1.1. Activa el item "Dominio" del sidebar de `/settings` (V1.1, ADR-0025) que hasta S3 estaba `disabled: true`. Refinada operativamente por ADR-0026 sobre el contexto macro de ADR-0001._
 
 ## Contexto
 
@@ -234,6 +234,34 @@ La tabla de DNS records expone botones "Copiar" para cada celda (Tipo, Nombre, V
 
 **Fallback elegante**: si el browser no soporta `navigator.clipboard` o el contexto no es secure, la UI muestra el valor de la celda **seleccionable manualmente** (`<span>` con `user-select: all`). El owner puede hacer triple-click + Cmd/Ctrl+C. El botón Copy queda visible pero no funcional; on click silencia el error sin toast intrusivo. Documentar en gotcha si se observa confusión.
 
+## Cableado real (post-S4)
+
+S4 cierra la rebanada vertical: el page Server Component, el item del sidebar y el slice Client `<DomainSection>` quedan cableados end-to-end contra los actions de S3 y los wrappers de S2. Resumen del cableado real, con pointers a los archivos `src/...` que materializan los §"UI states" descritos arriba.
+
+### Page Server Component
+
+`src/app/(app)/place/[placeSlug]/settings/domain/page.tsx`. Mismo guard pattern que `/settings/page.tsx`: slug servible → sesión cross-subdomain → `getPlaceForZone(placeSlug)` → si null, `notFound()`. `export const dynamic = "force-dynamic"` porque el lazy poll a Vercel requiere no-cache: cada carga re-corre `getCustomDomainStatus` para detectar la transición `pending → verified` server-side. El page llama `getCustomDomainStatus(place.id)` (lazy poll a Vercel API si `verified_at IS NULL`) y le pasa el resultado al `<DomainSection state={state} ...>` como prop. Inyecta `registerCustomDomainAction` + `archiveCustomDomainAction` por seam-split (mismo patrón que `LocaleSection` con `updateDefaultLocaleAction`), así el Client recibe los actions como `Function` props testeables con `vi.fn()`.
+
+### Labels resueltas server-side
+
+`getTranslations({ locale: place.defaultLocale, namespace: "placeSettings.domain" })` produce el objeto `DomainSectionLabels` serializable que viaja al Client Component como prop. Mismo patrón que `LocaleSection` con `placeSettings.language.*`. Las ~33 keys del bloque `placeSettings.domain.*` viven en los 6 JSONs de `src/i18n/messages/{es,en,pt,de,fr,it}.json` con paridad 0/0 verificada por `scripts/check-translations.mjs` (S0). El Client nunca llama `useTranslations` directamente para `placeSettings.domain.*` — todas las strings llegan resueltas, lo que mantiene la frontera server/client limpia y permite swap de locale sin re-instanciar al Client.
+
+### Sidebar
+
+El item "Dominio" del grupo **Identidad** del sidebar `src/features/nav-place/ui/nav-place-items.tsx` pasa de `disabled: true` a `href: "/settings/domain"`. El page Server Component setea `activeSection="domain"` en `<NavPlaceLayout>` para que el item se renderice con `aria-current="page"` y el highlight visual. Convive con `activeSection="language"` del page `/settings/page.tsx` sin colisión — cada page mounta su propio `NavPlaceLayout` (decisión §"layout NO compartido").
+
+### Auto-refresh
+
+El Client `<DomainSection>` corre `useEffect` con `setInterval(() => router.refresh(), 30_000)` mientras `state.status === "pending"`. `router.refresh()` invalida el RSC payload del page → re-mount del Server Component → re-corre `getCustomDomainStatus` → si Vercel ya validó, el SSR retorna `status: "verified"` y la UI cambia sola sin acción del owner. El intervalo se limpia en el cleanup del `useEffect` cuando `status` deja de ser `pending` (transición a `verified` o `none`) o cuando el componente se desmonta.
+
+### Copy-to-clipboard fallback
+
+El botón "Copiar" de cada celda de la tabla DNS invoca `navigator.clipboard.writeText(value).catch(() => {})`. En contextos no-secure (HTTP en dev por IP literal, o browsers viejos sin la API) la promise rechaza, el catch silencia el error sin toast intrusivo, y la celda queda seleccionable con `user-select: all` (decisión existente del §"navigator.clipboard"). El owner puede triple-click + Cmd/Ctrl+C como fallback degradado. Sin feature detection explícita: el catch cubre tanto "no existe `navigator.clipboard`" como "existe pero rechaza por contexto inseguro".
+
+### Confirm dialog para archive
+
+El "¿Estás seguro?" del flow F3 es estado local del Client (`useState<boolean>`). El body del dialog resuelve el placeholder client-side: `archiveConfirmBody.replace("{slug}", placeSlug)`. Reusa el shape de `wizard.successBody.replace("{url}", ...)` y `successBody.replace("{language}", ...)` de `LocaleSection` — convención del codebase para placeholders simples en labels server-rendered. El dialog dispara `archiveCustomDomainAction` al confirmar; al cancelar simplemente cierra (`setOpen(false)`) sin side effects.
+
 ## Test plan summary
 
 Detalle por archivo en [`tests.md`](./tests.md). Resumen del scope V1:
@@ -243,11 +271,11 @@ Detalle por archivo en [`tests.md`](./tests.md). Resumen del scope V1:
 - **`vercel/domains` wrapper** (S2): ≥7 tests con mock `fetch` global (200 valid, 200 partial, 404, 409, 422, 429, 500) + Zod parse failure cleanly + `vi.stubEnv` para `VERCEL_API_TOKEN` + `VERCEL_PROJECT_ID`.
 - **`mapPgErrorToActionError`** (S3): ≥4 tests pure function (`23505` → `domain_taken`, error sin code → `generic`, error null → `generic`, code distinto → `generic`).
 - **Schema partial unique** (S1): ≥2 tests integration contra DB real (insertar → archive → re-insertar permitido; dos owners distintos compitiendo por mismo dominio activo → segundo falla con 23505).
-- **`DomainSection` Client Component** (S4): ≥11 tests RTL (4 estados render + submit happy + submit invalid client + IDN reject client + confirm dialog flow archive + copy-to-clipboard con spy + auto-refresh con `vi.useFakeTimers` + error notice + idempotencia con `useRef`).
+- **`DomainSection` Client Component** (S4, implementada 2026-05-21): **15 tests RTL** distribuidos entre `domain-section.test.tsx` (9: render por estado + submit happy + 3 validaciones cliente — invalid format, IDN, reserved — + server-error mapping `domain_taken`) y `domain-section-interactions.test.tsx` (6: confirm dialog cancel + confirm + copy-to-clipboard con spy + auto-refresh con `vi.useFakeTimers` + idempotencia con `useRef`). El split UI a 3 archivos hermanos (`domain-section.tsx` + `-pending.tsx` + `-archive.tsx`) y tests a 2 archivos mantiene LOC ≤300 por archivo (CLAUDE.md §Límites).
 
 **Server Actions NO tienen tests directos por canon del proyecto** (`update-default-locale.ts:13`): "su correctitud es de tipo/build + smoke vivo en producción, NO vitest (arrastra `next/headers` + Neon Auth + DB real)". La cobertura vive en las piezas puras compuestas (`validateCustomDomain` + `isReservedDomain` + `vercel/domains` + `mapPgErrorToActionError`), la UI test con `vi.fn()` para los actions inyectados, y el smoke vivo manual en S5 (dev local + preview deploy).
 
-**Total esperado**: ~45 tests nuevos. Suite tras S5: ~346 tests verde (baseline 301 + ~45).
+**Total esperado**: ~45 tests nuevos. Suite tras S5: ~346 tests verde (baseline 301 + ~45). **Real al cierre de S4 (2026-05-21)**: 396 tests verde (baseline 301 + 95 acumulados: schema + shared/lib + `mapPgErrorToActionError` + 15 RTL `<DomainSection>`).
 
 ## Out of scope (textual del plan)
 

@@ -20,7 +20,7 @@ import type { NavPlaceLabels } from "./nav-place-labels";
 // `nav-hub/ui/nav-hub-items.tsx`, ahora con grupos.
 //
 // **Estructura V1.1** — 4 grupos conceptuales fijos no-colapsables, 9
-// items totales (1 activa + 8 disabled):
+// items totales (2 activas + 7 disabled):
 //
 // ```
 // Identidad    → Apariencia · Idioma (V1 activa) · Dominio
@@ -34,11 +34,11 @@ import type { NavPlaceLabels } from "./nav-place-labels";
 // comporta" → "relación owner↔producto" → "administración interna"
 // (rationale completo en ADR-0025 §1).
 //
-// V1: sólo "language" es navegable (`href: "/settings"`); los 8 restantes
-// son `disabled: true` con tooltip "Próximamente" (label vive en
+// V1: "language" y "domain" son navegables; los 7 restantes son
+// `disabled: true` con tooltip "Próximamente" (label vive en
 // `labels.comingSoon`, el shell lo aplica). Cuando una sección diferida
-// (`zones`/`groups`/`tiers`/`appearance`/`members`/`hours`/`billing`/
-// `domain`) se cablee, basta con (a) quitar `disabled: true`, (b) agregar
+// (`zones`/`groups`/`tiers`/`appearance`/`members`/`hours`/`billing`) se
+// cablee, basta con (a) quitar `disabled: true`, (b) agregar
 // `href: "/settings/<key>"`, (c) cablear `activeSection` desde la page —
 // el slice ya está estructuralmente listo, paralelo al patrón pre-V1.1.
 //
@@ -48,6 +48,10 @@ import type { NavPlaceLabels } from "./nav-place-labels";
 // resuelve. Navegar a "/settings" desde "/settings" es no-op (el item ya
 // viene con `aria-current="page"` cuando `activeSection="language"`), pero
 // el href bien formado mantiene la semántica HTML correcta para a11y.
+//
+// URL del item "domain": `/settings/domain` — activado por la feature
+// custom-domain V1 (ADR-0026). Mismo patrón de subdomain que "language":
+// el slug no va en el path.
 //
 // Los íconos son componentes Iconoir (`iconoir-react`, ADR-0025 §2) vía los
 // wrappers semánticos de `./icons`. Viajan como `ReactNode` dentro del item;
@@ -76,8 +80,8 @@ export function buildNavPlaceSidebarGroups(
         {
           key: "domain",
           label: labels.sidebarDomain,
+          href: "/settings/domain",
           icon: <DomainIcon />,
-          disabled: true,
         },
       ],
     },

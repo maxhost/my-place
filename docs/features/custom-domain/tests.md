@@ -121,7 +121,7 @@ Por eso las 3 Server Actions del custom-domain (`register-custom-domain.ts`, `ar
 
 ## S3 — Server Actions (canon: NO tests directos)
 
-### `src/features/place-settings/types/__tests__/custom-domain.test.ts` (nuevo)
+### `src/features/custom-domain/types/__tests__/custom-domain.test.ts` (nuevo)
 
 **Por qué importa:** `mapPgErrorToActionError` es la pieza pura del Server Action que mapea Postgres error codes a enum semántico. Bug = UNIQUE violation aterriza como 500 genérico (UX rota).
 
@@ -135,9 +135,9 @@ Por eso las 3 Server Actions del custom-domain (`register-custom-domain.ts`, `ar
 
 **Las 3 Server Actions del slice NO tienen tests vitest directos** (canon del proyecto, `update-default-locale.ts:13`):
 
-- `src/features/place-settings/actions/register-custom-domain.ts`.
-- `src/features/place-settings/actions/archive-custom-domain.ts`.
-- `src/features/place-settings/actions/get-custom-domain-status.ts`.
+- `src/features/custom-domain/actions/register-custom-domain.ts`.
+- `src/features/custom-domain/actions/archive-custom-domain.ts`.
+- `src/features/custom-domain/actions/get-custom-domain-status.ts`.
 
 **Su correctitud se valida vía:**
 - `pnpm typecheck` — zod schemas + signatures + types.
@@ -150,7 +150,7 @@ Por eso las 3 Server Actions del custom-domain (`register-custom-domain.ts`, `ar
 
 ## S4 — UI `<DomainSection>` + page sub-ruta
 
-### `src/features/place-settings/__tests__/domain-section.test.tsx` (nuevo)
+### `src/features/custom-domain/__tests__/domain-section.test.tsx` (nuevo)
 
 **Por qué importa:** Client Component con 4 estados, form, confirm dialog, copy-to-clipboard, auto-refresh. Cubre el UX end-to-end del owner.
 
@@ -219,4 +219,4 @@ V1 esperado (sin S6):
 - Tests existentes (locale-section, nav-place-layout, schema, rls) sin regresiones.
 - **Server Actions NO tienen tests directos** (canon `update-default-locale.ts:13`).
 
-**Total esperado: 301 + ~45 ≈ 346 tests verde** al cierre de S5.
+**Total esperado: 301 + ~45 ≈ 346 tests verde** al cierre de S5. **Real al cierre de S4 (2026-05-21)**: 396 tests verde (baseline 301 + 95 acumulados en S1–S4: schema partial unique + foundations shared/lib + `mapPgErrorToActionError` + 15 RTL `<DomainSection>`).
