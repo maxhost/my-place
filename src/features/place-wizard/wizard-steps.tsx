@@ -1,3 +1,4 @@
+import { type Locale, routing } from "@/i18n/routing";
 import type { Palette } from "@/shared/lib/palette-schema";
 import { PALETTE_PRESET_IDS } from "./palettes";
 import { PaletteModeSelector } from "./palette-mode-selector";
@@ -13,6 +14,15 @@ const fieldClass =
   "min-h-[2.75rem] rounded-lg border border-border bg-surface px-3 text-base text-ink";
 const errClass = "text-sm text-accent-strong";
 
+// Pill del segmented control para el selector de idioma del Paso 1
+// (ADR-0022 + ADR-0024). Mismo idioma visual que `palette-mode-selector` para
+// continuidad del chrome del wizard. `flex-wrap` cubre los 6 endonyms en
+// pantallas angostas; el `min-h` mantiene el target táctil del producto.
+const localePill = (active: boolean) =>
+  `min-h-[2.5rem] rounded-lg border px-4 text-sm cursor-pointer text-center leading-[2.5rem] ${
+    active ? "border-accent-strong text-ink" : "border-border text-muted"
+  }`;
+
 export function Step1Identity(p: {
   labels: WizardLabels;
   ids: { name: string; slug: string; slugMsg: string };
@@ -23,6 +33,12 @@ export function Step1Identity(p: {
   slugState: "idle" | "reserved" | "invalid" | "valid";
   normalized: string;
   rootDomain: string;
+  // ADR-0022 + ADR-0024: el owner elige el idioma del lugar al crearlo. El
+  // selector arranca en `defaultLocale` (cableado desde el segmento `[locale]`
+  // del path en `crear/page.tsx`); el `onDefaultLocale` propaga al hook
+  // `useIdentityStep` (S2b.1). Enum cerrado → no participa de `step1Valid`.
+  defaultLocale: Locale;
+  onDefaultLocale: (locale: Locale) => void;
   onName: (v: string) => void;
   onNameBlur: () => void;
   onSlug: (v: string) => void;
@@ -30,6 +46,33 @@ export function Step1Identity(p: {
   const { labels: l } = p;
   return (
     <>
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium text-ink">
+          {l.defaultLocaleLabel}
+        </span>
+        <div
+          role="radiogroup"
+          aria-label={l.defaultLocaleLabel}
+          className="flex flex-wrap gap-2"
+        >
+          {routing.locales.map((loc) => {
+            const checked = p.defaultLocale === loc;
+            return (
+              <label key={loc} className={localePill(checked)}>
+                <input
+                  type="radio"
+                  name="defaultLocale"
+                  className="sr-only"
+                  checked={checked}
+                  onChange={() => p.onDefaultLocale(loc)}
+                />
+                {l.defaultLocaleOptions[loc]}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="flex flex-col gap-2">
         <label htmlFor={p.ids.name} className="text-sm font-medium text-ink">
           {l.nameLabel}

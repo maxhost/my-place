@@ -115,6 +115,8 @@ export function PlaceWizard({
             slugState={w.slugState}
             normalized={w.normalized}
             rootDomain={rootDomain}
+            defaultLocale={w.defaultLocale}
+            onDefaultLocale={w.setDefaultLocale}
             onName={w.onNameChange}
             onNameBlur={() => w.setNameTouched(true)}
             onSlug={(v) => {

@@ -2,6 +2,7 @@ import type {
   CreatePlaceInput,
   CreatePlaceResult,
 } from "@/features/place-creation/public";
+import type { Locale } from "@/i18n/routing";
 
 // Tipos del wizard (S8b). Separados del componente para no exceder el límite
 // de archivo (CLAUDE.md ≤300) y para que la ruta + los pasos compartan el
@@ -106,4 +107,16 @@ export interface WizardLabels {
   paletteCustomHexInvalid: string;
   /** Sufijo aria-label del `<input type="color">` por canal. */
   paletteCustomPickerSuffix: string;
+  // ADR-0022 (place.default_locale editable por owner) + ADR-0024 (6 locales
+  // operativos día uno). El selector vive en el Paso 1; el owner elige el
+  // idioma del chrome de su lugar (settings + member shell) al crearlo. La
+  // ruta `crear/page.tsx` cablea `defaultLocale` desde el segmento `[locale]`.
+  /** Label del radiogroup "¿En qué idioma habla tu lugar?". */
+  defaultLocaleLabel: string;
+  /**
+   * Endonyms (auto-nombres) de cada locale operativo: "Español", "English",
+   * "Français", "Português", "Deutsch", "Català". Endonyms = el lugar se
+   * autonombra en su propio idioma, no se traducen según el chrome del owner.
+   */
+  defaultLocaleOptions: Record<Locale, string>;
 }

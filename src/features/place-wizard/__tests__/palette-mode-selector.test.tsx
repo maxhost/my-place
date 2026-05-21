@@ -40,6 +40,10 @@ const LABELS: WizardLabels = {
   paletteCustomInkLabel: "Texto",
   paletteCustomHexInvalid: "Hex inválido (#rrggbb).",
   paletteCustomPickerSuffix: "(selector de color)",
+  // S2b.2: keys del selector de idioma del Paso 1 (ADR-0022 + ADR-0024). No los
+  // consume este componente (Paso 2); presentes sólo para satisfacer el tipo.
+  defaultLocaleLabel: "x",
+  defaultLocaleOptions: { es: "x", en: "x", fr: "x", pt: "x", de: "x", ca: "x" },
 };
 
 function setup(

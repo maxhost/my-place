@@ -8,6 +8,7 @@ import {
   PlaceWizard,
   type WizardLabels,
 } from "@/features/place-wizard/public";
+import { type Locale, routing } from "@/i18n/routing";
 import { rootDomain } from "@/shared/lib/root-domain";
 import { getSessionJwt } from "@/shared/lib/session";
 
@@ -65,6 +66,15 @@ export default async function CrearPage({ params, searchParams }: Props) {
   const paletteNames: Record<string, string> = Object.fromEntries(
     PALETTE_PRESET_IDS.map((id) => [id, t(`palettes.${id}`)]),
   );
+
+  // ADR-0022 + ADR-0024: endonyms (auto-nombres) de los 6 locales operativos.
+  // El selector del Paso 1 los renderea con el orden de `routing.locales`. El
+  // namespace `wizard.locales` los duplica como i18n keys para mantener la
+  // disciplina (cualquier copy del producto pasa por `messages/<locale>.json`)
+  // — aunque los valores sean idénticos en todos los catálogos por definición.
+  const defaultLocaleOptions = Object.fromEntries(
+    routing.locales.map((loc) => [loc, t(`locales.${loc}`)]),
+  ) as Record<Locale, string>;
 
   // stepTitles define el step count del wizard (use-place-wizard.ts:49). En
   // modo authed el wizard omite el Paso 3 (cuenta) — pasamos 2 títulos; en
@@ -127,6 +137,8 @@ export default async function CrearPage({ params, searchParams }: Props) {
     paletteCustomInkLabel: t("paletteCustomInkLabel"),
     paletteCustomHexInvalid: t("paletteCustomHexInvalid"),
     paletteCustomPickerSuffix: t("paletteCustomPickerSuffix"),
+    defaultLocaleLabel: t("defaultLocaleLabel"),
+    defaultLocaleOptions,
   };
 
   return (
@@ -139,6 +151,7 @@ export default async function CrearPage({ params, searchParams }: Props) {
         onSubmit={createPlaceAction}
         onCreateAccount={fromHub ? undefined : signUpAccountAction}
         authed={fromHub}
+        defaultLocale={locale as Locale}
       />
     </main>
   );

@@ -73,6 +73,17 @@ const LABELS: WizardLabels = {
   paletteCustomInkLabel: "Texto",
   paletteCustomHexInvalid: "Hex inválido (#rrggbb).",
   paletteCustomPickerSuffix: "(selector de color)",
+  // S2b.2 (ADR-0022 + ADR-0024): selector de idioma del lugar en el Paso 1.
+  // Endonyms (auto-nombres) — idénticos sin importar el chrome del owner.
+  defaultLocaleLabel: "¿En qué idioma habla tu lugar?",
+  defaultLocaleOptions: {
+    es: "Español",
+    en: "English",
+    fr: "Français",
+    pt: "Português",
+    de: "Deutsch",
+    ca: "Català",
+  },
 };
 
 function setup(
@@ -491,6 +502,59 @@ describe("PlaceWizard — modo authed (S9, sin paso de cuenta)", () => {
     expect(onSubmit.mock.calls[0]).toHaveLength(1);
     const [input] = onSubmit.mock.calls[0];
     expect(input).toMatchObject({ name: "Mi Club", slug: "mi-club" });
+  });
+});
+
+// S2b.2 (ADR-0022 + ADR-0024): el selector de idioma del lugar vive en el Paso
+// 1 — radiogroup con 6 endonyms (Español/English/Français/Português/Deutsch/
+// Català). Arranca en el `defaultLocale` que la ruta cablea desde el path; el
+// owner puede cambiarlo antes de avanzar. El cambio viaja al payload del
+// `onSubmit` (S2b.1 cerró el plumbing; acá se cierra el UX).
+describe("PlaceWizard — selector de idioma del Paso 1 (S2b.2)", () => {
+  it("renderea el radiogroup con los 6 endonyms operativos", () => {
+    setup();
+    expect(
+      screen.getByRole("radiogroup", { name: "¿En qué idioma habla tu lugar?" }),
+    ).toBeInTheDocument();
+    for (const endonym of [
+      "Español",
+      "English",
+      "Français",
+      "Português",
+      "Deutsch",
+      "Català",
+    ]) {
+      expect(screen.getByRole("radio", { name: endonym })).toBeInTheDocument();
+    }
+  });
+
+  it("arranca con el endonym del `defaultLocale` cableado (de → Deutsch)", () => {
+    setup(undefined, undefined, { defaultLocale: "de" });
+    expect(screen.getByRole("radio", { name: "Deutsch" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Español" })).not.toBeChecked();
+  });
+
+  it("cambiar el selector propaga el nuevo locale al payload del submit", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<WizardSubmit>(async () => ({
+      status: "created",
+      placeId: "p1",
+      slug: "mi-club",
+      adjustments: [],
+    }));
+    setup(onSubmit, undefined, { defaultLocale: "es" });
+
+    // Cambiar el idioma del lugar a Català ANTES de avanzar — el selector vive
+    // en el Paso 1 junto con nombre + dirección.
+    await user.click(screen.getByRole("radio", { name: "Català" }));
+    expect(screen.getByRole("radio", { name: "Català" })).toBeChecked();
+
+    await fillToAccountStep(user);
+    await user.click(screen.getByRole("button", { name: "Crear mi lugar" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const [input] = onSubmit.mock.calls[0];
+    expect(input.defaultLocale).toBe("ca");
   });
 });
 

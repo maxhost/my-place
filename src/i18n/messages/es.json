@@ -310,7 +310,16 @@
     "paletteCustomBgLabel": "Fondo",
     "paletteCustomInkLabel": "Texto",
     "paletteCustomHexInvalid": "Hex inválido (#rrggbb).",
-    "paletteCustomPickerSuffix": "(selector de color)"
+    "paletteCustomPickerSuffix": "(selector de color)",
+    "defaultLocaleLabel": "¿En qué idioma habla tu lugar?",
+    "locales": {
+      "es": "Español",
+      "en": "English",
+      "fr": "Français",
+      "pt": "Português",
+      "de": "Deutsch",
+      "ca": "Català"
+    }
   },
   "inbox": {
     "viewTitle": "Tus lugares",
