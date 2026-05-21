@@ -11,4 +11,8 @@
 // - `MenuIcon`/`CloseIcon`/`LogoutIcon` (icons.tsx): privados del shell.
 
 export { AppShell } from "./app-shell";
-export type { AppShellLabels, SidebarItem } from "./app-shell-labels";
+export type {
+  AppShellLabels,
+  SidebarGroup,
+  SidebarItem,
+} from "./app-shell-labels";

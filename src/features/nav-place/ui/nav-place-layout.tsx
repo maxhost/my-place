@@ -53,9 +53,16 @@ export function NavPlaceLayout({
   children,
 }: Props) {
   return (
+    // ADR-0025: el shell acepta `sidebarGroups`. En V1 (este commit, S1b) el
+    // settings sigue rendereando todos sus items en un único grupo plano
+    // (`label: null`) — mismo shape pre-ADR-0025. En S2 este wrapper se
+    // redibuja con 4 grupos reales (Identidad/Estructura/Suscripción/Gestión)
+    // consumiendo el contract de labels extendido.
     <AppShell
       title={labels.title}
-      sidebarItems={buildNavPlaceSidebarItems(labels)}
+      sidebarGroups={[
+        { label: null, items: buildNavPlaceSidebarItems(labels) },
+      ]}
       activeKey={activeSection}
       displayName={displayName}
       onLogout={onLogout}

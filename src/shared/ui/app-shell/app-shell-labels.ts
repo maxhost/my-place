@@ -50,3 +50,22 @@ export type SidebarItem = {
   icon?: ReactNode;
   disabled?: boolean;
 };
+
+/**
+ * Agrupamiento conceptual de items del sidebar (ADR-0025). Render rules:
+ * - `label === null` → grupo plano sin header. Los items se rendean directo
+ *   debajo del nav. Modo usado por `nav-hub` V1 (todos los items en un único
+ *   grupo sin etiqueta).
+ * - `label === string` → header fijo (no-colapsable) arriba del grupo. El
+ *   shell renderea un `<h2>` visible con el texto del label; NO es widget
+ *   interactivo (sin role="button", sin aria-expanded, sin disclosure). Modo
+ *   usado por `nav-place` V1.1 (4 grupos: Identidad/Estructura/Suscripción/
+ *   Gestión).
+ *
+ * El consumer arma `SidebarGroup[]` desde su contract i18n; el shell sólo
+ * renderea sin lógica de dominio ni decisión de agrupamiento.
+ */
+export type SidebarGroup = {
+  label: string | null;
+  items: SidebarItem[];
+};

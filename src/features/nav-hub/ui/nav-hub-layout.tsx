@@ -42,9 +42,15 @@ export function NavHubLayout({
   children,
 }: Props) {
   return (
+    // ADR-0025: el shell acepta `sidebarGroups`. El Hub V1 NO usa zonas
+    // conceptuales — todos sus items (places/messages/activity) viven en un
+    // único grupo plano (`label: null`, sin header). Si el Hub crece a más
+    // de un grupo a futuro, este wrapper es el único lugar a tocar.
     <AppShell
       title={labels.appName}
-      sidebarItems={buildNavHubSidebarItems(labels)}
+      sidebarGroups={[
+        { label: null, items: buildNavHubSidebarItems(labels) },
+      ]}
       activeKey={activeSection}
       displayName={displayName}
       onLogout={onLogout}

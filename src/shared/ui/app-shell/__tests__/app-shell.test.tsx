@@ -7,6 +7,13 @@ import {
   type SidebarItem,
 } from "../public";
 
+// `sidebarGroups` es el contract canónico post-ADR-0025: el shell acepta
+// agrupaciones (`SidebarGroup = { label: string | null; items: SidebarItem[] }`)
+// y renderea un `<h2>` fijo (no-colapsable) por grupo cuando `label !== null`.
+// Para los tests que sólo cubren behavior agnóstico al agrupamiento, los
+// items se pasan como un único grupo "plano" (`label: null`) — equivale al
+// uso de `nav-hub` V1 (que arma todos sus items en un solo bag sin header).
+
 // Tests del shell agnóstico (S4.a del feature `settings`, ADR-0023). Cubren
 // el contract reusable: render de items (activos, navegables, disabled),
 // drawer mobile (toggle + cierres), account menu (trigger + logout flow),
@@ -44,7 +51,7 @@ describe("AppShell — shell agnóstico mobile-first (ADR-0023)", () => {
     render(
       <AppShell
         title="Hub"
-        sidebarItems={ITEMS_BASE}
+        sidebarGroups={[{ label: null, items: ITEMS_BASE }]}
         activeKey="home"
         displayName="Ana López"
         onLogout={vi.fn()}
@@ -75,7 +82,7 @@ describe("AppShell — shell agnóstico mobile-first (ADR-0023)", () => {
     render(
       <AppShell
         title="Hub"
-        sidebarItems={ITEMS_BASE}
+        sidebarGroups={[{ label: null, items: ITEMS_BASE }]}
         activeKey="home"
         displayName="Ana"
         onLogout={vi.fn()}
@@ -94,7 +101,7 @@ describe("AppShell — shell agnóstico mobile-first (ADR-0023)", () => {
     render(
       <AppShell
         title="Hub"
-        sidebarItems={ITEMS_BASE}
+        sidebarGroups={[{ label: null, items: ITEMS_BASE }]}
         activeKey="home"
         displayName="Ana"
         onLogout={vi.fn()}
@@ -121,7 +128,7 @@ describe("AppShell — shell agnóstico mobile-first (ADR-0023)", () => {
     const { container } = render(
       <AppShell
         title="Hub"
-        sidebarItems={ITEMS_BASE}
+        sidebarGroups={[{ label: null, items: ITEMS_BASE }]}
         activeKey="home"
         displayName="Ana"
         onLogout={vi.fn()}
@@ -145,7 +152,7 @@ describe("AppShell — shell agnóstico mobile-first (ADR-0023)", () => {
     render(
       <AppShell
         title="Hub"
-        sidebarItems={ITEMS_BASE}
+        sidebarGroups={[{ label: null, items: ITEMS_BASE }]}
         activeKey="home"
         displayName="Ana"
         onLogout={vi.fn()}
@@ -176,7 +183,7 @@ describe("AppShell — shell agnóstico mobile-first (ADR-0023)", () => {
     render(
       <AppShell
         title="Hub"
-        sidebarItems={ITEMS_BASE}
+        sidebarGroups={[{ label: null, items: ITEMS_BASE }]}
         activeKey="home"
         displayName="Ana"
         onLogout={vi.fn()}
@@ -196,7 +203,7 @@ describe("AppShell — shell agnóstico mobile-first (ADR-0023)", () => {
     render(
       <AppShell
         title="Hub"
-        sidebarItems={ITEMS_BASE}
+        sidebarGroups={[{ label: null, items: ITEMS_BASE }]}
         activeKey="home"
         displayName="Ana López"
         onLogout={vi.fn()}
@@ -214,7 +221,7 @@ describe("AppShell — shell agnóstico mobile-first (ADR-0023)", () => {
     render(
       <AppShell
         title="Hub"
-        sidebarItems={ITEMS_BASE}
+        sidebarGroups={[{ label: null, items: ITEMS_BASE }]}
         activeKey="home"
         displayName={null}
         onLogout={vi.fn()}
@@ -238,7 +245,7 @@ describe("AppShell — shell agnóstico mobile-first (ADR-0023)", () => {
     render(
       <AppShell
         title="Hub"
-        sidebarItems={ITEMS_BASE}
+        sidebarGroups={[{ label: null, items: ITEMS_BASE }]}
         activeKey="home"
         displayName="Ana"
         onLogout={onLogout}
@@ -272,7 +279,7 @@ describe("AppShell — shell agnóstico mobile-first (ADR-0023)", () => {
     render(
       <AppShell
         title="Hub"
-        sidebarItems={ITEMS_BASE}
+        sidebarGroups={[{ label: null, items: ITEMS_BASE }]}
         activeKey="home"
         displayName="Ana"
         onLogout={onLogout}
@@ -304,13 +311,18 @@ describe("AppShell — shell agnóstico mobile-first (ADR-0023)", () => {
     render(
       <AppShell
         title="Hub"
-        sidebarItems={[
-          { key: "home", label: "Inicio", href: "/", icon: <ItemIcon /> },
+        sidebarGroups={[
           {
-            key: "soon",
-            label: "Pronto",
-            disabled: true,
-            icon: <DisabledIcon />,
+            label: null,
+            items: [
+              { key: "home", label: "Inicio", href: "/", icon: <ItemIcon /> },
+              {
+                key: "soon",
+                label: "Pronto",
+                disabled: true,
+                icon: <DisabledIcon />,
+              },
+            ],
           },
         ]}
         activeKey="home"
@@ -333,11 +345,112 @@ describe("AppShell — shell agnóstico mobile-first (ADR-0023)", () => {
     expect(disabledWrapper?.tagName).toBe("SPAN");
   });
 
+  it("grupo con label string renderea heading <h2> con ese texto arriba de los items (ADR-0025)", () => {
+    // Estructura agrupada: el shell acepta múltiples `SidebarGroup` y por cada
+    // uno con `label !== null` renderea un `<h2>` visible (no-colapsable). El
+    // heading vive dentro del `<nav>` → es sub-sección semántica.
+    render(
+      <AppShell
+        title="Settings"
+        sidebarGroups={[
+          {
+            label: "Identidad",
+            items: [
+              { key: "language", label: "Idioma", href: "/language" },
+            ],
+          },
+          {
+            label: "Estructura",
+            items: [{ key: "zones", label: "Zonas", disabled: true }],
+          },
+        ]}
+        activeKey="language"
+        displayName="Ana"
+        onLogout={vi.fn()}
+        navigate={vi.fn()}
+        labels={LABELS}
+      >
+        <p>x</p>
+      </AppShell>,
+    );
+    const headings = screen.getAllByRole("heading", { level: 2 });
+    expect(headings.map((h) => h.textContent)).toEqual([
+      "Identidad",
+      "Estructura",
+    ]);
+    // Sanity: los items de cada grupo siguen rendereándose normales.
+    expect(
+      screen.getByRole("link", { name: /idioma/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Zonas")).toBeInTheDocument();
+  });
+
+  it("grupo con label === null NO renderea heading (modo plano, compat nav-hub V1)", () => {
+    render(
+      <AppShell
+        title="Hub"
+        sidebarGroups={[{ label: null, items: ITEMS_BASE }]}
+        activeKey="home"
+        displayName="Ana"
+        onLogout={vi.fn()}
+        navigate={vi.fn()}
+        labels={LABELS}
+      >
+        <p>x</p>
+      </AppShell>,
+    );
+    // Sin headers en el modo plano — el contenido del label nunca aparece
+    // como heading dentro del nav.
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    // Pero los items sí están — el grupo plano NO oculta nada.
+    expect(screen.getByText("Inicio")).toBeInTheDocument();
+    expect(screen.getByText("Mensajes")).toBeInTheDocument();
+  });
+
+  it("headers de grupo son fijos no-colapsables: <h2> sin role button ni aria-expanded (ADR-0025)", () => {
+    // Render rule explícita de ADR-0025: el grupo NO es disclosure widget. El
+    // header sólo etiqueta visualmente. Si esta afordancia se rompe (e.g., un
+    // futuro refactor lo convierte en `<button aria-expanded>`), este test
+    // falla y obliga a discutir el cambio en una nueva ADR.
+    render(
+      <AppShell
+        title="Settings"
+        sidebarGroups={[
+          {
+            label: "Identidad",
+            items: [
+              { key: "language", label: "Idioma", href: "/language" },
+            ],
+          },
+        ]}
+        activeKey="language"
+        displayName="Ana"
+        onLogout={vi.fn()}
+        navigate={vi.fn()}
+        labels={LABELS}
+      >
+        <p>x</p>
+      </AppShell>,
+    );
+    const heading = screen.getByRole("heading", {
+      level: 2,
+      name: "Identidad",
+    });
+    expect(heading.tagName).toBe("H2");
+    expect(heading).not.toHaveAttribute("aria-expanded");
+    expect(heading).not.toHaveAttribute("aria-controls");
+    // Descarta colapsabilidad accidental: no debe existir botón con el
+    // nombre del label dentro del nav.
+    expect(
+      screen.queryByRole("button", { name: "Identidad" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("activeKey que no matchea ningún item → ningún item lleva aria-current (defensive)", () => {
     render(
       <AppShell
         title="Hub"
-        sidebarItems={ITEMS_BASE}
+        sidebarGroups={[{ label: null, items: ITEMS_BASE }]}
         activeKey="ghost"
         displayName="Ana"
         onLogout={vi.fn()}

@@ -1,12 +1,22 @@
 import type { ReactNode } from "react";
 import { AppShellAccountMenu } from "./app-shell-account-menu";
 import { AppShellDrawer } from "./app-shell-drawer";
-import type { AppShellLabels, SidebarItem } from "./app-shell-labels";
+import type {
+  AppShellLabels,
+  SidebarGroup,
+  SidebarItem,
+} from "./app-shell-labels";
 
 // Shell agnóstico mobile-first (ADR-0023). Composer Server: topbar arriba
 // (con drawer Client en mobile + account menu Client a la derecha) +
 // sidebar fija a la izquierda en desktop + `<main>` con `children`.
 // Consumers V1: `nav-hub` (Hub) y `nav-place` (settings, S5).
+//
+// V1.1 del sidebar (ADR-0025): el shell acepta `sidebarGroups: SidebarGroup[]`
+// (no `sidebarItems` flat). Cada grupo puede tener `label: null` (modo plano,
+// usado por `nav-hub` V1) o `label: string` (header fijo no-colapsable, usado
+// por `nav-place` V1.1 para sus 4 zonas conceptuales). Reglas de render
+// canónicas viven en el JSDoc de `SidebarGroup` (app-shell-labels.ts).
 //
 // El componente NO importa de `src/features/` — primitivo UI agnóstico al
 // dominio. Verificable: `grep -rn 'from "@/features/' src/shared/` → vacío.
@@ -31,8 +41,13 @@ type LogoutResult = { redirectTo: string };
 type Props = {
   /** Texto del header (también aria-label del drawer dialog). */
   title: string;
-  sidebarItems: SidebarItem[];
-  /** Key del item activo (matchea contra `sidebarItems[i].key`). */
+  /**
+   * Grupos del sidebar (ADR-0025). Cada grupo es `{ label, items }`:
+   * `label: null` → modo plano sin header; `label: string` → `<h2>` fijo
+   * arriba de los items (no-colapsable). Ver JSDoc de `SidebarGroup`.
+   */
+  sidebarGroups: SidebarGroup[];
+  /** Key del item activo (matchea contra el `.key` de algún item de algún grupo). */
   activeKey: string;
   /** Para el avatar del account menu. */
   displayName: string | null;
@@ -46,7 +61,7 @@ type Props = {
 
 export function AppShell({
   title,
-  sidebarItems,
+  sidebarGroups,
   activeKey,
   displayName,
   onLogout,
@@ -56,7 +71,7 @@ export function AppShell({
 }: Props) {
   const sidebar = (
     <AppShellSidebarNav
-      items={sidebarItems}
+      groups={sidebarGroups}
       activeKey={activeKey}
       ariaLabel={title}
       comingSoon={labels.comingSoon}
@@ -97,64 +112,91 @@ export function AppShell({
 }
 
 // Sidebar nav puro presentacional. Server (sin hooks). Vive inline acá
-// porque (a) es trivial (~30 LOC), (b) sólo lo usa `AppShell`, (c) extraerlo
-// agregaría 1 archivo sin valor reusable más allá del shell.
+// porque (a) es trivial, (b) sólo lo usa `AppShell`, (c) extraerlo agregaría
+// 1 archivo sin valor reusable más allá del shell.
+//
+// Estructura V1.1 (ADR-0025): itera sobre `SidebarGroup[]`. Por cada grupo
+// renderea (a) un `<h2>` fijo si `group.label !== null`, (b) los items del
+// grupo aplicando las render rules de cada `SidebarItem` (activo / disabled /
+// regular). El heading vive dentro del `<nav>` — es sub-sección semántica,
+// NO disclosure widget (sin role button, sin aria-expanded).
 function AppShellSidebarNav({
-  items,
+  groups,
   activeKey,
   ariaLabel,
   comingSoon,
 }: {
-  items: SidebarItem[];
+  groups: SidebarGroup[];
   activeKey: string;
   ariaLabel: string;
   comingSoon: string;
 }) {
   return (
     <nav aria-label={ariaLabel} className="flex flex-col gap-1 p-3">
-      {items.map((item) => {
-        // Disabled gana sobre href/active — invariante de runtime documentada
-        // en `app-shell-labels.ts` §SidebarItem (render rules).
-        if (item.disabled) {
-          return (
-            <span
-              key={item.key}
-              aria-disabled="true"
-              title={comingSoon}
-              className="flex items-center gap-3 rounded-md px-3 py-2 min-h-11 text-muted cursor-not-allowed"
-            >
-              {item.icon ? (
-                <span className="shrink-0" aria-hidden="true">
-                  {item.icon}
-                </span>
-              ) : null}
-              <span>{item.label}</span>
-            </span>
-          );
-        }
-        const isActive = item.key === activeKey;
-        return (
-          <a
-            key={item.key}
-            href={item.href}
-            aria-current={isActive ? "page" : undefined}
-            className={[
-              "flex items-center gap-3 rounded-md px-3 py-2 min-h-11",
-              "text-ink hover:bg-bg",
-              isActive ? "bg-bg font-medium" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-          >
-            {item.icon ? (
-              <span className="shrink-0 text-muted" aria-hidden="true">
-                {item.icon}
-              </span>
-            ) : null}
-            <span>{item.label}</span>
-          </a>
-        );
-      })}
+      {groups.map((group, groupIndex) => (
+        <div
+          key={group.label ?? `__plain-${groupIndex}`}
+          className="flex flex-col gap-1"
+        >
+          {group.label !== null ? (
+            <h2 className="px-3 pt-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted">
+              {group.label}
+            </h2>
+          ) : null}
+          {group.items.map((item) => renderSidebarItem(item, activeKey, comingSoon))}
+        </div>
+      ))}
     </nav>
+  );
+}
+
+// Render rules de cada item (ADR-0023 §SidebarItem). Se extrajo de
+// `AppShellSidebarNav` porque ahora se invoca dentro del loop de grupos —
+// inline crecía el inner-map y oscurecía la estructura del grupo.
+function renderSidebarItem(
+  item: SidebarItem,
+  activeKey: string,
+  comingSoon: string,
+) {
+  // Disabled gana sobre href/active — invariante de runtime documentada
+  // en `app-shell-labels.ts` §SidebarItem (render rules).
+  if (item.disabled) {
+    return (
+      <span
+        key={item.key}
+        aria-disabled="true"
+        title={comingSoon}
+        className="flex items-center gap-3 rounded-md px-3 py-2 min-h-11 text-muted cursor-not-allowed"
+      >
+        {item.icon ? (
+          <span className="shrink-0" aria-hidden="true">
+            {item.icon}
+          </span>
+        ) : null}
+        <span>{item.label}</span>
+      </span>
+    );
+  }
+  const isActive = item.key === activeKey;
+  return (
+    <a
+      key={item.key}
+      href={item.href}
+      aria-current={isActive ? "page" : undefined}
+      className={[
+        "flex items-center gap-3 rounded-md px-3 py-2 min-h-11",
+        "text-ink hover:bg-bg",
+        isActive ? "bg-bg font-medium" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      {item.icon ? (
+        <span className="shrink-0 text-muted" aria-hidden="true">
+          {item.icon}
+        </span>
+      ) : null}
+      <span>{item.label}</span>
+    </a>
   );
 }
