@@ -96,12 +96,18 @@ URL canónica del owner gestionando su lugar: `https://{slug}.place.community/se
 
 ## Dominios propios (custom domains)
 
-Un place puede configurar su propio dominio en vez del subdomain asignado: en vez de `mio.place.community`, servirse en `community.empresa.com`. El subdomain `{slug}.place.community` sigue existiendo siempre como fallback canónico.
+Un place puede configurar su propio dominio en vez del subdomain asignado: en vez de `mio.place.community`, servirse en `community.empresa.com`. **El subdomain `{slug}.place.community` sigue existiendo siempre como fallback canónico** (incluso si el custom domain está archived o pending).
 
 - **Routing:** el middleware resuelve el place por hostname. Si el host no es `*.place.community` ni el apex, se busca el place por `place_domain` (ver `data-model.md`); resuelve **solo dominios verificados**; si no matchea, 404.
-- **Alta y verificación (vía Vercel Domains API, sin trabajo manual):** el dueño escribe su dominio en la UI del place → el backend lo agrega al proyecto con `POST /v10/projects/{project}/domains` → Vercel devuelve los records DNS + challenge → se muestran en la UI → el dueño los pone en su DNS provider (su único paso manual) → polleamos el estado hasta `verified: true`; Vercel emite el SSL solo. Recién ahí se setea `place_domain.verified_at`. Vercel es la única fuente de verdad de verificación + SSL.
-- **OIDC client:** al verificarse el dominio, el backend provisiona su client OIDC confidencial (`place_domain.oauth_client_id`); al archivar el dominio, se revoca.
-- **Sesión:** un custom domain no comparte la cookie del apex, pero el miembro igual tiene SSO silencioso vía el flujo OIDC. Login único, sesión local aislada por dominio. Canónico en `docs/architecture.md` § "Sesión y SSO".
+- **Estado V1.1 (`docs/features/custom-domain/`, ADR-0026):** registro + verificación vía Vercel Domains API en `/settings/domain`. El flow:
+  1. Owner escribe su dominio en la UI → `POST /v10/projects/{project}/domains` → Vercel retorna DNS records + challenge.
+  2. UI muestra los records al owner → owner los configura en su DNS provider (único paso manual).
+  3. **Verificación lazy en page-load** (Server Component invoca `vercel.getDomainStatus(domain)` cada vez que el owner vuelve a `/settings/domain` con `verified_at IS NULL`) + **cron `*/15` opcional como safety net** para owners que cierran el tab y no vuelven (S6 del plan, V1.1 si se justifica en producción).
+  4. Vercel es la única fuente de verdad de verificación + SSL; `place_domain.verified_at` espeja ese estado.
+- **Lifecycle archived** (ADR-0026): `archived_at` libera el dominio para re-registro (partial unique index `(domain) WHERE archived_at IS NULL`). El subdomain canónico sigue funcionando siempre.
+- **OIDC client (Feature C posterior):** la columna `oauth_client_id` queda NULL en V1; el provisioning del client OIDC confidencial se delega a Feature C (callback handler en custom domain + SSO silencioso). ADR-0027 (futura) documentará el script idempotente de provisioning retroactivo.
+- **Host routing real** (`mi-place.com → place`): Feature B (plan posterior); usará función `app.lookup_place_by_domain(host)` `SECURITY DEFINER` porque el proxy edge no tiene claim de sesión.
+- **Sesión:** un custom domain no comparte la cookie del apex. SSO silencioso vía OIDC (Feature C). Login único, sesión local aislada por dominio. Canónico en `docs/architecture.md` § "Sesión y SSO". Refinado por ADR-0026.
 
 ## Development local
 

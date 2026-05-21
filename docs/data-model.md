@@ -2,7 +2,7 @@
 
 Schema del core del producto, expresado en **SQL (Postgres) ORM-agnóstico**. El método de acceso (ORM/query builder/SQL plano) está TBD; el modelo no depende de esa decisión. Cada feature agrega sus propias tablas respetando este core.
 
-> _Última actualización: 2026-05-20._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
+> _Última actualización: 2026-05-21 (custom-domain V1.1, ADR-0026 — partial unique index sobre `place_domain.domain`)._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
 
 ## Schema base
 
@@ -99,7 +99,22 @@ CREATE TABLE place_domain (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   archived_at     TIMESTAMPTZ
 );
+```
 
+**Cambio V1.1 (ADR-0026 + migration 0008):** el constraint `place_domain.domain UNIQUE` se reemplaza por un **partial unique index** que sólo aplica a filas activas:
+
+```sql
+ALTER TABLE place_domain DROP CONSTRAINT IF EXISTS place_domain_domain_unique;
+CREATE UNIQUE INDEX place_domain_domain_active_unq
+  ON place_domain (domain)
+  WHERE archived_at IS NULL;
+```
+
+**Invariante:** un dominio mapea a lo sumo a un place **activo** (`archived_at IS NULL`). Filas archived liberan el dominio para re-registro por el mismo o distinto owner. El history archived queda en DB para auditoría futura; la UI nunca lo muestra (page filtra `archived_at IS NULL`).
+
+**Estado V1: `oauth_client_id` queda NULL.** El provisioning del OIDC client (ADR-0001) se delega a Feature C; ADR-0027 (futura) cubrirá el provisioning retroactivo para rows con `verified_at IS NOT NULL AND oauth_client_id IS NULL`.
+
+```sql
 CREATE TABLE membership (
   id        TEXT PRIMARY KEY,
   user_id   TEXT NOT NULL REFERENCES app_user(id),
@@ -184,7 +199,7 @@ Reglas que el código debe enforzar. No son validaciones UI — son invariantes 
 - **No se pueden mezclar billing modes.** Un place tiene un solo modo activo. Cambiar de modo requiere flow explícito. (Estrategia de pagos concreta: TBD.)
 - **Slug inmutable.** Ver `multi-tenancy.md`.
 - **Un usuario no puede tener dos memberships activas en el mismo place.** Enforzado por unique constraint `(user_id, place_id)`.
-- **Un dominio mapea a lo sumo a un place.** Enforzado por `place_domain.domain UNIQUE`. El routing por hostname (ver `multi-tenancy.md`) resuelve **solo dominios verificados** (`verified_at IS NOT NULL`, `archived_at IS NULL`).
+- **Un dominio mapea a lo sumo a un place activo** (`archived_at IS NULL`). Enforzado post-V1.1 (ADR-0026 + migration 0008) por un **partial unique index** `place_domain_domain_active_unq ON place_domain (domain) WHERE archived_at IS NULL`. Filas archived liberan el dominio para re-registro. El routing por hostname (ver `multi-tenancy.md`) resuelve **solo dominios verificados** (`verified_at IS NOT NULL`, `archived_at IS NULL`).
 - **Un humano = un `app_user`.** Relación 1:1 con la identidad de login de Better Auth (`app_user.auth_user_id UNIQUE`), sin importar por qué dominio entró. El SSO cross-domain no crea identidades nuevas.
 - **Rol derivado, no almacenado.** Un usuario es owner de un place si existe fila en `place_ownership`; si solo tiene `membership`, es miembro. No existe rol `admin`: la administración delegada será una feature futura de grupos con permisos granulares.
 - **Discusiones es la zona no-desactivable.** Es el primitivo del que derivan eventos y biblioteca; siempre está activa. Eventos y Biblioteca son zonas **opcionales** que el owner activa/desactiva desde `/settings/*` (`enabled_features`). Miembros no es una zona toggleable: los miembros existen siempre.
