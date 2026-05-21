@@ -5,6 +5,12 @@ import {
   NavPlaceLayout,
   type NavPlaceLabels,
 } from "@/features/nav-place/public";
+import { type PlaceLocale, PLACE_LOCALES } from "@/features/place/public";
+import {
+  LocaleSection,
+  type LocaleSectionLabels,
+  updateDefaultLocaleAction,
+} from "@/features/place-settings/public";
 import { isServiceableSlug } from "@/shared/lib/host-routing";
 import {
   getPlaceForZone,
@@ -76,10 +82,12 @@ export default async function PlaceSettingsPage({ params }: Props) {
   const place = await getPlaceForZone(placeSlug);
   if (place === null) notFound();
 
-  // (4) i18n del settings — locale del place (DB-based, ADR-0024). Dos
-  // namespaces: `placeSettings` (dominio: title + 6 items del sidebar) +
-  // `navHub` (frame compartido: account menu + drawer toggle + logout, DRY
-  // con el Hub).
+  // (4) i18n del settings — locale del place (DB-based, ADR-0024). Tres
+  // namespaces:
+  //   - `placeSettings` (dominio: title + 6 items del sidebar);
+  //   - `navHub` (frame compartido: account menu + drawer toggle + logout,
+  //     DRY con el Hub);
+  //   - `placeSettings.language` (textos del form de la sección activa, S7).
   const tSettings = await getTranslations({
     locale: place.defaultLocale,
     namespace: "placeSettings",
@@ -87,6 +95,10 @@ export default async function PlaceSettingsPage({ params }: Props) {
   const tNav = await getTranslations({
     locale: place.defaultLocale,
     namespace: "navHub",
+  });
+  const tLang = await getTranslations({
+    locale: place.defaultLocale,
+    namespace: "placeSettings.language",
   });
 
   const navPlaceLabels: NavPlaceLabels = {
@@ -105,11 +117,38 @@ export default async function PlaceSettingsPage({ params }: Props) {
     accountMenuLogoutPending: tNav("logoutConfirming"),
   };
 
+  // Endonyms de los 6 locales (ADR-0024). El `Record<PlaceLocale, string>`
+  // es tipo-cierre: si en el futuro se agrega un locale al `PLACE_LOCALES`
+  // SoT pero NO al JSON i18n, este `Object.fromEntries` falla loud (key
+  // `placeSettings.language.options.<nuevo>` retorna placeholder o lanza,
+  // según next-intl mode). Defense-in-depth alineada con `loadPlaceBySlug`
+  // que también valida el locale recibido de la DB.
+  const localeOptions = Object.fromEntries(
+    PLACE_LOCALES.map((loc) => [loc, tLang(`options.${loc}`)]),
+  ) as Record<PlaceLocale, string>;
+
+  const localeSectionLabels: LocaleSectionLabels = {
+    title: tLang("title"),
+    description: tLang("description"),
+    label: tLang("label"),
+    options: localeOptions,
+    save: tLang("save"),
+    saving: tLang("saving"),
+    successTitle: tLang("successTitle"),
+    successBody: tLang("successBody"),
+    errorNotice: tLang("errorNotice"),
+  };
+
   // (5) Render. `displayName=null` por ahora: la sección "Idioma" no
   // requiere identidad visible, y la query `loadPlaceBySlug` no la trae
   // (sería overhead). Si en V2 el avatar muestra iniciales reales, se
   // agrega un `userDisplayName` al payload — paralelo a `inbox` que sí lo
   // trae con la stored function.
+  //
+  // `<main id="contenido">` queda en el page (estructura a11y del route +
+  // target del skip-link del layout S6). `<LocaleSection>` aporta su propia
+  // `<section>` con header (h1 + descripción) + form — el page no duplica
+  // ese header; ownership del contenido vive en el slice.
   const onLogout = logoutAction.bind(null, place.defaultLocale);
 
   return (
@@ -119,14 +158,13 @@ export default async function PlaceSettingsPage({ params }: Props) {
       activeSection="language"
       onLogout={onLogout}
     >
-      <main
-        id="contenido"
-        className="flex flex-1 flex-col gap-3 px-4 py-6 md:px-8 md:py-10"
-      >
-        <h1 className="text-2xl text-ink">{tSettings("language.title")}</h1>
-        <p className="max-w-prose leading-relaxed text-muted">
-          {tSettings("language.description")}
-        </p>
+      <main id="contenido" className="flex flex-1 flex-col">
+        <LocaleSection
+          currentLocale={place.defaultLocale}
+          placeSlug={place.slug}
+          updateAction={updateDefaultLocaleAction}
+          labels={localeSectionLabels}
+        />
       </main>
     </NavPlaceLayout>
   );
