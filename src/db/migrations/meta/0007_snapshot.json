@@ -1,0 +1,687 @@
+{
+  "id": "198565b2-4bef-4f40-8ace-88a16ddd8a1b",
+  "prevId": "1dc31f78-40a2-4cd4-a24c-246c255be349",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.app_user": {
+      "name": "app_user",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "(gen_random_uuid())::text"
+        },
+        "auth_user_id": {
+          "name": "auth_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "handle": {
+          "name": "handle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "avatar_url": {
+          "name": "avatar_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_active_at": {
+          "name": "last_active_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "tombstoned_at": {
+          "name": "tombstoned_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "app_user_auth_user_id_unique": {
+          "name": "app_user_auth_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "auth_user_id"
+          ]
+        },
+        "app_user_email_unique": {
+          "name": "app_user_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        },
+        "app_user_handle_unique": {
+          "name": "app_user_handle_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "handle"
+          ]
+        }
+      },
+      "policies": {
+        "au_self": {
+          "name": "au_self",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "app_system"
+          ],
+          "using": "(select app.current_user_id()) = \"app_user\".\"auth_user_id\"",
+          "withCheck": "(select app.current_user_id()) = \"app_user\".\"auth_user_id\""
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.invitation": {
+      "name": "invitation",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "(gen_random_uuid())::text"
+        },
+        "place_id": {
+          "name": "place_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invited_by": {
+          "name": "invited_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accepted_at": {
+          "name": "accepted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "invitation_place_id_place_id_fk": {
+          "name": "invitation_place_id_place_id_fk",
+          "tableFrom": "invitation",
+          "tableTo": "place",
+          "columnsFrom": [
+            "place_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "invitation_token_unique": {
+          "name": "invitation_token_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token"
+          ]
+        }
+      },
+      "policies": {
+        "invitation_all": {
+          "name": "invitation_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "app_system"
+          ],
+          "using": "EXISTS (SELECT 1 FROM place_ownership po\n              JOIN app_user au ON au.id = po.user_id\n              WHERE po.place_id = \"invitation\".\"place_id\"\n                AND au.auth_user_id = (select app.current_user_id()))",
+          "withCheck": "EXISTS (SELECT 1 FROM place_ownership po\n              JOIN app_user au ON au.id = po.user_id\n              WHERE po.place_id = \"invitation\".\"place_id\"\n                AND au.auth_user_id = (select app.current_user_id()))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.membership": {
+      "name": "membership",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "(gen_random_uuid())::text"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "place_id": {
+          "name": "place_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "joined_at": {
+          "name": "joined_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "left_at": {
+          "name": "left_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "membership_user_id_app_user_id_fk": {
+          "name": "membership_user_id_app_user_id_fk",
+          "tableFrom": "membership",
+          "tableTo": "app_user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "membership_place_id_place_id_fk": {
+          "name": "membership_place_id_place_id_fk",
+          "tableFrom": "membership",
+          "tableTo": "place",
+          "columnsFrom": [
+            "place_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "membership_user_id_place_id_unique": {
+          "name": "membership_user_id_place_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id",
+            "place_id"
+          ]
+        }
+      },
+      "policies": {
+        "membership_sel": {
+          "name": "membership_sel",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "app_system"
+          ],
+          "using": "EXISTS (SELECT 1 FROM place_ownership po\n              JOIN app_user au ON au.id = po.user_id\n              WHERE po.place_id = \"membership\".\"place_id\"\n                AND au.auth_user_id = (select app.current_user_id()))"
+        },
+        "membership_upd": {
+          "name": "membership_upd",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "app_system"
+          ],
+          "using": "EXISTS (SELECT 1 FROM place_ownership po\n              JOIN app_user au ON au.id = po.user_id\n              WHERE po.place_id = \"membership\".\"place_id\"\n                AND au.auth_user_id = (select app.current_user_id()))"
+        },
+        "membership_del": {
+          "name": "membership_del",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "app_system"
+          ],
+          "using": "EXISTS (SELECT 1 FROM place_ownership po\n              JOIN app_user au ON au.id = po.user_id\n              WHERE po.place_id = \"membership\".\"place_id\"\n                AND au.auth_user_id = (select app.current_user_id()))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.place": {
+      "name": "place",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "(gen_random_uuid())::text"
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_locale": {
+          "name": "default_locale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'es'"
+        },
+        "theme_config": {
+          "name": "theme_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "opening_hours": {
+          "name": "opening_hours",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "billing_mode": {
+          "name": "billing_mode",
+          "type": "billing_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subscription_status": {
+          "name": "subscription_status",
+          "type": "place_subscription_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ACTIVE'"
+        },
+        "subscription_past_due_at": {
+          "name": "subscription_past_due_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trial_ends_at": {
+          "name": "trial_ends_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "enabled_features": {
+          "name": "enabled_features",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "place_slug_unique": {
+          "name": "place_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        }
+      },
+      "policies": {
+        "place_sel": {
+          "name": "place_sel",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "app_system"
+          ],
+          "using": "EXISTS (SELECT 1 FROM place_ownership po\n              JOIN app_user au ON au.id = po.user_id\n              WHERE po.place_id = \"place\".\"id\"\n                AND au.auth_user_id = (select app.current_user_id()))"
+        },
+        "place_upd": {
+          "name": "place_upd",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "app_system"
+          ],
+          "using": "EXISTS (SELECT 1 FROM place_ownership po\n              JOIN app_user au ON au.id = po.user_id\n              WHERE po.place_id = \"place\".\"id\"\n                AND au.auth_user_id = (select app.current_user_id()))"
+        },
+        "place_del": {
+          "name": "place_del",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "app_system"
+          ],
+          "using": "EXISTS (SELECT 1 FROM place_ownership po\n              JOIN app_user au ON au.id = po.user_id\n              WHERE po.place_id = \"place\".\"id\"\n                AND au.auth_user_id = (select app.current_user_id()))"
+        }
+      },
+      "checkConstraints": {
+        "place_default_locale_check": {
+          "name": "place_default_locale_check",
+          "value": "\"place\".\"default_locale\" IN ('es', 'en', 'fr', 'pt', 'de', 'ca')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.place_domain": {
+      "name": "place_domain",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "(gen_random_uuid())::text"
+        },
+        "place_id": {
+          "name": "place_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "domain": {
+          "name": "domain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "oauth_client_id": {
+          "name": "oauth_client_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "place_domain_place_id_place_id_fk": {
+          "name": "place_domain_place_id_place_id_fk",
+          "tableFrom": "place_domain",
+          "tableTo": "place",
+          "columnsFrom": [
+            "place_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "place_domain_domain_unique": {
+          "name": "place_domain_domain_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "domain"
+          ]
+        },
+        "place_domain_oauth_client_id_unique": {
+          "name": "place_domain_oauth_client_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "oauth_client_id"
+          ]
+        }
+      },
+      "policies": {
+        "place_domain_all": {
+          "name": "place_domain_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "app_system"
+          ],
+          "using": "EXISTS (SELECT 1 FROM place_ownership po\n              JOIN app_user au ON au.id = po.user_id\n              WHERE po.place_id = \"place_domain\".\"place_id\"\n                AND au.auth_user_id = (select app.current_user_id()))",
+          "withCheck": "EXISTS (SELECT 1 FROM place_ownership po\n              JOIN app_user au ON au.id = po.user_id\n              WHERE po.place_id = \"place_domain\".\"place_id\"\n                AND au.auth_user_id = (select app.current_user_id()))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.place_ownership": {
+      "name": "place_ownership",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "(gen_random_uuid())::text"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "place_id": {
+          "name": "place_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "granted_at": {
+          "name": "granted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "place_ownership_user_id_app_user_id_fk": {
+          "name": "place_ownership_user_id_app_user_id_fk",
+          "tableFrom": "place_ownership",
+          "tableTo": "app_user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "place_ownership_place_id_place_id_fk": {
+          "name": "place_ownership_place_id_place_id_fk",
+          "tableFrom": "place_ownership",
+          "tableTo": "place",
+          "columnsFrom": [
+            "place_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "place_ownership_user_id_place_id_unique": {
+          "name": "place_ownership_user_id_place_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id",
+            "place_id"
+          ]
+        }
+      },
+      "policies": {
+        "po_sel": {
+          "name": "po_sel",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "app_system"
+          ],
+          "using": "EXISTS (SELECT 1 FROM app_user au WHERE au.id = \"place_ownership\".\"user_id\" AND au.auth_user_id = (select app.current_user_id()))"
+        },
+        "po_upd": {
+          "name": "po_upd",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "app_system"
+          ],
+          "using": "EXISTS (SELECT 1 FROM app_user au WHERE au.id = \"place_ownership\".\"user_id\" AND au.auth_user_id = (select app.current_user_id()))"
+        },
+        "po_del": {
+          "name": "po_del",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "app_system"
+          ],
+          "using": "EXISTS (SELECT 1 FROM app_user au WHERE au.id = \"place_ownership\".\"user_id\" AND au.auth_user_id = (select app.current_user_id()))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.billing_mode": {
+      "name": "billing_mode",
+      "schema": "public",
+      "values": [
+        "OWNER_PAYS",
+        "OWNER_PAYS_AND_CHARGES",
+        "SPLIT_AMONG_MEMBERS"
+      ]
+    },
+    "public.place_subscription_status": {
+      "name": "place_subscription_status",
+      "schema": "public",
+      "values": [
+        "ACTIVE",
+        "PAYMENT_PENDING",
+        "INACTIVATION_PROCESS",
+        "INACTIVE"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

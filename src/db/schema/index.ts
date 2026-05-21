@@ -4,6 +4,7 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  check,
   jsonb,
   pgEnum,
   pgPolicy,
@@ -87,6 +88,11 @@ export const place = pgTable("place", {
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
+  // Idioma del chrome del place, editable por owner (ADR-0022, feature
+  // `settings`). 6 locales operativos (ADR-0024); el CHECK constraint es
+  // defense-in-depth — el zod del wizard ya valida el enum cerrado, pero la
+  // DB asegura invariantes aún si el caller saltea la app layer.
+  defaultLocale: text("default_locale").notNull().default("es"),
   themeConfig: jsonb("theme_config")
     .$type<ThemeConfig>()
     .notNull()
@@ -115,6 +121,10 @@ export const place = pgTable("place", {
     pgPolicy("place_sel", { for: "select", to: appSystem, using: ownerOnly(t.id) }),
     pgPolicy("place_upd", { for: "update", to: appSystem, using: ownerOnly(t.id) }),
     pgPolicy("place_del", { for: "delete", to: appSystem, using: ownerOnly(t.id) }),
+    check(
+      "place_default_locale_check",
+      sql`${t.defaultLocale} IN ('es', 'en', 'fr', 'pt', 'de', 'ca')`,
+    ),
   ],
 );
 
