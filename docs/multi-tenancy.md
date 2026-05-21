@@ -66,6 +66,28 @@ URL canónica del usuario logueado: `https://app.place.community/{locale}/` (y f
 - **Redirects bidireccionales (S5b)**: `/{locale}/login` y `/{locale}/crear` del apex hacen el mirror — si la cookie de sesión está vigente, redirigen al Hub. Excepción: `/{locale}/crear?from=hub` (CTA "Crear un lugar" del estado vacío del Hub) deja pasar al wizard en modo **authed** (Identidad + Estilo, sin Paso 3 de cuenta — ADR-0008 §3, S5c). La sesión la levanta `createPlaceAction` server-side (`auth.token()`).
 - **Logout**: `logoutAction(locale)` borra la cookie cross-subdomain (`signOut()` del SDK) y devuelve `redirectTo` al apex (`https://place.community/${locale}`). El Server Action está bound con `locale` desde la page (`logoutAction.bind(null, locale)`) para satisfacer la firma del prop `onLogout` del Client Component `NavHubLayout`.
 
+## Zona Place — Settings (`{slug}.place.community/settings`)
+
+URL canónica del owner gestionando su lugar: `https://{slug}.place.community/settings/` (y `https://{customdomain}/settings/` cuando el place tiene `place_domain.verified_at`). Owner-only por RLS (no por código separado); cualquier no-owner recibe `notFound()` server-side.
+
+- **Path interno**: `(app)/place/[placeSlug]/settings/page.tsx`. El proxy reescribe `{slug}.place.community/settings` → `/place/{slug}/settings`. Sin `[locale]` en el path (a diferencia de marketing y Hub).
+
+- **i18n DB-based — distinto a marketing/Hub** (ADR-0022). El locale del settings (y de todo el chrome del place en versiones futuras) NO viene del path; es propiedad del place (`place.default_locale`, columna agregada en S2a). La page invoca `getTranslations({locale: place.defaultLocale, namespace: "placeSettings"})` con override explícito del locale resuelto en runtime. Esto es el "modo DB-based" canónico documentado en `docs/architecture.md` § "i18n: dos modos de resolución de locale".
+
+- **`<html lang>` dinámico** (a11y paridad). El layout `(app)/place/[placeSlug]/layout.tsx` setea `<html lang={place.defaultLocale}>` resolviendo el place por slug. Sin esto, `<html lang="es">` con texto en alemán falla axe.
+
+- **Skip-link a11y**: `<a href="#contenido" className="sr-only focus:not-sr-only">{t("skipLink")}</a>` al inicio del shell. Patrón estándar; permite a usuarios de teclado saltar la sidebar.
+
+- **Auth + RLS guard implícito**. La page hace `await getSessionJwt()` → sin token, redirect al login del apex (mismo patrón que Hub). Con token, `await loadPlaceBySlug(executor, placeSlug)` ejecuta bajo el rol `app_system` con claims inyectados → RLS `place_sel` filtra: si el caller no es owner, retorna `null` → `notFound()`. **El settings NO usa el patrón member-read de ADR-0021** — sólo owner. La función `loadPlaceBySlug` reusada en `(app)/place/[placeSlug]/layout.tsx` y en la page; `React.cache` dedupea las dos llamadas a una sola query física por request.
+
+- **Co-location**: como Hub, es DB-bound. `dynamic = "force-dynamic"` + `preferredRegion = "iad1"` (ADR-0006 §Region, `docs/stack.md` §Región).
+
+- **Shell**: `<NavPlaceLayout>` (slice `nav-place`) consume `<AppShell>` agnóstico (ADR-0023, `src/shared/ui/app-shell/`) con sus 6 ítems de sidebar (en V1, solo "Idioma" funcional; los otros 5 con `aria-disabled="true"` + tooltip "Próximamente"). Mismo shell que el Hub — sin divergencia mobile.
+
+- **Logout** desde settings: comparte el flujo del Hub. La cookie cross-subdomain ya cubre `{slug}.place.community` y `app.place.community` por igual. Para places con custom domain, el logout local del settings se resuelve en su propia ADR cuando se construya esa parte de auth (fuera del scope V1 — los custom domains tienen sesión propia vía OIDC, ver § "Dominios propios").
+
+- **Editar el locale del place** (única sección funcional V1, S7 del plan): el form invoca un Server Action `updateDefaultLocaleAction({placeSlug, newLocale})` que hace `UPDATE place SET default_locale = $1 WHERE slug = $2` bajo el rol `app_system` con claims inyectados. RLS `place_upd` filtra a owner (fail-closed por construcción). Tras OK, `revalidatePath` y la próxima carga del settings renderea en el nuevo idioma. Detalle en `docs/features/settings/spec.md`.
+
 ## DNS y Vercel
 
 - Record wildcard: `*.place.community → CNAME → cname.vercel-dns.com`

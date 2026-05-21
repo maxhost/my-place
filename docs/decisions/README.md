@@ -24,5 +24,7 @@ Registro de decisiones arquitectónicas con fecha, alternativas rechazadas y con
 - [0020 — Pausa de la asistencia LLM propose-only en el onboarding del MVP](0020-pausa-asistencia-llm-onboarding.md) — 2026-05-19 · pausa parcial 0005 §5 / 0007 / 0019 · refina 0015 · también retira el campo "Descripción" del wizard
 - [0021 — Patrón canónico para member-read: extender `_sel` con `OR exists(membership activa)`](0021-rls-member-read-pattern.md) — 2026-05-19 · refina 0010 §1 (cierra TBD de member-read) · habilita el Hub (`docs/features/inbox/`)
 - [0022 — Locale propio del place: `place.default_locale` editable + 6 locales operativos en toda la app](0022-locale-del-place.md) — 2026-05-20 · cierra promesa de `multi-tenancy.md:14` · habilita el feature settings (`docs/features/settings/`)
+- [0023 — App Shell agnóstico extraído a `shared/ui/app-shell` (consumido por `nav-hub` y `nav-place`)](0023-app-shell-agnostico-shared-ui.md) — 2026-05-20 · refina ADR-0014/0015/0016 · habilita S4 del feature settings
+- [0024 — Fallback runtime deep-merge entre `defaultLocale.json` y `{locale}.json`; `check-translations` informativo](0024-i18n-fallback-deep-merge.md) — 2026-05-20 · habilita S1 del feature settings · cierra gap latente `routing.ts.locales` 4 declarados vs 1 archivo real
 
 > Los números de ADR se asignan al redactarse, no se reservan por adelantado. La ADR de comisión/pricing (referida en `docs/landingpage/`) tomará el número que corresponda cuando se cierre.

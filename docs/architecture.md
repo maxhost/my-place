@@ -4,7 +4,7 @@ Paradigma: **Modular Monolith con Vertical Slices**. Priorizamos calma, estabili
 
 Este documento es el índice de las decisiones arquitectónicas. El detalle de cada área vive en `docs/`.
 
-> _Última actualización: 2026-05-17._ Documento vivo: si un cambio de código afecta una decisión de esta página, se actualiza **en la misma sesión** y se ajusta la fecha. Un doc viejo desinforma al agente — los specs stale causan fallos silenciosos.
+> _Última actualización: 2026-05-20._ Documento vivo: si un cambio de código afecta una decisión de esta página, se actualiza **en la misma sesión** y se ajusta la fecha. Un doc viejo desinforma al agente — los specs stale causan fallos silenciosos.
 
 ## Principios de organización
 
@@ -19,7 +19,7 @@ Este documento es el índice de las decisiones arquitectónicas. El detalle de c
 Inviolables. Enforzadas por eslint con `no-restricted-paths`.
 
 - Una feature nunca importa archivos internos de otra. Solo consume lo que la otra exporta en su `public.ts`.
-- `shared/` nunca importa de `features/`.
+- `shared/` nunca importa de `features/`. Primitivos UI compartidos entre dos slices peer viven en `src/shared/ui/` (precedente canónico: `shared/ui/app-shell/` consumido por `nav-hub` y `nav-place`, ADR-0023). Si dos slices necesitan el mismo componente, extraerlo a `shared/ui/` antes que importarlo via `public.ts` cross-feature — el shell no es producto de ninguna feature en particular.
 - El acceso a la DB se hace desde `queries.ts` y `actions.ts` del propio feature. Nunca desde componentes ni otras features.
 - Las rutas en `src/app/` son delgadas: importan desde features y renderizan.
 - Dependencias entre features son unidireccionales. Si aparece un ciclo, extraer la parte común a `shared/`. Primer ejemplo canónico en el repo: `access` consume el wizard de `place-creation` vía su `public.ts` (ADR-0014). Segundo: `place-creation` consume `style-assist` vía su `public.ts` (ADR-0015); el ciclo potencial se evitó extrayendo el primitivo de paleta a `@/shared/lib/palette-schema.ts` (aplicación literal de esta regla). Tercero: la UI del wizard se extrajo al slice `place-wizard` (ADR-0016) — consume `place-creation` (tipos + `slugSchema`) sólo vía su `public.ts`; `access` ahora renderiza `PlaceWizard` desde `place-wizard`. `place-creation` no importa ninguna feature → grafo acíclico. _Estado MVP (ADR-0020, 2026-05-19):_ la asistencia LLM se pausó — `place-wizard` ya no importa de `style-assist` y el slice `style-assist` queda dormido (saga + Server Action + dominio testeados, sin consumer activo); la motivación arquitectónica del slice y la regla acíclica siguen válidas.
@@ -89,6 +89,47 @@ El paso de `public` (place+ownership+membership) es **una función `SECURITY DEF
 ## Routing multi-tenant (en alcance de la tanda de registro)
 
 ADR-0005 mete el routing host-based en el alcance: estructura `(marketing)` / `(app)`, middleware host-based (apex → marketing/onboarding; `{slug}.place.community` → place; `app.` → inbox), wildcard DNS/Vercel. El middleware i18n actual (solo landing) se integra con el host-based. Detalle de URLs y estructura de rutas: `docs/multi-tenancy.md`.
+
+## i18n: dos modos de resolución de locale
+
+El producto soporta **6 locales operativos** (`es, en, fr, pt, de, ca`) post-ADR-0022. La resolución del locale activo en una request depende de la zona; hay dos modos canónicos, y toda zone nueva elige uno de los dos.
+
+### Modo path-based (marketing + Hub)
+
+El locale viene del segmento URL `[locale]`. Patrón clásico de `next-intl` con `localePrefix: "always"`:
+
+- URL: `place.community/{locale}/...` (marketing), `app.place.community/{locale}/...` (Hub).
+- El middleware de `next-intl` (compuesto en el proxy, `docs/multi-tenancy.md` § "Composición intl en la zona Hub") negocia el locale por path → cookie `NEXT_LOCALE` → `Accept-Language` → `defaultLocale`.
+- Server Components invocan `getTranslations(namespace)` (sin pasar `locale` explícito — el provider del request lo resuelve).
+- SSG genera 6 versiones por path (`/es/...`, `/en/...`, ..., `/ca/...`).
+
+### Modo DB-based (zona place — settings y resto del chrome del place)
+
+El locale es **propiedad del place** (`place.default_locale`, columna agregada en S2a por ADR-0022). NO aparece en la URL pública (`{slug}.place.community/settings/`, sin `[locale]`):
+
+- La page carga el place por slug y resuelve `place.defaultLocale` antes de cualquier render.
+- Server Components invocan `getTranslations({locale: place.defaultLocale, namespace})` con override explícito (verificación empírica del patrón en S1.5).
+- El layout `(app)/place/[placeSlug]/layout.tsx` setea `<html lang={place.defaultLocale}>` dinámico (a11y paridad — sin esto `<html lang="es">` con texto alemán falla axe).
+- `dynamic = "force-dynamic"` + `preferredRegion = "iad1"` (no SSG por locale; co-locado con Neon).
+
+### Fallback runtime compartido (ambos modos)
+
+Ambos modos comparten el deep-merge runtime de ADR-0024:
+
+- `i18n/request.ts` carga primero `defaultLocale.json` (es), luego mergea con `{locale}.json` del locale resuelto.
+- Key faltante en `{locale}` → cae al valor del default (UX renderea en español, no key cruda ni 500).
+- Script `scripts/check-translations.mjs` reporta drift; **informativo, no fail-closed**.
+- Iteración de traducciones es operación de producto (no de código): agregar key a `es.json`, las otras 5 caen al default hasta que el traductor las complete.
+
+### Resumen de decisiones canónicas
+
+| Zona              | Modo locale      | URL                                  | SSG  | Fuente                            |
+| ----------------- | ---------------- | ------------------------------------ | ---- | --------------------------------- |
+| marketing (apex)  | path-based       | `place.community/{locale}/...`       | sí   | path → cookie → Accept-Language   |
+| Hub (`app.`)      | path-based       | `app.place.community/{locale}/...`   | sí   | idem (compuesto en proxy)         |
+| zona place (slug) | DB-based         | `{slug}.place.community/...`         | no   | `place.default_locale` (DB)       |
+
+Esta tabla queda como referencia canónica para futuras zonas. Si emerge un caso híbrido (e.g. zone del place con `[locale]` en path para casos puntuales), se documenta en ADR refinante de 0022/0024.
 
 ## RLS y modelo rol/JWT (fundamento de auth)
 
