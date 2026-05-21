@@ -22,6 +22,7 @@
     "@neondatabase/serverless": "^1.1.0",
     "ai": "^6.0.185",
     "drizzle-orm": "^0.45.2",
+    "iconoir-react": "^7.11.0",
     "jose": "^6.2.3",
     "next": "16.2.6",
     "next-intl": "^4.12.0",

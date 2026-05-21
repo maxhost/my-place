@@ -1,14 +1,19 @@
 import type { SVGProps } from "react";
 
-// SVG inline del shell agnóstico (ADR-0023). El repo no tiene lib de iconos
-// (lucide/heroicons/etc.): convención es SVG inline con `currentColor` +
-// `aria-hidden` para que herede color del texto y no contamine el árbol
-// accesible. El aria-label vive en el botón padre, no en el ícono.
+// SVG inline del shell agnóstico (ADR-0023). Los 3 íconos universales del
+// frame (hamburger, close, logout) viven inline acá — son tan triviales y
+// específicos del shell que no tiene sentido cargar la lib de iconos del
+// repo (`iconoir-react`, canónica por ADR-0025) para ellos.
 //
-// 3 íconos universales del shell: hamburger (abrir drawer), close (cerrar
-// drawer), logout (cerrar sesión). Los íconos del sidebar (Places/Messages/
-// Activity para el Hub; Language/Members/etc. para el settings) son
-// dominio del consumer — viajan como `icon: ReactNode` en cada `SidebarItem`.
+// Convención: SVG inline con `currentColor` + `aria-hidden` para que herede
+// color del texto y no contamine el árbol accesible. El aria-label vive en
+// el botón padre, no en el ícono.
+//
+// Los íconos del sidebar (Places/Messages/Activity para el Hub;
+// Language/Members/etc. para el settings) son dominio del consumer — viajan
+// como `icon: ReactNode` en cada `SidebarItem` (ya sea desde `iconoir-react`
+// post-ADR-0025 o SVG inline propios). El shell sólo renderea sin conocer
+// el origen del ícono.
 
 const COMMON_PROPS: SVGProps<SVGSVGElement> = {
   width: 20,

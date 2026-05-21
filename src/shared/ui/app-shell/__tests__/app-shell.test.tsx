@@ -294,6 +294,45 @@ describe("AppShell — shell agnóstico mobile-first (ADR-0023)", () => {
     resolveLogout({ redirectTo: "https://place.community/es/" });
   });
 
+  it("icon: ReactNode renderiza dentro de un wrapper aria-hidden (tanto en items navegables como disabled)", () => {
+    // Regresión del contrato post-ADR-0025: `SidebarItem.icon` es `ReactNode`
+    // (no string/emoji). Cualquier componente React válido —SVG inline,
+    // `iconoir-react`, etc.— se renderea dentro de un span `aria-hidden` que
+    // hereda color del texto. El shell NO conoce el origen del ícono.
+    const ItemIcon = () => <svg data-testid="item-icon-active" />;
+    const DisabledIcon = () => <svg data-testid="item-icon-disabled" />;
+    render(
+      <AppShell
+        title="Hub"
+        sidebarItems={[
+          { key: "home", label: "Inicio", href: "/", icon: <ItemIcon /> },
+          {
+            key: "soon",
+            label: "Pronto",
+            disabled: true,
+            icon: <DisabledIcon />,
+          },
+        ]}
+        activeKey="home"
+        displayName="Ana"
+        onLogout={vi.fn()}
+        navigate={vi.fn()}
+        labels={LABELS}
+      >
+        <p>x</p>
+      </AppShell>,
+    );
+    const activeIcon = screen.getByTestId("item-icon-active");
+    const activeWrapper = activeIcon.parentElement;
+    expect(activeWrapper).toHaveAttribute("aria-hidden", "true");
+    expect(activeWrapper?.tagName).toBe("SPAN");
+
+    const disabledIcon = screen.getByTestId("item-icon-disabled");
+    const disabledWrapper = disabledIcon.parentElement;
+    expect(disabledWrapper).toHaveAttribute("aria-hidden", "true");
+    expect(disabledWrapper?.tagName).toBe("SPAN");
+  });
+
   it("activeKey que no matchea ningún item → ningún item lleva aria-current (defensive)", () => {
     render(
       <AppShell

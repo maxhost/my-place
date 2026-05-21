@@ -1,15 +1,19 @@
-// SVG inline del slice `nav-hub`. El repo no tiene lib de iconos
-// (lucide/heroicons/etc.) — convención es SVG inline con `currentColor` y
-// `aria-hidden` para que herede color del texto y no contamine el árbol
-// accesible (el aria-label de la action vive en el botón padre, no en el
-// ícono).
+// SVG inline del slice `nav-hub`. Por ADR-0025, la librería canónica de
+// íconos del repo es `iconoir-react`. Los 3 íconos de este archivo
+// (places/messages/activity) se conservan inline en V1 del Hub porque:
+// (a) ya están escritos y testeados, (b) son los únicos del slice y
+// migrarlos no agrega valor inmediato, (c) la migración a Iconoir queda
+// como deuda menor cuando se redibuje el Hub o aparezca un cuarto ícono.
+// Para slices nuevos (nav-place, settings, futuras zonas) se usa
+// `iconoir-react` desde día uno.
 //
-// V1 nav-hub: 3 íconos del sidebar (places/messages/activity). Los íconos
-// del frame agnóstico (menu/close/logout del drawer + account menu) viven
-// en `src/shared/ui/app-shell/icons.tsx` — el shell los maneja sin
-// conocimiento del dominio (ADR-0023). Si crece la familia (e.g., admin),
-// considerar `lucide-react`; no antes — 3 íconos chicos no justifican
-// dependencia externa.
+// Convención: SVG inline con `currentColor` y `aria-hidden` para que herede
+// color del texto y no contamine el árbol accesible (el aria-label de la
+// action vive en el botón padre, no en el ícono).
+//
+// Los íconos del frame agnóstico (menu/close/logout del drawer + account
+// menu) viven en `src/shared/ui/app-shell/icons.tsx` — el shell los maneja
+// sin conocimiento del dominio (ADR-0023).
 
 import type { SVGProps } from "react";
 
