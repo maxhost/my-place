@@ -1,6 +1,6 @@
 # Settings del place (`{slug}.place.community/settings`) — V1: shell mobile-first + idioma del place
 
-> _Spec creado 2026-05-20._ Status: V1 listo para implementar (sesiones S0a-S7, ver [`plan-sesiones.md`](./plan-sesiones.md)). Cierra los gaps que `multi-tenancy.md:14`, `architecture.md` (i18n hub-only) y la decisión "el wizard agrega un selector de idioma" dejaron pendientes. Primera implementación del **patrón i18n DB-based** del producto (locale como propiedad del place, no del path) en una zona del subdomain.
+> _Spec creado 2026-05-20. Última actualización 2026-05-21 — V1.1: refactor de IA del sidebar (4 grupos conceptuales + iconoir-react como librería canónica de iconos, ADR-0025)._ Status: **V1 implementado y deployed** (sesiones S0a–S7, commits `c3faba7` + `c20e842`). V1.1 en plan (5 sesiones: S0 docs · S1a/S1b refactor de `AppShell` agnóstico para grupos + iconos · S2 nav-place consume + iconoir · S3 i18n + cableo del page). Cierra los gaps que `multi-tenancy.md:14`, `architecture.md` (i18n hub-only) y la decisión "el wizard agrega un selector de idioma" dejaron pendientes. Primera implementación del **patrón i18n DB-based** del producto (locale como propiedad del place, no del path) en una zona del subdomain.
 
 ## Contexto
 
@@ -14,13 +14,12 @@ El producto dice "_un lugar, no una plataforma_" (`producto.md`). El settings si
 
 **Arquitectura del settings (mobile-first):**
 - **Topbar** superior — logo placeholder + título de la sección actual ("Idioma del place" en V1) + (mobile) botón hamburger + menú de cuenta a la derecha (logout heredado del shell, ver §"Estructura").
-- **Sidebar** lateral izquierda con secciones de settings (V1: 1 sola activa, resto disabled):
-  - **"Idioma del place"** — activa, V1.
-  - **"Miembros"** — disabled con badge "Próximamente".
-  - **"Apariencia"** — disabled con badge "Próximamente".
-  - **"Horario"** — disabled con badge "Próximamente".
-  - **"Billing"** — disabled con badge "Próximamente".
-  - **"Dominio custom"** — disabled con badge "Próximamente".
+- **Sidebar** lateral izquierda con **4 grupos conceptuales** (headers fijos no-colapsables — V1.1, ADR-0025) que agrupan **9 items** (V1: 1 sola sección activa, 8 "Próximamente" como afordancia del roadmap):
+  - **Identidad** (cómo el place se ve y se nombra) — Apariencia · **Idioma** (única activa V1) · Dominio
+  - **Estructura** (cómo el place se comporta) — Zonas (activar/desactivar Eventos + Biblioteca) · Horario
+  - **Suscripción** (la relación owner ↔ producto Place, ADR-0003) — Billing
+  - **Gestión** (administración interna) — Miembros · Grupos · Tiers
+- Cada item lleva un icono de [iconoir-react](https://iconoir.com/) (librería canónica de iconos del producto, ADR-0025 — reemplaza emojis V1 originales).
 - **Main content** — la sección activa ocupa el resto.
 - **Mobile** (<768px): el sidebar colapsa a drawer; hamburger lo abre/cierra; main content full width; tap fuera del drawer lo cierra. Idéntico al patrón del Hub V1, **vía el shell agnóstico** `shared/ui/AppShell` extraído en S4.
 
@@ -49,6 +48,9 @@ El producto dice "_un lugar, no una plataforma_" (`producto.md`). El settings si
 - **Sección "Horario"** — opening_hours (gate de actividad, `conversaciones.md`). Cuando se cablee el gate.
 - **Sección "Billing"** — suscripción, plan, payment method. Cuando billing real entre (Stripe/equivalente TBD).
 - **Sección "Dominio custom"** — `place_domain` resolver (Vercel Domains API). Cuando custom domains entren end-to-end.
+- **Sección "Zonas"** (V1.1) — activar/desactivar Eventos + Biblioteca (Discusiones es Core, no se toca, `ontologia/conversaciones.md`). Cuando se cablee el schema de zonas opcionales del place y la UI de activación.
+- **Sección "Grupos"** (V1.1) — crear grupos de miembros con permisos granulares (e.g. "admin" como grupo). Roadmap, ADR-0002 §"grupo admin como feature futura".
+- **Sección "Tiers"** (V1.1) — monetización de la comunidad (tiers pagados de membresía). Roadmap, ADR-0003 §"schema diferido".
 - **Sección "Archivar / cerrar place"** — lifecycle (ADR-0003). Cuando se cablee el state machine de archivado.
 - **Multi-owner concurrency** — V1 efectivamente single-owner (no hay UX para co-owner). Cuando entren co-owners se evalúa optimistic locking en el UPDATE.
 - **Settings desde dominio custom** (`midominio.com/settings`) — V1 sólo subdomain. El routing por `place_domain` aplica automáticamente al `/settings` cuando custom domains entren; sin trabajo extra en V1.
@@ -119,21 +121,54 @@ src/app/(app)/place/[placeSlug]/
 
 El avatar muestra iniciales sobre cuadrado de color del producto (no del place — el settings usa la paleta del producto, no la del place). V1 sin storage de avatar real.
 
-### Sidebar (mobile-first)
+### Sidebar (mobile-first) — V1.1 agrupado (ADR-0025)
 
-**Desktop**: ancho fijo ~240px, fondo `surface`, items con icono + label, item activo con fondo `accent-strong`. Item disabled con `aria-disabled="true"` + tooltip "Próximamente".
+**Desktop**: ancho fijo ~240px, fondo `surface`. Estructurado en **4 grupos conceptuales** con headers de sección **fijos no-colapsables** (V1.1 — si en futuro el sidebar supera 12 items se evalúa colapsar). Cada grupo expone su lista vertical de items con icono + label. Item activo con fondo `accent-strong`; item disabled con `aria-disabled="true"` + tooltip "Próximamente".
 
-**Mobile**: drawer overlay (no push), ancho ~280px, slide-in/out animation calma (200ms, `prefers-reduced-motion` respect).
+**Mobile**: drawer overlay (no push), ancho ~280px, slide-in/out animation calma (200ms, `prefers-reduced-motion` respect). Misma estructura agrupada — los headers de los 4 grupos aparecen secuencialmente; no requieren tap (no son interactivos).
 
-**Items V1**:
-1. **Idioma del place** — icono 🌐, label en `placeSettings.sidebar.language`. **Activa** por default.
-2. **Miembros** — icono 👥, label `placeSettings.sidebar.members`. `aria-disabled` + tooltip.
-3. **Apariencia** — icono 🎨, label `placeSettings.sidebar.appearance`. `aria-disabled` + tooltip.
-4. **Horario** — icono ⏰, label `placeSettings.sidebar.hours`. `aria-disabled` + tooltip.
-5. **Billing** — icono 💳, label `placeSettings.sidebar.billing`. `aria-disabled` + tooltip.
-6. **Dominio custom** — icono 🌍, label `placeSettings.sidebar.domain`. `aria-disabled` + tooltip.
+**Iconos**: librería canónica [iconoir-react](https://iconoir.com/) (ADR-0025). Tree-shake automático per-icon (no cargar el paquete completo). Un solo weight para consistencia visual con el ethos "calmo" de `producto.md`.
 
-**Diseño visual**: Tailwind sólo layout/spacing; colores con tokens del producto (`bg-surface`, `text-ink`, `border-border`, `bg-accent-strong`, `text-muted`). NO clases de color hardcoded.
+**Grupos e items V1.1** (9 items totales · 1 activa · 8 "Próximamente"):
+
+#### Identidad (cómo el place se ve y se nombra)
+
+| # | Item | i18n key | Iconoir candidate | Estado V1 |
+|---|---|---|---|---|
+| 1 | Apariencia | `placeSettings.sidebar.appearance` | `ColorPicker` o `DesignNib` | disabled (Próx.) |
+| 2 | **Idioma** | `placeSettings.sidebar.language` | `Language` o `Translate` | **activa** |
+| 3 | Dominio | `placeSettings.sidebar.domain` | `Internet` o `World` | disabled (Próx.) |
+
+#### Estructura (cómo el place se comporta)
+
+| # | Item | i18n key | Iconoir candidate | Estado V1 |
+|---|---|---|---|---|
+| 4 | Zonas | `placeSettings.sidebar.zones` | `ViewGrid` o `Apps` | disabled (Próx.) — NUEVO V1.1 |
+| 5 | Horario | `placeSettings.sidebar.hours` | `Clock` | disabled (Próx.) |
+
+#### Suscripción (relación owner ↔ producto Place, ADR-0003)
+
+| # | Item | i18n key | Iconoir candidate | Estado V1 |
+|---|---|---|---|---|
+| 6 | Billing | `placeSettings.sidebar.billing` | `CreditCard` o `Wallet` | disabled (Próx.) |
+
+#### Gestión (administración interna del place)
+
+| # | Item | i18n key | Iconoir candidate | Estado V1 |
+|---|---|---|---|---|
+| 7 | Miembros | `placeSettings.sidebar.members` | `Group` | disabled (Próx.) |
+| 8 | Grupos | `placeSettings.sidebar.groups` | `MultiplePages` o `Stack` | disabled (Próx.) — NUEVO V1.1 (Roadmap, ADR-0002) |
+| 9 | Tiers | `placeSettings.sidebar.tiers` | `Layers` o `Star` | disabled (Próx.) — NUEVO V1.1 (Roadmap, ADR-0003) |
+
+**i18n keys de headers de grupo** (V1.1):
+- `placeSettings.sidebar.groupIdentity` → "Identidad"
+- `placeSettings.sidebar.groupStructure` → "Estructura"
+- `placeSettings.sidebar.groupSubscription` → "Suscripción"
+- `placeSettings.sidebar.groupManagement` → "Gestión"
+
+**Items disabled**: no clicables (no tap-target, no link); el badge "Próximamente" es la afordancia visual suficiente. Decisión cerrada V1.1 (consulta del 2026-05-21): se descartó la idea de un mini-modal "Próximamente" al click — ruido visual sin valor.
+
+**Diseño visual**: Tailwind sólo layout/spacing; colores con tokens del producto (`bg-surface`, `text-ink`, `border-border`, `bg-accent-strong`, `text-muted`). NO clases de color hardcoded. Los headers de grupo usan un `text-xs uppercase tracking-wider text-muted` para diferenciarse visualmente de los items sin agregar peso.
 
 ### Sección "Idioma del place" (zona central)
 
@@ -299,19 +334,31 @@ src/features/place-settings/              # slice de la primera sección (S7)
 
 ## i18n keys
 
-V1 agrega namespace `placeSettings` a los 6 JSONs (de, ca creados como stubs en S1; en/fr/pt creados o completados con stubs si no existen). Estructura en `es.json`:
+V1 agregó namespace `placeSettings` a los 6 JSONs (en S6 — `es` real + `de/ca` stubs · luego traducciones reales de los 6 locales en commit `c3faba7`). V1.1 (S3 del plan-sesiones del sidebar agrupado) extiende `placeSettings.sidebar` con **4 group labels** + **3 items nuevos** (Zonas, Grupos, Tiers). Estructura final en `es.json`:
 
 ```json
 {
   "placeSettings": {
     "title": "Configurar tu lugar",
     "sidebar": {
-      "language": "Idioma del place",
-      "members": "Miembros",
+      "groupIdentity": "Identidad",
+      "groupStructure": "Estructura",
+      "groupSubscription": "Suscripción",
+      "groupManagement": "Gestión",
+
       "appearance": "Apariencia",
+      "language": "Idioma",
+      "domain": "Dominio",
+
+      "zones": "Zonas",
       "hours": "Horario",
+
       "billing": "Billing",
-      "domain": "Dominio custom",
+
+      "members": "Miembros",
+      "groups": "Grupos",
+      "tiers": "Tiers",
+
       "comingSoon": "Próximamente"
     },
     "language": {
@@ -329,14 +376,19 @@ V1 agrega namespace `placeSettings` a los 6 JSONs (de, ca creados como stubs en 
       "save": "Guardar",
       "saving": "Guardando…",
       "successTitle": "Idioma actualizado.",
-      "successBody": "La próxima carga aparecerá en {language}.",
+      "successBody": "Tu lugar ahora aparece en {language}.",
       "errorNotice": "No pudimos guardar el idioma. Probá de nuevo."
     }
   }
 }
 ```
 
-`successBody` con `{language}` placeholder (resuelto client con `.replace` desde `language.options[newLocale]`) — mismo patrón que `wizard.terms` y `inbox.cardMemberSince`.
+Notas:
+- **Labels cortos sin "del place"** — el sidebar ya está dentro del scope del place, redundancia eliminada. "Idioma" en lugar de "Idioma del place" (la sección activa sí mantiene "Idioma del place" en su h1 — ahí el contexto se entiende).
+- **Renombrado V1.1**: "Dominio custom" → "Dominio" (`placeSettings.sidebar.domain`). El valor cambia, la key se mantiene.
+- **Eliminado V1.1 (post copy-fix `c20e842`)**: `successBody` ahora dice "Tu lugar ahora aparece en {language}." — el cambio del locale se refleja inmediato en la UI gracias al refresh automático del Server Component que `revalidatePath` dispara post-Server Action; el copy viejo ("La próxima carga aparecerá…") sugería un mental model de "tenés que recargar" que no aplica.
+- `successBody` con `{language}` placeholder (resuelto client con `.replace` desde `language.options[newLocale]`) — mismo patrón que `wizard.terms` y `inbox.cardMemberSince`.
+- **Paridad ×6 locales** — `scripts/check-translations.mjs` garantiza 0 missing / 0 extras vs `es.json`. Las 7 keys nuevas de V1.1 (4 groups + 3 items) se agregan a los 6 locales en una sola sesión (S3) para preservar la paridad.
 
 ## Tests / TDD plan
 
