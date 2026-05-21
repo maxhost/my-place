@@ -23,5 +23,6 @@ Registro de decisiones arquitectónicas con fecha, alternativas rechazadas y con
 - [0019 — `style-assist` también es dueño de su UI glue (hook + isla + labels contract)](0019-style-assist-owns-llm-ui-glue.md) — 2026-05-20 · refina 0015 · cierra deuda de slice place-wizard >1500
 - [0020 — Pausa de la asistencia LLM propose-only en el onboarding del MVP](0020-pausa-asistencia-llm-onboarding.md) — 2026-05-19 · pausa parcial 0005 §5 / 0007 / 0019 · refina 0015 · también retira el campo "Descripción" del wizard
 - [0021 — Patrón canónico para member-read: extender `_sel` con `OR exists(membership activa)`](0021-rls-member-read-pattern.md) — 2026-05-19 · refina 0010 §1 (cierra TBD de member-read) · habilita el Hub (`docs/features/inbox/`)
+- [0022 — Locale propio del place: `place.default_locale` editable + 6 locales operativos en toda la app](0022-locale-del-place.md) — 2026-05-20 · cierra promesa de `multi-tenancy.md:14` · habilita el feature settings (`docs/features/settings/`)
 
 > Los números de ADR se asignan al redactarse, no se reservan por adelantado. La ADR de comisión/pricing (referida en `docs/landingpage/`) tomará el número que corresponda cuando se cierre.
