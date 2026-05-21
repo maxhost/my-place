@@ -346,5 +346,35 @@
     "accountMenuLabel": "Menú de cuenta",
     "logout": "Cerrar sesión",
     "logoutConfirming": "Cerrando sesión…"
+  },
+  "placeSettings": {
+    "title": "Configurar tu lugar",
+    "sidebar": {
+      "language": "Idioma del place",
+      "members": "Miembros",
+      "appearance": "Apariencia",
+      "hours": "Horario",
+      "billing": "Billing",
+      "domain": "Dominio custom",
+      "comingSoon": "Próximamente"
+    },
+    "language": {
+      "title": "Idioma del place",
+      "description": "Es el idioma en el que se mostrará tu lugar a quienes lo visiten. Podés cambiarlo cuando quieras.",
+      "label": "Idioma",
+      "options": {
+        "es": "Español",
+        "en": "English",
+        "fr": "Français",
+        "pt": "Português",
+        "de": "Deutsch",
+        "ca": "Català"
+      },
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "successTitle": "Idioma actualizado.",
+      "successBody": "La próxima carga aparecerá en {language}.",
+      "errorNotice": "No pudimos guardar el idioma. Probá de nuevo."
+    }
   }
 }
