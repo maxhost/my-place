@@ -102,29 +102,26 @@ export default async function PlaceSettingsPage({ params }: Props) {
   });
 
   // NavPlaceLabels V1.1 (ADR-0025): 4 group headers + 9 items (3 nuevos
-  // V1.1: zones / groups / tiers). El slice del settings extendió su contract
-  // en S2; las 7 keys nuevas (`groupIdentity/Structure/Subscription/
-  // Management` + `sidebarZones/Groups/Tiers`) viven todavía como literales
-  // en español acá — TODO(S3) reemplaza por `tSettings("sidebar.…")` + agrega
-  // las 7 keys a los 6 JSONs i18n en paridad (`scripts/check-translations.
-  // mjs` queda informativo, ADR-0024). Mientras tanto: la zona settings se
-  // renderea correctamente en español (locale default del MVP); fallback
-  // deep-merge cubre otros locales si llegaran a navegar antes de S3.
+  // V1.1: zones / groups / tiers). Las 14 labels propias del settings vienen
+  // del namespace `placeSettings.sidebar.*` (paridad ×6 locales verificable
+  // con `scripts/check-translations.mjs`, ADR-0024); las 5 labels del frame
+  // agnóstico (drawer toggle + account menu) reusan `navHub.*` (mismo widget
+  // visual que el Hub, DRY).
   const navPlaceLabels: NavPlaceLabels = {
     title: tSettings("title"),
-    groupIdentity: "Identidad", // TODO(S3): tSettings("sidebar.groupIdentity")
-    groupStructure: "Estructura", // TODO(S3): tSettings("sidebar.groupStructure")
-    groupSubscription: "Suscripción", // TODO(S3): tSettings("sidebar.groupSubscription")
-    groupManagement: "Gestión", // TODO(S3): tSettings("sidebar.groupManagement")
+    groupIdentity: tSettings("sidebar.groupIdentity"),
+    groupStructure: tSettings("sidebar.groupStructure"),
+    groupSubscription: tSettings("sidebar.groupSubscription"),
+    groupManagement: tSettings("sidebar.groupManagement"),
     sidebarLanguage: tSettings("sidebar.language"),
     sidebarMembers: tSettings("sidebar.members"),
     sidebarAppearance: tSettings("sidebar.appearance"),
     sidebarHours: tSettings("sidebar.hours"),
     sidebarBilling: tSettings("sidebar.billing"),
     sidebarDomain: tSettings("sidebar.domain"),
-    sidebarZones: "Zonas", // TODO(S3): tSettings("sidebar.zones")
-    sidebarGroups: "Grupos", // TODO(S3): tSettings("sidebar.groups")
-    sidebarTiers: "Tiers", // TODO(S3): tSettings("sidebar.tiers")
+    sidebarZones: tSettings("sidebar.zones"),
+    sidebarGroups: tSettings("sidebar.groups"),
+    sidebarTiers: tSettings("sidebar.tiers"),
     comingSoon: tSettings("sidebar.comingSoon"),
     openMenu: tNav("sidebarToggleOpen"),
     closeMenu: tNav("sidebarToggleClose"),

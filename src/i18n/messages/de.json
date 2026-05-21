@@ -350,12 +350,19 @@
   "placeSettings": {
     "title": "Konfiguriere deinen Ort",
     "sidebar": {
+      "groupIdentity": "Identität",
+      "groupStructure": "Struktur",
+      "groupSubscription": "Abonnement",
+      "groupManagement": "Verwaltung",
       "language": "Sprache des Ortes",
       "members": "Mitglieder",
       "appearance": "Erscheinungsbild",
       "hours": "Öffnungszeiten",
       "billing": "Abrechnung",
-      "domain": "Eigene Domain",
+      "domain": "Domain",
+      "zones": "Bereiche",
+      "groups": "Gruppen",
+      "tiers": "Tiers",
       "comingSoon": "Demnächst"
     },
     "language": {

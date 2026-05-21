@@ -350,12 +350,19 @@
   "placeSettings": {
     "title": "Configura el teu lloc",
     "sidebar": {
+      "groupIdentity": "Identitat",
+      "groupStructure": "Estructura",
+      "groupSubscription": "Subscripció",
+      "groupManagement": "Gestió",
       "language": "Idioma del Place",
       "members": "Membres",
       "appearance": "Aparença",
       "hours": "Horari",
       "billing": "Facturació",
-      "domain": "Domini propi",
+      "domain": "Domini",
+      "zones": "Zones",
+      "groups": "Grups",
+      "tiers": "Tiers",
       "comingSoon": "Pròximament"
     },
     "language": {

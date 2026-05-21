@@ -350,12 +350,19 @@
   "placeSettings": {
     "title": "Configurar tu lugar",
     "sidebar": {
+      "groupIdentity": "Identidad",
+      "groupStructure": "Estructura",
+      "groupSubscription": "Suscripción",
+      "groupManagement": "Gestión",
       "language": "Idioma del place",
       "members": "Miembros",
       "appearance": "Apariencia",
       "hours": "Horario",
       "billing": "Billing",
-      "domain": "Dominio custom",
+      "domain": "Dominio",
+      "zones": "Zonas",
+      "groups": "Grupos",
+      "tiers": "Tiers",
       "comingSoon": "Próximamente"
     },
     "language": {
