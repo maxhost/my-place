@@ -1,17 +1,18 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { NavPlaceLabels } from "../ui/nav-place-labels";
 import { NavPlaceLayout } from "../ui/nav-place-layout";
 
-// Tests del wrapper del settings sobre el shell agnóstico (S5, ADR-0023).
-// `<NavPlaceLayout>` es un thin wrapper sobre `<AppShell>` paralelo a
-// `<NavHubLayout>`: sólo cablea labels + 6 items del settings + active
-// section. Los detalles del shell (drawer toggle, ESC, overlay, account
-// menu, pending de logout) viven en
-// `src/shared/ui/app-shell/__tests__/app-shell.test.tsx` (S4.a) — no se
-// re-testean acá. Estos tests cubren la integración específica de la zona
-// settings: que el wrapper pasa los 6 items correctos al shell con el
-// active key y el title bien mapeados (1 navegable "language" + 5
+// Tests del wrapper del settings sobre el shell agnóstico (V1.1, ADR-0025).
+// `<NavPlaceLayout>` es un thin wrapper sobre `<AppShell>`: cablea labels +
+// 4 grupos conceptuales + 9 items del settings + active section. Los
+// detalles del shell (drawer toggle, ESC, overlay, account menu, pending de
+// logout, render de heading <h2> por grupo, render de item disabled vs
+// link activo) viven en
+// `src/shared/ui/app-shell/__tests__/app-shell.test.tsx` — no se re-testean
+// acá. Estos tests cubren la integración específica de la zona settings:
+// que el wrapper arme los 4 grupos en orden con los 9 items correctos,
+// los iconos iconoir cableados, y sólo "language" activa (1 link + 8
 // disabled).
 //
 // jsdom no computa media queries — assertions de responsive sobre clases
@@ -19,12 +20,21 @@ import { NavPlaceLayout } from "../ui/nav-place-layout";
 
 const LABELS: NavPlaceLabels = {
   title: "Configurar tu lugar",
+  // 4 group labels (V1.1, ADR-0025).
+  groupIdentity: "Identidad",
+  groupStructure: "Estructura",
+  groupSubscription: "Suscripción",
+  groupManagement: "Gestión",
+  // 9 item labels (V1.1 = V1 6 + 3 nuevos: zones/groups/tiers).
   sidebarLanguage: "Idioma del place",
   sidebarMembers: "Miembros",
   sidebarAppearance: "Apariencia",
   sidebarHours: "Horario",
   sidebarBilling: "Billing",
-  sidebarDomain: "Dominio custom",
+  sidebarDomain: "Dominio",
+  sidebarZones: "Zonas",
+  sidebarGroups: "Grupos",
+  sidebarTiers: "Tiers",
   comingSoon: "Próximamente",
   openMenu: "Abrir menú",
   closeMenu: "Cerrar menú",
@@ -33,8 +43,8 @@ const LABELS: NavPlaceLabels = {
   accountMenuLogoutPending: "Cerrando sesión…",
 };
 
-describe("NavPlaceLayout — wrapper del settings sobre el shell agnóstico", () => {
-  it("renderea title del shell, 6 items del settings, account menu y children", () => {
+describe("NavPlaceLayout — wrapper del settings agrupado V1.1 (ADR-0025)", () => {
+  it("renderea title del shell, 4 group headings, 9 items del settings, account menu y children", () => {
     render(
       <NavPlaceLayout
         labels={LABELS}
@@ -52,16 +62,32 @@ describe("NavPlaceLayout — wrapper del settings sobre el shell agnóstico", ()
     expect(
       screen.getByRole("button", { name: "Mi cuenta" }),
     ).toBeInTheDocument();
-    // 6 items del settings (`<nav aria-label={title}>` del shell).
+    // `<nav aria-label={title}>` del shell — un solo nav.
     expect(
       screen.getByRole("navigation", { name: "Configurar tu lugar" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Idioma del place")).toBeInTheDocument();
-    expect(screen.getByText("Miembros")).toBeInTheDocument();
-    expect(screen.getByText("Apariencia")).toBeInTheDocument();
-    expect(screen.getByText("Horario")).toBeInTheDocument();
-    expect(screen.getByText("Billing")).toBeInTheDocument();
-    expect(screen.getByText("Dominio custom")).toBeInTheDocument();
+    // 4 group headings <h2>.
+    const headings = screen.getAllByRole("heading", { level: 2 });
+    expect(headings.map((h) => h.textContent)).toEqual([
+      "Identidad",
+      "Estructura",
+      "Suscripción",
+      "Gestión",
+    ]);
+    // 9 items por sus labels.
+    for (const text of [
+      "Apariencia",
+      "Idioma del place",
+      "Dominio",
+      "Zonas",
+      "Horario",
+      "Billing",
+      "Miembros",
+      "Grupos",
+      "Tiers",
+    ]) {
+      expect(screen.getByText(text)).toBeInTheDocument();
+    }
     // Children del main.
     expect(screen.getByText("contenido del settings")).toBeInTheDocument();
   });
@@ -85,7 +111,7 @@ describe("NavPlaceLayout — wrapper del settings sobre el shell agnóstico", ()
     expect(active).toHaveAttribute("href", "/settings");
   });
 
-  it("los 5 items restantes (members/appearance/hours/billing/domain) son disabled (no son links, aria-disabled + tooltip)", () => {
+  it("los 8 items restantes (appearance/domain/zones/hours/billing/members/groups/tiers) son disabled — aria-disabled + tooltip 'Próximamente', sin role link", () => {
     render(
       <NavPlaceLayout
         labels={LABELS}
@@ -102,20 +128,69 @@ describe("NavPlaceLayout — wrapper del settings sobre el shell agnóstico", ()
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveTextContent("Idioma del place");
 
-    const members = screen.getByText("Miembros").closest("[aria-disabled]");
-    const appearance = screen
-      .getByText("Apariencia")
-      .closest("[aria-disabled]");
-    const hours = screen.getByText("Horario").closest("[aria-disabled]");
-    const billing = screen.getByText("Billing").closest("[aria-disabled]");
-    const domain = screen
-      .getByText("Dominio custom")
-      .closest("[aria-disabled]");
-
-    for (const item of [members, appearance, hours, billing, domain]) {
-      expect(item).toHaveAttribute("aria-disabled", "true");
-      expect(item).toHaveAttribute("title", "Próximamente");
+    const disabledLabels = [
+      "Apariencia",
+      "Dominio",
+      "Zonas",
+      "Horario",
+      "Billing",
+      "Miembros",
+      "Grupos",
+      "Tiers",
+    ];
+    for (const label of disabledLabels) {
+      const node = screen.getByText(label).closest("[aria-disabled]");
+      expect(node).toHaveAttribute("aria-disabled", "true");
+      expect(node).toHaveAttribute("title", "Próximamente");
     }
+  });
+
+  it("las 3 items NUEVAS V1.1 (Zonas, Grupos, Tiers) aparecen en sus grupos correctos (Estructura · Gestión · Gestión)", () => {
+    // Test específico del refactor V1.1: garantizar que los 3 items nuevos
+    // se rendean dentro del grupo conceptual correcto, no sueltos. Hace
+    // assertion sobre la estructura DOM `<div>` por grupo del shell.
+    const { container } = render(
+      <NavPlaceLayout
+        labels={LABELS}
+        displayName="Ana"
+        activeSection="language"
+        onLogout={vi.fn()}
+        navigate={vi.fn()}
+      >
+        <p>x</p>
+      </NavPlaceLayout>,
+    );
+    // El shell renderea `<nav><div>{group1}</div><div>{group2}</div>...</nav>`.
+    // Cada `<div>` empieza con `<h2>` (el label del grupo) seguido de items.
+    const nav = container.querySelector('nav[aria-label="Configurar tu lugar"]');
+    expect(nav).not.toBeNull();
+    const groupDivs = nav!.querySelectorAll(":scope > div");
+    expect(groupDivs).toHaveLength(4);
+
+    // Grupo 2 = Estructura → contiene Zonas + Horario.
+    expect(
+      within(groupDivs[1] as HTMLElement).getByText("Estructura"),
+    ).toBeInTheDocument();
+    expect(
+      within(groupDivs[1] as HTMLElement).getByText("Zonas"),
+    ).toBeInTheDocument();
+    expect(
+      within(groupDivs[1] as HTMLElement).getByText("Horario"),
+    ).toBeInTheDocument();
+
+    // Grupo 4 = Gestión → contiene Miembros + Grupos + Tiers.
+    expect(
+      within(groupDivs[3] as HTMLElement).getByText("Gestión"),
+    ).toBeInTheDocument();
+    expect(
+      within(groupDivs[3] as HTMLElement).getByText("Miembros"),
+    ).toBeInTheDocument();
+    expect(
+      within(groupDivs[3] as HTMLElement).getByText("Grupos"),
+    ).toBeInTheDocument();
+    expect(
+      within(groupDivs[3] as HTMLElement).getByText("Tiers"),
+    ).toBeInTheDocument();
   });
 
   it("la sidebar desktop tiene clases responsive 'hidden md:block' (visible sólo en md+)", () => {
