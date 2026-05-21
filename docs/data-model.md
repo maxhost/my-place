@@ -2,7 +2,7 @@
 
 Schema del core del producto, expresado en **SQL (Postgres) ORM-agnóstico**. El método de acceso (ORM/query builder/SQL plano) está TBD; el modelo no depende de esa decisión. Cada feature agrega sus propias tablas respetando este core.
 
-> _Última actualización: 2026-05-17._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
+> _Última actualización: 2026-05-20._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
 
 ## Schema base
 
@@ -55,6 +55,13 @@ CREATE TABLE place (
   slug             TEXT NOT NULL UNIQUE,
   name             TEXT NOT NULL,
   description      TEXT,  -- ADR-0020 (2026-05-19): nullable y *dormida* en el MVP. No se setea desde el wizard ni se edita desde ningún UI activo; forward-compat para `/settings` futuro (mismo patrón que `opening_hours` por ADR-0007).
+  -- Idioma del chrome del place (navegación, labels, mensajes del sistema). El
+  -- owner lo elige al crear y lo edita en /settings; todos los miembros ven el
+  -- place en este idioma sin importar cómo navegaron la zona pública. Canónico:
+  -- ADR-0022 (2026-05-20). Modo "DB-based" de i18n; detalle en architecture.md
+  -- § "i18n: dos modos de resolución de locale".
+  default_locale   TEXT NOT NULL DEFAULT 'es'
+                     CHECK (default_locale IN ('es','en','fr','pt','de','ca')),
   theme_config     JSONB NOT NULL DEFAULT '{}',
   opening_hours    JSONB NOT NULL DEFAULT '{}',
   billing_mode     billing_mode NOT NULL,
@@ -181,6 +188,7 @@ Reglas que el código debe enforzar. No son validaciones UI — son invariantes 
 - **Un humano = un `app_user`.** Relación 1:1 con la identidad de login de Better Auth (`app_user.auth_user_id UNIQUE`), sin importar por qué dominio entró. El SSO cross-domain no crea identidades nuevas.
 - **Rol derivado, no almacenado.** Un usuario es owner de un place si existe fila en `place_ownership`; si solo tiene `membership`, es miembro. No existe rol `admin`: la administración delegada será una feature futura de grupos con permisos granulares.
 - **Discusiones es la zona no-desactivable.** Es el primitivo del que derivan eventos y biblioteca; siempre está activa. Eventos y Biblioteca son zonas **opcionales** que el owner activa/desactiva desde `/settings/*` (`enabled_features`). Miembros no es una zona toggleable: los miembros existen siempre.
+- **`place.default_locale` editable por el owner, fijo para todos los miembros (ADR-0022).** Default `es` al crear; el owner puede cambiarlo en `/settings` a uno de los 6 locales operativos (`es/en/fr/pt/de/ca`, enforzado por `CHECK`). NO existe locale por-miembro: todos los miembros ven el chrome del place en `place.default_locale`. La zona pública (marketing, Hub) sigue el locale del path del visitante — son dos modos distintos canónicos en `architecture.md` § "i18n: dos modos de resolución de locale".
 - **Handle obligatorio y único global.** `app_user.handle NOT NULL UNIQUE`. Auto-asignado random no-usado al crear la cuenta, editable por el usuario, liberado para reuso **solo al borrar la cuenta** (no al salir de un place).
 - **Exención de la escala de inactividad.** La escala 6m/12m de cuenta NO corre mientras el usuario sea owner de ≥1 place activo O tenga ≥1 pago activo. Es una condición evaluada, no un flag permanente: al dejar de cumplir ambas, la cuenta entra a la escala. Ver ADR-0003.
 - **Alta owner-first: cuenta y place se crean juntos (saga, no transacción única).** El alta del apex crea `app_user` (+ identidad Better Auth) y luego `place` + `place_ownership` + `membership` vía la función atómica `app.create_place` (ADR-0005, refinado por ADR-0012 — INSERT directo denegado por RLS). Una cuenta queda sin place solo si falla ese último paso (reintento, no error fatal). Excepción de diseño: alta desde invitación o "join" del directorio crea cuenta + `membership` sin crear place.

@@ -4,6 +4,8 @@ Diseño de la landing pública de Place (`place.community`). Convergencia de 3 i
 
 > _Última actualización: 2026-05-16._ Documento vivo de diseño. La implementación en código es una sesión aparte (spec antes de código, `CLAUDE.md`); el push a Vercel requiere autorización explícita.
 
+> **Update 2026-05-20 (post-ADR-0022):** la app tiene **6 locales operativos** (`es/en/fr/pt/de/ca`). Las menciones de 4 locales y de "EN/FR/PT roadmap post-MVP" en el cuerpo de este doc son **históricas del cierre de la landing V1 (2026-05-16)** — se preservan tal cual por registro histórico, mismo pattern que ADR-0005/0006/0008. La landing en sí sigue funcionando con `localePrefix: 'always'` sobre los locales que `routing.ts` declare; agregar `de`/`ca` a su `generateStaticParams` queda dentro de S1 (no es trabajo de la landing). Fuente única del estado i18n: `docs/stack.md` y `docs/architecture.md` § "i18n: dos modos de resolución de locale".
+
 ---
 
 ## Objetivos

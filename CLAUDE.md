@@ -19,8 +19,10 @@ Cada cosa vive en un solo lugar. Antes de implementar, leé el doc que correspon
 - `docs/multi-tenancy.md` — routing por subdomain, DNS, middleware, slug inmutable
 - `docs/ontologia/` — documentos canónicos de cada objeto del core (`miembros.md`, `conversaciones.md`, `eventos.md`, `library.md`)
 - `docs/landingpage/` — arquitectura y contenido de la landing pública
+- `docs/features/<slug>/` — spec, plan-sesiones y tests de cada feature en construcción (ej. `docs/features/settings/`)
+- `docs/decisions/` — ADRs históricas con fecha, alternativas rechazadas y consecuencias (índice en `decisions/README.md`)
 
-Otros docs (blueprint, features, mockups, pre-launch-checklist, gotchas, decisions) se eliminaron en el reset y se reescriben cuando corresponda.
+Otros docs del reset (blueprint, mockups, pre-launch-checklist) se reescriben cuando corresponda. `docs/gotchas/` se completa a medida que aparecen casos (criterio en §Gotchas abajo).
 
 ## Paradigma arquitectónico
 

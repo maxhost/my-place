@@ -4,6 +4,8 @@ Runway para la sesión de build (fresca, enfocada). El diseño/copy/decisiones s
 
 > _Última actualización: 2026-05-16._ **Build ejecutada (2026-05-16): landing completa, todas las fases cerradas.** El deploy a Vercel sigue requiriendo autorización explícita ("push") — aún no se hizo.
 
+> **Update 2026-05-20 (post-ADR-0022):** la app pasó a **6 locales operativos** (`es/en/fr/pt/de/ca`). Las menciones de 4 locales (`['es','en','fr','pt']`) en el cuerpo de este plan son **históricas del cierre de la build V1**; se preservan por registro histórico. Agregar `de`/`ca` a `routing.ts.locales` + stubs en `messages/` es trabajo del feature settings (sesión S1, ver `docs/features/settings/plan-sesiones.md`), no de la landing. La landing seguirá rendereando SSG sobre los locales que `routing.ts` declare en cada momento — sin código que tocar acá.
+
 ## Estado de la build (2026-05-16)
 
 Fases 1-8 completas. Verificado en verde: `pnpm typecheck`, `pnpm lint`, `pnpm build` (20/20 páginas estáticas: 5 rutas × 4 locales, todas SSG `●`), `pnpm lhci`.

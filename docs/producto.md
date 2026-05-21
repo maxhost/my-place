@@ -2,7 +2,7 @@
 
 Documento canónico de **qué es Place** y de los **principios de experiencia/diseño** que atraviesan todos los objetos. Es la fuente de verdad de producto. Los objetos del core (miembros, conversaciones, eventos) tienen su ontología propia en `docs/ontologia/`; este documento es lo transversal que no pertenece a un objeto único.
 
-> _Última actualización: 2026-05-16._ Documento vivo: si una decisión de producto cambia un principio, se actualiza acá **en la misma sesión**, se ajusta la fecha y se registra en `docs/decisions/`.
+> _Última actualización: 2026-05-20._ Documento vivo: si una decisión de producto cambia un principio, se actualiza acá **en la misma sesión**, se ajusta la fecha y se registra en `docs/decisions/`.
 
 ---
 
@@ -40,17 +40,27 @@ Estos principios definen el DNA de Place. Violarlos es violar qué es el product
 
 ## Multi-idioma
 
-Place es una plataforma multi-idioma. La regla estructural es la **frontera estático/dinámico**:
+Place es una plataforma multi-idioma. Dos reglas estructurales lo gobiernan:
+
+**1) Frontera estático/dinámico.**
 
 - **Contenido estático se traduce.** Todo lo que provee el producto —landing page, formularios, labels, instrucciones, mensajes del sistema, emails transaccionales— está disponible en los idiomas soportados.
 - **Contenido dinámico NO se traduce.** Lo que crea un miembro (mensajes, temas, eventos, nombres, descripciones del place) queda en el idioma en que se escribió. Place nunca auto-traduce contenido de la gente: traducir automáticamente es ruido y distorsión, contrario al principio cozytech. Si alguien quiere traducir lo que lee, lo hace fuera del producto.
 
-**Idiomas y roadmap:**
+**2) Cada place habla un idioma único (ADR-0022, 2026-05-20).**
 
-- **Español** — idioma base, day-one. Todo el contenido estático existe en ES desde el MVP.
-- **Inglés, Francés, Portugués** — roadmap post-MVP. Se suman cuando la infraestructura i18n esté lista; no son bloqueantes para lanzar.
+Place NO es una app personal cuyo idioma se elige por miembro. Es **un lugar** con identidad propia — y el idioma del chrome (navegación, labels, menús, mensajes del sistema) es parte de esa identidad, decidida por el owner. Implicancias:
 
-La estrategia técnica (librería, catálogos de mensajes, routing por locale, detección) es **TBD** y se documenta en `docs/stack.md`.
+- El owner elige el idioma del place al crearlo (Paso 1 del wizard, default = locale del path de creación) y lo edita después en `/settings`. Persiste en `place.default_locale`.
+- **Todos los miembros ven el chrome del place en el idioma del owner**, sin importar en qué idioma navegaron la landing o el Hub. Un miembro que entró en inglés a un place creado en español lo ve en español, igual que vería en el idioma del lugar físico si entrara presencialmente.
+- La zona pública del producto (marketing, Hub `inbox.place.community`) sí usa el idioma del visitante (routing por path `/{locale}/...`). La frontera entre los dos modos vive en `docs/architecture.md` § "i18n: dos modos de resolución de locale".
+
+**Idiomas operativos (post-ADR-0022, 6 locales):**
+
+- **Español (`es`)** — idioma base, day-one. Default si no se elige otro.
+- **Inglés (`en`)** · **Francés (`fr`)** · **Portugués (`pt`)** · **Alemán (`de`)** · **Catalán (`ca`)** — operativos desde el feature settings (2026-05-20). Cobertura de traducciones se completa por namespace cuando se necesita; el fallback runtime garantiza que la UX nunca rendea key cruda (ADR-0024).
+
+La estrategia técnica (next-intl, dos modos de resolución, fallback deep-merge) está en `docs/stack.md` y `docs/architecture.md`.
 
 ## Dónde vive el resto
 
