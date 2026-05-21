@@ -38,3 +38,9 @@ Raíz: ese branch **nunca recibió las migraciones**. Una branch de Neon no es u
 - No es un bug a "arreglar" en código: el código respeta ADR-0005. Es un gap de **aprovisionamiento de entorno**.
 - `next build`, los tests y el CI **no** lo detectan (no ejecutan la saga contra el branch real). Se ve solo ejercitando el flujo en el deploy → verificar en preview/prod, no solo en CI (mismo ethos que el gotcha de cookies `__Secure-`).
 - Relacionado: ADR-0012 (migraciones source-of-truth), ADR-0017 (esta regla), `architecture.md` § "Migraciones y aprovisionamiento de entornos".
+
+## Prevención (2026-05-20)
+
+Tras el reincidente del Hub V1 (2026-05-20), el §Watch de ADR-0017 se cerró introduciendo `scripts/maybe-migrate.mjs` como prerequisito de `pnpm build` en `package.json`. Comportamiento: en `VERCEL_ENV=production` corre `pnpm db:migrate` y aborta el build si falla; en preview/local skip-ea. **Precondición**: setear `DATABASE_URL_MIGRATE` en Vercel scoped a Production (no preview/development) con el connection string admin (`neondb_owner`) de la branch `production`. Detalle en ADR-0017 §Cierre del Watch.
+
+Si este gotcha vuelve a dispararse después del 2026-05-20, **no es el mismo bug**: indica (a) que la env var `DATABASE_URL_MIGRATE` se desconfiguró, o (b) que el script `maybe-migrate.mjs` se rompió, o (c) que `pnpm db:migrate` falló silenciosamente y el deploy igual avanzó. Verificar el log de build de Vercel: el script imprime `[maybe-migrate]` en cada caso (skip / abort / OK).

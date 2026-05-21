@@ -42,3 +42,30 @@ Causa raíz: las migraciones se aplicaron **a mano solo a `dev`/`test`** (S1–S
 - Runbook de cutover de producción y checklist de envs: `docs/features/onboarding/plan-sesiones.md` § riesgo operativo / cutover.
 - Índice arquitectónico: `docs/architecture.md` § "Migraciones y aprovisionamiento de entornos".
 - Extiende ADR-0012 (source-of-truth de schema/funciones en migraciones); no lo supersede.
+
+## Cierre del Watch (2026-05-20)
+
+El §Consecuencias previa marcaba como **Watch (tarea de infra pendiente)** la automatización de `pnpm db:migrate` en el pipeline. Se reincidió el patrón: 2026-05-20, deploy del Hub V1 empujó código S2/S5 (commits `bc44744`/`a39c147`/`44930e0`/`be19575`/`8fbce88`/`be6a0e3`) sin que las migraciones `0004_member_read` y `0005_inbox_payload_fn` corrieran contra la branch `production`. Resultado: 500 en `app.place.community/es` con `digest=435036100` = `function app.get_inbox_payload() does not exist`. Fix manual aplicado via MCP Neon (2 tx atómicas con el SQL exacto del repo + INSERT en `drizzle.__drizzle_migrations` con los hashes oficiales extraídos de la branch `test`).
+
+Para cerrar el §Watch de forma estructural, se introduce el guard `scripts/maybe-migrate.mjs` invocado desde `package.json` `build`:
+
+```json
+"build": "node scripts/maybe-migrate.mjs && cross-env NODE_ENV=production next build"
+```
+
+Comportamiento:
+
+- **`VERCEL_ENV=production`** → corre `pnpm db:migrate` (rol admin vía `DATABASE_URL_MIGRATE` del environment de Vercel scoped a Production). Fail-closed: si la env var no está, o `drizzle-kit migrate` falla, el build aborta antes de `next build`. Mejor un deploy roto detectable que un deploy con código adelantado del schema.
+- **`VERCEL_ENV=preview`** → skip. Las preview branches efímeras se aprovisionan fuera del flujo del deploy (creadas desde `production`). Si emerge la necesidad de preview con migraciones automáticas, se ajusta el guard.
+- **Local `pnpm build`** (sin `VERCEL_ENV`) → skip. Preserva el flujo dev sin requerir credenciales admin localmente.
+
+**Precondición operativa** (manual, una sola vez): la env var `DATABASE_URL_MIGRATE` se setea en Vercel scoped a **Production** únicamente, con el connection string admin (`neondb_owner`) de la branch `production` de Neon. Comando:
+
+```bash
+vercel env add DATABASE_URL_MIGRATE production
+# Pegar: postgresql://neondb_owner:<password>@<endpoint-production>/<db>?sslmode=require
+```
+
+Esto cierra el gap entre "código pusheado" y "schema aprovisionado" sin acción humana intermedia. El próximo push con migración pendiente queda imposible de incumplir: o el migrate corre y el deploy avanza, o el build aborta y nada llega a producción.
+
+**No supersede el ADR**: las decisiones 1-4 del §Decisión siguen vigentes literalmente; el cierre del Watch es la implementación de la promesa pendiente, no un cambio de regla.
