@@ -206,6 +206,102 @@ describe("S4 RLS — member-read (ADR-0021)", () => {
   });
 });
 
+// ADR-0026 (2026-05-21): el partial unique `(domain) WHERE archived_at IS NULL`
+// libera el dominio cuando la fila se archiva — el mismo valor de dominio
+// puede volver a registrarse, ya sea por el mismo place (re-vincular tras
+// remover) o por otro place del mismo owner (cambio de marca). Esta sección
+// asierta el behavior bajo el rol real `app_system` con claim del owner, no
+// bajo el rol admin: la UNIQUE violation se mapea a `domain_taken` en la
+// Server Action (S3), por eso acá importa que el motor PG la rechace cuando
+// hay colisión activa y la deje pasar cuando no.
+describe("S1 RLS — partial unique permite reuso post-archive (ADR-0026)", () => {
+  it("mientras hay una fila activa con el mismo dominio, el INSERT duplicado falla (UNIQUE)", async () => {
+    await inRlsTx(async (tx) => {
+      const { pid } = await seedPlaceA(tx); // ya hay place_domain activo: a.example
+      await tx.as("authA");
+      expect(
+        await tx.denied(
+          `INSERT INTO place_domain (place_id, domain) VALUES ($1, 'a.example')`,
+          [pid],
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("tras archivar la fila, el mismo dominio puede re-registrarse en el mismo place", async () => {
+    await inRlsTx(async (tx) => {
+      const { pid } = await seedPlaceA(tx); // a.example activo
+      await tx.as("authA");
+      // archive (soft delete) — owner-only UPDATE.
+      await tx.q(
+        `UPDATE place_domain SET archived_at = now()
+         WHERE place_id = $1 AND domain = 'a.example'`,
+        [pid],
+      );
+      // re-INSERT del mismo dominio. Usar `tx.q` directo (NO `tx.denied`):
+      // `denied` envuelve en SAVEPOINT y ROLLBACK siempre, por lo que la
+      // fila no quedaría persistida en la tx y el sanity-check de abajo
+      // vería 0 activas. Acá queremos que el insert persista para luego
+      // asertar el invariante; si el motor lo rechazara, `tx.q` lanza y
+      // el test falla con la stack de la query.
+      await tx.q(
+        `INSERT INTO place_domain (place_id, domain) VALUES ($1, 'a.example')`,
+        [pid],
+      );
+      // Invariante: hay exactamente 1 fila ACTIVA con ese dominio (la
+      // archivada queda en la tabla pero no cuenta para el partial unique).
+      const r = (await tx.q(
+        `SELECT count(*)::int AS active
+         FROM place_domain WHERE domain = 'a.example' AND archived_at IS NULL`,
+      )) as Array<{ active: number }>;
+      expect(r[0].active).toBe(1);
+      // Sanity adicional: hay 2 filas en total (1 archivada + 1 activa).
+      const total = (await tx.q(
+        `SELECT count(*)::int AS n FROM place_domain WHERE domain = 'a.example'`,
+      )) as Array<{ n: number }>;
+      expect(total[0].n).toBe(2);
+    });
+  });
+
+  it("un segundo place del mismo owner puede reusar un dominio archivado del primero", async () => {
+    await inRlsTx(async (tx) => {
+      const { uA, pid: pidA } = await seedPlaceA(tx); // a.example activo en pidA
+      // Sembrar un segundo place también de A (INSERT directo está REVOKEd en
+      // runtime, pero `seed` corre como dueño de tabla — equivale al efecto
+      // que tendría `app.create_place` para el caller A).
+      const [{ id: pidA2 }] = (await tx.seed(
+        `INSERT INTO place (slug, name, billing_mode)
+         VALUES ('place-a2', 'Place A2', 'OWNER_PAYS') RETURNING id`,
+      )) as Array<{ id: string }>;
+      await tx.seed(
+        `INSERT INTO place_ownership (user_id, place_id) VALUES ($1, $2)`,
+        [uA, pidA2],
+      );
+      await tx.as("authA");
+      // Mientras a.example sigue activo en pidA, pidA2 NO lo puede registrar.
+      expect(
+        await tx.denied(
+          `INSERT INTO place_domain (place_id, domain) VALUES ($1, 'a.example')`,
+          [pidA2],
+        ),
+      ).toBe(true);
+      // Archivamos en pidA (libera el dominio):
+      await tx.q(
+        `UPDATE place_domain SET archived_at = now()
+         WHERE place_id = $1 AND domain = 'a.example'`,
+        [pidA],
+      );
+      // Ahora pidA2 sí puede tomarlo.
+      expect(
+        await tx.denied(
+          `INSERT INTO place_domain (place_id, domain) VALUES ($1, 'a.example')`,
+          [pidA2],
+        ),
+      ).toBe(false);
+    });
+  });
+});
+
 describe("S2 RLS — invitation / place_domain owner-only (ADR-0012 §2)", () => {
   it("el owner SÍ inserta invitation/place_domain de su place", async () => {
     await inRlsTx(async (tx) => {

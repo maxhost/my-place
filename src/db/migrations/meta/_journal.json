@@ -57,6 +57,13 @@
       "when": 1779374074596,
       "tag": "0007_create_place_fn_with_locale",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779402435357,
+      "tag": "0008_place_domain_partial_unique",
+      "breakpoints": true
     }
   ]
 }

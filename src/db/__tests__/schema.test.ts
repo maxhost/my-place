@@ -113,7 +113,7 @@ describe("S1 schema public — constraints e invariantes estructurales", () => {
     }
   });
 
-  it("columnas únicas de identidad (app_user, place, place_domain, invitation)", async () => {
+  it("columnas únicas de identidad (app_user, place, invitation)", async () => {
     const single = async (table: string, col: string) => {
       const u = await uniques(table);
       return u.some((x) => x.cols.length === 1 && x.cols[0] === col);
@@ -122,8 +122,13 @@ describe("S1 schema public — constraints e invariantes estructurales", () => {
     expect(await single("app_user", "email")).toBe(true);
     expect(await single("app_user", "handle")).toBe(true);
     expect(await single("place", "slug")).toBe(true);
-    expect(await single("place_domain", "domain")).toBe(true);
     expect(await single("invitation", "token")).toBe(true);
+    // `place_domain.domain` se cubre aparte en el describe "S1 — partial
+    // unique en place_domain.domain (ADR-0026)" — ya no es un UNIQUE
+    // constraint (pg_constraint contype='u'), pasó a ser un UNIQUE INDEX
+    // parcial (`archived_at IS NULL`), introspectable vía pg_index. La
+    // helper local `uniques(table)` solo lee pg_constraint, así que
+    // chequearlo acá daría falso negativo.
   });
 
   it("FKs del core apuntan a place/app_user", async () => {
@@ -170,5 +175,47 @@ describe("S1 — app.current_user_id() versionada por la migración (ADR-0011)",
       q("SELECT app.current_user_id() AS who"),
     )) as Array<{ who: string | null }>;
     expect(r[0].who).toBe("user-xyz");
+  });
+});
+
+// ADR-0026 (2026-05-21): la UNIQUE inline `(domain)` se reemplaza por un
+// UNIQUE INDEX PARCIAL filtrado por `archived_at IS NULL`. Habilita que un
+// dominio archivado vuelva a registrarse (mismo o distinto place), sin
+// quitar el invariante "a lo sumo un dominio activo por valor". El nombre
+// del índice — `place_domain_domain_active_unq` — es contractual: lo
+// referencian el plan de la feature y la sección de rollback de la
+// migration 0008.
+describe("S1 — partial unique en place_domain.domain (ADR-0026)", () => {
+  it("el UNIQUE inline `place_domain_domain_unique` ya NO existe", async () => {
+    const r = (await rows(
+      `SELECT con.conname FROM pg_constraint con
+       JOIN pg_class c ON c.oid = con.conrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'public' AND c.relname = 'place_domain'
+         AND con.contype = 'u' AND con.conname = 'place_domain_domain_unique'`,
+    )) as Array<{ conname: string }>;
+    expect(r).toEqual([]);
+  });
+
+  it("existe un UNIQUE INDEX parcial sobre (domain) WHERE archived_at IS NULL", async () => {
+    const r = (await rows(
+      `SELECT i.relname AS idx,
+              ix.indisunique AS is_unique,
+              pg_get_expr(ix.indpred, ix.indrelid) AS pred,
+              pg_get_indexdef(ix.indexrelid) AS def
+       FROM pg_index ix
+       JOIN pg_class i ON i.oid = ix.indexrelid
+       JOIN pg_class t ON t.oid = ix.indrelid
+       JOIN pg_namespace n ON n.oid = t.relnamespace
+       WHERE n.nspname = 'public' AND t.relname = 'place_domain'
+         AND i.relname = 'place_domain_domain_active_unq'`,
+    )) as Array<{ idx: string; is_unique: boolean; pred: string | null; def: string }>;
+    expect(r).toHaveLength(1);
+    const [row] = r;
+    expect(row.is_unique).toBe(true);
+    // pg_get_expr normaliza el predicado a `archived_at IS NULL` (case-aware).
+    expect((row.pred ?? "").toLowerCase()).toContain("archived_at is null");
+    // Validar columna indexada y que sigue siendo sobre la tabla esperada.
+    expect(row.def).toMatch(/CREATE UNIQUE INDEX .* ON public\.place_domain .*\(domain\)/);
   });
 });

@@ -1,0 +1,24 @@
+-- ADR-0026 (2026-05-21) + feature `custom-domain` S1: reemplazo de la
+-- UNIQUE inline `(domain)` por un UNIQUE INDEX PARCIAL filtrado por
+-- `archived_at IS NULL`. Habilita que un dominio archivado vuelva a
+-- registrarse (re-vincular tras "remover", o cambio de marca) sin perder
+-- el invariante "a lo sumo un dominio activo por valor".
+--
+-- Idempotente: `DROP CONSTRAINT IF EXISTS` + `CREATE UNIQUE INDEX IF NOT
+-- EXISTS` (patrón canónico del proyecto, ver 0006_place_default_locale.sql).
+-- `pnpm db:migrate` corre en cada deploy production por `maybe-migrate.mjs`
+-- (ADR-0017); drizzle skipea entries ya aplicadas, pero la idempotencia
+-- defense-in-depth cubre re-runs manuales o re-aplicaciones tras un drop
+-- accidental.
+--
+-- Reverse SQL (rollback puntual):
+--   DROP INDEX IF EXISTS place_domain_domain_active_unq;
+--   ALTER TABLE place_domain
+--     ADD CONSTRAINT place_domain_domain_unique UNIQUE (domain);
+--
+-- CAVEAT del reverse: si en el momento del rollback hay filas archivadas
+-- con `domain` colisionando con un dominio activo, el ADD CONSTRAINT falla.
+-- Reconciliar antes (DELETE de las archivadas duplicadas, o UPDATE del
+-- valor de domain con un sufijo `__archived_<id>` antes del ALTER).
+ALTER TABLE "place_domain" DROP CONSTRAINT IF EXISTS "place_domain_domain_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "place_domain_domain_active_unq" ON "place_domain" USING btree ("domain") WHERE archived_at IS NULL;

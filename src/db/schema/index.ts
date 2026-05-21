@@ -13,6 +13,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type {
   EnabledFeature,
@@ -130,6 +131,14 @@ export const place = pgTable("place", {
 
 // El subdomain {slug}.place.community NO se almacena (deriva de place.slug);
 // acá solo los dominios propios verificados vía Vercel.
+//
+// ADR-0026 (2026-05-21): la unicidad de `domain` es PARCIAL — sólo aplica a
+// filas activas (`archived_at IS NULL`). Habilita que un dominio archivado
+// pueda volver a registrarse (mismo place tras "remover", u otro place del
+// mismo owner en un cambio de marca), sin perder el invariante "a lo sumo un
+// dominio activo por valor". El index `place_domain_domain_active_unq` es
+// contractual con la Server Action `registerCustomDomain` (S3): la UNIQUE
+// violation (PG `23505`) se mapea a `RegisterError.domain_taken`.
 export const placeDomain = pgTable(
   "place_domain",
   {
@@ -137,7 +146,7 @@ export const placeDomain = pgTable(
     placeId: text("place_id")
       .notNull()
       .references(() => place.id),
-    domain: text("domain").notNull().unique(),
+    domain: text("domain").notNull(),
     verifiedAt: tstz("verified_at"),
     oauthClientId: text("oauth_client_id").unique(),
     createdAt: tstz("created_at").notNull().defaultNow(),
@@ -152,6 +161,9 @@ export const placeDomain = pgTable(
       using: ownerOnly(t.placeId),
       withCheck: ownerOnly(t.placeId),
     }),
+    uniqueIndex("place_domain_domain_active_unq")
+      .on(t.domain)
+      .where(sql`archived_at IS NULL`),
   ],
 );
 
