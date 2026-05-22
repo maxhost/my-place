@@ -71,6 +71,13 @@
       "when": 1779488835357,
       "tag": "0009_lookup_place_by_domain",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1779575235357,
+      "tag": "0010_lookup_place_locale_by_slug",
+      "breakpoints": true
     }
   ]
 }
