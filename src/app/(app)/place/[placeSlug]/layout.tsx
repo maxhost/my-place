@@ -1,6 +1,10 @@
 import { getTranslations } from "next-intl/server";
+import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { routing } from "@/i18n/routing";
+import { lookupPlaceByDomain } from "@/shared/lib/custom-domain-lookup";
+import { resolveHostWithCustomDomains } from "@/shared/lib/host-routing";
 import { getPlaceForZone } from "./_lib/get-place-for-zone";
 import "../../../globals.css";
 
@@ -29,6 +33,31 @@ import "../../../globals.css";
 // (`(marketing)/[locale]/layout.tsx`). Target = `#contenido`, presente en el
 // `<main>` de las pages de la zona (settings + portada). Localizado con el
 // `lang` derivado vía namespace `a11y`.
+//
+// Feature B S3 (ADR-0031 §3, 2026-05-22):
+//   1. **Defensive slug→host validation**. Si el request entra por un custom
+//      domain, validamos que el `place_domain.slug` resuelto desde el host
+//      coincide con el `placeSlug` del path. El proxy ya rewrite-ea al slug
+//      correcto, pero un crawler con `Host:` fabricado, un bug futuro de
+//      rewrite, o un actor accediendo a `/place/X` por una ruta interna
+//      NUNCA debería servir el place de otro en un host ajeno. `notFound()`
+//      antes de cualquier query owner-only — fail-closed.
+//   2. **Fallback `lang` para visitor anónimo en custom domain**. La cookie
+//      Neon Auth es host-only `.place.community` (ADR-0031 §"Cookie
+//      cross-domain gap"); el visitor en `nocodecompany.co` NO tiene sesión
+//      → `getPlaceForZone` retorna null → sin esta fix, `<html lang="es">`
+//      pese a que el owner configuró `pt`. El lookup anonymous-safe (S1)
+//      ya retornó `defaultLocale` en el wrapper async; lo usamos como
+//      precedence 2 entre el placeData del owner y el default canónico.
+//
+// Costo del defensive check en hot path:
+//   - Visitor a `<slug>.place.community/...` (subdomain canon, hot path
+//     mayoritario): `resolveHostWithCustomDomains` retorna `{zone: "place"}`
+//     SYNC sin invocar lookup (skip estructural). 0 queries DB.
+//   - Visitor a `nocodecompany.co/...` (custom domain): 1 query DB (la del
+//     wrapper async). Sumada a la query del proxy (middleware) son 2 por
+//     request en custom domain. ADR-0031 §"Lookup query cost" acepta el
+//     tradeoff V1; V1.1 puede agregar TTL cache si p95 > 100ms.
 
 type Props = {
   children: ReactNode;
@@ -37,8 +66,37 @@ type Props = {
 
 export default async function PlaceLayout({ children, params }: Props) {
   const { placeSlug } = await params;
+
+  // Defensive slug→host validation + fuente de truth del locale en custom
+  // domain. La invocación a `resolveHostWithCustomDomains` reusa la política
+  // de skip estructural (host-routing.ts S2): subdomain canon, apex, *.localhost
+  // y *.vercel.app NO consultan DB.
+  const hostHeader = (await headers()).get("host") ?? "";
+  const hostZone = await resolveHostWithCustomDomains(
+    hostHeader,
+    undefined,
+    lookupPlaceByDomain,
+  );
+  if (hostZone.zone === "custom-domain" && hostZone.slug !== placeSlug) {
+    // Algún actor accedió a `/place/{otherSlug}` por una ruta interna del host
+    // de otro custom domain — fail-closed antes de leer DB owner-only.
+    notFound();
+  }
+
   const place = await getPlaceForZone(placeSlug);
-  const lang = place?.defaultLocale ?? routing.defaultLocale;
+
+  // Precedence del `lang`:
+  //   1. `place.default_locale` — owner con sesión en subdomain canon o (en V1.1
+  //      con Feature C) custom domain con OIDC. Autoridad máxima.
+  //   2. `hostZone.defaultLocale` — visitor anónimo en custom domain; el
+  //      lookup ya resolvió el locale configurado por el owner. Crítico para
+  //      que el visitor NO vea fallback "es" pese a que el place es "pt".
+  //   3. `routing.defaultLocale` — fallback canónico (subdomain canon sin
+  //      sesión, host desconocido, etc.).
+  const lang =
+    place?.defaultLocale ??
+    (hostZone.zone === "custom-domain" ? hostZone.defaultLocale : null) ??
+    routing.defaultLocale;
   const tA11y = await getTranslations({ locale: lang, namespace: "a11y" });
 
   return (

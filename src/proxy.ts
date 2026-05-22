@@ -1,7 +1,8 @@
 import createMiddleware from "next-intl/middleware";
 import { type NextRequest, NextResponse } from "next/server";
 import { routing } from "@/i18n/routing";
-import { resolveHost } from "@/shared/lib/host-routing";
+import { lookupPlaceByDomain } from "@/shared/lib/custom-domain-lookup";
+import { resolveHostWithCustomDomains } from "@/shared/lib/host-routing";
 
 // Proxy host-based (Next 16 renombra middleware→proxy, ADR-0013). Clasifica el
 // host (ADR-0005 §10 · multi-tenancy.md) y:
@@ -18,6 +19,22 @@ import { resolveHost } from "@/shared/lib/host-routing";
 //     correcto).
 //   - place → rewrite a `/place/{slug}{path}` (prefijo estático: evita la
 //     colisión `[locale]`↔`[placeSlug]` que Next prohíbe en route groups).
+//   - custom-domain → rewrite a `/place/{slug}{path}` IDÉNTICO al place pero
+//     sin componer intl. Feature B (ADR-0031 §3, 2026-05-22): el host custom
+//     (ej. `nocodecompany.co`) se resolvió contra `place_domain` verified vía
+//     `lookupPlaceByDomain` (SECURITY DEFINER, migration 0009/S1, wrapper TS
+//     S2). En custom domain el locale viene de `place.default_locale`
+//     (resuelto por la page tree con `<html lang>` derivado en el layout),
+//     NO del path prefix `/[locale]` — el visitor ve `nocodecompany.co/...`
+//     en la URL bar, sin redirect ni prefix.
+//
+// **Async function (Feature B S3)**: la resolución del host pasó a depender
+// de una query Neon iad1 (`app.lookup_place_by_domain` STABLE) para hosts
+// candidatos a custom domain. El wrapper `resolveHostWithCustomDomains`
+// (S2, host-routing.ts) acota el cost budget con política de skip estructural
+// (apex, www, *.localhost, *.vercel.app → 0 queries). Hosts conocidos
+// estructurales (subdomain canon, inbox, apex) mantienen el path 100% in-memory
+// — la conversión a async NO impacta hot path del subdomain canónico.
 //
 // **TODO empíricamente verificado, S5a:** next-intl 4.12.0 soporta
 // `localeCookie: { domain: ".place.community" }` en `defineRouting()` (API
@@ -31,8 +48,12 @@ import { resolveHost } from "@/shared/lib/host-routing";
 
 const intlMiddleware = createMiddleware(routing);
 
-export default function proxy(req: NextRequest): NextResponse {
-  const target = resolveHost(req.headers.get("host") ?? "");
+export default async function proxy(req: NextRequest): Promise<NextResponse> {
+  const target = await resolveHostWithCustomDomains(
+    req.headers.get("host") ?? "",
+    undefined,
+    lookupPlaceByDomain,
+  );
 
   if (target.zone === "marketing") return intlMiddleware(req);
 
@@ -65,6 +86,18 @@ export default function proxy(req: NextRequest): NextResponse {
       }
     });
     return rewriteResponse;
+  }
+
+  if (target.zone === "custom-domain") {
+    // Mismo rewrite que `place` pero NO se compone intl: el locale del chrome
+    // se resuelve en el layout vía `place.default_locale` (cuando hay sesión
+    // owner) o vía el `defaultLocale` que el propio lookup retornó (visitante
+    // anónimo, gap auth V1 documentado en ADR-0031). La URL pública del
+    // visitor permanece intacta (rewrite interno, no redirect).
+    const url = req.nextUrl.clone();
+    const rest = url.pathname === "/" ? "" : url.pathname;
+    url.pathname = `/place/${target.slug}${rest}`;
+    return NextResponse.rewrite(url);
   }
 
   // zone === "place"
