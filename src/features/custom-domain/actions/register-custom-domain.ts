@@ -243,8 +243,14 @@ export async function registerCustomDomainAction(
     ? await persistVerifiedAtNow(token, inserted.id)
     : null;
 
-  // DNS records: vacío si verified; sino V9.verification[] + V6 recommended.
-  const v9Records = vercelRecordsToDnsRecords(vercelResult.data.dnsRecords);
+  // DNS records: vacío si verified; sino V6 recommended (shape apex/
+  // subdomain idiomático, #110) + V9.verification[] SOLO si trae records
+  // reales (challenge TXT pendiente). Polish #110 alinea register con el
+  // mismo combine-filter que `decideDomainFlow` (`_v6-helpers.ts`).
+  const v9HasChallenge = vercelResult.data.dnsRecords.length > 0;
+  const v9Records: DnsRecord[] = v9HasChallenge
+    ? vercelRecordsToDnsRecords(vercelResult.data.dnsRecords)
+    : [];
   const v6Records: DnsRecord[] =
     !isGenuinelyVerified && v6Result.ok
       ? v6ConfigToDnsRecords(v6Result.data, normalized)

@@ -79,10 +79,17 @@ export function decideDomainFlow(args: {
     };
   }
 
-  // V6 misconfigured=true → DNS roto. Records combinados V9 + V6.
+  // V6 misconfigured=true → DNS roto. Records V6 propagación + V9
+  // verification[] SOLO si V9 trae records reales (challenge TXT
+  // pendiente). Polish #110: cuando V9 `dnsRecords` es `[]` (ownership
+  // clear, caso `nocodecompany.co` smoke S3 2026-05-22), NO combinar —
+  // emitir solo V6 evita el record bogus de apex + RFC 1034 inválido.
   const v6Records = v6ConfigToDnsRecords(v6.data, domain);
-  const v9Records: DnsRecord[] =
-    v9 !== null && v9.ok ? vercelRecordsToDnsRecords(v9.data.dnsRecords) : [];
+  const v9HasChallenge =
+    v9 !== null && v9.ok && v9.data.dnsRecords.length > 0;
+  const v9Records: DnsRecord[] = v9HasChallenge
+    ? vercelRecordsToDnsRecords(v9.data.dnsRecords)
+    : [];
   const combined = [...v9Records, ...v6Records];
 
   return verifiedAt !== null
