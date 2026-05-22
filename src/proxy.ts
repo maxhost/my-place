@@ -36,15 +36,13 @@ import { resolveHostWithCustomDomains } from "@/shared/lib/host-routing";
 // estructurales (subdomain canon, inbox, apex) mantienen el path 100% in-memory
 // — la conversión a async NO impacta hot path del subdomain canónico.
 //
-// **TODO empíricamente verificado, S5a:** next-intl 4.12.0 soporta
-// `localeCookie: { domain: ".place.community" }` en `defineRouting()` (API
-// estable, mergea sobre defaults `name=NEXT_LOCALE` + `sameSite=lax`). Hoy
-// `src/i18n/routing.ts` NO lo setea: la cookie queda host-only y la
-// preferencia de locale NO persiste cross-subdomain (apex→app). En V1 sólo
-// `es` está poblado (spec §i18n) → UX degradada pero NO bloqueante. Si el
-// smoke prod de S5c confirma que el problema importa, agregar:
-//   `localeCookie: { name: "NEXT_LOCALE", sameSite: "lax", domain: ".place.community", path: "/", secure: true }`
-// en `routing.ts`. Mini-commit independiente; el cambio no toca este archivo.
+// **Cross-subdomain cookie cerrado en Feature B S4a (ADR-0031, 2026-05-22)**:
+// `src/i18n/routing.ts` ahora setea `localeCookie.domain = .<rootHost>`
+// derivado de `NEXT_PUBLIC_APP_URL` vía el helper privado
+// `localeCookieDomain()`. La preferencia de locale viaja apex↔subdomain canon
+// (`place.community` ↔ `app.place.community` ↔ `{slug}.place.community`).
+// Custom domains NO comparten cookie por design (origin distinto del root);
+// allí el locale viene de `place.default_locale` resuelto en el layout (S3).
 
 const intlMiddleware = createMiddleware(routing);
 
