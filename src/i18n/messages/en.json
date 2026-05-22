@@ -392,6 +392,8 @@
       "submitting": "Linking…",
       "pendingTitle": "Verifying your domain",
       "pendingDescription": "We're waiting for {domain} to point here.",
+      "downrevertedBannerTitle": "Your domain stopped working",
+      "downrevertedBannerBody": "We detected that {domain}'s DNS no longer points to Place. Re-configure the records shown below to reactivate it.",
       "pendingSlaCopy": "DNS propagation can take from 1 minute to 48 hours depending on your provider.",
       "pendingVercelUnavailable": "We're verifying, we'll try again shortly.",
       "dnsRecordsTitle": "DNS records to configure",

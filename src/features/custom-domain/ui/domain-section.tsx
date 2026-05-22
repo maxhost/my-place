@@ -59,6 +59,11 @@ export interface DomainSectionLabels {
   submitting: string;
   pendingTitle: string;
   /** Template con `{domain}`. */ pendingDescription: string;
+  /** Banner ADR-0029 §UX downreverted: dominio que estaba verified
+   * y se rompió en DNS. Sólo se renderiza si `state.wasDownreverted`. */
+  downrevertedBannerTitle: string;
+  /** Template con `{domain}`. Body del banner downreverted. */
+  downrevertedBannerBody: string;
   pendingSlaCopy: string;
   /** Reemplaza la tabla DNS cuando Vercel no respondió. */ pendingVercelUnavailable: string;
   dnsRecordsTitle: string;

@@ -392,6 +392,8 @@
       "submitting": "Liaison en cours…",
       "pendingTitle": "Vérification de ton domaine",
       "pendingDescription": "Nous attendons que {domain} pointe vers ici.",
+      "downrevertedBannerTitle": "Ton domaine ne fonctionne plus",
+      "downrevertedBannerBody": "Nous avons détecté que le DNS de {domain} ne pointe plus vers Place. Reconfigure les enregistrements ci-dessous pour le réactiver.",
       "pendingSlaCopy": "La propagation DNS peut prendre de 1 minute à 48 heures selon ton fournisseur.",
       "pendingVercelUnavailable": "Nous vérifions, nous réessaierons sous peu.",
       "dnsRecordsTitle": "Enregistrements DNS à configurer",

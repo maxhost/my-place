@@ -147,6 +147,8 @@ export default async function PlaceSettingsDomainPage({ params }: Props) {
     submitting: tDomain("submitting"),
     pendingTitle: tDomain("pendingTitle"),
     pendingDescription: tDomain("pendingDescription"),
+    downrevertedBannerTitle: tDomain("downrevertedBannerTitle"),
+    downrevertedBannerBody: tDomain("downrevertedBannerBody"),
     pendingSlaCopy: tDomain("pendingSlaCopy"),
     pendingVercelUnavailable: tDomain("pendingVercelUnavailable"),
     dnsRecordsTitle: tDomain("dnsRecordsTitle"),

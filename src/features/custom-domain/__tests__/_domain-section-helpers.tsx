@@ -29,6 +29,9 @@ export const LABELS: DomainSectionLabels = {
   submitting: "Vinculando…",
   pendingTitle: "Verificando configuración DNS",
   pendingDescription: "Pegá los registros en tu provider de DNS para {domain}.",
+  downrevertedBannerTitle: "Tu dominio dejó de funcionar",
+  downrevertedBannerBody:
+    "Detectamos que el DNS de {domain} ya no apunta a Place.",
   pendingSlaCopy: "La propagación puede tardar entre minutos y horas.",
   pendingVercelUnavailable:
     "Estamos verificando con Vercel, intentamos de nuevo en breve.",

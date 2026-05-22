@@ -392,6 +392,8 @@
       "submitting": "Wird verknüpft…",
       "pendingTitle": "Deine Domain wird überprüft",
       "pendingDescription": "Wir warten darauf, dass {domain} hierher zeigt.",
+      "downrevertedBannerTitle": "Deine Domain funktioniert nicht mehr",
+      "downrevertedBannerBody": "Wir haben festgestellt, dass das DNS von {domain} nicht mehr auf Place zeigt. Konfiguriere die unten angezeigten Einträge erneut, um sie zu reaktivieren.",
       "pendingSlaCopy": "Die DNS-Propagation kann je nach Anbieter zwischen 1 Minute und 48 Stunden dauern.",
       "pendingVercelUnavailable": "Wir prüfen gerade, wir versuchen es gleich noch einmal.",
       "dnsRecordsTitle": "Einzurichtende DNS-Einträge",

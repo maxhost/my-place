@@ -111,6 +111,65 @@ describe("DomainSection — estado pending", () => {
     // El botón Remover sigue disponible.
     expect(screen.getByRole("button", { name: "Remover" })).toBeInTheDocument();
   });
+
+  // ─── Banner downreverted (ADR-0029) ─────────────────────────────────────
+  // Cuando `state.wasDownreverted === true` (lazy poll detectó V6
+  // `misconfigured: true` sobre un dominio que estaba verified → reseteó
+  // `verified_at = NULL`), arriba del pending notice debe aparecer un banner
+  // explicando al owner que tiene que reconfigurar sus records.
+
+  it("render con `wasDownreverted: true` → banner downreverted con título + body con {domain} resuelto", () => {
+    setup({
+      state: {
+        status: "pending",
+        record: makeRecord({ domain: "comunidad.mi-marca.com" }),
+        dnsRecords: [
+          { type: "A", name: "@", value: "76.76.21.21" },
+        ],
+        wasDownreverted: true,
+      },
+    });
+    expect(
+      screen.getByText("Tu dominio dejó de funcionar"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Detectamos que el DNS de comunidad.mi-marca.com ya no apunta a Place.",
+      ),
+    ).toBeInTheDocument();
+    // El pending notice + tabla siguen visibles abajo.
+    expect(
+      screen.getByText("Verificando configuración DNS"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+
+  it("render con `wasDownreverted: undefined` (default) → banner downreverted ausente", () => {
+    setup({
+      state: {
+        status: "pending",
+        record: makeRecord({ domain: "comunidad.mi-marca.com" }),
+        dnsRecords: [{ type: "A", name: "@", value: "76.76.21.21" }],
+      },
+    });
+    expect(
+      screen.queryByText("Tu dominio dejó de funcionar"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("render con `wasDownreverted: false` explícito → banner ausente", () => {
+    setup({
+      state: {
+        status: "pending",
+        record: makeRecord({ domain: "comunidad.mi-marca.com" }),
+        dnsRecords: [{ type: "A", name: "@", value: "76.76.21.21" }],
+        wasDownreverted: false,
+      },
+    });
+    expect(
+      screen.queryByText("Tu dominio dejó de funcionar"),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("DomainSection — estado verified", () => {

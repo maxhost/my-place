@@ -50,6 +50,9 @@ export function PendingState(props: {
       ) : (
         <AutoRefreshRouter />
       )}
+      {state.wasDownreverted === true && (
+        <DownrevertedBanner domain={state.record.domain} labels={labels} />
+      )}
       <div className={noticeCls}>
         <p className="font-semibold text-ink">{labels.pendingTitle}</p>
         <p className="mt-1"><strong className="text-ink">{state.record.domain}</strong></p>
@@ -69,6 +72,39 @@ export function PendingState(props: {
         archiveAction={archiveAction}
         labels={labels}
       />
+    </div>
+  );
+}
+
+/**
+ * Banner ADR-0029 §UX downreverted: el lazy poll detectó que un dominio que
+ * estaba `verified` se rompió en DNS (V6 `misconfigured: true`) y reseteó
+ * `verified_at = NULL` en DB. Es un sub-estado de pending — la tabla DNS se
+ * muestra normal abajo, este banner agrega contexto explícito de "tu DNS
+ * dejó de apuntar a Place, reconfigurá los records".
+ *
+ * No usa colores hardcoded (CLAUDE.md §"Tailwind solo para layout y
+ * spacing"): reusa `noticeCls` (border-border + bg-surface). La
+ * diferenciación visual viene de la **posición** (primer elemento del
+ * pending state) + **copy denso** (título bold + body descriptivo).
+ *
+ * `{domain}` se resuelve igual que `pendingDescription` (`String.replace`)
+ * — no usamos `next-intl` Format aquí porque las labels llegan ya
+ * serializadas como strings al Client (mismo patrón que `pendingDescription`,
+ * `archiveConfirmBody`).
+ */
+function DownrevertedBanner({
+  domain,
+  labels,
+}: {
+  domain: string;
+  labels: DomainSectionLabels;
+}) {
+  const body = labels.downrevertedBannerBody.replace("{domain}", domain);
+  return (
+    <div className={noticeCls}>
+      <p className="font-semibold text-ink">{labels.downrevertedBannerTitle}</p>
+      <p className="mt-1 text-sm text-muted">{body}</p>
     </div>
   );
 }

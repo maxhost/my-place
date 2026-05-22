@@ -392,6 +392,8 @@
       "submitting": "Vinculant…",
       "pendingTitle": "Verificant el teu domini",
       "pendingDescription": "Estem esperant que {domain} apunti cap aquí.",
+      "downrevertedBannerTitle": "El teu domini ha deixat de funcionar",
+      "downrevertedBannerBody": "Hem detectat que el DNS de {domain} ja no apunta a Place. Torna a configurar els registres que apareixen a sota per reactivar-lo.",
       "pendingSlaCopy": "La propagació DNS pot trigar d'1 minut a 48 hores segons el teu proveïdor.",
       "pendingVercelUnavailable": "Estem verificant, ho tornarem a provar en breu.",
       "dnsRecordsTitle": "Registres DNS a configurar",

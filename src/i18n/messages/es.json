@@ -392,6 +392,8 @@
       "submitting": "Vinculando…",
       "pendingTitle": "Verificando tu dominio",
       "pendingDescription": "Estamos esperando que {domain} apunte hacia acá.",
+      "downrevertedBannerTitle": "Tu dominio dejó de funcionar",
+      "downrevertedBannerBody": "Detectamos que el DNS de {domain} ya no apunta a Place. Volvé a configurar los records que aparecen debajo para reactivarlo.",
       "pendingSlaCopy": "La propagación DNS puede tardar de 1 minuto a 48 horas según tu proveedor.",
       "pendingVercelUnavailable": "Estamos verificando, vamos a intentar de nuevo en breve.",
       "dnsRecordsTitle": "Records DNS a configurar",
