@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { isServiceableSlug, resolveHost } from "../host-routing";
+import { describe, expect, it, vi } from "vitest";
+import {
+  type CustomDomainLookup,
+  isServiceableSlug,
+  resolveHost,
+  resolveHostWithCustomDomains,
+} from "../host-routing";
 
 // S7 — routing host-based (ADR-0005 §10, multi-tenancy.md). El proxy clasifica
 // el host en una de tres zonas y reescribe a paths internos con prefijo
@@ -101,5 +106,171 @@ describe("isServiceableSlug — gate estructural del placeholder de place (S7)",
 
   it("normaliza mayúsculas (espeja slugSchema; resolveHost ya viene en minúsc.)", () => {
     expect(isServiceableSlug("TheCompany")).toBe(true);
+  });
+});
+
+// Feature B (ADR-0031, 2026-05-22) — wrapper async `resolveHostWithCustomDomains`.
+// Política de skip (cost budget V1): hosts estructuralmente no-custom (apex,
+// `www.<root>`, `app.<root>`, `<slug>.<root>`, `*.localhost`, `*.vercel.app`,
+// vacío) NUNCA invocan `lookup`. Sólo los candidatos reales pegan a la DB.
+// Fail-safe: `lookup` que tira NO crashea el proxy — colapsa a marketing.
+//
+// El test mockea `CustomDomainLookup` por su TYPE (no importa el módulo
+// concreto que otra agent crea en paralelo en `custom-domain-lookup.ts`).
+// `mockTrap()` rejecta siempre — doble red de seguridad: si por bug se
+// llamara, el await tira ADEMÁS de fallar el `.not.toHaveBeenCalled()`.
+
+const PLACE_1 = "00000000-0000-0000-0000-000000000001";
+const PLACE_2 = "00000000-0000-0000-0000-000000000002";
+const PLACE_3 = "00000000-0000-0000-0000-000000000003";
+
+// Helpers: la firma de `CustomDomainLookup` es `(host: string) => Promise<...>`,
+// pero TS permite asignar `() => Promise<T>` a `(string) => Promise<T>` por
+// compatibilidad estructural (la función-llamadora pasa un arg de más que el
+// callee ignora). Mantenemos el body sin declarar `host` para no disparar
+// `@typescript-eslint/no-unused-vars` (el repo no configura `argsIgnorePattern`).
+const mockResolves = (
+  shape: { placeId: string; slug: string; defaultLocale: string },
+): CustomDomainLookup => vi.fn(async () => shape);
+
+const mockReturnsNull: () => CustomDomainLookup = () =>
+  vi.fn(async () => null);
+
+const mockTrap: () => CustomDomainLookup = () =>
+  vi.fn(async () => {
+    throw new Error("no debió ser invocado");
+  });
+
+describe("resolveHostWithCustomDomains — wrapper async con resolución de custom domains (Feature B S2)", () => {
+  it("custom domain verified → variante custom-domain (lookup invocado con el host)", async () => {
+    const lookup = mockResolves({ placeId: PLACE_1, slug: "mi-place", defaultLocale: "es" });
+    const result = await resolveHostWithCustomDomains("nocodecompany.co", ROOT, lookup);
+    expect(result).toEqual({
+      zone: "custom-domain",
+      placeId: PLACE_1,
+      slug: "mi-place",
+      defaultLocale: "es",
+    });
+    expect(lookup).toHaveBeenCalledTimes(1);
+    expect(lookup).toHaveBeenCalledWith("nocodecompany.co");
+  });
+
+  it("custom domain desconocido (lookup → null) → marketing (lookup sí invocado)", async () => {
+    const lookup = mockReturnsNull();
+    const result = await resolveHostWithCustomDomains("nocodecompany.co", ROOT, lookup);
+    expect(result).toEqual({ zone: "marketing" });
+    expect(lookup).toHaveBeenCalledTimes(1);
+    expect(lookup).toHaveBeenCalledWith("nocodecompany.co");
+  });
+
+  it("lookup throws → marketing fail-safe (defense-in-depth, NO propaga el error)", async () => {
+    const lookup = vi.fn(async () => {
+      throw new Error("DB down");
+    }) satisfies CustomDomainLookup;
+    const result = await resolveHostWithCustomDomains("nocodecompany.co", ROOT, lookup);
+    expect(result).toEqual({ zone: "marketing" });
+    expect(lookup).toHaveBeenCalledTimes(1);
+  });
+
+  it("apex (`<root>`) NO consulta lookup → marketing (skip estructural)", async () => {
+    const lookup = mockTrap();
+    const result = await resolveHostWithCustomDomains("place.community", ROOT, lookup);
+    expect(result).toEqual({ zone: "marketing" });
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("`www.<root>` NO consulta lookup → marketing (skip estructural)", async () => {
+    const lookup = mockTrap();
+    const result = await resolveHostWithCustomDomains("www.place.community", ROOT, lookup);
+    expect(result).toEqual({ zone: "marketing" });
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("`app.<root>` NO consulta lookup → inbox (sync gana, lookup nunca invocado)", async () => {
+    const lookup = mockTrap();
+    const result = await resolveHostWithCustomDomains("app.place.community", ROOT, lookup);
+    expect(result).toEqual({ zone: "inbox" });
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("`<slug>.<root>` NO consulta lookup → place (custom domain NUNCA pisa zona estructural)", async () => {
+    const lookup = mockTrap();
+    const result = await resolveHostWithCustomDomains("thecompany.place.community", ROOT, lookup);
+    expect(result).toEqual({ zone: "place", slug: "thecompany" });
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("dev: `localhost` y `*.localhost` NO consultan lookup (ningún hit DB en dev)", async () => {
+    const lookup = mockTrap();
+    expect(await resolveHostWithCustomDomains("thecompany.localhost:3000", ROOT, lookup)).toEqual({
+      zone: "place",
+      slug: "thecompany",
+    });
+    expect(await resolveHostWithCustomDomains("localhost:3000", ROOT, lookup)).toEqual({
+      zone: "marketing",
+    });
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("`*.vercel.app` (preview) NO consulta lookup → marketing", async () => {
+    const lookup = mockTrap();
+    const result = await resolveHostWithCustomDomains("place-git-main.vercel.app", ROOT, lookup);
+    expect(result).toEqual({ zone: "marketing" });
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("sin `lookup` (arg omitido) → comportamiento idéntico al sync", async () => {
+    // Custom domain colapsa a marketing porque no hay forma de detectarlo.
+    expect(await resolveHostWithCustomDomains("nocodecompany.co", ROOT)).toEqual({
+      zone: "marketing",
+    });
+    // Y un host estructural sigue funcionando — paridad con `resolveHost` cuando lookup es undefined.
+    expect(await resolveHostWithCustomDomains("app.place.community", ROOT)).toEqual({
+      zone: "inbox",
+    });
+  });
+
+  it("host uppercase → lookup recibe el host normalizado a minúsculas", async () => {
+    // Inline `vi.fn()` con `satisfies` para preservar el shape `Mock` y poder
+    // leer `.mock.calls[0][0]` (los helpers retornan `CustomDomainLookup`
+    // estricto y borrarían esa property). Declaramos el arg `host` y lo
+    // descartamos con `void` para satisfacer al lint sin perder la firma.
+    const lookup = vi.fn(async (host: string) => {
+      void host;
+      return {
+        placeId: PLACE_2,
+        slug: "mi-place",
+        defaultLocale: "es",
+      };
+    }) satisfies CustomDomainLookup;
+    const result = await resolveHostWithCustomDomains("NoCodeCompany.CO", ROOT, lookup);
+    expect(result).toEqual({
+      zone: "custom-domain",
+      placeId: PLACE_2,
+      slug: "mi-place",
+      defaultLocale: "es",
+    });
+    expect(lookup).toHaveBeenCalledTimes(1);
+    expect(lookup.mock.calls[0]?.[0]).toBe("nocodecompany.co");
+  });
+
+  it("host con `:port` → lookup recibe el host sin puerto", async () => {
+    const lookup = mockResolves({ placeId: PLACE_3, slug: "empresa-place", defaultLocale: "es" });
+    const result = await resolveHostWithCustomDomains("empresa.com:443", ROOT, lookup);
+    expect(result).toEqual({
+      zone: "custom-domain",
+      placeId: PLACE_3,
+      slug: "empresa-place",
+      defaultLocale: "es",
+    });
+    expect(lookup).toHaveBeenCalledTimes(1);
+    expect(lookup).toHaveBeenCalledWith("empresa.com");
+  });
+
+  it("host vacío → marketing sin invocar lookup (defensa)", async () => {
+    const lookup = mockTrap();
+    const result = await resolveHostWithCustomDomains("", ROOT, lookup);
+    expect(result).toEqual({ zone: "marketing" });
+    expect(lookup).not.toHaveBeenCalled();
   });
 });
