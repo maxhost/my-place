@@ -421,5 +421,13 @@
       "errorArchiveNotFound": "No encontramos ese dominio.",
       "errorArchiveGeneric": "No pudimos remover el dominio. Probá de nuevo."
     }
+  },
+  "customDomainRouting": {
+    "authGate": {
+      "title": "Iniciá sesión en Place",
+      "body": "Para administrar **{slug}** tenés que iniciar sesión en su dirección original en Place. Esta URL es la cara pública del lugar para tus visitantes.",
+      "cta": "Ir a {slug}.place.community",
+      "help": "Mientras tanto, tus visitantes pueden seguir usando este dominio normalmente."
+    }
   }
 }

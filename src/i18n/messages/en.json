@@ -421,5 +421,13 @@
       "errorArchiveNotFound": "We couldn't find that domain.",
       "errorArchiveGeneric": "We couldn't remove the domain. Try again."
     }
+  },
+  "customDomainRouting": {
+    "authGate": {
+      "title": "Sign in on Place",
+      "body": "To manage **{slug}** you need to sign in at its original Place address. This URL is the public face of the place for your visitors.",
+      "cta": "Go to {slug}.place.community",
+      "help": "In the meantime, your visitors can keep using this domain as usual."
+    }
   }
 }

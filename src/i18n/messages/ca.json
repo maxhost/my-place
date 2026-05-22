@@ -421,5 +421,13 @@
       "errorArchiveNotFound": "No hem trobat aquest domini.",
       "errorArchiveGeneric": "No hem pogut retirar el domini. Torna-ho a provar."
     }
+  },
+  "customDomainRouting": {
+    "authGate": {
+      "title": "Inicia sessió a Place",
+      "body": "Per administrar **{slug}** has d'iniciar sessió a la seva adreça original a Place. Aquesta URL és la cara pública del lloc per als teus visitants.",
+      "cta": "Anar a {slug}.place.community",
+      "help": "Mentrestant, els teus visitants poden seguir fent servir aquest domini amb normalitat."
+    }
   }
 }

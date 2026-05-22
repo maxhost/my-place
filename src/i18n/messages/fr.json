@@ -421,5 +421,13 @@
       "errorArchiveNotFound": "Nous n'avons pas trouvé ce domaine.",
       "errorArchiveGeneric": "Nous n'avons pas pu retirer le domaine. Réessaie."
     }
+  },
+  "customDomainRouting": {
+    "authGate": {
+      "title": "Connecte-toi à Place",
+      "body": "Pour administrer **{slug}**, tu dois te connecter à son adresse d'origine sur Place. Cette URL est la façade publique du lieu pour tes visiteurs.",
+      "cta": "Aller à {slug}.place.community",
+      "help": "Pendant ce temps, tes visiteurs peuvent continuer à utiliser ce domaine normalement."
+    }
   }
 }
