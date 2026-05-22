@@ -275,6 +275,22 @@ El scenario 1 reveló 2 bugs descendientes que están deferred desde el helper o
 
 El user con `nocodecompany.co` queda en pending state con instrucciones incorrectas hasta que se ejecute task #110. El bug **verified-false-positive original** está cerrado — task #110 cubre polish UX, no correctitud del estado de la DB.
 
+### Polish #110 — apex `@` notation + DNS shape filter (2026-05-22, task #110)
+
+Implementado post-S3 sobre los 2 bugs descendientes. Cambios:
+
+1. **Nuevo helper `isApexDomain(domain)`** (`custom-domain.ts`): heurística V1 simple `split(".").length === 2`. **Limitación documentada**: TLDs compuestos (`mi-marca.co.uk`, `foo.com.ar`) falsa-clasifican como subdomain. Polish V2 con Public Suffix List si aparece el caso.
+
+2. **`v6ConfigToDnsRecords` apex-aware**:
+   - **Apex** → `[{A, "@", recommendedIPv4[0]}]`. RFC 1034: apex no acepta CNAME. Si no hay IPv4, retorna `[]` (no fallback ilegal). Matchea Vercel dashboard que solo muestra el primer IPv4 rank=1.
+   - **Subdomain** → `[{CNAME, "<prefix>", recommendedCNAME[0]}]`, donde `prefix = domain.split(".").slice(0, -2).join(".")` (e.g. `blog.example.com` → `blog`). Si no hay CNAME, fallback a `[{A, "<prefix>", recommendedIPv4[0]}]` defensive.
+
+3. **`decideDomainFlow` + `registerCustomDomainAction` combine filter** (DRY-paired): cuando V9 `dnsRecords` es `[]` (ownership clear, NO challenge TXT pendiente), NO combinar con V6 — emitir solo V6. Antes el combine `[...v9Records, ...v6Records]` era indiscriminado y producía records bogus + RFC 1034 inválido al apex.
+
+**Smoke verificación post-deploy** (pendiente): re-visitar `/place/nocodecompany/settings/domain` (place ya tiene `verified_at = NULL` desde S3) → debe mostrar 1 sola row `A @ 216.198.79.1` en la tabla, sin CNAME extra ni A duplicado.
+
+**Tests**: 36/36 verde (custom-domain.test.ts 15 + v6-helpers.test.ts 21). Cobertura apex / subdomain profundo / fallback A en subdomain / TLD compuesto documented / vacíos / combine V9 empty vs no-empty.
+
 ## Detalle operativo canónico
 
 - Wrapper Vercel: `src/shared/lib/vercel/domains.ts` (post-S1).
