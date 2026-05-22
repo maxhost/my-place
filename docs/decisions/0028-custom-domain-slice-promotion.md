@@ -9,6 +9,8 @@
 
 Las ADR son registro histórico: no se editan, se reemplazan con una nueva ADR que la supersede.
 
+> **Refinada parcialmente por [ADR-0030](0030-custom-domain-split-by-operation-layer.md) (2026-05-22):** la sección "Alternativas rechazadas → 4. Splittear `custom-domain` en sub-slices" se evaluó como over-engineering al cerrar S4 (2026-05-21). Al implementarse el fix ADR-0029 (chequeo dual V9 + V6) el slice midió 1553 LOC — sobre el cap 1500. ADR-0030 revisita esa alternativa con el nuevo contexto y decide dividir por capa de operación: `custom-domain` (commands + UI + types) y `custom-domain-verification` (lazy poll + helpers puros). El resto de las decisiones de esta ADR (promoción inicial fuera de `place-settings`, namespace i18n estable, forward-compat con Features B/C) sigue intacto.
+
 ## Contexto
 
 El plan custom-domain V1 (`docs/features/custom-domain/plan-sesiones.md`) cerró en S0 (2026-05-21) la decisión de modelar el feature como "sub-feature `place-settings/domain` (UI + actions)" — la sección "Dominio" del settings sería el segundo módulo del slice `place-settings` después de "Idioma" (S7 settings, ADR-0022). La motivación fue que ambos comparten:

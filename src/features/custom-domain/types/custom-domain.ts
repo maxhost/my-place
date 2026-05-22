@@ -1,17 +1,25 @@
-// Types compartidos del slice `place-settings/domain` (feature
-// custom-domain V1, ADR-0026 + `docs/features/custom-domain/spec.md`).
+// Types + helpers puros compartidos del slice `custom-domain` (ADR-0026,
+// ADR-0028, ADR-0030). Consumidos por las 2 Server Actions del slice
+// (`register-custom-domain`, `archive-custom-domain`), el UI Client
+// Component `<DomainSection>`, el page `/settings/domain/page.tsx`, y
+// también por el sub-slice `custom-domain-verification` cross-slice
+// (mappers Vercel → `DnsRecord[]`, ADR-0030).
 //
-// Estos tipos los consumen las 3 Server Actions (`register-custom-domain`,
-// `archive-custom-domain`, `get-custom-domain-status`), el UI Client Component
-// `<DomainSection>` (S4), y el page `/settings/domain/page.tsx` (S4). Vive
-// en `types/` (no en `actions/`) porque es shared read-only entre las 3
-// actions — paralelización limpia en S3.
+// Helpers RUNTIME del módulo (todos puros + testeados):
+//   - `mapPgErrorToActionError(err)`: PG `23505` → `domain_taken`.
+//   - `vercelRecordsToDnsRecords(records)`: V9 `verification[]` →
+//     `DnsRecord[]` con fallback `name → domain → ""`.
+//   - `v6ConfigToDnsRecords(config, domain)`: V6 `recommendedIPv4` +
+//     `recommendedCNAME` → `DnsRecord[]` (un A por IPv4, un CNAME por
+//     hostname, `name = domain` siempre).
 //
-// El único helper RUNTIME del módulo es `mapPgErrorToActionError`, una
-// función pura que mapea errores de Postgres al enum `RegisterError`.
-// Testeada en isolation (`__tests__/custom-domain.test.ts`); su correctitud
-// cubre el branching crítico del INSERT del action `register` cuando choca
-// con la partial unique index `place_domain_domain_active_unq` (S1).
+// Los 3 helpers viven acá (no en cada action ni en el sub-slice de
+// verification) porque su shape de salida es `DnsRecord` — SoT del tipo
+// vive acá, los helpers que producen instancias viven junto al tipo.
+// Cross-slice consumption: `custom-domain-verification` los importa via
+// `@/features/custom-domain/public`.
+
+import type { DomainConfig } from "@/shared/lib/vercel";
 
 /**
  * Estado consolidado del custom domain de un place desde el punto de vista
@@ -81,6 +89,13 @@ export type CustomDomainRecord = {
  * distinto: `null` = "no sabemos qué pegar todavía"; `[]` = "Vercel
  * confirmó cero records pero el dominio sigue pending" (caso teórico,
  * no observable en producción).
+ *
+ * `wasDownreverted` (en pending, ADR-0029): true cuando el lazy poll
+ * detectó que un dominio que estaba `verified` se rompió en DNS
+ * (V6 `misconfigured: true`). El flow puso `verified_at = NULL` en DB
+ * y la UI debe mostrar un banner explicando al owner que tiene que
+ * reconfigurar sus records. Es un sub-estado de pending — la tabla DNS
+ * se muestra normal, sólo se agrega el banner arriba.
  */
 export type CustomDomainState =
   | { status: "none" }
@@ -89,6 +104,7 @@ export type CustomDomainState =
       record: CustomDomainRecord;
       dnsRecords: DnsRecord[] | null;
       vercelUnavailable?: boolean;
+      wasDownreverted?: boolean;
     }
   | { status: "verified"; record: CustomDomainRecord };
 
@@ -150,4 +166,47 @@ export function mapPgErrorToActionError(err: unknown): RegisterError {
   const code = (err as { code: unknown }).code;
   if (code === "23505") return "domain_taken";
   return "generic";
+}
+
+/**
+ * V9 `verification[]` (shape permisivo del wrapper Vercel: `{type, name?,
+ * value, domain?}`) → `DnsRecord[]` estricto del slice. Fallback
+ * `name → domain → ""` porque el wrapper deja ambos campos opcionales.
+ * Consumido por el sub-slice `custom-domain-verification` + el action
+ * `register-custom-domain` (al recibir el response V9 post-`addDomain`).
+ */
+export function vercelRecordsToDnsRecords(
+  records: ReadonlyArray<{
+    type: string;
+    name?: string;
+    value: string;
+    domain?: string;
+  }>,
+): DnsRecord[] {
+  return records.map((r) => ({
+    type: r.type,
+    name: r.name ?? r.domain ?? "",
+    value: r.value,
+  }));
+}
+
+/**
+ * V6 `recommendedIPv4` + `recommendedCNAME` (response normalizada por el
+ * wrapper Vercel, ADR-0029) → `DnsRecord[]` del slice. Un A record por
+ * cada IPv4 + un CNAME por cada hostname; `name = domain` siempre (V6
+ * no provee host del record — apex-level por design). Apex `@` notation
+ * es polish separado de B+C S1.
+ */
+export function v6ConfigToDnsRecords(
+  config: DomainConfig,
+  domain: string,
+): DnsRecord[] {
+  const records: DnsRecord[] = [];
+  for (const ipv4 of config.recommendedIPv4) {
+    records.push({ type: "A", name: domain, value: ipv4 });
+  }
+  for (const cname of config.recommendedCNAME) {
+    records.push({ type: "CNAME", name: domain, value: cname });
+  }
+  return records;
 }

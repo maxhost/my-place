@@ -9,32 +9,33 @@
 // LOC del slice anfitrión `place-settings` superó el cap (≤1500 de CLAUDE.md
 // §Límites). Ver `docs/decisions/0028-custom-domain-slice-promotion.md`.
 //
-// COMPONENTES PÚBLICOS:
+// COMPONENTES PÚBLICOS (post ADR-0030 — el lazy poll vive en el sub-slice
+// `custom-domain-verification`; ver `@/features/custom-domain-verification/
+// public` para `getCustomDomainStatus`):
 //
-//   - **3 Server Actions** (las dos primeras `"use server"`; la última es
-//     helper-server invocado directo desde el page Server Component —
-//     lazy verification, ADR-0026 §1):
+//   - **2 Server Actions** (commands del owner, ambas `"use server"`):
 //       - `registerCustomDomainAction(input)`: Zod → validate → JWT → tx
-//         INSERT → Vercel.addDomain → rollback best-effort → revalidatePath.
+//         INSERT → Vercel.addDomain → V6 misconfigured check (ADR-0029) →
+//         rollback best-effort → revalidatePath.
 //       - `archiveCustomDomainAction(input)`: Zod → JWT → UPDATE archived_at
 //         con double-check slug-match → Vercel.removeDomain best-effort →
 //         revalidatePath.
-//       - `getCustomDomainStatus(placeId)`: SELECT fila activa → si pending,
-//         GET Vercel → si verified persistir `verified_at = now()` → retorna
-//         `CustomDomainState`.
 //   - **`<DomainSection>`** Client Component (3 estados none/pending/verified
 //     + form + tabla DNS + confirm dialog + auto-refresh 30s) +
 //     `DomainSectionLabels` (~33 keys del bloque i18n `placeSettings.domain.*`,
 //     paridad ×6 locales via `scripts/check-translations.mjs`).
-//   - **Types del dominio**: `CustomDomainStatus`, `CustomDomainState`
-//     (discriminated union), `CustomDomainRecord`, `DnsRecord`,
-//     `RegisterError`, `ArchiveError`, `RegisterCustomDomainResult`,
-//     `ArchiveCustomDomainResult`, y firmas de los actions.
+//   - **Types del dominio** (consumidos también por `custom-domain-verification`
+//     vía barrel cross-slice, ADR-0030): `CustomDomainStatus`,
+//     `CustomDomainState` (discriminated union), `CustomDomainRecord`,
+//     `DnsRecord`, `RegisterError`, `ArchiveError`,
+//     `RegisterCustomDomainResult`, `ArchiveCustomDomainResult`, y firmas
+//     de los actions.
 //
 // CONSUMERS V1:
 //   - `src/app/(app)/place/[placeSlug]/settings/domain/page.tsx` — page
-//     Server Component que orquesta el cableado: SSR del estado lazy +
-//     inyección de los 2 actions + labels resueltas via `getTranslations`.
+//     Server Component que orquesta el cableado: SSR del estado lazy
+//     (`getCustomDomainStatus` desde `custom-domain-verification`) +
+//     inyección de los 2 commands + labels resueltas via `getTranslations`.
 //
 // CANON Server Actions (`place-settings/actions/update-default-locale.ts:13`):
 // sin vitest directo; cobertura via piezas puras (`validateCustomDomain`,
@@ -65,8 +66,6 @@ export {
   type ArchiveCustomDomainInput,
 } from "./actions/archive-custom-domain";
 
-export { getCustomDomainStatus } from "./actions/get-custom-domain-status";
-
 export type {
   ArchiveCustomDomainResult,
   ArchiveError,
@@ -76,4 +75,9 @@ export type {
   DnsRecord,
   RegisterCustomDomainResult,
   RegisterError,
+} from "./types/custom-domain";
+
+export {
+  v6ConfigToDnsRecords,
+  vercelRecordsToDnsRecords,
 } from "./types/custom-domain";

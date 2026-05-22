@@ -5,63 +5,47 @@ import { z } from "zod";
 import { validateCustomDomain } from "@/shared/lib/custom-domain";
 import { getAuthenticatedDb } from "@/shared/lib/db";
 import { requireSessionJwt } from "@/shared/lib/session";
-import { addDomain } from "@/shared/lib/vercel";
+import { addDomain, getDomainConfig } from "@/shared/lib/vercel";
 import {
   type CustomDomainRecord,
   type DnsRecord,
   mapPgErrorToActionError,
   type RegisterCustomDomainResult,
   type RegisterError,
+  v6ConfigToDnsRecords,
+  vercelRecordsToDnsRecords,
 } from "../types/custom-domain";
 
-// Server Action de registro de custom domain (feature custom-domain V1,
-// ADR-0026 + `docs/features/custom-domain/spec.md`). Borde cross-system Neon
-// Auth + Neon DB + Vercel Domains API — canon seam-split: correctitud por
-// tipo/build + smoke vivo, NO vitest (idéntico a `update-default-locale.ts:13`).
-// Las piezas puras (`validateCustomDomain`, `mapPgErrorToActionError`, wrapper
-// Vercel) sí están testeadas en isolation.
+// Server Action de registro de custom domain (ADR-0026 + ADR-0029).
+// Borde cross-system Neon Auth + Neon DB + Vercel Domains API — canon
+// seam-split: correctitud por tipo/build + smoke vivo, NO vitest
+// (`update-default-locale.ts:13`). Las piezas puras sí (validateCustomDomain,
+// mapPgErrorToActionError, wrapper Vercel, `_v6-helpers`).
 //
-// FLUJO (5 fases, falibles independientes):
+// FLUJO (6 fases): (1) Zod, (2) validateCustomDomain, (3) requireSessionJwt,
+// (4) tx INSERT (lookup place + pre-check single-domain + INSERT;
+// PG 23505 → domain_taken), (5) V9 addDomain (si falla rollback DB),
+// (6) V6 getDomainConfig — chequeo dual ADR-0029.
 //
-//   1. Zod sobre input (placeSlug + domain) — fail-closed ante drift de tipo.
-//   2. `validateCustomDomain` — formato RFC 1123 + ASCII + no-reservados.
-//      Defense-in-depth: la UI ya validó client-side con la misma función
-//      (SoT compartido); el action re-aplica antes de tocar DB.
-//   3. `requireSessionJwt` — fail-closed antes de la DB.
-//   4. Tx única (`runInsertTx`): lookup `place` por slug (RLS owner-only
-//      filtra outsiders → 0 rows → "generic"), pre-check single-domain V1
-//      (sentinel `LIMIT_REACHED_SENTINEL` distingue del error PG), INSERT con
-//      `RETURNING`. UNIQUE violation (PG `23505`, contra
-//      `place_domain_domain_active_unq` de S1) → `domain_taken` vía
-//      `mapPgErrorToActionError`.
-//   5. Fuera de tx: `vercel.addDomain`. Si falla, rollback DB con DELETE
-//      best-effort (`rollbackInsertedRow`). La separación tx 1 / red / tx 2
-//      evita mantener un conn idle durante el `fetch` a Vercel (puede tardar
-//      segundos); el costo es que la atomicidad cross-system es best-effort
-//      (V1 conscious). Un rollback fallido deja una fila huérfana; el lazy
-//      poll de `getCustomDomainStatus` la verá como pending sin DNS records
-//      y el owner puede archivarla manual.
-//
-// IDIOMPOTENCIA del double-click: el pre-check single-domain rechaza el
-// segundo submit como `limit_reached`. UX clara — "ya tenés un dominio
-// configurado". Idempotencia real (retorna ok con la fila existente) se
-// difiere a V1.1 si el smoke lo amerita.
-//
-// `revalidatePath`: invalida `/place/[placeSlug]/settings/domain` (sub-path
-// granular, NO `/settings` global; ADR-0026). La próxima carga corre
-// `getCustomDomainStatus` (lazy poll) y muestra el state actual.
+// FASE 6 (V6 check post-add): cierra el race del bug `verified_at` falsa
+// positiva. Antes el response mockeaba `verifiedAt: new Date()` cuando V9
+// decía verified=true, pero la DB tenía `verified_at IS NULL`. Con
+// `nocodecompany.co` (V9 verified=true por ownership clear + V6
+// misconfigured=true por DNS roto) eso causaba falsa positiva durable.
+// Fix: response y DB coinciden desde el segundo 0 — sólo si V9.verified=true
+// AND V6.misconfigured=false, UPDATE `verified_at = now()` en DB ANTES de
+// devolver la response. Sino → response pending con records combinados
+// V9.verification[] + V6.recommended* (mejor pending que verified erróneo).
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
 // Sentinel que se tira desde dentro de la tx para distinguir "limit_reached"
-// del error PG en el catch único. Usar string-key (no Error subclass)
-// mantiene la detección trivial y no requiere instanceof juggling.
+// del error PG en el catch único.
 const LIMIT_REACHED_SENTINEL = "PLACE_DOMAIN_LIMIT_REACHED";
 
 const registerInputSchema = z.object({
   placeSlug: z.string().min(3).max(63).regex(SLUG_RE),
-  // Bounds amplios: la validación fina la hace `validateCustomDomain`. Acá
-  // sólo evitamos que Zod deje pasar 10MB de basura accidental.
+  // Bounds amplios: la validación fina la hace `validateCustomDomain`.
   domain: z.string().min(1).max(300),
 });
 
@@ -70,8 +54,6 @@ export type RegisterCustomDomain = (
   input: RegisterCustomDomainInput,
 ) => Promise<RegisterCustomDomainResult>;
 
-// Shape interno de la fila recién insertada (camelCase aliased en el
-// RETURNING para parsing trivial).
 type InsertedRow = {
   id: string;
   domain: string;
@@ -94,8 +76,8 @@ function validationReasonToRegisterError(
 
 /**
  * Tx única: lookup place + pre-check single-domain + INSERT. RLS owner-only
- * filtra outsiders en el lookup → `"generic"` (UX-equivalente a no-existe).
- * Pre-check múltiples activos → `"limit_reached"`. PG `23505` → `"domain_taken"`.
+ * filtra outsiders en el lookup → `"generic"`. Pre-check múltiples activos
+ * → `"limit_reached"`. PG `23505` → `"domain_taken"`.
  */
 async function runInsertTx(
   token: string,
@@ -148,9 +130,9 @@ async function runInsertTx(
 
 /**
  * Rollback best-effort de la fila insertada cuando Vercel rechaza. Si la
- * DELETE falla, loguea y sigue: la fila huérfana queda en pending y el lazy
- * poll de `getCustomDomainStatus` la mostrará como pending sin DNS records
- * (Vercel devolverá 404). El owner puede archivar manual.
+ * DELETE falla, loguea y sigue: la fila huérfana queda en pending y el
+ * lazy poll la mostrará como pending (Vercel devolverá 404). El owner
+ * puede archivar manual.
  */
 async function rollbackInsertedRow(token: string, id: string): Promise<void> {
   try {
@@ -166,6 +148,37 @@ async function rollbackInsertedRow(token: string, id: string): Promise<void> {
   }
 }
 
+/**
+ * UPDATE `verified_at = now()` cuando V9 + V6 coinciden en verified
+ * genuino (ADR-0029 #5). Si falla, `new Date()` igual — lazy poll
+ * subsequent reintenta y la UI ya muestra verified.
+ */
+async function persistVerifiedAtNow(
+  token: string,
+  id: string,
+): Promise<Date> {
+  try {
+    return await getAuthenticatedDb(token, async (sql) => {
+      const rows = await sql(
+        `UPDATE place_domain
+            SET verified_at = now()
+          WHERE id = $1
+            AND verified_at IS NULL
+      RETURNING verified_at AS "verifiedAt"`,
+        [id],
+      );
+      return (rows[0]?.verifiedAt as Date | undefined) ?? new Date();
+    });
+  } catch (err) {
+    console.error(
+      "[register-custom-domain] UPDATE verified_at = now() falló para id=",
+      id,
+      err,
+    );
+    return new Date();
+  }
+}
+
 /** Mapea la reason del wrapper Vercel al enum `RegisterError` del slice. */
 function mapVercelFailureToRegisterError(
   reason: "not_configured" | "unauthorized" | "domain_already_in_use" | "rate_limited" | "vercel_error" | "network",
@@ -175,10 +188,9 @@ function mapVercelFailureToRegisterError(
 }
 
 /**
- * Registra un custom domain para el place `placeSlug`. Owner-only por RLS
- * + EXISTS implícito de `place` (la RLS owner-only de `place_sel` filtra a
- * 0 rows si el caller no es owner). Idempotencia parcial: double-submit
- * cae en `limit_reached`.
+ * Registra un custom domain. Owner-only por RLS. Idempotencia parcial:
+ * double-submit → `limit_reached`. Post-addDomain, V6 decide si es
+ * genuinamente verified (ADR-0029) antes de persistir `verified_at`.
  */
 export async function registerCustomDomainAction(
   input: RegisterCustomDomainInput,
@@ -218,17 +230,35 @@ export async function registerCustomDomainAction(
     };
   }
 
+  // Chequeo dual ADR-0029: V9.verified (sticky/ownership) AND
+  // !V6.misconfigured (dinámico/DNS). UPDATE verified_at ANTES de la
+  // response → DB + response coherentes desde el segundo 0.
+  const v6Result = await getDomainConfig(normalized);
+  const isGenuinelyVerified =
+    vercelResult.data.verified === true &&
+    v6Result.ok === true &&
+    v6Result.data.misconfigured === false;
+
+  const verifiedAt: Date | null = isGenuinelyVerified
+    ? await persistVerifiedAtNow(token, inserted.id)
+    : null;
+
+  // DNS records: vacío si verified; sino V9.verification[] + V6 recommended.
+  const v9Records = vercelRecordsToDnsRecords(vercelResult.data.dnsRecords);
+  const v6Records: DnsRecord[] =
+    !isGenuinelyVerified && v6Result.ok
+      ? v6ConfigToDnsRecords(v6Result.data, normalized)
+      : [];
+  const dnsRecords: DnsRecord[] = isGenuinelyVerified
+    ? []
+    : [...v9Records, ...v6Records];
+
   revalidatePath(`/place/${placeSlug}/settings/domain`);
 
-  const dnsRecords: DnsRecord[] = vercelResult.data.dnsRecords.map((r) => ({
-    type: r.type,
-    name: r.name ?? r.domain ?? "",
-    value: r.value,
-  }));
   const record: CustomDomainRecord = {
     id: inserted.id,
     domain: inserted.domain,
-    verifiedAt: vercelResult.data.verified ? new Date() : null,
+    verifiedAt,
     createdAt: inserted.createdAt,
   };
 

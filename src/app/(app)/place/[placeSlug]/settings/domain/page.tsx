@@ -9,9 +9,9 @@ import {
   archiveCustomDomainAction,
   DomainSection,
   type DomainSectionLabels,
-  getCustomDomainStatus,
   registerCustomDomainAction,
 } from "@/features/custom-domain/public";
+import { getCustomDomainStatus } from "@/features/custom-domain-verification/public";
 import { isServiceableSlug } from "@/shared/lib/host-routing";
 import {
   getPlaceForZone,
