@@ -230,7 +230,50 @@ Vercel no expone webhooks para domain status changes (sí para deploys/projects)
 
 Plan ejecutable detallado en `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md` (S1-S3). Smoke checklist 7 escenarios documentado en el plan + sección "Verificación" del spec del feature.
 
-Esta sección se actualiza al cierre de S3 con resultados del smoke real en preview Vercel + reset manual aplicado a `nocodecompany.co`.
+### Smoke real S3 (2026-05-22)
+
+**Setup**: post-deploy de `5a2eb7b` a prod (Vercel `dpl_CVnEJVKxKXhsibTWcfj2fg5mH3jv` READY). DB state pre-visita confirmado vía MCP Neon (`nocodecompany.co` con `verified_at = 2026-05-22T01:52:42.786Z`, la falsa positiva original).
+
+**Scenario 1 — `nocodecompany.co` (data real del bug)**: el owner visita `https://mi-place.place.community/settings/domain`. El lazy poll ejecuta el nuevo flow:
+
+1. `loadActiveDomainRow` → `verified_at NOT NULL`.
+2. `getDomainConfig('nocodecompany.co')` → `misconfigured: true` (DNS no apunta a Vercel todavía).
+3. `decideDomainFlow` retorna `kind: "verified_reset"` con records V6.
+4. `resetVerifiedAt` UPDATE: `verified_at = NULL`.
+5. UI render: `status: "pending"`, `wasDownreverted: true`, tabla DNS con records V6.
+
+**Verificación DB post-visita** (MCP Neon, mismo turno):
+
+```sql
+SELECT verified_at FROM place_domain WHERE domain = 'nocodecompany.co';
+-- verified_at = NULL  ✓ auto-reset ejecutado por branch (c)
+```
+
+El **core fix funcionó verde sobre data real**: V6 detectó el bug, el flow ejecutó la rama correcta, la DB quedó coherente, la UI mostró pending en vez de la falsa positiva. Cerrado el bug original.
+
+### Scenarios 2-7
+
+Cubiertos por unit tests pusheados (no requirieron smoke manual):
+
+| # plan | Cobertura test |
+|---|---|
+| 2 — Register nuevo dominio DNS no apuntando | `register-custom-domain.test.ts` (V6 misconfigured=true case) |
+| 3 — Configurar DNS bien → verified | `v6-helpers.test.ts` branch (b) |
+| 4 — Verified → romper DNS → pending | `v6-helpers.test.ts` branch (c) auto-reset + `domain-section.test.tsx` banner downreverted |
+| 5 — V6 down → fallback | `v6-helpers.test.ts` branch (e) |
+| 6 — Dominio en uso por otro proyecto Vercel | tests V9 verified=false flow |
+| 7 — Archive | sin cambios en este fix, tests existentes |
+
+### Polish UX descubierto en smoke (NO bloqueante del core fix, plan separado)
+
+El scenario 1 reveló 2 bugs descendientes que están deferred desde el helper original y se transforman en un nuevo plan:
+
+| Bug | Causa | Plan |
+|---|---|---|
+| `v6ConfigToDnsRecords` setea `name = domain` siempre → apex muestra `nocodecompany.co` cuando provider DNS espera `@` | `custom-domain.ts:200-212`, comentario literal *"Apex `@` notation es polish separado de B+C S1"* | **Task #110** — S4 polish: apex `@` + DNS shape filter |
+| `decideDomainFlow` combina `[...v9, ...v6]` indiscriminadamente; el helper emite **todos** los `recommendedIPv4` + `recommendedCNAME` sin filtrar por shape del domain → A + A + CNAME al apex (RFC 1034 inválido, CNAME no convive con A en apex) | `_v6-helpers.ts:82-90` + helper | **Task #110** (mismo) |
+
+El user con `nocodecompany.co` queda en pending state con instrucciones incorrectas hasta que se ejecute task #110. El bug **verified-false-positive original** está cerrado — task #110 cubre polish UX, no correctitud del estado de la DB.
 
 ## Detalle operativo canónico
 

@@ -1,6 +1,6 @@
 # Custom Domain V1 — sección "Dominio" en `/settings`
 
-> _Spec creado 2026-05-21. Status: **S4 implementada (UI + sub-ruta + sidebar activado, 2026-05-21)** — S5 (docs final + smoke + push) pendiente, S6 cron opcional V1.1. Activa el item "Dominio" del sidebar de `/settings` (V1.1, ADR-0025) que hasta S3 estaba `disabled: true`. Refinada operativamente por ADR-0026 sobre el contexto macro de ADR-0001._
+> _Spec creado 2026-05-21. Status: **S5 deployed (commit `d31e1cc`, 2026-05-21)** + **fix verified-false-positive deployed (ADR-0029, commit `5a2eb7b`, 2026-05-22)** — bug original cerrado verde con smoke real sobre `nocodecompany.co` (auto-reset por branch `verified_reset` ejecutado, DB confirma `verified_at = NULL`). **Polish UX pendiente**: apex `@` notation + DNS shape filter (task #110, fuera de scope del fix verified-false-positive — bugs descendientes descubiertos en smoke). S6 cron opcional V1.1 sigue pending. Activa el item "Dominio" del sidebar de `/settings` (V1.1, ADR-0025) que hasta S3 estaba `disabled: true`. Refinada operativamente por ADR-0026 (lazy verification V1) + ADR-0029 (V6 misconfigured check) + ADR-0030 (split slice por capa de operación)._
 
 ## Contexto
 
