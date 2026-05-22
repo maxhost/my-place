@@ -1,7 +1,13 @@
 import { z } from "zod";
+import {
+  VERCEL_API_BASE,
+  mapStatusToReason,
+  readEnvAndHeaders,
+  type VercelResult,
+} from "./domains-shared";
 
 // Wrapper de Vercel Domains REST API consumido por el slice
-// `place-settings/domain` (custom-domain V1, ADR-0026).
+// `custom-domain` V1 (ADR-0026, ADR-0028).
 //
 // QUÉ: 3 funciones (`addDomain`, `getDomainStatus`, `removeDomain`) que
 // encapsulan POST `/v10/projects/{id}/domains`, GET y DELETE
@@ -9,36 +15,40 @@ import { z } from "zod";
 // discriminated union `VercelResult<T>` — nunca tira: la capa caller
 // (Server Actions S3, Server Component S4) ramifica por `result.ok` y
 // mapea `reason` a copy en español (`docs/features/custom-domain/spec.md`
-// § "Errores enumerados"). Cero estado de polling acá; el lazy poll en
-// page-load (ADR-0026 §1) decide cuándo llamar y persiste el resultado.
+// § "Errores enumerados"). El endpoint V6 `getDomainConfig`
+// (`misconfigured` dinámico) vive en `./domains-config.ts` —
+// complementario para el lazy poll según ADR-0029.
 //
 // POR QUÉ wrapper y no SDK: el SDK `@vercel/sdk` arrastra dependencias
 // de Node + tipos que tapan reasons de error que nosotros sí queremos
-// distinguir (404 vs 409 vs 422). El surface real son 3 endpoints; un
-// `fetch` directo con Zod parsing es 200 LOC y mantiene control del
-// error mapping. El barrel `./index.ts` re-exporta `*` desde acá.
+// distinguir (404 vs 409 vs 422). El surface real son 4 endpoints; un
+// `fetch` directo con Zod parsing es mantenible y mantiene control del
+// error mapping. El barrel `./index.ts` re-exporta `*` desde acá y
+// desde `./domains-config.ts`.
 //
 // SHAPE VERIFICADO contra docs Vercel REST 2026-05-21:
 // - POST `/v10/projects/{idOrName}/domains` — body `{name}` requerido,
 //   200 retorna `{name, apexName, projectId, verified, verification[],
 //   createdAt, updatedAt, ...}`. `verification[]` items requieren
-//   `{type, domain, value, reason}` (todos string). Errores: 400
-//   (validación), 401 (auth), 402 (payment), 403 (perm), 409
-//   (already in use).
+//   `{type, domain, value, reason}` (todos string). Errores: 400, 401,
+//   402, 403, 409.
 // - GET `/v9/projects/{idOrName}/domains/{domain}` — 200 con mismo
-//   shape que POST 200. 400, 401, 403 documentados; 404 no aparece en
-//   docs pero observable en producción cuando el domain no existe en
-//   el proyecto, por lo que lo mapeamos a `not_configured` igual.
+//   shape que POST 200. 400, 401, 403 documentados; 404 observable en
+//   producción cuando el domain no existe en el proyecto, lo mapeamos
+//   a `not_configured`.
 // - DELETE `/v9/projects/{idOrName}/domains/{domain}` — 200 retorna
 //   objeto vacío `{}`. Tipamos `data: {uid?: string}` como
-//   forward-compat por si Vercel agrega el campo (algunos endpoints
-//   relacionados de Domains lo devuelven). 400, 401, 403, 404, 409.
+//   forward-compat. 400, 401, 403, 404, 409.
 //
-// ENV: lee `VERCEL_API_TOKEN` + `VERCEL_PROJECT_ID` en cada llamada
-// (sin caching de módulo: facilita testing con `vi.stubEnv` y evita
-// surprise si rotan en runtime). Si falta cualquiera de las dos:
-// `console.error` calmo + retorna `{ok: false, reason: "vercel_error"}`.
-// El wrapper es defensivo: nunca tira por configuración faltante.
+// SEMÁNTICA del campo `verified` (importante por ADR-0029): refleja
+// "ownership challenge completado" — sticky/append-only. NO refleja
+// "DNS apunta a Vercel ahora". Para eso usar `getDomainConfig` (V6)
+// y chequear `misconfigured`. Vercel pattern oficial multi-tenant:
+// `verified && !misconfigured`.
+
+// Re-export del namespace público compartido para que consumers
+// externos sigan importando desde `@/shared/lib/vercel`.
+export type { VercelErrorReason, VercelResult } from "./domains-shared";
 
 /** Record DNS que Vercel devuelve en `verification[]` cuando el domain está pending. */
 export type DnsRecord = {
@@ -47,8 +57,7 @@ export type DnsRecord = {
    * Vercel emite los DNS records dentro de `verification[]` con la clave
    * `domain` (host completo del record). Exponemos también `name` como
    * alias del mismo valor para que la UI no tenga que conocer el
-   * vocabulario interno de Vercel (los componentes de tabla DNS usan
-   * `name`/`type`/`value` típicamente).
+   * vocabulario interno de Vercel.
    */
   name?: string;
   value: string;
@@ -63,18 +72,6 @@ export type DomainStatus = {
   dnsRecords: DnsRecord[];
 };
 
-export type VercelErrorReason =
-  | "not_configured"
-  | "unauthorized"
-  | "domain_already_in_use"
-  | "rate_limited"
-  | "vercel_error"
-  | "network";
-
-export type VercelResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; reason: VercelErrorReason };
-
 // ─── Zod schemas ────────────────────────────────────────────────────
 
 /** Item de `verification[]` en POST/GET 200. Todos los campos requeridos. */
@@ -88,9 +85,8 @@ const VerificationSchema = z.object({
 /**
  * Shape común de POST `/v10/.../domains` y GET `/v9/.../domains/{domain}`
  * según docs Vercel REST. `verification` es opcional (ausente cuando
- * `verified=true`); `apexName`/`projectId` no los consumimos pero los
- * declaramos como passthrough no requerido — `z.object` por default
- * acepta keys extra sin validar.
+ * `verified=true`); `apexName`/`projectId` no los consumimos y se
+ * ignoran via `z.object` permisivo por default.
  */
 const DomainPayloadSchema = z.object({
   name: z.string(),
@@ -102,40 +98,7 @@ const RemovePayloadSchema = z.object({
   uid: z.string().optional(),
 });
 
-// ─── helpers ────────────────────────────────────────────────────────
-
-const VERCEL_API_BASE = "https://api.vercel.com";
-
-/** Lee env vars y construye headers Bearer. Null si falta cualquiera. */
-function readEnvAndHeaders():
-  | { token: string; projectId: string; headers: Record<string, string> }
-  | null {
-  const token = process.env.VERCEL_API_TOKEN;
-  const projectId = process.env.VERCEL_PROJECT_ID;
-  if (!token || !projectId) {
-    console.error(
-      "[vercel] VERCEL_API_TOKEN o VERCEL_PROJECT_ID ausente — wrapper retorna vercel_error",
-    );
-    return null;
-  }
-  return {
-    token,
-    projectId,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  };
-}
-
-/** Mapea status code HTTP a `VercelErrorReason`. */
-function mapStatusToReason(status: number): VercelErrorReason {
-  if (status === 401 || status === 403) return "unauthorized";
-  if (status === 404) return "not_configured";
-  if (status === 409) return "domain_already_in_use";
-  if (status === 429) return "rate_limited";
-  return "vercel_error";
-}
+// ─── helpers privados ───────────────────────────────────────────────
 
 /** Normaliza una `verification` item a `DnsRecord` exponiendo `name` = `domain`. */
 function verificationToDnsRecord(
@@ -167,9 +130,9 @@ function parseDomainPayload(raw: unknown): DomainStatus | null {
 /**
  * POST `/v10/projects/{VERCEL_PROJECT_ID}/domains` body `{name: domain}`.
  * Retorna `DomainStatus` con `verified` y `dnsRecords` (vacío si
- * verified, populated si pending). Mapea errores HTTP a
- * `VercelErrorReason`. No tira: errores de red → `network`; parse Zod
- * fallido → `vercel_error`.
+ * verified, populated si pending). El campo `verified` en la response
+ * refleja ownership (sticky), no DNS actual — ADR-0029 explica por
+ * qué el caller debe complementar con `getDomainConfig` (V6).
  */
 export async function addDomain(
   domain: string,
@@ -203,9 +166,11 @@ export async function addDomain(
 
 /**
  * GET `/v9/projects/{VERCEL_PROJECT_ID}/domains/{encodedDomain}`. Mismo
- * shape de response que `addDomain` 200. Lo consume el lazy poll del
- * Server Component en cada carga del `/settings/domain` mientras
- * `verified_at IS NULL` (ADR-0026 §1).
+ * shape de response que `addDomain` 200. El lazy poll (ADR-0026 §1) lo
+ * consume para chequear el campo `verified` (ownership) y el
+ * `verification[]` challenge — pero NO basta solo: ADR-0029 establece
+ * que el flow completo incluye también `getDomainConfig` (V6) para
+ * detectar `misconfigured` dinámico.
  */
 export async function getDomainStatus(
   domain: string,
