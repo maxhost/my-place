@@ -386,6 +386,7 @@
     "domain": {
       "title": "Eigene Domain",
       "description": "Verbinde eine eigene Domain (z. B. comunidad.mi-marca.com). Dein Ort bleibt immer unter {slug}.place.community erreichbar.",
+      "descriptionVerified": "Deine Domain ist eingerichtet. Mitglieder deines Ortes können direkt über {domain} darauf zugreifen.",
       "inputLabel": "Domain",
       "inputPlaceholder": "comunidad.mi-marca.com",
       "submitButton": "Domain verknüpfen",

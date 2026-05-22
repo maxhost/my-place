@@ -141,6 +141,7 @@ export default async function PlaceSettingsDomainPage({ params }: Props) {
   const domainSectionLabels: DomainSectionLabels = {
     title: tDomain("title"),
     description: tDomain("description"),
+    descriptionVerified: tDomain("descriptionVerified"),
     inputLabel: tDomain("inputLabel"),
     inputPlaceholder: tDomain("inputPlaceholder"),
     submitButton: tDomain("submitButton"),

@@ -386,6 +386,7 @@
     "domain": {
       "title": "Domaine propre",
       "description": "Connecte un domaine à toi (ex. comunidad.mi-marca.com). Ton lieu restera toujours disponible sur {slug}.place.community.",
+      "descriptionVerified": "Ton domaine est configuré. Les membres de ton lieu peuvent y accéder directement depuis {domain}.",
       "inputLabel": "Domaine",
       "inputPlaceholder": "comunidad.mi-marca.com",
       "submitButton": "Lier le domaine",

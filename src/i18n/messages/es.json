@@ -386,6 +386,7 @@
     "domain": {
       "title": "Dominio propio",
       "description": "Conectá un dominio propio (ej. comunidad.mi-marca.com). Tu lugar va a seguir disponible en {slug}.place.community siempre.",
+      "descriptionVerified": "Tu dominio ya está configurado. Los miembros de tu place pueden acceder a él directamente desde {domain}.",
       "inputLabel": "Dominio",
       "inputPlaceholder": "comunidad.mi-marca.com",
       "submitButton": "Vincular dominio",

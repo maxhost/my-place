@@ -216,6 +216,44 @@ describe("DomainSection — estado verified", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remover" })).toBeInTheDocument();
   });
+
+  // ─── Description contextual por estado (task #112) ────────────────────
+  // En verified, el header description cambia de la copy "Conectá un
+  // dominio propio..." (none/pending) a una verified-específica que
+  // referencia el dominio configurado. El placeholder `{domain}` se
+  // resuelve con `state.record.domain`.
+
+  it("description usa el copy verified con `{domain}` resuelto", () => {
+    setup({
+      state: {
+        status: "verified",
+        record: makeRecord({
+          domain: "comunidad.mi-marca.com",
+          verifiedAt: new Date("2026-05-10T12:00:00.000Z"),
+        }),
+      },
+    });
+    expect(
+      screen.getByText(
+        "Tu dominio ya está configurado. Los miembros pueden acceder desde comunidad.mi-marca.com.",
+      ),
+    ).toBeInTheDocument();
+    // Defense-in-depth: el copy de none/pending NO debe aparecer.
+    expect(
+      screen.queryByText(/Vinculá tu dominio propio/),
+    ).not.toBeInTheDocument();
+    // Y el placeholder literal tampoco.
+    expect(screen.queryByText(/\{domain\}/)).not.toBeInTheDocument();
+  });
+
+  it("description en `none` o `pending` mantiene el copy con `{slug}` (regresión #111)", () => {
+    setup({ state: { status: "none" }, placeSlug: "otro-place" });
+    expect(
+      screen.getByText(
+        "Vinculá tu dominio propio. Tu lugar va a seguir disponible en otro-place.place.community siempre.",
+      ),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("DomainSection — submit happy + validación cliente", () => {

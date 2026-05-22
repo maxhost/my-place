@@ -23,6 +23,7 @@ import {
 export const LABELS: DomainSectionLabels = {
   title: "Dominio",
   description: "Vinculá tu dominio propio. Tu lugar va a seguir disponible en {slug}.place.community siempre.",
+  descriptionVerified: "Tu dominio ya está configurado. Los miembros pueden acceder desde {domain}.",
   inputLabel: "Tu dominio",
   inputPlaceholder: "comunidad.mi-marca.com",
   submitButton: "Vincular dominio",

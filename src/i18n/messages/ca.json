@@ -386,6 +386,7 @@
     "domain": {
       "title": "Domini propi",
       "description": "Connecta un domini propi (ex. comunidad.mi-marca.com). El teu lloc seguirà disponible a {slug}.place.community sempre.",
+      "descriptionVerified": "El teu domini està configurat. Els membres del teu lloc poden accedir-hi directament des de {domain}.",
       "inputLabel": "Domini",
       "inputPlaceholder": "comunidad.mi-marca.com",
       "submitButton": "Vincula el domini",

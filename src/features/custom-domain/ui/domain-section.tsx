@@ -56,7 +56,9 @@ import { PendingState } from "./domain-section-pending";
 
 export interface DomainSectionLabels {
   title: string;
-  /** Template con `{slug}`. */ description: string;
+  /** Template con `{slug}`. Se muestra en `none` y `pending`. */ description: string;
+  /** Template con `{domain}`. Se muestra en `verified` (reemplaza
+   * `description` cuando el dominio ya está validado + SSL emitido). */ descriptionVerified: string;
   inputLabel: string;
   inputPlaceholder: string;
   submitButton: string;
@@ -142,7 +144,9 @@ export function DomainSection({
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl text-ink">{labels.title}</h1>
         <p className="max-w-prose leading-relaxed text-muted">
-          {labels.description.replace("{slug}", placeSlug)}
+          {state.status === "verified"
+            ? labels.descriptionVerified.replace("{domain}", state.record.domain)
+            : labels.description.replace("{slug}", placeSlug)}
         </p>
       </header>
       {state.status === "none" && (
