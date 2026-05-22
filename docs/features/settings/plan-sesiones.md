@@ -630,3 +630,16 @@ Tras commit de S7 verde-cerrado: **push con autorización explícita del user** 
 ## Authority push
 
 Tras el commit de cada sesión: green-close local OK. **Push sólo con autorización explícita del user en el turno** (memoria `feedback_no_push_until_authorized`). Vercel deploy es auto al push y dispara `maybe-migrate.mjs` antes de `next build` — las migraciones de S2a se aplican automáticamente al primer push post-S2a (verificado por ADR-0017 §Cierre del Watch del 2026-05-20).
+
+---
+
+## Histórico — Custom Domain V1 (feature separado, post-V1.1)
+
+> _Agregado 2026-05-21. Pattern de registro histórico análogo al bloque pre-split de S1 y a ADR-0005/0006/0008._
+
+El item "Dominio" del sidebar V1.1 (`placeSettings.sidebar.domain`, ADR-0025) entró como "Próximamente" en V1 del settings. Su construcción se hizo como **feature aparte**: `docs/features/custom-domain/` (Feature A).
+
+- **Plan**: `docs/features/custom-domain/plan-sesiones.md` — 5 sesiones (S0 docs + ADR-0026 + tag baseline · S1 schema partial unique · S2 shared lib foundations · S3 Server Actions · S4 UI + page + i18n + sidebar V1 activado + promoción a slice propio `src/features/custom-domain/` per ADR-0028 · S5 cierre docs + push autorizado).
+- **Estado**: implementado y deployed 2026-05-21 (commits desde `8abab6d` hasta `19cf711`; suite 396/396 verde).
+- **ADRs**: 0026 (verificación lazy en page-load + lifecycle archived con partial unique index `(domain) WHERE archived_at IS NULL`); 0028 (slice independiente `src/features/custom-domain/` — no sub-feature de `place-settings`).
+- **Consecuencia para `place-settings`**: el slice queda con sólo la sección Idioma + chrome del settings (378 LOC ≤1500). El page `/settings/domain` cablea actions/UI del slice `custom-domain` vía su `public.ts`.

@@ -47,7 +47,7 @@ El producto dice "_un lugar, no una plataforma_" (`producto.md`). El settings si
 - **Sección "Apariencia"** — paleta editable, logo del place, fuente. Cuando Storage TBD entre + se decida UX.
 - **Sección "Horario"** — opening_hours (gate de actividad, `conversaciones.md`). Cuando se cablee el gate.
 - **Sección "Billing"** — suscripción, plan, payment method. Cuando billing real entre (Stripe/equivalente TBD).
-- ~~**Sección "Dominio"**~~ — **Movida a V1.1** (`docs/features/custom-domain/`, ADR-0026). El registro + verificación lazy vía Vercel Domains API está activo desde V1.1; el host routing real (`mi-place.com → place`) y el OIDC SSO desde custom domain quedan como features posteriores (B y C).
+- ✓ **Sección "Dominio" — Implementada V1.1** (2026-05-21, `docs/features/custom-domain/`, ADR-0026 + ADR-0028). Registro + verificación lazy en page-load vía Vercel Domains API + lifecycle archived que libera dominios. Promovida a slice propio `src/features/custom-domain/` en S4 del plan (ADR-0028), no es sub-feature de `place-settings`. Host routing real (`mi-place.com → place`) y OIDC SSO desde custom domain quedan como features posteriores (B y C).
 - **Sección "Zonas"** (V1.1) — activar/desactivar Eventos + Biblioteca (Discusiones es Core, no se toca, `ontologia/conversaciones.md`). Cuando se cablee el schema de zonas opcionales del place y la UI de activación.
 - **Sección "Grupos"** (V1.1) — crear grupos de miembros con permisos granulares (e.g. "admin" como grupo). Roadmap, ADR-0002 §"grupo admin como feature futura".
 - **Sección "Tiers"** (V1.1) — monetización de la comunidad (tiers pagados de membresía). Roadmap, ADR-0003 §"schema diferido".

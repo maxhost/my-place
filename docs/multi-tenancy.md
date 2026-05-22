@@ -99,7 +99,7 @@ URL canónica del owner gestionando su lugar: `https://{slug}.place.community/se
 Un place puede configurar su propio dominio en vez del subdomain asignado: en vez de `mio.place.community`, servirse en `community.empresa.com`. **El subdomain `{slug}.place.community` sigue existiendo siempre como fallback canónico** (incluso si el custom domain está archived o pending).
 
 - **Routing:** el middleware resuelve el place por hostname. Si el host no es `*.place.community` ni el apex, se busca el place por `place_domain` (ver `data-model.md`); resuelve **solo dominios verificados**; si no matchea, 404.
-- **Estado V1.1 (`docs/features/custom-domain/`, ADR-0026):** registro + verificación vía Vercel Domains API en `/settings/domain`. El flow:
+- **Estado V1.1 (implementado 2026-05-21, ADR-0026 + ADR-0028, ver `docs/features/custom-domain/`):** registro + verificación vía Vercel Domains API en `/settings/domain`. El flow:
   1. Owner escribe su dominio en la UI → `POST /v10/projects/{project}/domains` → Vercel retorna DNS records + challenge.
   2. UI muestra los records al owner → owner los configura en su DNS provider (único paso manual).
   3. **Verificación lazy en page-load** (Server Component invoca `vercel.getDomainStatus(domain)` cada vez que el owner vuelve a `/settings/domain` con `verified_at IS NULL`) + **cron `*/15` opcional como safety net** para owners que cierran el tab y no vuelven (S6 del plan, V1.1 si se justifica en producción).

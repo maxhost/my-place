@@ -4,6 +4,12 @@
 - **Estado:** Aceptada
 - **Alcance:** auth, multi-tenancy, modelo de datos
 
+> **Refinada por ADR-0026 + ADR-0028 (2026-05-21):**
+> - **Verificación V1** = lazy poll en page-load del Server Component (`/settings/domain` invoca Vercel Domains API cuando `place_domain.verified_at IS NULL`) + safety-net cron `*/15` opcional V1.1. **NO** es el polling continuo que el §Decisión #4 sugiere; ese modelo se difirió por costo/complejidad. Detalle: ADR-0026.
+> - **Lifecycle archived libera dominio** (partial unique index `(domain) WHERE archived_at IS NULL` en `place_domain`). Detalle: ADR-0026.
+> - **`place_domain.oauth_client_id` queda NULL en V1** — el provisioning OIDC del §Decisión #3 se delega a Feature C (callback handler en custom domain + SSO silencioso). ADR-0027 (futura) cubrirá el provisioning retroactivo cuando Feature C entre.
+> - **Layout del slice**: `src/features/custom-domain/` (slice propio promovido en S4 del plan Feature A). Detalle: ADR-0028.
+
 Las ADR son registro histórico: no se editan, se reemplazan con una nueva ADR que la supersede.
 
 ## Contexto
