@@ -8,6 +8,8 @@
 - **No supersede:** ADR-0001 (la decisión de Place=IdP+OIDC sigue válida), ADR-0010/0012 (RLS owner-only de `place_domain` queda intacta), ADR-0017 (aprovisionamiento por migraciones), ADR-0023/0025 (App Shell + sidebar V1.1).
 - **Difiere a planes posteriores:** Feature B (host routing `mi-place.com → place` por `place_domain.verified_at`) y Feature C (OIDC SSO + callback handler + provisioning del `oauth_client_id`). Este V1 deja la columna `oauth_client_id` NULL y documenta el path retroactivo en una futura ADR-0027.
 
+> **Refinada por ADR-0029 (2026-05-22):** la lazy verification V1 era incompleta — solo consultaba V9 `verified` (ownership challenge completado, sticky/append-only) ignorando V6 `misconfigured` (DNS actual, dinámico). El short-circuit de `getCustomDomainStatus:163-164` (return verified si `verified_at IS NOT NULL`) impedía detectar regresiones DNS post-verify. ADR-0029 cierra el gap: chequea ambos endpoints, elimina short-circuit, resetea `verified_at` cuando se detecta `misconfigured: true`. Resto de ADR-0026 sigue vigente (lazy poll en page-load, partial unique index, archived libera dominio).
+
 Las ADR son registro histórico: no se editan, se reemplazan con una nueva ADR que la supersede.
 
 ## Contexto

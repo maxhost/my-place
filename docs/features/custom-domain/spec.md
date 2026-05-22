@@ -262,6 +262,8 @@ El botón "Copiar" de cada celda de la tabla DNS invoca `navigator.clipboard.wri
 
 El "¿Estás seguro?" del flow F3 es estado local del Client (`useState<boolean>`). El body del dialog resuelve el placeholder client-side: `archiveConfirmBody.replace("{slug}", placeSlug)`. Reusa el shape de `wizard.successBody.replace("{url}", ...)` y `successBody.replace("{language}", ...)` de `LocaleSection` — convención del codebase para placeholders simples en labels server-rendered. El dialog dispara `archiveCustomDomainAction` al confirmar; al cancelar simplemente cierra (`setOpen(false)`) sin side effects.
 
+> **Actualización 2026-05-22 (ADR-0029):** El lazy poll en page-load ahora consume DOS endpoints Vercel — `GET /v6/domains/{domain}/config` (campo `misconfigured`, dinámico) además del `GET /v9/projects/{id}/domains/{domain}` (campo `verified`, sticky/append-only). Estado real = `verified V9 && !misconfigured V6`. Si se detecta `misconfigured: true` con `verified_at IS NOT NULL` en DB, la lógica resetea `verified_at = NULL` y la UI vuelve a estado pending con un banner "tu DNS se rompió" + records del V6 para reconfigurar. Pattern oficial Vercel multi-tenant (`https://vercel.com/docs/multi-tenant/domain-management`). Implementado en sesiones S1-S2 del plan del fix.
+
 ## Test plan summary
 
 Detalle por archivo en [`tests.md`](./tests.md). Resumen del scope V1:
