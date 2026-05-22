@@ -42,8 +42,12 @@ import { PendingState } from "./domain-section-pending";
 // - **`navigator.clipboard` fallback elegante** (spec §"Decisión:
 //   navigator.clipboard requiere secure context"): si la API no existe o
 //   falla, silenciamos sin toast; el valor sigue seleccionable manualmente.
-// - **Placeholders**: `{domain}` en `pendingDescription`, `{slug}` en
-//   `archiveConfirmBody` — misma convención que `wizard.successBody`/`{url}`.
+// - **Placeholders**: `{domain}` en `pendingDescription` /
+//   `downrevertedBannerBody`, `{slug}` en `description` / `archiveConfirmBody`
+//   — misma convención que `wizard.successBody`/`{url}`. Resolución vía
+//   `String.replace` en el render site (no usamos ICU `next-intl` Format
+//   porque las labels llegan ya serializadas al Client desde el Server
+//   Component del page).
 // - **Split por LOC** (CLAUDE.md §"Límites de tamaño"): el slice se divide
 //   en 3 archivos hermanos. Este es el entry-point: expone `DomainSection`
 //   + `DomainSectionLabels` y hace dispatch a los sub-componentes. Los
@@ -52,7 +56,7 @@ import { PendingState } from "./domain-section-pending";
 
 export interface DomainSectionLabels {
   title: string;
-  description: string;
+  /** Template con `{slug}`. */ description: string;
   inputLabel: string;
   inputPlaceholder: string;
   submitButton: string;
@@ -137,7 +141,9 @@ export function DomainSection({
     <section className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl text-ink">{labels.title}</h1>
-        <p className="max-w-prose leading-relaxed text-muted">{labels.description}</p>
+        <p className="max-w-prose leading-relaxed text-muted">
+          {labels.description.replace("{slug}", placeSlug)}
+        </p>
       </header>
       {state.status === "none" && (
         <NoneState placeSlug={placeSlug} registerAction={registerAction} labels={labels} />

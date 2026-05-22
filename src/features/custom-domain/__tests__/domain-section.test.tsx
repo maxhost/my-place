@@ -58,6 +58,32 @@ describe("DomainSection — estado none (form vacío)", () => {
       screen.getByRole("button", { name: "Vincular dominio" }),
     ).toBeEnabled();
   });
+
+  // ─── Placeholder {slug} en description (task #111) ────────────────────
+  // El label `description` contiene `{slug}` literal. El componente lo
+  // resuelve vía `String.replace` con el `placeSlug` prop — mismo patrón
+  // que `archiveConfirmBody` (`domain-section-archive.tsx:119`). Antes
+  // de #111 el placeholder se mostraba sin resolver en producción.
+
+  it("description resuelve `{slug}` con el placeSlug del place (`mi-club` por default del setup)", () => {
+    setup({ state: { status: "none" } });
+    expect(
+      screen.getByText(
+        "Vinculá tu dominio propio. Tu lugar va a seguir disponible en mi-club.place.community siempre.",
+      ),
+    ).toBeInTheDocument();
+    // Defense-in-depth: el literal `{slug}` NO debe aparecer en el DOM.
+    expect(screen.queryByText(/\{slug\}/)).not.toBeInTheDocument();
+  });
+
+  it("description resuelve `{slug}` con un placeSlug arbitrario", () => {
+    setup({ state: { status: "none" }, placeSlug: "comunidad-de-test" });
+    expect(
+      screen.getByText(
+        "Vinculá tu dominio propio. Tu lugar va a seguir disponible en comunidad-de-test.place.community siempre.",
+      ),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("DomainSection — estado pending", () => {
