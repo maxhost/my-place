@@ -64,6 +64,13 @@
       "when": 1779402435357,
       "tag": "0008_place_domain_partial_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779488835357,
+      "tag": "0009_lookup_place_by_domain",
+      "breakpoints": true
     }
   ]
 }
