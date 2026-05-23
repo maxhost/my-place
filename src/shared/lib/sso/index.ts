@@ -10,6 +10,8 @@
 // individuales — libertad para reorganizar internamente sin tocar
 // consumers. Sub-cap propio 800 LOC (ADR-0032 §"Organización").
 
+export * from "./db-with-verifier";
 export * from "./sso-keys";
+export * from "./sso-session";
 export * from "./sso-state";
 export * from "./sso-ticket";
