@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { cache } from "react";
 import { loadPlaceBySlug, type PlaceData } from "@/features/place/public";
 import { lookupPlaceByDomain } from "@/shared/lib/custom-domain-lookup";
@@ -9,6 +9,11 @@ import {
 } from "@/shared/lib/host-routing";
 import { lookupPlaceLocaleBySlug } from "@/shared/lib/place-locale-lookup";
 import { getSessionJwt } from "@/shared/lib/session";
+import {
+  LOCAL_SESSION_COOKIE_NAME,
+  getAuthenticatedDbWithVerifier,
+  verifyLocalSession,
+} from "@/shared/lib/sso";
 
 // Helpers privados del árbol `(app)/place/[placeSlug]/` (S6 del feature
 // `settings`, `docs/features/settings/spec.md`). El prefijo `_lib` lo trata
@@ -31,28 +36,89 @@ import { getSessionJwt } from "@/shared/lib/session";
 // (ese es para cache de fetches entre requests); es `react/cache` (per-render
 // memoization, mismo lifetime que el árbol React server).
 //
-// Por qué cachear ambos:
-// - `getSessionTokenForZone`: aunque `getSessionJwt()` es cheap (lectura de
-//   cookie + token del SDK), el SDK Neon Auth puede hacer fetch internamente
-//   para validar. Cachear lo elimina aunque sea barato (production-grade:
-//   "no work twice if you can avoid it").
-// - `getPlaceForZone`: la query DB es la pesada — la dedup acá es el motivo
-//   real del helper. Pero el token también se cachea para que la primera
-//   llamada del page (que verifica si hay sesión para decidir redirect) y la
-//   llamada interna de `getPlaceForZone` (que necesita el token para la tx
-//   autenticada) compartan resultado.
+// ## Feature C · S9 — Branch SSO local vs Neon Auth (ADR-0032)
+//
+// `getSessionTokenForZone` ahora retorna `SessionData = {token, source} | null`
+// en vez de `string | null`. La fuente del token determina QUÉ verifier usa
+// `getPlaceForZone`:
+//   - `'neon-auth'` (apex / subdomain canon) → `getAuthenticatedDb` (JWKS
+//     Neon Auth remoto, Feature A).
+//   - `'sso-local'` (custom domain) → `getAuthenticatedDbWithVerifier` (S4
+//     bridge) con `verifyLocalSession` injectada — firmado por la signing key
+//     del apex, host claim chequeado vs el `Host` header (defense-in-depth
+//     contra cookie robada y re-presentada en otro custom domain).
+//
+// **Continuidad RLS**: en ambos paths, `app.current_user_id()` retorna el
+// MISMO `sub` (= `neon_auth.user.id`) porque el `sub` del ticket SSO (S7) ===
+// el `sub` del Neon Auth JWT que el apex verificó al emitirlo. Cero refactor
+// de policies.
 //
 // Sobre el shape de retorno: `PlaceData | null`. El consumer distingue las
-// causas del `null` mirando primero el token (no-session → redirect; token
-// presente + place null → RLS-filtered o slug inexistente → notFound).
+// causas del `null` mirando primero la session (no-session → redirect/gate;
+// session presente + place null → RLS-filtered o slug inexistente → notFound).
 
 /**
- * JWT de sesión cross-subdomain (cookie `.place.community`) memoizado por
- * render. Layout y page lo consumen sin pagar la segunda lectura.
+ * Resultado del lookup de sesión por zona. `source` discriminado le permite
+ * a `getPlaceForZone` elegir el verifier correcto.
+ *
+ * - `'neon-auth'` → JWT JWKS-verificable de Neon Auth (cookie
+ *   `.place.community`). Consumer: `getAuthenticatedDb` (Feature A).
+ * - `'sso-local'` → JWT ES256 firmado por apex y persistido en cookie
+ *   host-only `__Host-place_sso_session` (Feature C · S4). Consumer:
+ *   `getAuthenticatedDbWithVerifier` con `verifyLocalSession` (S4 bridge).
+ *
+ * `null` = no logueado en la zona (caller decide redirect/silent-SSO/gate).
+ */
+export type SessionData = {
+  token: string;
+  source: "neon-auth" | "sso-local";
+} | null;
+
+/**
+ * Host del request actual normalizado (lowercase, sin puerto) — mismo formato
+ * que el host claim del local session JWT (`mintLocalSession` setea `host:
+ * customDomain` con la normalización del redeem S8). Empareja con el check
+ * de host de `verifyLocalSession`.
+ */
+async function resolveExpectedHost(): Promise<string> {
+  const hostHeader = (await headers()).get("host") ?? "";
+  return hostHeader.split(":")[0]?.trim().toLowerCase() ?? "";
+}
+
+/**
+ * Session token de la zona actual (apex/subdomain → Neon Auth; custom domain
+ * → SSO local) memoizado por render. Layout y page lo consumen sin pagar la
+ * segunda lectura.
+ *
+ * Bifurca por `HostZone`:
+ *   - **`custom-domain`**: lee la cookie host-only `__Host-place_sso_session`
+ *     (S4) y la verifica con `verifyLocalSession` (firma + iss + exp + host
+ *     claim === host del request). Cualquier fallo del verifier (expired,
+ *     host_mismatch, signature_invalid, etc.) colapsa a `null` — el caller
+ *     interpreta `null` como "re-trigger silent SSO" (S10).
+ *   - **otros (`place`, `inbox`, `marketing`)**: lee Neon Auth JWT vía
+ *     `getSessionJwt` (cookie cross-subdomain `.place.community`).
  */
 export const getSessionTokenForZone = cache(
-  async (): Promise<string | null> => {
-    return getSessionJwt();
+  async (): Promise<SessionData> => {
+    const hostZone = await getHostZoneForZone();
+    if (hostZone.zone === "custom-domain") {
+      const cookieJar = await cookies();
+      const ssoCookie = cookieJar.get(LOCAL_SESSION_COOKIE_NAME)?.value;
+      if (!ssoCookie) return null;
+      const expectedHost = await resolveExpectedHost();
+      try {
+        await verifyLocalSession({ token: ssoCookie, expectedHost });
+        return { token: ssoCookie, source: "sso-local" };
+      } catch {
+        // Defense-in-depth: cualquier error del verifier (LocalSessionError
+        // discriminado o ruido inesperado) colapsa a `null`. No leakeamos
+        // detalle al consumer — S10 vuelve a disparar `/api/auth/sso-init`.
+        return null;
+      }
+    }
+    const jwt = await getSessionJwt();
+    return jwt ? { token: jwt, source: "neon-auth" } : null;
   },
 );
 
@@ -62,15 +128,33 @@ export const getSessionTokenForZone = cache(
  * sesión vigente o si el caller no es owner del place (incluye no-existe y
  * archivado).
  *
+ * Ramifica el verifier según `session.source`:
+ *  - **`sso-local`**: `getAuthenticatedDbWithVerifier` (S4 bridge) con un
+ *    verifier que invoca `verifyLocalSession` y extrae el `sub`. El bridge
+ *    inyecta `{sub}` como `request.jwt.claims` tx-local → RLS funciona
+ *    idéntico al apex.
+ *  - **`neon-auth`**: `getAuthenticatedDb` (Feature A) sin cambio.
+ *
  * Memoizado por render: la primera llamada (e.g. desde el layout) abre la
  * tx autenticada y corre la SELECT; las siguientes (e.g. desde el settings
  * page) reusan el `PlaceData` sin re-tocar Neon.
  */
 export const getPlaceForZone = cache(
   async (placeSlug: string): Promise<PlaceData | null> => {
-    const token = await getSessionTokenForZone();
-    if (token === null) return null;
-    return getAuthenticatedDb(token, (executor) =>
+    const session = await getSessionTokenForZone();
+    if (session === null) return null;
+    if (session.source === "sso-local") {
+      const expectedHost = await resolveExpectedHost();
+      return getAuthenticatedDbWithVerifier(
+        session.token,
+        async (token) => {
+          const claims = await verifyLocalSession({ token, expectedHost });
+          return { sub: claims.sub };
+        },
+        (executor) => loadPlaceBySlug(executor, placeSlug),
+      );
+    }
+    return getAuthenticatedDb(session.token, (executor) =>
       loadPlaceBySlug(executor, placeSlug),
     );
   },

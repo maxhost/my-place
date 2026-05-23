@@ -97,11 +97,14 @@ export default async function PlaceSettingsPage({ params }: Props) {
   // (custom-domain, S4d).
   const hostZone = await getHostZoneForZone();
 
-  // (3) Guard sesión. `null` = no logueado:
-  //   - Custom domain → auth-gate localizado (S4d), NO redirect (loop trap).
+  // (3) Guard sesión. `null` = no logueado en la zona. `SessionData` viene
+  // con `source` (`'neon-auth' | 'sso-local'`) pero acá sólo branchemos por
+  // presence/absence — el verifier ramificado vive en `getPlaceForZone` (S9).
+  //   - Custom domain → auth-gate localizado (S4d V1, S10 lo evoluciona a
+  //     silent SSO trigger), NO redirect (loop trap).
   //   - Subdomain canon → redirect a login apex con locale del place (S4c).
-  const token = await getSessionTokenForZone();
-  if (token === null) {
+  const session = await getSessionTokenForZone();
+  if (session === null) {
     if (hostZone.zone === "custom-domain") {
       // Render `<AuthGateForCustomDomain>` con copy localizado en el
       // `defaultLocale` configurado por el owner (resuelto en el lookup
