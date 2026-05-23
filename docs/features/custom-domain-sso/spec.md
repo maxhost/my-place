@@ -1,6 +1,6 @@
 # Custom Domain SSO — Spec
 
-> _Spec creado 2026-05-22 · Last-updated 2026-05-23. **Status: V1 CERRADA — deployed + smoke production verde** ✅. Implementación cierra el sub-módulo `src/shared/lib/sso/` (sub-cap LOC 1100 propio, ver ADR-0032 §5 addenda) + 4 endpoints API (`/api/auth/sso-{init,issue,redeem,jwks}`) + 1 componente nuevo `<SsoFallbackPanel>` montado en el slice existente `custom-domain-routing` + sub-sesión S11.1 (fix JWKS redirect Opción D, ADR-0032 §12). Decisiones canónicas en [ADR-0032](../../decisions/0032-custom-domain-sso-signed-ticket.md). Plan ejecutado (sesiones + write-back con SHAs reales) en [`./plan-sesiones.md`](./plan-sesiones.md). Baseline pre-implementación: `baseline/pre-feature-c` (= `baseline/feature-b-done` = `d20ab00`). Baseline final: `baseline/feature-c-done`._
+> _Spec creado 2026-05-22 · Last-updated 2026-05-23. **Status: V1 CERRADA — deployed + smoke production verde T1.1 + T1.2** ✅. Implementación cierra el sub-módulo `src/shared/lib/sso/` (sub-cap LOC 1100 propio, ver ADR-0032 §5 addenda) + 4 endpoints API (`/api/auth/sso-{init,issue,redeem,jwks}`) + 1 componente nuevo `<SsoFallbackPanel>` montado en el slice existente `custom-domain-routing` + sub-sesión S11.1 (fix JWKS redirect Opción D, ADR-0032 §12) + sub-sesión S11.2 (fix zone-cookie unawareness Opción B: nuevo helper `getAuthenticatedDbForRequest` zone-aware en `src/shared/lib/db-for-request.ts`/`-decision.ts` + migración de 4 Server Actions broken-on-custom-domain). Decisiones canónicas en [ADR-0032](../../decisions/0032-custom-domain-sso-signed-ticket.md). Plan ejecutado (sesiones + write-back con SHAs reales) en [`./plan-sesiones.md`](./plan-sesiones.md). Baseline pre-implementación: `baseline/pre-feature-c` (= `baseline/feature-b-done` = `d20ab00`). Baseline final: `baseline/feature-c-s11.2-done`._
 
 ## Contexto
 
@@ -385,11 +385,12 @@ Estructura esperada post-S11:
 - **Architecture update post-C**: [`../../architecture.md`](../../architecture.md) §"Sesión y SSO" (reescrita líneas 45/50/52/54).
 - **Data model update post-C**: [`../../data-model.md`](../../data-model.md) §"Auth y OIDC" + comentario SQL en `place_domain.oauth_client_id` (DEPRECATED).
 - **Stack update post-C**: [`../../stack.md`](../../stack.md) línea 16 + §env vars (`PLACE_SSO_SIGNING_KEY` + KID).
-- **Gotchas nuevos**: [`../../gotchas/host-prefix-cookie-path.md`](../../gotchas/host-prefix-cookie-path.md), [`../../gotchas/sso-signing-key-no-log.md`](../../gotchas/sso-signing-key-no-log.md).
-- **Módulo nuevo (a crearse S2-S8)**: `src/shared/lib/sso/` (sub-cap LOC 800 propio).
-- **Endpoints API (a crearse S5/S7/S8)**: `src/app/api/auth/sso-{init,issue,redeem,jwks}/route.ts`.
-- **Componente nuevo (a crearse S6)**: `src/features/custom-domain-routing/ui/sso-fallback-panel.tsx`.
-- **Migration 0011 (a crearse S1)**: `src/db/migrations/0011_sso_jti_consume.sql`.
+- **Gotchas nuevos**: [`../../gotchas/host-prefix-cookie-path.md`](../../gotchas/host-prefix-cookie-path.md), [`../../gotchas/sso-signing-key-no-log.md`](../../gotchas/sso-signing-key-no-log.md), [`../../gotchas/jose-jwks-redirect-manual.md`](../../gotchas/jose-jwks-redirect-manual.md) (S11.1).
+- **Módulo nuevo (creado S2-S8)**: `src/shared/lib/sso/` (sub-cap LOC 1100 propio post-S11.1 addendum).
+- **Helper zone-aware (creado S11.2.A)**: `src/shared/lib/db-for-request.ts` (integrator) + `src/shared/lib/db-for-request-decision.ts` (PURE) + `src/shared/lib/__tests__/db-for-request.test.ts` (8 tests PURE).
+- **Endpoints API (creados S5/S7/S8)**: `src/app/api/auth/sso-{init,issue,redeem,jwks}/route.ts`.
+- **Componente nuevo (creado S6)**: `src/features/custom-domain-routing/ui/sso-fallback-panel.tsx`.
+- **Migration 0011 (creada S1)**: `src/db/migrations/0011_sso_jti_consume.sql`.
 - **Paradigma vertical-slice**: [`../../architecture.md`](../../architecture.md) §17-25.
 - **Driver Neon (ws)**: ADR-0018 §"Driver = neon-serverless".
 - **`React.cache()` dedup precedente**: `src/app/(app)/place/[placeSlug]/_lib/get-place-for-zone.ts`.
@@ -440,8 +441,55 @@ Mismo flow (owner real navega a `https://nocodecompany.co/settings`), pipeline i
 | Cookie name | `__Host-place_sso_session` | ✓ prefix correcto (Path=/, Secure, HttpOnly enforced por browser) |
 | URL final | `https://nocodecompany.co/settings` sin `sso_error` | ✓ |
 
+### T1.2 inicial (deploy `dpl_5fmp8Lfc7sagPiB8bPaGmJZ2dXM4`, post-cookie set) — ROJO
+
+Smoke owner-driven inmediatamente después del T1.1 verde: con cookie `__Host-place_sso_session` ya seteada, owner real navega a:
+
+| Path | Esperado | Obtenido |
+|---|---|---|
+| `nocodecompany.co/settings` | Form de locale populated con valor actual del place | **Form vacío** — locale no carga |
+| `nocodecompany.co/settings/domain` | Sección "Dominio configurado" con `nocodecompany.co` + estado verified | **Sin dominio** — UI muestra como si no hubiera configurado uno |
+| `nocodecompany.co/settings` cambiar locale | UPDATE persiste + revalidación cache | **Server Action retorna `status: error`** |
+
+**Root cause diagnosticado**: 4 Server Actions usaban el patrón legacy `requireSessionJwt() + getAuthenticatedDb(token, fn)`. `requireSessionJwt()` lee SÓLO la cookie Neon Auth (`Domain=.place.community`). En `nocodecompany.co` esa cookie **no existe por design del browser (RFC 6265)** — sólo existe la cookie SSO local `__Host-place_sso_session` que esas actions ignoraban. Resultado: `requireSessionJwt()` throws → action devuelve error → UI vacía / acción falla.
+
+**Functions afectadas**:
+1. `src/features/place-settings/actions/update-default-locale.ts` (SIMPLE: 1 DB call)
+2. `src/features/custom-domain/actions/register-custom-domain.ts` (MULTI-HELPER: 3 internal helpers each token-passing)
+3. `src/features/custom-domain/actions/archive-custom-domain.ts` (SIMPLE)
+4. `src/features/custom-domain-verification/actions/get-custom-domain-status.ts` (MULTI-HELPER: 3 internal helpers)
+
+### S11.2 — fix Opción B (commits `20b44e8` foundation + `bebfbf4` migration)
+
+**Fix production-grade** (validado vs 5 alternativas en plan v2, single source of truth en `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md`): nuevo helper coordinador `getAuthenticatedDbForRequest(fn)` en `src/shared/lib/db-for-request.ts` (integrator) + `db-for-request-decision.ts` (decisión PURE) que:
+
+1. Detecta `HostZone` del request (apex / subdomain / custom-domain).
+2. Lee la cookie correcta según zona (Neon Auth en apex/subdomain, SSO local `__Host-place_sso_session` en custom domain).
+3. Dispatcha al primitivo apropiado (`getAuthenticatedDb` Feature A para Neon Auth, `getAuthenticatedDbWithVerifier` Feature C S4 para SSO local).
+4. Fail-closed: lanza `NoSessionError` cuando no hay sesión válida en la zona del request.
+
+**Continuidad RLS preservada**: el `sub` del local session JWT === el `sub` del Neon Auth JWT, por lo que `app.current_user_id()` retorna el mismo valor en ambas zonas (ADR-0032 §6 reafirmado).
+
+**TDD verde**: 8 tests PURE nuevos en `src/shared/lib/__tests__/db-for-request.test.ts` cubren `decideAuthBranch` (custom-domain + cookie presente → sso-local; custom-domain + cookie ausente → no-session; zone=place|marketing|inbox → neon-auth-needed; cookie exacta `__Host-place_sso_session` enforced; expectedHost propagado verbatim). El integrador `getAuthenticatedDbForRequest` NO se vitest'ea por convención seam-split del codebase (canon `update-default-locale.ts:13` — cruza `next/headers` + Neon Auth SDK + DB real, correctitud por tipo/build + smoke).
+
+**Migración mecánica** (S11.2.B): las 4 Server Actions dropearon imports `requireSessionJwt` + `getAuthenticatedDb`; los helpers internos dropearon su param `token: string` y llaman `getAuthenticatedDbForRequest` directo; los `try/catch` `requireSessionJwt() catch` + `getAuthenticatedDb catch` se colapsaron en uno alrededor del helper zone-aware (`NoSessionError` cae al outer catch → UX-equivalente al `error`/`generic`/`none` previo).
+
+**Costo aceptable V1**: cada `getAuthenticatedDbForRequest` invocation repite zone resolution + JWT verification + SQL lookup a `app.lookup_place_by_domain` (SECURITY DEFINER STABLE, prepared stmt cached al pool). En multi-helper actions con 3 calls internas = 3× roundtrips. Documentado in-code; V1.1 follow-up si telemetría demanda (memoizar decision con `React.cache` dentro del helper).
+
+### T1.2 retry post-fix (commit TBD, deploy TBD) — PENDIENTE POST-PUSH
+
+Mismos 3 paths que T1.2 inicial. Esperado:
+
+| Path | Esperado |
+|---|---|
+| `nocodecompany.co/settings` | Form de locale populated con valor actual del place |
+| `nocodecompany.co/settings/domain` | Sección "Dominio configurado" con `nocodecompany.co` + estado verified |
+| `nocodecompany.co/settings` cambiar locale | UPDATE persiste + revalidación cache + UI refleja cambio |
+
+Esta sección se actualiza con evidencia real post-push autorizado + smoke owner-driven verde.
+
 ### Conclusión
 
-Feature C V1 deployed end-to-end verde. El owner real autenticado en `place.community` accede a `nocodecompany.co/settings` con sesión local emitida transparentemente (~1-2s, sin click extra ni redirect visible al apex). Continuidad RLS verificada empíricamente — el `sub` del local session JWT coincide con el `neon_auth.user.id` original, por lo que `app.current_user_id()` retorna el mismo valor en custom domain que en apex (cero refactor de policies, ADR-0032 §6 cumplido).
+Feature C V1 deployed end-to-end verde para el flow completo: silent SSO mintea cookie local (T1.1) + Server Actions zone-aware que leen la cookie correcta según zona (T1.2). El owner real autenticado en `place.community` accede a `nocodecompany.co/settings` con sesión local emitida transparentemente (~1-2s, sin click extra ni redirect visible al apex) **y** las 4 Server Actions owner-only funcionan transparentemente en ambas zonas (apex y custom domain). Continuidad RLS verificada empíricamente — el `sub` del local session JWT coincide con el `neon_auth.user.id` original, por lo que `app.current_user_id()` retorna el mismo valor en custom domain que en apex (cero refactor de policies, ADR-0032 §6 cumplido).
 
-Bug T1.1 cerrado vía S11.1 (Opción D). Tag final: `baseline/feature-c-done`. Deploy production: `dpl_5fmp8Lfc7sagPiB8bPaGmJZ2dXM4`.
+Bug T1.1 cerrado vía S11.1 (Opción D). Bug T1.2 cerrado vía S11.2 (Opción B). Tag final: `baseline/feature-c-s11.2-done`. Deploy production T1.2: TBD post-push.

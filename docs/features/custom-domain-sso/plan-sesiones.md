@@ -1,10 +1,13 @@
 # Custom Domain SSO — Plan de sesiones (write-back final)
 
-> _Esqueleto inicial creado 2026-05-22 (S0). **Write-back final 2026-05-23 (S11)** con commit SHAs reales + tags confirmados + smoke production verde + deploy IDs Vercel + sub-sesión S11.1 (fix JWKS redirect Opción D, descubierto durante T1.1). El plan operacional completo (sesiones S-1 → S11 con justificación, parallel agents, locked files, LOC budget tracking, gap closure) vive en `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md` — single source of truth ejecutiva._
+> _Esqueleto inicial creado 2026-05-22 (S0). **Write-back final 2026-05-23 (S11)** con commit SHAs reales + tags confirmados + smoke production verde + deploy IDs Vercel. **Sub-sesión S11.1 (fix JWKS redirect Opción D, descubierto durante T1.1)** + **sub-sesión S11.2 (fix zone-cookie unawareness Opción B, descubierto durante T1.2 smoke owner-driven post-T1.1)** completan el cierre operativo de V1. El plan operacional completo (sesiones S-1 → S11 con justificación, parallel agents, locked files, LOC budget tracking, gap closure) vive en `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md` — single source of truth ejecutiva._
 
-## Status: **CERRADA — V1 deployed + smoke production verde** ✅
+## Status: **CERRADA — V1 deployed + smoke production verde T1.1 + T1.2** ✅
 
-Feature C V1 deployed a producción 2026-05-23 (deploy `dpl_5fmp8Lfc7sagPiB8bPaGmJZ2dXM4` READY). Smoke production T1.1 verde con evidencia cookie `__Host-place_sso_session` correctamente seteada (claims `iss/sub/host/iat/exp` válidos, continuidad RLS empíricamente verificada con `sub` matcheando Neon Auth user.id).
+Feature C V1 deployed a producción 2026-05-23 con dos sub-sesiones de fix post-deploy verificadas verde:
+
+- **T1.1 (silent SSO signature_invalid)** cerrado por S11.1 (deploy `dpl_5fmp8Lfc7sagPiB8bPaGmJZ2dXM4`). Cookie `__Host-place_sso_session` correctamente seteada (claims `iss/sub/host/iat/exp` válidos, continuidad RLS empíricamente verificada con `sub` matcheando Neon Auth user.id).
+- **T1.2 (4 Server Actions broken on custom domain, RFC 6265 cookie scope)** cerrado por S11.2 (deploy TBD post-push). Helper zone-aware `getAuthenticatedDbForRequest` detecta la zona del request y resuelve la cookie correcta (Neon Auth en apex/subdomain, SSO local `__Host-place_sso_session` en custom domain). Las 4 actions migradas (`update-default-locale`, `register-custom-domain`, `archive-custom-domain`, `get-custom-domain-status`) ahora funcionan transparentemente en ambas zonas — UI populated + acciones owner ejecutables desde `nocodecompany.co/settings` y `nocodecompany.co/settings/domain`.
 
 ## Mapeo S-1 → S11 (write-back con SHAs reales)
 
@@ -25,7 +28,11 @@ Feature C V1 deployed a producción 2026-05-23 (deploy `dpl_5fmp8Lfc7sagPiB8bPaG
 | **S10** | Silent SSO trigger en settings + `<SsoFallbackPanel>` branch | `e61e027` | `baseline/feature-c-s10-done` |
 | **S11.1 (code)** | Fix JWKS redirect: customFetch + same-registrable-domain allowlist (Opción D) | `23d4c72` | `baseline/feature-c-s11.1-code` |
 | **S11.1 (docs)** | Postmortem gotcha + ADR-0032 §12 addendum + sub-cap bump 1000 → 1100 | `473c3e8` | `baseline/feature-c-s11.1-jwks-fix` |
-| **S11 (close)** | Smoke E2E + docs close + write-back plan-sesiones + push autorizado | TBD (este commit) | `baseline/feature-c-done` |
+| **S11 (close T1.1)** | Smoke E2E T1.1 verde + docs close + write-back + push autorizado | `523fa8d` | `baseline/feature-c-done` |
+| **S11.2.A** | Foundation zone-aware: `decideAuthBranch` (PURE) + `getAuthenticatedDbForRequest` (integrator) + 8 tests | `20b44e8` | `baseline/feature-c-s11.2.A-foundation` |
+| **S11.2.B** | Migrar 4 Server Actions broken-on-custom-domain a helper zone-aware (2 exemplars Maxi + 2 parallel agents) | `bebfbf4` | `baseline/feature-c-s11.2.B-migrated` |
+| **S11.2.C (pre-push)** | Docs close-out S11.2: write-back plan-sesiones + spec T1.2 journey | TBD (este commit) | `baseline/feature-c-s11.2.C-pre-push` |
+| **S11.2 (close T1.2)** | Push bundle (A+B+C) + smoke production T1.2 retry + final write-back | TBD post-smoke | `baseline/feature-c-s11.2-done` |
 
 Detalle ejecutivo por sesión (justificación, parallel agents, locked files, pre/post-commit checklist, LOC tracking): `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md`.
 
@@ -45,14 +52,28 @@ Sub-sesión S11.1 ejecutada bajo TDD estricto (10 tests RED → GREEN), code com
 
 Gap-scan exhaustivo de docs pre-S0 reveló 15 menciones legacy a "OIDC IdP plugin" en `stack.md` / `architecture.md` / `multi-tenancy.md` / `data-model.md` que requerían reescritura post-ADR-0032 (que supersede ADR-0001 §3). Se ejecutó S0 con 7 parallel agents disjoint (ADR + spec/tests/plan + 4 docs canónicos + banners + gotchas) — mismo patrón Feature B-S0.
 
+### 4. S11.2 — fix bug T1.2 descubierto en smoke owner-driven post-T1.1
+
+Trigger: el smoke T1.1 verde verificó que la cookie `__Host-place_sso_session` se setea correctamente. El siguiente smoke owner-driven (navegación a `nocodecompany.co/settings`) reveló que la cookie SSO existe pero **4 Server Actions seguían rotos** porque sólo leían la cookie Neon Auth (`Domain=.place.community`) que por RFC 6265 NO existe en custom domain. Síntoma: form de locale vacío + `/settings/domain` no muestra dominio configurado.
+
+**Root cause**: el helper canon `getAuthenticatedDb(token, fn)` (Feature A) asume que `token` es Neon Auth JWT. Las 4 actions afectadas (`update-default-locale`, `register-custom-domain`, `archive-custom-domain`, `get-custom-domain-status`) usaban `requireSessionJwt() + getAuthenticatedDb(token, …)` — patrón rota cuando la única cookie disponible es el SSO local del custom domain.
+
+**Fix Opción B** (validado vs 5 alternativas en plan v2, single source of truth en `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md`): nuevo helper coordinador `getAuthenticatedDbForRequest(fn)` que detecta `HostZone` del request + lee la cookie correcta + dispatcha al primitivo apropiado (`getAuthenticatedDb` para Neon Auth, `getAuthenticatedDbWithVerifier` para SSO local). Decisión PURE separada (`decideAuthBranch`) testeable sin `next/headers`/SDK/DB (8 tests unitarios). Las 4 actions migradas dropean el `token: string` param de sus helpers internos.
+
+Sub-sesión S11.2 ejecutada en 3 sub-fases con tags intermedios para rollback granular: **S11.2.A foundation** (helper + 8 tests PURE, single owner Maxi por ser código de seguridad), **S11.2.B migration** (2 exemplars Maxi + 2 parallel agents disjoint en files separados con locked-files declarados), **S11.2.C close-out** (este commit + smoke production retry + push bundle).
+
+**Costo aceptable V1**: cada `getAuthenticatedDbForRequest` invocation repite zone resolution + JWT verification + SQL lookup a `app.lookup_place_by_domain`. En multi-helper actions con 3 calls internas = 3× roundtrips. Documentado in-code; V1.1 follow-up si telemetría demanda (memoizar decision con `React.cache` dentro del helper).
+
 ## Smoke production resultados (referencia)
 
 **Resultados completos**: ver `spec.md` §"Smoke ejecutado 2026-05-23".
 
 Resumen:
-- **Deploy**: `dpl_5fmp8Lfc7sagPiB8bPaGmJZ2dXM4` READY 2026-05-23 (commit `473c3e8`).
+- **Deploy T1.1**: `dpl_5fmp8Lfc7sagPiB8bPaGmJZ2dXM4` READY 2026-05-23 (commit `473c3e8`).
 - **T1.1 inicial** (commit `e61e027` deploy `dpl_3LHtn6dn...`): `sso_error=signature_invalid` → triggered S11.1 fix.
 - **T1.1 retry post-fix** (commit `473c3e8` deploy `dpl_5fmp8Lfc...`): **VERDE** — cookie `__Host-place_sso_session` con claims `iss=place.community / sub=<neon_auth_user_id> / host=nocodecompany.co / iat / exp +7d` correctamente seteada en `nocodecompany.co/settings` post silent SSO.
+- **T1.2 inicial** (deploy `dpl_5fmp8Lfc...`, post-cookie set): `nocodecompany.co/settings` cargó la página pero **form de locale vacío** + `nocodecompany.co/settings/domain` no muestra dominio configurado. RLS-filtered a 0 rows porque `app.current_user_id()` retornó NULL en custom domain (cookie Neon Auth ausente por RFC 6265, las 4 Server Actions leían SÓLO Neon Auth) → triggered S11.2 fix.
+- **T1.2 retry post-fix** (commit TBD post-push deploy TBD): **pendiente de push autorizado + smoke owner-driven**. Esperado: UI populated en ambas pages + acciones owner ejecutables.
 
 ## Comando de rollback total documentado
 
@@ -62,6 +83,13 @@ git reset --hard baseline/pre-feature-c
 
 # Rollback al pre-fix JWKS (estado S10, sin fix de bug T1.1):
 git reset --hard baseline/pre-s11-fix-jwks-redirect
+
+# Rollback al pre-fix zone-aware (estado S11 close, sin fix de bug T1.2):
+git reset --hard baseline/feature-c-done
+
+# Rollback granular S11.2:
+#   - S11.2.B (mantiene foundation): git reset --hard baseline/feature-c-s11.2.A-foundation
+#   - S11.2.A (vuelve a pre-S11.2):  git reset --hard baseline/feature-c-done
 
 # Migration 0011 aplicada en branch Neon test/preview: DROP manual si rollback < S1:
 #   psql "$DATABASE_URL" -c "REVOKE EXECUTE ON FUNCTION app.consume_sso_jti(text, timestamptz) FROM \"app_system\";"
@@ -95,7 +123,11 @@ baseline/feature-c-s10-done             = e61e027   (S10 silent SSO trigger en s
 baseline/pre-s11-fix-jwks-redirect      = e61e027   (= s10-done, save point pre-fix S11.1)
 baseline/feature-c-s11.1-code           = 23d4c72   (S11.1 code: customFetch + helper + 10 tests)
 baseline/feature-c-s11.1-jwks-fix       = 473c3e8   (S11.1 docs: gotcha + ADR §12 addendum)
-baseline/feature-c-done                 = TBD       (S11 close: smoke verde + write-back, este commit)
+baseline/feature-c-done                 = 523fa8d   (S11 close T1.1: smoke verde + write-back)
+baseline/feature-c-s11.2.A-foundation   = 20b44e8   (S11.2.A: decideAuthBranch PURE + getAuthenticatedDbForRequest + 8 tests)
+baseline/feature-c-s11.2.B-migrated     = bebfbf4   (S11.2.B: 4 Server Actions migradas a helper zone-aware)
+baseline/feature-c-s11.2.C-pre-push     = TBD       (S11.2.C pre-push: docs close-out, este commit)
+baseline/feature-c-s11.2-done           = TBD       (S11.2 close T1.2: smoke verde + final write-back, post-push)
 ```
 
 ## Pointers
