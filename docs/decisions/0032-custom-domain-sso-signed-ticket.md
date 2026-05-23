@@ -210,6 +210,38 @@ src/shared/lib/sso/
 
 **Por qué NO un slice `src/features/custom-domain-sso/`**: los helpers (`signSsoTicket`, `verifySsoTicket`, `mintLocalSession`, etc.) son consumidos desde 3 surfaces distintas: `/api/auth/sso-init`, `/api/auth/sso-issue`, `/api/auth/sso-redeem` (3 route handlers en `src/app/`) + `getSessionTokenForZone` (zone-place internal lib) + `<SsoFallbackPanel>` (slice `custom-domain-routing`). Los Server Actions y la UI del flow NO existen como concepto cohesivo (no hay form que renderear; el flow es server-side redirect cadena). Un slice acá sería ceremonia sin beneficio. Decision documented.
 
+#### Addendum 2026-05-23 — sub-cap subido de 800 a 1000 LOC
+
+Tras cerrar S2 (sso-keys + sso-ticket) y S3 (sso-state), los actuals del sub-módulo divergen del estimate ex-ante: **647 LOC consumidos vs ~470 LOC proyectados**. Desglose:
+
+| Archivo | Proyectado | Actual | Δ |
+|---|---|---|---|
+| `sso-keys.ts` | 120 | 154 | +28% |
+| `sso-ticket.ts` | 150 | 270 | +80% |
+| `sso-state.ts` | 180 | 208 | +16% |
+| `index.ts` (barrel) | 20 | 15 | −25% |
+| **Total post-S3** | **470** | **647** | **+38%** |
+
+**Por qué el overage**: el code-density refleja el mandato "production-minded desde el día uno" del user (memoria-de-feedback `production_minded`, reforzada en review pre-S0): comentarios canónicos extensos, JSDoc completo, header blocks que documentan invariantes/decisiones por archivo. El estimate ex-ante asumió doc-density ~30% (típico de scaffold); el actual es ~50-60% en `sso-ticket.ts` (decisión consciente — toda la criptografía + mapeo de errores jose merece justificación inline). NO es bloat: cada bloque de comentarios documenta una decisión o un invariante con consecuencias de seguridad.
+
+**Proyección post-Feature C** (con LOC actuales + estimates restantes):
+- S4 (sso-session + db-with-verifier): ~280-310 LOC siguiendo el overage milder (+16-28%) que sso-keys/sso-state — sso-ticket fue outlier por densidad de mapeo cripto.
+- S8 (sso-jti-consume wrapper): ~30 LOC (sin overage esperado — wrapper anonymous-safe trivial).
+- **Total proyectado post-Feature C**: ~957 LOC con ~43 LOC margen vs cap 1000.
+
+**Decisión**: subir sub-cap a **1000 LOC** (de 800). Justificación de los +200:
+1. **Cap original era estimate, no constraint constitucional**. El número 800 vino del shared/lib raíz cap global aplicado por simetría sin medir el doc-density real del flow criptográfico. Ahora que hay actuals, el cap se calibra a la realidad.
+2. **Concentración cohesiva justifica concentración LOC**. ADR-0028 §"sub-carpetas pueden tener sub-caps cuando agrupan cohesivamente" da el principio; el aplicación práctica es elegir el sub-cap calibrado al sub-módulo (1000 acá vs 800 raíz). El sub-módulo `sso/` agrupa TODA la criptografía Signed Ticket — la alternativa sería diluir entre `shared/lib/` raíz y otros lugares, perdiendo cohesión.
+3. **+25% sobre cap raíz** es congruente con el "+38% LOC actual vs proyectado" — la familia de archivos cripto pide más densidad doc por unidad de funcionalidad.
+4. **Margen para growth controlado**: si una hipotética S4+S8 hace overshoot adicional, se vuelve a pausar y se eleva otra vez (NO se baja la guardia). El cap es elástico bajo justificación documentada, no abandonable.
+
+**Lo que NO cambia**:
+- Cap shared/lib raíz: **800** (intacto). Este sub-cap es ortogonal; no extiende el global.
+- Otros sub-módulos `shared/lib/<name>/` futuros heredan **800** por default, no 1000. Cualquier excepción require ADR addendum equivalente (no precedente automatic).
+- Caps por archivo (300) y por función (60): **intactos**. Esta decisión sólo toca el cap agregado del sub-módulo.
+
+**Pre-S4 verification baseline**: 647 LOC (medido con `wc -l src/shared/lib/sso/*.ts | grep -v test`). Tag de save point pre-addendum: `baseline/feature-c-s3-done`.
+
 ### 6. Local session JWT (custom domain)
 
 Claims del JWT seteado en `__Host-place_sso_session`:
