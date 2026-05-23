@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getAuthenticatedDb } from "@/shared/lib/db";
-import { requireSessionJwt } from "@/shared/lib/session";
+import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
 import { removeDomain } from "@/shared/lib/vercel";
 import { type ArchiveCustomDomainResult } from "../types/custom-domain";
 
@@ -27,12 +26,24 @@ import { type ArchiveCustomDomainResult } from "../types/custom-domain";
 //     es "a lo sumo una fila activa por domain", no "un domain único en
 //     toda la historia".
 //
-// AUTH + RLS: el WHERE incluye un `place_id IN (SELECT id FROM place WHERE
-// slug = $2)` además del `id = $1`. La RLS owner-only de `place_domain`
-// ya filtraría rows que no pertenezcan al caller, pero el slug-match es
-// defense-in-depth contra un caller (e.g. devtools) que pase un domainId
-// de un place distinto al actual: la UI sólo ofrece archive para el slug
-// que renderea, así que cualquier mismatch debe colapsar a `"not_found"`.
+// AUTH + RLS: fail-closed ocurre dentro de `getAuthenticatedDbForRequest`
+// (zone-aware, ADR-0032 §S11.2) — el helper detecta la zona del request y
+// lee la cookie correcta (Neon Auth en apex/subdomain, SSO local
+// `__Host-place_sso_session` en custom domain). Sin sesión válida lanza
+// `NoSessionError` que el outer catch colapsa a `"generic"`. Reemplaza el
+// patrón anterior `requireSessionJwt() + getAuthenticatedDb(token, …)` que
+// sólo leía la cookie Neon Auth (rota en custom domain por RFC 6265, bug
+// T1.2 detectado en smoke production 2026-05-23).
+//
+// Defense-in-depth slug-match: el WHERE incluye un `place_id IN (SELECT id
+// FROM place WHERE slug = $2)` además del `id = $1`. La RLS owner-only de
+// `place_domain` ya filtraría rows que no pertenezcan al caller, pero el
+// slug-match es defense-in-depth contra un caller (e.g. devtools) que pase
+// un domainId de un place distinto al actual: la UI sólo ofrece archive
+// para el slug que renderea, así que cualquier mismatch debe colapsar a
+// `"not_found"`. Continuidad RLS cross-zone: el `sub` del local session
+// JWT === el `sub` del Neon Auth JWT, por lo que `app.current_user_id()`
+// retorna el mismo valor en custom domain que en apex (ADR-0032 §4).
 //
 // `revalidatePath`: sub-path granular, idéntico al `register`.
 
@@ -65,16 +76,9 @@ export async function archiveCustomDomainAction(
   if (!parsed.success) return { status: "error", reason: "generic" };
   const { placeSlug, domainId } = parsed.data;
 
-  let token: string;
-  try {
-    token = await requireSessionJwt();
-  } catch {
-    return { status: "error", reason: "generic" };
-  }
-
   let archivedDomain: string | null = null;
   try {
-    archivedDomain = await getAuthenticatedDb(token, async (sql) => {
+    archivedDomain = await getAuthenticatedDbForRequest(async (sql) => {
       const rows = await sql(
         `UPDATE place_domain
             SET archived_at = now()
@@ -89,7 +93,10 @@ export async function archiveCustomDomainAction(
       return rows.length > 0 ? (rows[0].domain as string) : null;
     });
   } catch {
-    // DB / transport / JWT — todos colapsan a "generic" (UX-equivalente).
+    // `NoSessionError` (sin cookie SSO local en custom domain, sin Neon Auth
+    // en apex), cualquier fallo de DB / transport / verifier de JWT — todos
+    // colapsan a "generic" (UX-equivalente). El action es fail-closed: nada
+    // se persiste, y el DELETE en Vercel ni se intenta.
     return { status: "error", reason: "generic" };
   }
 

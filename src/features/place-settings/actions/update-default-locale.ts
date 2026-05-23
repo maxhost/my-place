@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { routing } from "@/i18n/routing";
-import { getAuthenticatedDb } from "@/shared/lib/db";
-import { requireSessionJwt } from "@/shared/lib/session";
+import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
 
 // Server Action de cambio de `place.default_locale` desde el settings (S7 del
 // feature `settings`, `docs/features/settings/spec.md` §"Sección Idioma del
@@ -21,14 +20,22 @@ import { requireSessionJwt } from "@/shared/lib/session";
 //    (migration 0006, ADR-0022) — si Zod y el CHECK se desincronizaran, el
 //    UPDATE fallaría loud. Mismo SoT que `createPlaceInputSchema.defaultLocale`
 //    (`place-creation/domain/schema.ts:110`).
-// 2. **`requireSessionJwt()`**: fail-closed antes de tocar la DB — sin sesión
-//    no se llega al UPDATE. Mismo patrón que `createPlaceAction`.
-// 3. **RLS `place_upd` (owner-only, ADR-0010)**: el UPDATE corre dentro de
-//    `getAuthenticatedDb(token, …)` que inyecta el claim del caller; la policy
-//    filtra a 0 rows si el caller no es owner. `RETURNING id` detecta ese caso
-//    (rows vacío) y lo mapea a `status: "error"` UX-equivalente — el caller
-//    no distingue "no autorizado" de "slug no existe" (no doxxea, spec
-//    §"Journeys C").
+// 2. **`getAuthenticatedDbForRequest()`** (zone-aware, ADR-0032 §S11.2):
+//    fail-closed antes de tocar la DB — el helper detecta la zona del request
+//    y lee la cookie correcta (Neon Auth en apex/subdomain, SSO local
+//    `__Host-place_sso_session` en custom domain). Sin sesión válida lanza
+//    `NoSessionError` que el outer catch colapsa a `error`. Reemplaza el
+//    patrón anterior `requireSessionJwt() + getAuthenticatedDb(token, …)` que
+//    sólo leía la cookie Neon Auth (rota en custom domain por RFC 6265, bug
+//    T1.2 detectado en smoke production 2026-05-23).
+// 3. **RLS `place_upd` (owner-only, ADR-0010)**: el UPDATE corre con
+//    `request.jwt.claims.sub` inyectado tx-local; la policy filtra a 0 rows
+//    si el caller no es owner. `RETURNING id` detecta ese caso (rows vacío) y
+//    lo mapea a `status: "error"` UX-equivalente — el caller no distingue
+//    "no autorizado" de "slug no existe" (no doxxea, spec §"Journeys C").
+//    Continuidad RLS cross-zone: el `sub` del local session JWT === el `sub`
+//    del Neon Auth JWT, por lo que `app.current_user_id()` retorna el mismo
+//    valor en custom domain que en apex (ADR-0032 §4).
 //
 // `revalidatePath("/place/[placeSlug]/settings")`: invalida la cache del page
 // del settings (S6) — la próxima carga corre `getPlaceForZone(slug)` (cache
@@ -94,20 +101,9 @@ export async function updateDefaultLocaleAction(
   if (!parsed.success) return { status: "error" };
   const { placeSlug, newLocale } = parsed.data;
 
-  let token: string;
+  let updated: boolean;
   try {
-    token = await requireSessionJwt();
-  } catch {
-    // Sin sesión vigente: el page del settings (S6) ya redirige al login
-    // cuando el guard falla; llegar acá significaría que la sesión expiró
-    // entre el render del form y el submit — UX-equivalente a "no pudimos
-    // guardar". El Client muestra el notice y el próximo refresh del settings
-    // lo lleva al login.
-    return { status: "error" };
-  }
-
-  try {
-    const updated = await getAuthenticatedDb(token, async (sql) => {
+    updated = await getAuthenticatedDbForRequest(async (sql) => {
       const rows = await sql(
         `UPDATE place
             SET default_locale = $1
@@ -118,14 +114,17 @@ export async function updateDefaultLocaleAction(
       );
       return rows.length > 0;
     });
-    if (!updated) {
-      // RLS filtró (caller no es owner del place) o el slug no existe / está
-      // archivado. UX-equivalente: no se persistió.
-      return { status: "error" };
-    }
   } catch {
-    // Cualquier fallo de DB / transport / verificación del JWT cae acá. El
-    // action es fail-closed: nada se persiste, el Client muestra notice.
+    // `NoSessionError` (sin cookie SSO local en custom domain, sin Neon Auth
+    // en apex), cualquier fallo de DB / transport / verifier de JWT — todos
+    // colapsan a `error`. El action es fail-closed: nada se persiste. El
+    // Client muestra el notice y el próximo refresh del settings dispara el
+    // silent SSO o redirige al login según corresponda.
+    return { status: "error" };
+  }
+  if (!updated) {
+    // RLS filtró (caller no es owner del place) o el slug no existe / está
+    // archivado. UX-equivalente: no se persistió.
     return { status: "error" };
   }
 

@@ -1,5 +1,4 @@
-import { getAuthenticatedDb } from "@/shared/lib/db";
-import { requireSessionJwt } from "@/shared/lib/session";
+import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
 import { getDomainConfig, getDomainStatus } from "@/shared/lib/vercel";
 import {
   type CustomDomainRecord,
@@ -19,9 +18,25 @@ import { decideDomainFlow, type DomainFlowDecision } from "./_v6-helpers";
 // sólo cuando `verified_at IS NULL`. La decisión consolidada vive en
 // `decideDomainFlow` (`./_v6-helpers.ts`, pura testeable).
 //
+// AUTH ZONE-AWARE (ADR-0032 §S11.2): los 3 helpers internos
+// (`loadActiveDomainRow`, `persistVerifiedAt`, `resetVerifiedAt`) llaman
+// `getAuthenticatedDbForRequest` directo — el helper detecta la zona del
+// request (apex/subdomain → cookie Neon Auth; custom domain → cookie SSO
+// local `__Host-place_sso_session`) y resuelve el token correcto. La
+// fail-closed (sin sesión válida) se materializa como `NoSessionError`
+// lanzado dentro de `loadActiveDomainRow`; su try/catch lo colapsa a
+// `null` que el caller mapea a `{status: "none"}` — UX-equivalente al
+// `requireSessionJwt` previo que retornaba el mismo shape.
+//
 // COSTO: +1 round-trip a V6 por carga del page (~50-150ms). El page es
 // low-traffic (owner-only) — aceptable. Si en V2 molesta, cachear V6 con
-// TTL corto (ADR-0029 §Alternativas).
+// TTL corto (ADR-0029 §Alternativas). Adicionalmente cada call a
+// `getAuthenticatedDbForRequest` repite resolución de zona + verificación
+// JWT: en este path son hasta 3 SQL roundtrips a
+// `app.lookup_place_by_domain` (SECURITY DEFINER STABLE, prepared stmt
+// cached al pool) + 3 verificaciones JWT (load + persist|reset). Acceptable
+// V1 owner-only low-traffic; V1.1 follow-up si telemetría lo demanda:
+// memoizar la decision con `React.cache` dentro del helper.
 
 type ActiveDomainRow = {
   id: string;
@@ -32,14 +47,16 @@ type ActiveDomainRow = {
 
 /**
  * SELECT de la fila activa del place. RLS owner-only filtra outsiders a
- * 0 rows — UX-equivalente a "no existe". Retorna `null` ante error de DB.
+ * 0 rows — UX-equivalente a "no existe". Retorna `null` ante error de DB
+ * o `NoSessionError` del helper zone-aware (sin sesión válida): el caller
+ * lo mapea a `{status: "none"}`, UX-equivalente al `requireSessionJwt`
+ * previo (ADR-0032 §S11.2).
  */
 async function loadActiveDomainRow(
-  token: string,
   placeId: string,
 ): Promise<ActiveDomainRow | null> {
   try {
-    return await getAuthenticatedDb(token, async (sql) => {
+    return await getAuthenticatedDbForRequest(async (sql) => {
       const rows = await sql(
         `SELECT id,
                 domain,
@@ -67,15 +84,13 @@ async function loadActiveDomainRow(
 
 /**
  * UPDATE `verified_at = now()` cuando V9 confirma ownership y V6 dice DNS
- * OK. `null` si UPDATE flaky — caller usa `new Date()` como fallback y
- * el próximo page-load reintenta.
+ * OK. `null` si UPDATE flaky (incluyendo `NoSessionError` improbable si
+ * la sesión se cayó entre load y persist) — caller usa `new Date()` como
+ * fallback y el próximo page-load reintenta.
  */
-async function persistVerifiedAt(
-  token: string,
-  id: string,
-): Promise<Date | null> {
+async function persistVerifiedAt(id: string): Promise<Date | null> {
   try {
-    return await getAuthenticatedDb(token, async (sql) => {
+    return await getAuthenticatedDbForRequest(async (sql) => {
       const rows = await sql(
         `UPDATE place_domain
             SET verified_at = now()
@@ -98,12 +113,13 @@ async function persistVerifiedAt(
 
 /**
  * UPDATE `verified_at = NULL` cuando V6 detecta DNS roto sobre un dominio
- * verified (ADR-0029, decisión #3). Si falla, devolvemos pending igual —
- * UX correcta es más importante que atomicidad; reintenta en próximo load.
+ * verified (ADR-0029, decisión #3). Si falla (incluyendo `NoSessionError`
+ * improbable post-load), devolvemos pending igual — UX correcta es más
+ * importante que atomicidad; reintenta en próximo load.
  */
-async function resetVerifiedAt(token: string, id: string): Promise<boolean> {
+async function resetVerifiedAt(id: string): Promise<boolean> {
   try {
-    return await getAuthenticatedDb(token, async (sql) => {
+    return await getAuthenticatedDbForRequest(async (sql) => {
       const rows = await sql(
         `UPDATE place_domain
             SET verified_at = NULL
@@ -128,21 +144,20 @@ async function resetVerifiedAt(token: string, id: string): Promise<boolean> {
 async function applyFlowDecision(
   decision: DomainFlowDecision,
   baseRecord: CustomDomainRecord,
-  token: string,
 ): Promise<CustomDomainState> {
   if (decision.kind === "verified_keep" || decision.kind === "verified_fallback") {
     return { status: "verified", record: baseRecord };
   }
   if (decision.kind === "verified_persist") {
     const persistedAt =
-      (await persistVerifiedAt(token, baseRecord.id)) ?? new Date();
+      (await persistVerifiedAt(baseRecord.id)) ?? new Date();
     return {
       status: "verified",
       record: { ...baseRecord, verifiedAt: persistedAt },
     };
   }
   if (decision.kind === "verified_reset") {
-    await resetVerifiedAt(token, baseRecord.id);
+    await resetVerifiedAt(baseRecord.id);
     return {
       status: "pending",
       record: { ...baseRecord, verifiedAt: null },
@@ -163,18 +178,18 @@ async function applyFlowDecision(
  * Estado consolidado del custom domain de un place. Atómico desde el
  * page: SELECT → V6 SIEMPRE → V9 si verifiedAt NULL → UPDATE (persist o
  * reset según decision) → return state.
+ *
+ * Sin `requireSessionJwt` previo: el helper zone-aware
+ * (`getAuthenticatedDbForRequest`) detecta la zona del request y lee la
+ * cookie correcta. `NoSessionError` se materializa dentro de
+ * `loadActiveDomainRow`, su catch lo colapsa a `null` y el caller mapea
+ * a `{status: "none"}` — UX-equivalente al retorno previo
+ * (ADR-0032 §S11.2).
  */
 export async function getCustomDomainStatus(
   placeId: string,
 ): Promise<CustomDomainState> {
-  let token: string;
-  try {
-    token = await requireSessionJwt();
-  } catch {
-    return { status: "none" };
-  }
-
-  const row = await loadActiveDomainRow(token, placeId);
+  const row = await loadActiveDomainRow(placeId);
   if (row === null) return { status: "none" };
 
   const baseRecord: CustomDomainRecord = {
@@ -200,5 +215,5 @@ export async function getCustomDomainStatus(
     domain: baseRecord.domain,
   });
 
-  return await applyFlowDecision(decision, baseRecord, token);
+  return await applyFlowDecision(decision, baseRecord);
 }

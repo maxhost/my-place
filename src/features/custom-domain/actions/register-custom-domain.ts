@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { validateCustomDomain } from "@/shared/lib/custom-domain";
-import { getAuthenticatedDb } from "@/shared/lib/db";
-import { requireSessionJwt } from "@/shared/lib/session";
+import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
 import { addDomain, getDomainConfig } from "@/shared/lib/vercel";
 import {
   type CustomDomainRecord,
@@ -22,10 +21,20 @@ import {
 // (`update-default-locale.ts:13`). Las piezas puras sí (validateCustomDomain,
 // mapPgErrorToActionError, wrapper Vercel, `_v6-helpers`).
 //
-// FLUJO (6 fases): (1) Zod, (2) validateCustomDomain, (3) requireSessionJwt,
-// (4) tx INSERT (lookup place + pre-check single-domain + INSERT;
-// PG 23505 → domain_taken), (5) V9 addDomain (si falla rollback DB),
-// (6) V6 getDomainConfig — chequeo dual ADR-0029.
+// FLUJO (5 fases): (1) Zod, (2) validateCustomDomain, (3) tx INSERT zone-aware
+// (lookup place + pre-check single-domain + INSERT — el helper
+// `getAuthenticatedDbForRequest` resuelve la cookie correcta según zona,
+// ADR-0032 §S11.2; sin sesión válida lanza `NoSessionError` que el catch
+// colapsa a `generic`; PG 23505 → domain_taken), (4) V9 addDomain (si falla
+// rollback DB), (5) V6 getDomainConfig — chequeo dual ADR-0029. Los 3 helpers
+// internos (`runInsertTx`, `rollbackInsertedRow`, `persistVerifiedAtNow`)
+// llaman `getAuthenticatedDbForRequest` independientemente: cada call repite
+// la resolución de zona + verificación del verifier (3× en el path verified
+// genuino: insert + addDomain + persistVerifiedAtNow). El costo es 3 SQL
+// roundtrips a `app.lookup_place_by_domain` (SECURITY DEFINER STABLE, pool
+// prepared-statement cached) + 3 verificaciones JWT — acceptable V1 para un
+// path owner-only low-traffic. V1.1 follow-up si telemetría lo demanda:
+// memoizar la decision con `React.cache` dentro del helper.
 //
 // FASE 6 (V6 check post-add): cierra el race del bug `verified_at` falsa
 // positiva. Antes el response mockeaba `verifiedAt: new Date()` cuando V9
@@ -77,15 +86,16 @@ function validationReasonToRegisterError(
 /**
  * Tx única: lookup place + pre-check single-domain + INSERT. RLS owner-only
  * filtra outsiders en el lookup → `"generic"`. Pre-check múltiples activos
- * → `"limit_reached"`. PG `23505` → `"domain_taken"`.
+ * → `"limit_reached"`. PG `23505` → `"domain_taken"`. `NoSessionError` del
+ * helper zone-aware también cae acá → `mapPgErrorToActionError` lo colapsa a
+ * `"generic"` (no es PG error, default branch).
  */
 async function runInsertTx(
-  token: string,
   placeSlug: string,
   normalized: string,
 ): Promise<InsertTxResult> {
   try {
-    const row = await getAuthenticatedDb(token, async (sql) => {
+    const row = await getAuthenticatedDbForRequest(async (sql) => {
       const placeRows = await sql(
         `SELECT id FROM place WHERE slug = $1 AND archived_at IS NULL`,
         [placeSlug],
@@ -130,13 +140,14 @@ async function runInsertTx(
 
 /**
  * Rollback best-effort de la fila insertada cuando Vercel rechaza. Si la
- * DELETE falla, loguea y sigue: la fila huérfana queda en pending y el
- * lazy poll la mostrará como pending (Vercel devolverá 404). El owner
- * puede archivar manual.
+ * DELETE falla (incluyendo `NoSessionError` improbable si la sesión se cayó
+ * entre INSERT y addDomain), loguea y sigue: la fila huérfana queda en
+ * pending y el lazy poll la mostrará como pending (Vercel devolverá 404).
+ * El owner puede archivar manual.
  */
-async function rollbackInsertedRow(token: string, id: string): Promise<void> {
+async function rollbackInsertedRow(id: string): Promise<void> {
   try {
-    await getAuthenticatedDb(token, async (sql) => {
+    await getAuthenticatedDbForRequest(async (sql) => {
       await sql(`DELETE FROM place_domain WHERE id = $1`, [id]);
     });
   } catch (rollbackErr) {
@@ -150,15 +161,13 @@ async function rollbackInsertedRow(token: string, id: string): Promise<void> {
 
 /**
  * UPDATE `verified_at = now()` cuando V9 + V6 coinciden en verified
- * genuino (ADR-0029 #5). Si falla, `new Date()` igual — lazy poll
- * subsequent reintenta y la UI ya muestra verified.
+ * genuino (ADR-0029 #5). Si falla (DB / transport / `NoSessionError` improbable
+ * post-addDomain), `new Date()` igual — lazy poll subsequent reintenta y la
+ * UI ya muestra verified.
  */
-async function persistVerifiedAtNow(
-  token: string,
-  id: string,
-): Promise<Date> {
+async function persistVerifiedAtNow(id: string): Promise<Date> {
   try {
-    return await getAuthenticatedDb(token, async (sql) => {
+    return await getAuthenticatedDbForRequest(async (sql) => {
       const rows = await sql(
         `UPDATE place_domain
             SET verified_at = now()
@@ -208,14 +217,14 @@ export async function registerCustomDomainAction(
   }
   const normalized = validation.normalized;
 
-  let token: string;
-  try {
-    token = await requireSessionJwt();
-  } catch {
-    return { status: "error", reason: "generic" };
-  }
+  // Sin `requireSessionJwt` previo: el helper zone-aware
+  // (`getAuthenticatedDbForRequest`) detecta la zona del request y lee la
+  // cookie correcta (Neon Auth en apex/subdomain, SSO local en custom
+  // domain). `NoSessionError` se materializa dentro de cada helper interno
+  // y cae al outer catch que lo colapsa a `generic` (UX-equivalente al
+  // bloque previo). ADR-0032 §S11.2.
 
-  const insertResult = await runInsertTx(token, placeSlug, normalized);
+  const insertResult = await runInsertTx(placeSlug, normalized);
   if (!insertResult.ok) {
     return { status: "error", reason: insertResult.reason };
   }
@@ -223,7 +232,7 @@ export async function registerCustomDomainAction(
 
   const vercelResult = await addDomain(normalized);
   if (!vercelResult.ok) {
-    await rollbackInsertedRow(token, inserted.id);
+    await rollbackInsertedRow(inserted.id);
     return {
       status: "error",
       reason: mapVercelFailureToRegisterError(vercelResult.reason),
@@ -240,7 +249,7 @@ export async function registerCustomDomainAction(
     v6Result.data.misconfigured === false;
 
   const verifiedAt: Date | null = isGenuinelyVerified
-    ? await persistVerifiedAtNow(token, inserted.id)
+    ? await persistVerifiedAtNow(inserted.id)
     : null;
 
   // DNS records: vacío si verified; sino V6 recommended (shape apex/
