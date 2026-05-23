@@ -428,6 +428,13 @@
       "body": "Pour administrer **{slug}**, tu dois te connecter à son adresse d'origine sur Place. Cette URL est la façade publique du lieu pour tes visiteurs.",
       "cta": "Aller à {slug}.place.community",
       "help": "Pendant ce temps, tes visiteurs peuvent continuer à utiliser ce domaine normalement."
+    },
+    "sso": {
+      "loading": "Connexion en cours…",
+      "failureTitle": "Nous n'avons pas pu te connecter automatiquement",
+      "failureBody": "Un problème est survenu lors de la vérification de ton identité pour **{slug}**. Tu peux retourner à ton URL canonique pour te connecter manuellement.",
+      "fallbackCta": "Aller à {slug} sur place.community",
+      "retry": "Réessayer"
     }
   },
   "placeNotFound": {

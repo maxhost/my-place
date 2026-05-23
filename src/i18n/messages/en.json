@@ -428,6 +428,13 @@
       "body": "To manage **{slug}** you need to sign in at its original Place address. This URL is the public face of the place for your visitors.",
       "cta": "Go to {slug}.place.community",
       "help": "In the meantime, your visitors can keep using this domain as usual."
+    },
+    "sso": {
+      "loading": "Signing you in…",
+      "failureTitle": "We couldn't sign you in automatically",
+      "failureBody": "Something went wrong while verifying your identity for **{slug}**. You can go back to its original URL to sign in manually.",
+      "fallbackCta": "Go to {slug} on place.community",
+      "retry": "Try again"
     }
   },
   "placeNotFound": {

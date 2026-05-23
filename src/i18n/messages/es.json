@@ -428,6 +428,13 @@
       "body": "Para administrar **{slug}** tenés que iniciar sesión en su dirección original en Place. Esta URL es la cara pública del lugar para tus visitantes.",
       "cta": "Ir a {slug}.place.community",
       "help": "Mientras tanto, tus visitantes pueden seguir usando este dominio normalmente."
+    },
+    "sso": {
+      "loading": "Iniciando sesión…",
+      "failureTitle": "No pudimos iniciarte sesión automáticamente",
+      "failureBody": "Hubo un inconveniente al verificar tu identidad para **{slug}**. Podés volver a tu URL canónica para iniciar sesión manualmente.",
+      "fallbackCta": "Ir a {slug} en place.community",
+      "retry": "Reintentar"
     }
   },
   "placeNotFound": {

@@ -428,6 +428,13 @@
       "body": "Um **{slug}** zu verwalten, musst du dich auf seiner ursprünglichen Place-Adresse anmelden. Diese URL ist die öffentliche Seite des Ortes für deine Besucher.",
       "cta": "Zu {slug}.place.community gehen",
       "help": "In der Zwischenzeit können deine Besucher diese Domain ganz normal weiter nutzen."
+    },
+    "sso": {
+      "loading": "Anmeldung läuft…",
+      "failureTitle": "Wir konnten dich nicht automatisch anmelden",
+      "failureBody": "Bei der Überprüfung deiner Identität für **{slug}** ist ein Problem aufgetreten. Du kannst zu deiner ursprünglichen URL zurückkehren, um dich manuell anzumelden.",
+      "fallbackCta": "Zu {slug} auf place.community gehen",
+      "retry": "Erneut versuchen"
     }
   },
   "placeNotFound": {

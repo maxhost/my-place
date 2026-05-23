@@ -428,6 +428,13 @@
       "body": "Per administrar **{slug}** has d'iniciar sessió a la seva adreça original a Place. Aquesta URL és la cara pública del lloc per als teus visitants.",
       "cta": "Anar a {slug}.place.community",
       "help": "Mentrestant, els teus visitants poden seguir fent servir aquest domini amb normalitat."
+    },
+    "sso": {
+      "loading": "Iniciant sessió…",
+      "failureTitle": "No hem pogut iniciar-te la sessió automàticament",
+      "failureBody": "Hi ha hagut un problema en verificar la teva identitat per a **{slug}**. Pots tornar a la teva URL canònica per iniciar sessió manualment.",
+      "fallbackCta": "Anar a {slug} a place.community",
+      "retry": "Reintenta"
     }
   },
   "placeNotFound": {
