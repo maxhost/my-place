@@ -1,5 +1,7 @@
 # 0031 — Custom Domain Routing V1: lookup `SECURITY DEFINER` + proxy async + auth-gate educativo
 
+> **Implementación S0–S6 cerrada 2026-05-22 (pre-push).** Plan de sesiones ejecutado en [`docs/features/custom-domain-routing/plan-sesiones.md`](../features/custom-domain-routing/plan-sesiones.md); smoke programático local 9/9 ✅ documentado en [`docs/features/custom-domain-routing/spec.md` §Smoke ejecutado 2026-05-22](../features/custom-domain-routing/spec.md#smoke-ejecutado-2026-05-22). Tag local final: `baseline/feature-b-s6-done`. Push autorizado + smoke production + tag `baseline/feature-b-done` pendientes (gestionados por el user). Las decisiones de esta ADR quedan vigentes tal cual se aceptaron; este banner sólo asienta el estado de implementación V1.
+
 - **Fecha:** 2026-05-22
 - **Estado:** Aceptada
 - **Alcance:** routing host-based (`src/proxy.ts` pasa a `async`) · resolución de host (`src/shared/lib/host-routing.ts` gana variante `custom-domain` y wrapper async) · acceso a datos desde el edge sin claim (`app.lookup_place_by_domain` `SECURITY DEFINER`) · slice nuevo `custom-domain-routing` con su `<AuthGateForCustomDomain>` · defensive validation host↔slug en `(app)/place/[placeSlug]/layout.tsx` · sin impacto en producto/UX del owner del slice `custom-domain` (registro + verificación) · sin impacto en la lógica del slice `custom-domain-verification` (lazy poll + helpers)

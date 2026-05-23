@@ -1,6 +1,6 @@
 # Custom Domain Host Routing V1 — Feature B
 
-> _Spec creado 2026-05-22. Status: **en planning, S0 (docs) cerrada**, S1-S6 pendientes. Cierra el slice `custom-domain-routing`: el proxy resuelve custom domains contra DB y rewrites internamente a `/place/{slug}/...`, sirviendo el contenido del place sin cambiar la URL del browser. Decisiones canónicas en [ADR-0031](../../decisions/0031-custom-domain-routing-v1.md), apoyada por ADR-0026 (Feature A V1) + ADR-0028 (promoción del slice anfitrión) + ADR-0029 (fix verified-false-positive) + ADR-0030 (split por capa de operación). Baseline tag esperado post-S6: `feature-b-custom-domain-routing-v1`._
+> _Spec creado 2026-05-22 · Last-updated 2026-05-22. Status: **S0–S6 cerradas 2026-05-22 (sin push aún)**. Cierra el slice `custom-domain-routing`: el proxy resuelve custom domains contra DB y rewrites internamente a `/place/{slug}/...`, sirviendo el contenido del place sin cambiar la URL del browser. Decisiones canónicas en [ADR-0031](../../decisions/0031-custom-domain-routing-v1.md), apoyada por ADR-0026 (Feature A V1) + ADR-0028 (promoción del slice anfitrión) + ADR-0029 (fix verified-false-positive) + ADR-0030 (split por capa de operación). Plan ejecutado (sesiones + write-back) en [`./plan-sesiones.md`](./plan-sesiones.md). Baseline tag post-S6: `baseline/feature-b-s6-done` (production smoke + tag final `baseline/feature-b-done` post-push autorizado)._
 
 ## Contexto
 
@@ -194,6 +194,38 @@ Auditoría de `src/app/(app)/place/[placeSlug]/` reveló 3 redirects con valores
 5. **Auth gap UX para owners**. Escenario: owner típico V1. Logea en `place.community/login`, navega a `nocodecompany.co/settings` esperando administrar. **Comportamiento V1**: gate page educativo + link al subdomain canónico. **Limitación conocida**: el owner debe hacer 1 click extra para llegar al settings. **Mitigation V1**: copy honesto + UX explícita (ADR-0031 §4). **Cierre estructural**: Feature C (OIDC SSO + JWT host-only + silent SSO via `prompt=none` para owners ya autenticados en apex).
 
 6. **Vercel rate limit en `place_domain` operations** (riesgo lateral de Feature A, no de B directamente). Escenario: registro masivo de dominios en un periodo corto satura el rate limit de Vercel Domains API. **Impacto en B**: ninguno directo (B no consume Vercel API). Lookup es DB-only. Riesgo documentado en ADR-0026.
+
+## Smoke ejecutado 2026-05-22
+
+Smoke programático local contra `pnpm dev` (Next 16.2.6 + Turbopack) con fixture temporal en branch Neon `dev` (`place.slug='smoke-feature-b' default_locale='es'` + `place_domain.domain='smoke.feature-b.example' verified_at=now()`) — el smoke E2E "manual con `/etc/hosts` + browser" del plan original se substituye por `curl -H "Host: ..."` porque el proxy es sensible al **Host header**, no al hostname resuelto por DNS; los 9 escenarios reproducen exactamente las ramas que el smoke manual exploraría. Fixture purgada post-smoke (place + place_domain DELETE; `leftover_places=0` verificado).
+
+| # | Escenario | Esperado | Obtenido |
+|---|---|---|---|
+| 1 | `Host: place.community` / `/` | 307 → `/es` (intl default-locale redirect, branch marketing) | ✅ 307 → `http://localhost:3000/es` |
+| 2 | `Host: place.community` / `/es` | 200 (marketing landing renderiza) | ✅ 200 |
+| 3 | `Host: app.place.community` / `/` | 307 → `/es` (intl primero; el rewrite a `/inbox/es` ocurre en el siguiente request del browser) | ✅ 307 → `http://localhost:3000/es` |
+| 4 | `Host: smoke-feature-b.place.community` / `/` | 200 (subdomain canon rewrite a `/place/smoke-feature-b/` interno) | ✅ 200 |
+| 5 | `Host: smoke.feature-b.example` / `/` (**custom-domain verified**) | 200 (rewrite interno a `/place/smoke-feature-b/`, URL pública intacta) | ✅ 200 |
+| 6 | `Host: random-unknown-xyz.example` / `/` | 307 → `/es` (host desconocido → lookup retorna null → marketing fallback fail-safe) | ✅ 307 → `http://localhost:3000/es` |
+| 7 | `Host: smoke.feature-b.example` / `/?foo=bar&baz=qux` | 200 (query string preservado en el rewrite) | ✅ 200 |
+| 8 | `Host: smoke.feature-b.example` / `/place/otro-slug` (**path manipulation**) | 404 (defensive validation host↔slug en layout dispara `notFound()`) | ✅ 404 |
+| 9 | `Host: smoke.feature-b.example` / `/ruta-que-no-existe` | 404 (host-aware not-found de S4e — derivado del Host, no del path) | ✅ 404 |
+
+**Verificación adicional pre-smoke**:
+
+- `pnpm typecheck` ✅ (sin errores)
+- `pnpm lint` ✅ (sin warnings ni errors)
+- `pnpm test` ✅ 550/550 (53 test files; cubre RLS lookup-by-domain S1, wrapper custom-domain-lookup S2, host-routing async S2, proxy integration S3, layout defensive validation S3, helper auth-redirect S4a/c, gate UI S4d, place-not-found-context S4e — todas las ramas que el smoke ejerce runtime)
+- `node scripts/check-translations.mjs` ✅ 0/0 × 5 (257 keys en `es.json`; en/fr/pt/de/ca paridad estricta — incluye `customDomainRouting.authGate.*` de S5 + `placeNotFound.*` de S4e)
+- `pnpm build` ✅ (production build pasa; `proxy.ts` async válido en Next 16; el path `/place/[placeSlug]` queda en la build manifest como ƒ Dynamic + ƒ Proxy Middleware reconocido)
+
+**Cobertura de lo que NO se ejerce programáticamente** (queda al smoke production post-push):
+
+- Branch del `<AuthGateForCustomDomain>` (Smoke 5 hit `/`, no `/settings` — el gate sirve cuando `host es custom-domain` AND `path es owner-only` AND `no hay sesión local`; el click del botón viaja al subdomain canon con la sesión apex). Cubierto por unit tests del gate (S4d) + integration tests del settings page (S4c) — el smoke production lo cierra renderizando el page real con cookies/headers de browser.
+- Latencia real Neon iad1 → Vercel (Lambda warm vs cold). El smoke local mide ~0–3ms para hot path estructural y ~5–20ms cuando golpea el lookup; production confirma el p95 budget del ADR-0031 §6.
+- TLS handshake del custom domain (Vercel managed cert). Sólo relevante post-push (DNS de `nocodecompany.co` apunta a producción).
+
+**Smoke production (post-push)** — pendiente, requiere autorización explícita del user. Escenarios a ejecutar: (a) `https://nocodecompany.co/` → 200 placeholder + URL bar intacta + cert Vercel válido; (b) Vercel MCP `get_deployment` del `dpl_*` post-push = `READY`; (c) Neon MCP verificar `verified_at` de `nocodecompany.co` intacto (no regresión Feature A); (d) `https://nocodecompany.co/settings` sin sesión → `<AuthGateForCustomDomain>` localizado en `place.default_locale='es'` con CTA a `https://mi-place.place.community/es/settings`; (e) click del CTA → llega al subdomain canon; (f) `https://mi-place.place.community/settings` con sesión apex → settings normal (no regresión).
 
 ## Pointers
 
