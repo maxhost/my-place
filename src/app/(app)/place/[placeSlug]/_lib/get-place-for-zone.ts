@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { loadPlaceBySlug, type PlaceData } from "@/features/place/public";
 import { getAuthenticatedDb } from "@/shared/lib/db";
+import { lookupPlaceLocaleBySlug } from "@/shared/lib/place-locale-lookup";
 import { getSessionJwt } from "@/shared/lib/session";
 
 // Helpers privados del árbol `(app)/place/[placeSlug]/` (S6 del feature
@@ -66,5 +67,38 @@ export const getPlaceForZone = cache(
     return getAuthenticatedDb(token, (executor) =>
       loadPlaceBySlug(executor, placeSlug),
     );
+  },
+);
+
+/**
+ * Lookup ANONYMOUS del `default_locale` del place identificado por slug
+ * (Feature B S4c, ADR-0031 §"Fuente 2"). Memoizado por render porque
+ * múltiples consumidores en la zona pueden necesitarlo:
+ *   1. `layout.tsx` — fallback de `<html lang>` cuando el visitor NO tiene
+ *      sesión y está en subdomain canon (caso donde `getPlaceForZone`
+ *      retorna `null` por RLS owner-only).
+ *   2. `settings/page.tsx` y `settings/domain/page.tsx` — el redirect a
+ *      login apex ocurre ANTES de cargar `place` (no hay sesión), así que
+ *      no tenemos `place.defaultLocale` para el `buildApexLoginUrl`. El
+ *      lookup anónimo lo resuelve sin debilitar RLS (`app.lookup_place_
+ *      locale_by_slug` SECURITY DEFINER, S4b §SQL, solo expone el escalar
+ *      `default_locale` filtrando `archived_at IS NULL`).
+ *
+ * Wrapper sobre `lookupPlaceLocaleBySlug` (`shared/lib/place-locale-
+ * lookup.ts`, S4b). El wrapper subyacente ya tiene fail-safe a `null` y
+ * `console.error` para errores DB; este `cache()` solo agrega la
+ * dedup intra-render.
+ *
+ * Retorna `string | null`:
+ *   - `string` (uno de los 6 locales operativos validados por Zod del
+ *     wrapper S4b).
+ *   - `null` cuando: slug no existe en DB, place archivado, query DB falló
+ *     (fail-safe), locale fuera del enum (drift TS↔DB, defense-in-depth
+ *     del wrapper S4b). El consumer decide el fallback final
+ *     (`routing.defaultLocale` en layout, `'es'` en `buildApexLoginUrl`).
+ */
+export const getPlaceLocaleFallback = cache(
+  async (placeSlug: string): Promise<string | null> => {
+    return lookupPlaceLocaleBySlug(placeSlug);
   },
 );

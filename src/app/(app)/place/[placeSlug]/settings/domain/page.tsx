@@ -12,9 +12,11 @@ import {
   registerCustomDomainAction,
 } from "@/features/custom-domain/public";
 import { getCustomDomainStatus } from "@/features/custom-domain-verification/public";
+import { buildApexLoginUrl } from "@/shared/lib/auth-redirect";
 import { isServiceableSlug } from "@/shared/lib/host-routing";
 import {
   getPlaceForZone,
+  getPlaceLocaleFallback,
   getSessionTokenForZone,
 } from "../../_lib/get-place-for-zone";
 
@@ -32,8 +34,10 @@ import {
 //
 // 1. Gate estructural del slug (`isServiceableSlug`) — formato/reservados.
 // 2. Guard sesión cross-subdomain (`getSessionTokenForZone()` memoizado vía
-//    `React.cache()`). Sin sesión → redirect al login del apex con locale `es`
-//    (sin sesión no podemos saber el locale del place).
+//    `React.cache()`). Sin sesión → redirect al login del apex con el locale
+//    del place via lookup anónimo S4b (`getPlaceLocaleFallback` + helper
+//    `buildApexLoginUrl`, Feature B S4c). Antes de S4c esto era hardcoded
+//    `https://place.community/es/login` — locale fijo (bug pre-existente).
 // 3. Carga del place (`getPlaceForZone(placeSlug)`, también memoizado). Si
 //    `null` → no-owner por RLS / slug inexistente / archived → `notFound()`
 //    (404 sin doxxear si era "no autorizado" vs "no existe").
@@ -75,10 +79,12 @@ export default async function PlaceSettingsDomainPage({ params }: Props) {
   // (1) Gate estructural — slug servible antes de cualquier I/O.
   if (!isServiceableSlug(placeSlug)) notFound();
 
-  // (2) Guard sesión cross-subdomain.
+  // (2) Guard sesión cross-subdomain — redirect al login apex con locale
+  // del place (S4b lookup + S4c helper, dedupea con el layout vía cache).
   const token = await getSessionTokenForZone();
   if (token === null) {
-    redirect("https://place.community/es/login");
+    const fallbackLocale = await getPlaceLocaleFallback(placeSlug);
+    redirect(buildApexLoginUrl({ defaultLocale: fallbackLocale }));
   }
 
   // (3) Carga del place (memoizada con el layout vía React.cache).

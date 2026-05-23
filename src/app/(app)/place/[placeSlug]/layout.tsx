@@ -5,7 +5,10 @@ import type { ReactNode } from "react";
 import { routing } from "@/i18n/routing";
 import { lookupPlaceByDomain } from "@/shared/lib/custom-domain-lookup";
 import { resolveHostWithCustomDomains } from "@/shared/lib/host-routing";
-import { getPlaceForZone } from "./_lib/get-place-for-zone";
+import {
+  getPlaceForZone,
+  getPlaceLocaleFallback,
+} from "./_lib/get-place-for-zone";
 import "../../../globals.css";
 
 // Layout de la zona Place (multi-root, Next 16 — `docs/multi-tenancy.md`).
@@ -50,14 +53,30 @@ import "../../../globals.css";
 //      ya retornó `defaultLocale` en el wrapper async; lo usamos como
 //      precedence 2 entre el placeData del owner y el default canónico.
 //
-// Costo del defensive check en hot path:
-//   - Visitor a `<slug>.place.community/...` (subdomain canon, hot path
-//     mayoritario): `resolveHostWithCustomDomains` retorna `{zone: "place"}`
-//     SYNC sin invocar lookup (skip estructural). 0 queries DB.
+// Feature B S4c (ADR-0031 §"Fuente 2", 2026-05-22):
+//   3. **Fallback `lang` para visitor anónimo en SUBDOMAIN CANON**. Caso
+//      simétrico de (2) que faltaba: visitor en `mi-place.place.community/`
+//      sin sesión → `hostZone.zone === "place"` (no `custom-domain`, así que
+//      precedence 2 no aplica) Y `getPlaceForZone` retorna null por RLS
+//      owner-only. Pre-S4c caía a `routing.defaultLocale` ('es') aunque el
+//      owner configuró 'pt'. S4c agrega `getPlaceLocaleFallback(placeSlug)`
+//      —wrapper memoizado sobre `lookupPlaceLocaleBySlug` (S4b, función SQL
+//      SECURITY DEFINER `app.lookup_place_locale_by_slug`)— como precedence
+//      3, ANTES del fallback canónico. El cache `React.cache()` deduplica
+//      con los consumers del settings (page + domain page que necesitan el
+//      locale para `buildApexLoginUrl`).
+//
+// Costo del defensive check + S4c lookup en hot path:
+//   - Visitor a `<slug>.place.community/...` con sesión owner: 0 queries
+//     extras (place se carga por RLS, lookup S4c skip — guard `place ===
+//     null`).
+//   - Visitor a `<slug>.place.community/...` SIN sesión (visitor anónimo,
+//     hot path típico de portada placeholder): 1 query DB (lookup S4c).
+//     Memoizada — si el settings page lo invoca también, 0 queries extras.
 //   - Visitor a `nocodecompany.co/...` (custom domain): 1 query DB (la del
-//     wrapper async). Sumada a la query del proxy (middleware) son 2 por
-//     request en custom domain. ADR-0031 §"Lookup query cost" acepta el
-//     tradeoff V1; V1.1 puede agregar TTL cache si p95 > 100ms.
+//     wrapper async S1/S3). Sumada a la query del proxy (middleware) son 2
+//     por request. ADR-0031 §"Lookup query cost" acepta el tradeoff V1;
+//     V1.1 puede agregar TTL cache si p95 > 100ms.
 
 type Props = {
   children: ReactNode;
@@ -85,17 +104,29 @@ export default async function PlaceLayout({ children, params }: Props) {
 
   const place = await getPlaceForZone(placeSlug);
 
+  // Precedence 3 (S4c): visitor anónimo en SUBDOMAIN CANON. Sólo cuando
+  // `place === null` (RLS owner-only sin sesión) Y la zona NO es custom-domain
+  // (en custom-domain el `hostZone.defaultLocale` ya tiene el locale del
+  // lookup S1/S3 — no duplicar query). Memoizado por render: si las pages
+  // del settings llaman `getPlaceLocaleFallback` después, reusan este result.
+  const anonymousCanonLocale =
+    place === null && hostZone.zone !== "custom-domain"
+      ? await getPlaceLocaleFallback(placeSlug)
+      : null;
+
   // Precedence del `lang`:
   //   1. `place.default_locale` — owner con sesión en subdomain canon o (en V1.1
   //      con Feature C) custom domain con OIDC. Autoridad máxima.
-  //   2. `hostZone.defaultLocale` — visitor anónimo en custom domain; el
-  //      lookup ya resolvió el locale configurado por el owner. Crítico para
-  //      que el visitor NO vea fallback "es" pese a que el place es "pt".
-  //   3. `routing.defaultLocale` — fallback canónico (subdomain canon sin
-  //      sesión, host desconocido, etc.).
+  //   2. `hostZone.defaultLocale` — visitor anónimo en CUSTOM DOMAIN; el lookup
+  //      S1/S3 ya resolvió el locale configurado por el owner.
+  //   3. `anonymousCanonLocale` — visitor anónimo en SUBDOMAIN CANON (S4c,
+  //      fuente 2 del ADR-0031). Cierra el "Bug 1" del audit S4.
+  //   4. `routing.defaultLocale` — fallback canónico ('es', ADR-0024): slug
+  //      inexistente / archivado, host desconocido, error transitorio del lookup.
   const lang =
     place?.defaultLocale ??
     (hostZone.zone === "custom-domain" ? hostZone.defaultLocale : null) ??
+    anonymousCanonLocale ??
     routing.defaultLocale;
   const tA11y = await getTranslations({ locale: lang, namespace: "a11y" });
 

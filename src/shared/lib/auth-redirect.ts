@@ -1,0 +1,123 @@
+import { rootDomain } from "@/shared/lib/root-domain";
+
+// Feature B — custom-domain-routing V1 · S4c (ADR-0031 §"Bug pre-existente"
+// + §"Auth gate UX", 2026-05-22).
+//
+// Helpers PUROS para construir URLs absolutas de auth cross-subdomain. Vive
+// en `shared/lib/` porque es transversal: lo consumen las pages owner-only
+// del settings (`(app)/place/[placeSlug]/settings/*`, S4c) cuando ausencia
+// de sesión requiere redirect al login, y el auth-gate del slice
+// `custom-domain-routing` (S4d) cuando el visitor en custom domain pide
+// volver a su subdomain canónico.
+//
+// ## El "Bug pre-existente" que cierra `buildApexLoginUrl`
+//
+// Pre-S4c, `settings/page.tsx:76` y `settings/domain/page.tsx:81`
+// hardcodean `redirect("https://place.community/es/login")`:
+//   1. Locale fijo `es` aunque el owner configuró 'pt' / 'fr' / etc.
+//      → Tras logout, el owner aterriza en login en idioma equivocado.
+//   2. Apex `place.community` hardcoded, no derivado de
+//      `NEXT_PUBLIC_APP_URL` → dev local (`http://localhost:3000`) rompe
+//      el redirect cross-subdomain (caería a "place.community" en dev).
+// `buildApexLoginUrl` resuelve ambos: locale es param del caller (que
+// puede resolverlo vía `place.default_locale` cuando hay sesión o
+// `lookupPlaceLocaleBySlug` S4b cuando no), host se deriva de
+// `rootDomain()` (mismo helper canónico que el resto de URLs apex).
+//
+// ## Por qué APEX y no subdomain canon para el login
+//
+// El route `/login` vive ÚNICAMENTE en `src/app/(marketing)/[locale]/login/
+// page.tsx` (apex marketing). El árbol `(app)/place/[placeSlug]/` NO tiene
+// login propio — y no debería: la cookie Neon Auth es `Domain=
+// .place.community` (S4a), así que un login en apex propaga sesión a TODOS
+// los subdominios canon. Si V2 algún día introduce login dedicado por place
+// (e.g. OIDC), este helper es el único punto que cambia.
+//
+// ## `buildSubdomainCanonicalUrl` — destino del auth-gate (S4d)
+//
+// El visitor owner en custom-domain (`nocodecompany.co/settings`) ve el
+// auth-gate (S4d) con copy "Para administrar **{slug}** entrá en su URL
+// original" + botón cuya `href` es `buildSubdomainCanonicalUrl({slug,
+// path: returnPath})`. Aterriza en el subdomain canon donde la cookie
+// `.place.community` sí está scopeada — el flow de sesión natural reanuda
+// (settings page detecta sesión presente → render normal; sesión ausente →
+// `buildApexLoginUrl` → login apex).
+
+// Enum canon de los 6 locales operativos (ADR-0024 + CHECK constraint
+// `place_default_locale_check`). Paridad explícita con el wrapper TS S4b
+// y el `routing.ts` (next-intl). El día que se agregue uno, se actualiza
+// acá Y en los otros tres lugares — el test `paridad: cada uno de los 6`
+// recuerda la lista.
+const APP_LOCALES = ["es", "en", "fr", "pt", "de", "ca"] as const;
+type AppLocale = (typeof APP_LOCALES)[number];
+
+function isAppLocale(value: string): value is AppLocale {
+  return (APP_LOCALES as readonly string[]).includes(value);
+}
+
+/**
+ * Scheme (`http` o `https`) derivado del `NEXT_PUBLIC_APP_URL`. Permite que
+ * dev local (`http://localhost:3000`) emita URLs con `http://` y prod
+ * (`https://place.community`) con `https://`. Fallback safe a `https` ante
+ * env ausente o inválida.
+ */
+function apexScheme(): "http" | "https" {
+  try {
+    const url = new URL(
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://place.community",
+    );
+    return url.protocol === "http:" ? "http" : "https";
+  } catch {
+    return "https";
+  }
+}
+
+/**
+ * URL absoluta del login apex en el locale del place.
+ *
+ * Caller pattern canónico cuando NO hay sesión (settings/page.tsx,
+ * settings/domain/page.tsx):
+ * ```ts
+ * const fallbackLocale = await getPlaceLocaleFallback(placeSlug);
+ * redirect(buildApexLoginUrl({ defaultLocale: fallbackLocale }));
+ * ```
+ *
+ * `defaultLocale` acepta `string | null | undefined` por ergonomía con
+ * `lookupPlaceLocaleBySlug` (S4b §wrapper, que retorna `Promise<string |
+ * null>`). Cualquier valor que NO sea uno de los 6 locales operativos
+ * (incluyendo `null`, `undefined`, `""`, drift TS↔DB) cae a `'es'` — el
+ * canon de `routing.defaultLocale`.
+ */
+export function buildApexLoginUrl(opts: {
+  defaultLocale?: string | null;
+}): string {
+  const candidate = opts.defaultLocale ?? "";
+  const locale: AppLocale = isAppLocale(candidate) ? candidate : "es";
+  return `${apexScheme()}://${rootDomain()}/${locale}/login`;
+}
+
+/**
+ * URL absoluta del subdomain canónico del place
+ * (`{scheme}://{slug}.{rootDomain}{path}`). Lo consume el auth-gate del
+ * custom-domain (S4d) como destino del botón "Volver a tu URL canónica".
+ *
+ * Normalizaciones (defense-in-depth):
+ *   - `slug`: `trim().toLowerCase()`. El registro de slugs vía
+ *     `app.create_place` ya normaliza en la app layer, pero el helper no
+ *     depende de eso (mismo invariante que el wrapper S4b lookup
+ *     case-insensitive).
+ *   - `path`: si no empieza con '/', se prefija. `undefined` → '/'.
+ *
+ * Dev (`http://localhost:3000`): retorna `http://{slug}.localhost:3000{path}`
+ * — `*.localhost` resuelve a 127.0.0.1 sin entrada `/etc/hosts` en browsers
+ * modernos (multi-tenancy.md §Dev).
+ */
+export function buildSubdomainCanonicalUrl(opts: {
+  slug: string;
+  path?: string;
+}): string {
+  const slug = opts.slug.trim().toLowerCase();
+  const rawPath = opts.path ?? "/";
+  const path = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
+  return `${apexScheme()}://${slug}.${rootDomain()}${path}`;
+}

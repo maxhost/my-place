@@ -11,9 +11,11 @@ import {
   type LocaleSectionLabels,
   updateDefaultLocaleAction,
 } from "@/features/place-settings/public";
+import { buildApexLoginUrl } from "@/shared/lib/auth-redirect";
 import { isServiceableSlug } from "@/shared/lib/host-routing";
 import {
   getPlaceForZone,
+  getPlaceLocaleFallback,
   getSessionTokenForZone,
 } from "../_lib/get-place-for-zone";
 
@@ -27,10 +29,14 @@ import {
 // 1. Gate estructural del slug (`isServiceableSlug`) — formato/reservados.
 // 2. Guard sesión cross-subdomain (`getSessionTokenForZone()` — memoizado
 //    junto al layout vía `React.cache()`). Sin sesión → redirect cross-
-//    subdomain al login del apex. El locale del redirect = default canónico
-//    (`es`) porque sin sesión no podemos saber el locale del place ni del
-//    user; el login del apex negocia su propio locale (path-based) cuando
-//    el flujo aterrice.
+//    subdomain al login del apex (`buildApexLoginUrl`, Feature B S4c). El
+//    locale del redirect proviene del lookup anónimo S4b
+//    (`getPlaceLocaleFallback`, memoizado por render — comparte la query
+//    con el layout si éste también la invocó por el `<html lang>`). Si el
+//    lookup no resuelve (slug archivado / inexistente / DB transitoria), el
+//    helper cae al canon 'es'. Antes de S4c esto era `redirect(
+//    "https://place.community/es/login")` — locale fijo aunque el owner
+//    configuró otro (bug pre-existente del audit S4).
 // 3. Carga del place vía `getPlaceForZone(placeSlug)` (también memoizado).
 //    Sabemos que hay sesión por (2), así que `null` ⇒ no-owner (RLS) o slug
 //    no existente o archivado → `notFound()` (la 404 de la zona-place se
@@ -70,10 +76,12 @@ export default async function PlaceSettingsPage({ params }: Props) {
   if (!isServiceableSlug(placeSlug)) notFound();
 
   // (2) Guard sesión. `null` = no logueado → cross-subdomain a login del
-  // apex. NO throw: ausencia de sesión es estado válido del flujo.
+  // apex con el locale del place (S4b lookup + S4c helper). NO throw:
+  // ausencia de sesión es estado válido del flujo.
   const token = await getSessionTokenForZone();
   if (token === null) {
-    redirect("https://place.community/es/login");
+    const fallbackLocale = await getPlaceLocaleFallback(placeSlug);
+    redirect(buildApexLoginUrl({ defaultLocale: fallbackLocale }));
   }
 
   // (3) Carga del place. Memoizado con el layout: en este punto la query
