@@ -1,8 +1,8 @@
 import { getTranslations } from "next-intl/server";
 import { notFound, redirect } from "next/navigation";
 import {
-  AuthGateForCustomDomain,
-  type AuthGateLabels,
+  SsoFallbackPanel,
+  type SsoFallbackLabels,
 } from "@/features/custom-domain-routing/public";
 import { logoutAction } from "@/features/nav-hub/public";
 import {
@@ -30,7 +30,8 @@ import {
 // Page del settings — `{slug}.place.community/settings` (proxy reescribe a
 // `/place/{slug}/settings`, `docs/multi-tenancy.md`). S6 del feature
 // `settings` (`docs/features/settings/spec.md` §"Auth guard mechanism")
-// + Feature B S4d (ADR-0031 §"Auth gate UX", 2026-05-22).
+// + Feature B S4d (ADR-0031) + Feature C S10 (ADR-0032 §"UX silent SSO +
+// fallback panel", 2026-05-23).
 //
 // Server Component que orquesta el seam-split del settings V1, paralelo al
 // page del Hub (`(app)/inbox/[locale]/page.tsx`):
@@ -41,14 +42,25 @@ import {
 //    custom domain — necesario para decidir el branch de no-sesión en (3).
 // 3. Guard sesión cross-subdomain (`getSessionTokenForZone()` — memoizado
 //    junto al layout vía `React.cache()`). Sin sesión, branchea por zona:
-//      a. **Custom domain** (Feature B S4d): la cookie Neon Auth
-//         `Domain=.place.community` NO acompaña al custom host (V1 gap,
-//         Feature C OIDC cierra). Un redirect ciego al apex login causaría
-//         loop: owner aterriza en apex, autentica, vuelve al custom domain
-//         como visitor sin cookie. SUSTITUIR redirect por `<AuthGateForCustomDomain>`
-//         con copy localizado (`customDomainRouting.authGate.*` ×6 locales,
-//         S5) + link directo al subdomain canon (`buildSubdomainCanonicalUrl`,
-//         S4c) donde la cookie sí está scopeada.
+//      a. **Custom domain** (Feature C S10, refina Feature B S4d): la cookie
+//         Neon Auth `Domain=.place.community` NO acompaña al custom host
+//         (RFC 6265). Antes de Feature C el branch renderizaba
+//         `<AuthGateForCustomDomain>` directo (gate educativa V1); ahora el
+//         flow es **silent SSO primero**:
+//           - Sin `?sso_error=` en query → `redirect('/api/auth/sso-init?
+//             returnTo=/settings')`. El init genera state/nonce + setea
+//             cookie host-only + redirige al issuer apex (S8). Si el owner
+//             tiene sesión Neon Auth, el round-trip aterriza acá con la
+//             cookie `__Host-place_sso_session` seteada → branch (3.a) ya
+//             no aplica, cae al happy path en (4).
+//           - Con `?sso_error=<code>` (el redeem rebotó) → render del
+//             `<SsoFallbackPanel>` (S6) con `errorCode` mostrado para debug
+//             del owner + CTA al subdomain canon (`buildSubdomainCanonicalUrl`,
+//             S4c) donde la cookie `.place.community` sí está scopeada (=
+//             el plan B, ahora secundario al silent SSO automático).
+//         Sin counter de attempts V1 (decisión documentada en plan-sesiones
+//         §S10): si el owner reintenta y vuelve a fallar, ve el panel otra
+//         vez. Sin loops automáticos.
 //      b. **Subdomain canon** (Feature B S4c): redirect cross-subdomain al
 //         login del apex (`buildApexLoginUrl`). El locale del redirect
 //         proviene del lookup anónimo S4b (`getPlaceLocaleFallback`,
@@ -83,9 +95,21 @@ export const preferredRegion = "iad1";
 
 type Props = {
   params: Promise<{ placeSlug: string }>;
+  /**
+   * `searchParams` async desde Next 15. `sso_error` (string | string[]) lo
+   * emite `/api/auth/sso-redeem` (S8) en su error-redirect path: cualquier
+   * fallo del pipeline (state_invalid, state_mismatch, aud_mismatch, replay,
+   * signature_invalid, expired, jwks_unavailable, invalid_audience,
+   * nonce_mismatch, invalid_query) redirige acá con `?sso_error=<code>`.
+   * El page sólo lo consume en el branch custom-domain + sin sesión (S10).
+   */
+  searchParams: Promise<{ sso_error?: string | string[] }>;
 };
 
-export default async function PlaceSettingsPage({ params }: Props) {
+export default async function PlaceSettingsPage({
+  params,
+  searchParams,
+}: Props) {
   const { placeSlug } = await params;
   // (1) Gate estructural — slug servible (formato + no reservado). Antes que
   // cualquier I/O: si el slug es inválido, ningún owner real puede dueño-
@@ -100,35 +124,57 @@ export default async function PlaceSettingsPage({ params }: Props) {
   // (3) Guard sesión. `null` = no logueado en la zona. `SessionData` viene
   // con `source` (`'neon-auth' | 'sso-local'`) pero acá sólo branchemos por
   // presence/absence — el verifier ramificado vive en `getPlaceForZone` (S9).
-  //   - Custom domain → auth-gate localizado (S4d V1, S10 lo evoluciona a
-  //     silent SSO trigger), NO redirect (loop trap).
+  //   - Custom domain (S10): silent SSO trigger primero; sólo si rebotó con
+  //     `?sso_error=<code>`, render del `<SsoFallbackPanel>` con CTA al
+  //     subdomain canon (=plan B, ya no branch primario como en S4d Feature B).
   //   - Subdomain canon → redirect a login apex con locale del place (S4c).
   const session = await getSessionTokenForZone();
   if (session === null) {
     if (hostZone.zone === "custom-domain") {
-      // Render `<AuthGateForCustomDomain>` con copy localizado en el
-      // `defaultLocale` configurado por el owner (resuelto en el lookup
-      // del proxy/layout, S1/S3). Link directo al subdomain canon donde la
-      // cookie `.place.community` sí está scopeada.
-      const tGate = await getTranslations({
-        locale: hostZone.defaultLocale,
-        namespace: "customDomainRouting.authGate",
-      });
-      const gateLabels: AuthGateLabels = {
-        title: tGate("title"),
-        body: tGate("body", { slug: hostZone.slug }),
-        cta: tGate("cta", { slug: hostZone.slug }),
-        help: tGate("help"),
-      };
-      const canonicalUrl = buildSubdomainCanonicalUrl({
-        slug: hostZone.slug,
-        path: "/settings",
-      });
-      return (
-        <AuthGateForCustomDomain
-          canonicalUrl={canonicalUrl}
-          labels={gateLabels}
-        />
+      // Normalización de `sso_error`: Next puede entregar string o string[]
+      // (param repetido en query) — tomamos el primero. Cualquier valor
+      // truthy dispara el fallback panel; el code en sí lo emite el redeem
+      // (S8) con un set enumerado, pero el page tolera valores arbitrarios
+      // (React escapa text content automáticamente, `<code>` del panel los
+      // muestra como literal para debug del owner).
+      const ssoErrorRaw = (await searchParams)?.sso_error;
+      const ssoError = Array.isArray(ssoErrorRaw)
+        ? ssoErrorRaw[0]
+        : ssoErrorRaw;
+      if (ssoError) {
+        // Redeem rebotó: render del fallback panel con copy localizado en el
+        // `defaultLocale` configurado por el owner (resuelto en el lookup del
+        // layout, S3/S4 Feature B). CTA al subdomain canon donde la cookie
+        // `.place.community` sí está scopeada (= `<AuthGateForCustomDomain>`
+        // del V1 ahora vive como plan B accesible vía este CTA).
+        const tSso = await getTranslations({
+          locale: hostZone.defaultLocale,
+          namespace: "customDomainRouting.sso",
+        });
+        const ssoLabels: SsoFallbackLabels = {
+          failureTitle: tSso("failureTitle"),
+          failureBody: tSso("failureBody", { slug: hostZone.slug }),
+          fallbackCta: tSso("fallbackCta", { slug: hostZone.slug }),
+        };
+        const canonicalUrl = buildSubdomainCanonicalUrl({
+          slug: hostZone.slug,
+          path: "/settings",
+        });
+        return (
+          <SsoFallbackPanel
+            canonicalUrl={canonicalUrl}
+            labels={ssoLabels}
+            errorCode={ssoError}
+          />
+        );
+      }
+      // Primer intento (sin error previo): disparar silent SSO server-side.
+      // `redirect()` emite el response 307 nativo de Next; el owner no ve la
+      // URL del init salvo que el round-trip falle (caso cubierto por el
+      // branch de arriba en el reintento). El `returnTo` se URL-encodea para
+      // que el `?` y `/` lleguen al handler como un único param `returnTo`.
+      redirect(
+        `/api/auth/sso-init?returnTo=${encodeURIComponent("/settings")}`,
       );
     }
     const fallbackLocale = await getPlaceLocaleFallback(placeSlug);
