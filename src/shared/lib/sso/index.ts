@@ -11,4 +11,5 @@
 // consumers. Sub-cap propio 800 LOC (ADR-0032 §"Organización").
 
 export * from "./sso-keys";
+export * from "./sso-state";
 export * from "./sso-ticket";
