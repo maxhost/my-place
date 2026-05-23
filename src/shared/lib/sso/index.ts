@@ -12,6 +12,7 @@
 
 export * from "./db-with-verifier";
 export * from "./sso-jti-consume";
+export * from "./sso-jwks-fetcher";
 export * from "./sso-keys";
 export * from "./sso-session";
 export * from "./sso-state";

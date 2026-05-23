@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 
-import { type JWTVerifyGetKey, createRemoteJWKSet } from "jose";
+import { type JWTVerifyGetKey, createRemoteJWKSet, customFetch } from "jose";
 import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -13,6 +13,7 @@ import {
   type SsoTicketClaims,
   SsoTicketError,
   consumeSsoJti,
+  makeSafeRedirectFollowingFetch,
   mintLocalSession,
   validateReturnTo,
   verifySsoTicket,
@@ -79,11 +80,18 @@ let cachedJwks: JWTVerifyGetKey | undefined;
  * Lazy singleton del JWKS remoto del apex. `createRemoteJWKSet` cachea
  * internamente (jose ~10min TTL); este wrapper evita crear el getter
  * múltiples veces. Tests usan `__resetJwksCacheForTests` para swap fixtures.
+ *
+ * `customFetch` (Symbol export de jose v6) inyecta nuestro fetch wrapper que
+ * sigue redirects same-registrable-domain. Sin esto, el redirect plataforma
+ * Vercel apex→www (HTTP 307) tira el JWKS fetch — jose v6 hardcodea
+ * `redirect: 'manual'` por defecto. Ver `docs/gotchas/jose-jwks-redirect-
+ * manual.md` y ADR-0032 addendum §"Same-registrable-domain redirect policy".
  */
 function getApexJwks(): JWTVerifyGetKey {
   if (!cachedJwks) {
     cachedJwks = createRemoteJWKSet(
       new URL(`${apexBaseUrl()}/api/auth/sso-jwks`),
+      { [customFetch]: makeSafeRedirectFollowingFetch() },
     );
   }
   return cachedJwks;
