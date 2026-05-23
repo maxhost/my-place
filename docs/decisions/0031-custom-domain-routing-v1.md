@@ -1,6 +1,6 @@
 # 0031 — Custom Domain Routing V1: lookup `SECURITY DEFINER` + proxy async + auth-gate educativo
 
-> **Implementación S0–S6 cerrada 2026-05-22 (pre-push).** Plan de sesiones ejecutado en [`docs/features/custom-domain-routing/plan-sesiones.md`](../features/custom-domain-routing/plan-sesiones.md); smoke programático local 9/9 ✅ documentado en [`docs/features/custom-domain-routing/spec.md` §Smoke ejecutado 2026-05-22](../features/custom-domain-routing/spec.md#smoke-ejecutado-2026-05-22). Tag local final: `baseline/feature-b-s6-done`. Push autorizado + smoke production + tag `baseline/feature-b-done` pendientes (gestionados por el user). Las decisiones de esta ADR quedan vigentes tal cual se aceptaron; este banner sólo asienta el estado de implementación V1.
+> **Implementación S0–S6 cerrada 2026-05-22 (post-push, post-smoke production).** Plan de sesiones ejecutado en [`docs/features/custom-domain-routing/plan-sesiones.md`](../features/custom-domain-routing/plan-sesiones.md); smoke programático local 9/9 ✅ + smoke production 4/4 server-side ✅ (5–6 user-driven) documentados en [`docs/features/custom-domain-routing/spec.md` §Smoke ejecutado 2026-05-22](../features/custom-domain-routing/spec.md#smoke-ejecutado-2026-05-22). Vercel deploy `dpl_7HYcUAdA3mrdsxhCackGcE4AAeJ4` (commit `a1d354f`) READY en target=production con migrations 0009 + 0010 aplicadas. Tag final: `baseline/feature-b-done`. Las decisiones de esta ADR quedan vigentes tal cual se aceptaron; este banner sólo asienta el estado de implementación V1.
 
 - **Fecha:** 2026-05-22
 - **Estado:** Aceptada

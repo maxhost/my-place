@@ -225,7 +225,24 @@ Smoke programático local contra `pnpm dev` (Next 16.2.6 + Turbopack) con fixtur
 - Latencia real Neon iad1 → Vercel (Lambda warm vs cold). El smoke local mide ~0–3ms para hot path estructural y ~5–20ms cuando golpea el lookup; production confirma el p95 budget del ADR-0031 §6.
 - TLS handshake del custom domain (Vercel managed cert). Sólo relevante post-push (DNS de `nocodecompany.co` apunta a producción).
 
-**Smoke production (post-push)** — pendiente, requiere autorización explícita del user. Escenarios a ejecutar: (a) `https://nocodecompany.co/` → 200 placeholder + URL bar intacta + cert Vercel válido; (b) Vercel MCP `get_deployment` del `dpl_*` post-push = `READY`; (c) Neon MCP verificar `verified_at` de `nocodecompany.co` intacto (no regresión Feature A); (d) `https://nocodecompany.co/settings` sin sesión → `<AuthGateForCustomDomain>` localizado en `place.default_locale='es'` con CTA a `https://mi-place.place.community/es/settings`; (e) click del CTA → llega al subdomain canon; (f) `https://mi-place.place.community/settings` con sesión apex → settings normal (no regresión).
+**Smoke production ejecutado 2026-05-22** (post-push, deploy `dpl_7HYcUAdA3mrdsxhCackGcE4AAeJ4` commit `a1d354f`, target=production, region iad1, build ~43s):
+
+| # | Escenario | Esperado | Obtenido |
+|---|---|---|---|
+| 1 | `https://nocodecompany.co/` | HTTP 200 + URL intacta + cert válido | ✅ HTTP 200 · `x-matched-path: /place/[placeSlug]` (proxy rewrite a `/place/mi-place/` confirmado) · `<html lang="es">` (default_locale del place resuelto) · SSL Let's Encrypt R12 `CN=nocodecompany.co` válido `notAfter=Aug 20 2026` |
+| 2 | Vercel deploy `dpl_*` post-push | state=READY, target=production | ✅ `dpl_7HYcUAdA3mrdsxhCackGcE4AAeJ4` READY (build start `2026-05-22T20:24:18Z` → ready `2026-05-22T20:25:02Z` ≈ 43s; aliases incluyen `nocodecompany.co`, `place.community`, `app.place.community`, `*.place.community`, `www.place.community`) |
+| 3 | Neon: `verified_at` de `nocodecompany.co` intacto (no regresión Feature A) | timestamp pre-push preservado | ✅ `2026-05-22T20:19:23.248Z` (idéntico pre-push) · `archived_at=NULL` · slug `mi-place` · default_locale `es` |
+| 4 | `https://nocodecompany.co/settings` sin sesión | `<AuthGateForCustomDomain>` localizado en `es` + CTA al subdomain canon | ✅ HTTP 200 · `x-matched-path: /place/[placeSlug]/settings` · title "Iniciá sesión en Place" (key `customDomainRouting.authGate.title` canonical es) · `href="https://mi-place.place.community/settings"` (helper `buildApexAuthFallback` resolvió subdomain canon + returnPath) · `<html lang="es">` |
+| 5 | Click CTA → llega al subdomain canon | render del settings o login del apex | 🟡 user-driven (requiere browser + sesión) — flujo confirmado client-side cuando user lo ejecute |
+| 6 | `https://mi-place.place.community/settings` con sesión apex | settings normal (no regresión) | 🟡 user-driven (requiere cookie de sesión apex) — flujo cubierto por unit tests del settings page (S4c) + ya estaba READY en producción pre-S6 (último deploy verde `dpl_32MwQLuC8rXDoZFejN9YfjW6cLXr` commit `1dea7b5`) |
+
+**Verificación adicional production**:
+
+- Migrations 0009 (`lookup_place_by_domain`) + 0010 (`lookup_place_locale_by_slug`) aplicadas a la branch `production` por `maybe-migrate.mjs` durante el build ✅ (`pg_proc` confirma ambas presentes).
+- `place_domain` de `nocodecompany.co`: `verified_at` y `archived_at` sin cambios pre/post-deploy ✅.
+- Defensive-validation slug↔host del layout (S3) cubierta runtime por el path `/place/[placeSlug]` rewriteado — sin signals de error en logs hasta aquí (cualquier mismatch dispararía `notFound()` → HTTP 404, no observado en smoke 1+4).
+
+Escenarios 5–6 son user-driven (browser + auth cookie); su coverage runtime se complete cuando el user navegue la UI. La rama de protocolo (auth gate ↔ subdomain canon ↔ settings con sesión) está cubierta por unit + integration tests + smoke production scenarios 1+4 que prueban el render server-side del gate localizado.
 
 ## Pointers
 

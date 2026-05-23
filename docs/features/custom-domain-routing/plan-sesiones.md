@@ -99,11 +99,16 @@ Sesión S4 del plan original tenía scope amplio (helper + gate UI + 3 page modi
 
 ### S6 — Smoke E2E + docs close + push autorizado (este commit)
 
-- **Tag al cierre del turno**: `baseline/feature-b-s6-done` (commit que incluye este `plan-sesiones.md` + spec.md §Smoke ejecutado + banner ADR-0031).
-- **Files** (3): `M docs/features/custom-domain-routing/spec.md` · `M docs/decisions/0031-custom-domain-routing-v1.md` · `+ docs/features/custom-domain-routing/plan-sesiones.md`.
-- **Locked files** (verified empty diff post-S6): TODO el código de S1–S5 (proxy.ts, host-routing.ts, custom-domain-lookup.ts, place-locale-lookup.ts, auth-redirect.ts, migraciones 0009/0010, layout.tsx, settings/page.tsx, settings/domain/page.tsx, not-found.tsx, place-not-found-context.ts, slice custom-domain-routing, i18n × 6 locales).
-- **Smoke**: programático local 9/9 ✅ (substituye smoke manual `/etc/hosts` + browser por `curl -H "Host: ..."`); fixture temporal purgada post-smoke. Detalle en spec.md.
-- **Push**: NO ejecutado en este turno. Pendiente autorización explícita del user. Smoke production (6 escenarios) post-push.
+- **Tags creados**: `baseline/feature-b-s6-done` (commit `a1d354f` — docs locales pre-push) + `baseline/feature-b-done` (commit posterior — production smoke + close-out final).
+- **Files** (3 + 3): `M docs/features/custom-domain-routing/spec.md` (×2) · `M docs/decisions/0031-custom-domain-routing-v1.md` (×2) · `+ docs/features/custom-domain-routing/plan-sesiones.md` (mod ×1 post-prod-smoke).
+- **Locked files** (verified empty diff): TODO el código de S1–S5 (proxy.ts, host-routing.ts, custom-domain-lookup.ts, place-locale-lookup.ts, auth-redirect.ts, migraciones 0009/0010, layout.tsx, settings/page.tsx, settings/domain/page.tsx, not-found.tsx, place-not-found-context.ts, slice custom-domain-routing, i18n × 6 locales).
+- **Smoke local**: programático 9/9 ✅ (substituye smoke manual `/etc/hosts` + browser por `curl -H "Host: ..."`); fixture temporal purgada post-smoke. Detalle en spec.md.
+- **Push autorizado 2026-05-22**: `git push maxhost main` (11 commits, `1dea7b5..a1d354f main -> main`). Vercel auto-deploy `dpl_7HYcUAdA3mrdsxhCackGcE4AAeJ4` READY en ~43s (build) sobre target=production, region iad1. Migrations 0009 + 0010 aplicadas por `maybe-migrate.mjs` durante el build (`pg_proc` confirma). `nocodecompany.co.verified_at` intacto (sin regresión Feature A).
+- **Smoke production**: 4/4 server-side ✅ (1 root, 2 deploy READY, 3 Neon estado, 4 AuthGate localizado). Escenarios 5–6 quedan user-driven (browser + auth cookie). Detalle en spec.md §Smoke ejecutado 2026-05-22.
+
+## Estado final post-S6
+
+`baseline/feature-b-done` ✅ — Feature B Custom Domain Host Routing V1 cerrada end-to-end (planning + 11 sesiones + push + deploy READY + smoke production server-side). Producción sirve el contenido del place transparentemente en `https://nocodecompany.co/...` con URL pública intacta, SSL Let's Encrypt válido y AuthGate localizado para owners en owner-only pages. Slice `custom-domain-routing` queda como punto de extensión para Feature C (OIDC SSO).
 
 ## Rollback disponible
 
