@@ -1,5 +1,9 @@
 import { getTranslations } from "next-intl/server";
 import { notFound, redirect } from "next/navigation";
+import {
+  AuthGateForCustomDomain,
+  type AuthGateLabels,
+} from "@/features/custom-domain-routing/public";
 import { logoutAction } from "@/features/nav-hub/public";
 import {
   NavPlaceLayout,
@@ -12,9 +16,13 @@ import {
   registerCustomDomainAction,
 } from "@/features/custom-domain/public";
 import { getCustomDomainStatus } from "@/features/custom-domain-verification/public";
-import { buildApexLoginUrl } from "@/shared/lib/auth-redirect";
+import {
+  buildApexLoginUrl,
+  buildSubdomainCanonicalUrl,
+} from "@/shared/lib/auth-redirect";
 import { isServiceableSlug } from "@/shared/lib/host-routing";
 import {
+  getHostZoneForZone,
   getPlaceForZone,
   getPlaceLocaleFallback,
   getSessionTokenForZone,
@@ -23,7 +31,8 @@ import {
 // Page del settings — sección "Dominio" (`{slug}.place.community/settings/
 // domain`, proxy reescribe a `/place/{slug}/settings/domain`, ver
 // `docs/multi-tenancy.md`). S4 del feature custom-domain V1
-// (`docs/features/custom-domain/spec.md` §"Cableado real (post-S4)").
+// (`docs/features/custom-domain/spec.md` §"Cableado real (post-S4)")
+// + Feature B S4d (ADR-0031 §"Auth gate UX", 2026-05-22).
 //
 // Server Component que orquesta el seam-split del slice
 // `place-settings/domain`. Espejo intencional del page `/settings` (sección
@@ -33,25 +42,35 @@ import {
 // Flujo:
 //
 // 1. Gate estructural del slug (`isServiceableSlug`) — formato/reservados.
-// 2. Guard sesión cross-subdomain (`getSessionTokenForZone()` memoizado vía
-//    `React.cache()`). Sin sesión → redirect al login del apex con el locale
-//    del place via lookup anónimo S4b (`getPlaceLocaleFallback` + helper
-//    `buildApexLoginUrl`, Feature B S4c). Antes de S4c esto era hardcoded
-//    `https://place.community/es/login` — locale fijo (bug pre-existente).
-// 3. Carga del place (`getPlaceForZone(placeSlug)`, también memoizado). Si
+// 2. Host-zone (`getHostZoneForZone`, memoizado con el layout). Determina si
+//    la request entra por subdomain canon o por custom domain — necesario
+//    para el branch de no-sesión en (3).
+// 3. Guard sesión cross-subdomain (`getSessionTokenForZone()` memoizado vía
+//    `React.cache()`). Sin sesión, branchea por zona:
+//      a. **Custom domain** (Feature B S4d): la cookie Neon Auth
+//         `Domain=.place.community` NO acompaña al custom host (V1 gap).
+//         SUSTITUIR redirect por `<AuthGateForCustomDomain>` con copy
+//         localizado (`customDomainRouting.authGate.*` ×6, S5) + link al
+//         subdomain canon (`buildSubdomainCanonicalUrl`, S4c).
+//      b. **Subdomain canon** (Feature B S4c): redirect al login del apex
+//         con el locale del place vía lookup anónimo S4b
+//         (`getPlaceLocaleFallback` + helper `buildApexLoginUrl`). Antes
+//         de S4c esto era hardcoded `https://place.community/es/login` —
+//         locale fijo (bug pre-existente).
+// 4. Carga del place (`getPlaceForZone(placeSlug)`, también memoizado). Si
 //    `null` → no-owner por RLS / slug inexistente / archived → `notFound()`
 //    (404 sin doxxear si era "no autorizado" vs "no existe").
-// 4. **Lazy poll del dominio** (ADR-0026 §1, núcleo del feature):
+// 5. **Lazy poll del dominio** (ADR-0026 §1, núcleo del feature):
 //    `getCustomDomainStatus(place.id)` corre el SELECT de la fila activa, y
 //    si está pending llama a Vercel Domains API; si Vercel confirma verified
 //    persiste el `verified_at = now()` en la misma carga del page. El owner
 //    que vuelve después de configurar DNS ve el estado actualizado
 //    inmediatamente, sin esperar el próximo tick de un cron.
-// 5. i18n DB-based: `getTranslations({locale: place.defaultLocale,
+// 6. i18n DB-based: `getTranslations({locale: place.defaultLocale,
 //    namespace: "placeSettings.domain"})` resuelve las ~33 keys del slice +
 //    `placeSettings.sidebar.*` para el frame + `navHub.*` para el account
 //    menu. Mismo patrón que el page de Idioma (S6 settings).
-// 6. Render `<NavPlaceLayout>` con `activeSection="domain"` (item del
+// 7. Render `<NavPlaceLayout>` con `activeSection="domain"` (item del
 //    grupo Identidad, V1.1 ADR-0025 + activación S4 custom-domain V1).
 //    Children = `<DomainSection>` con `state` (resultado del lazy poll) +
 //    `registerAction` + `archiveAction` inyectadas (seam-split).
@@ -79,26 +98,52 @@ export default async function PlaceSettingsDomainPage({ params }: Props) {
   // (1) Gate estructural — slug servible antes de cualquier I/O.
   if (!isServiceableSlug(placeSlug)) notFound();
 
-  // (2) Guard sesión cross-subdomain — redirect al login apex con locale
-  // del place (S4b lookup + S4c helper, dedupea con el layout vía cache).
+  // (2) Host-zone (memoizado con el layout). Branch del guard en (3).
+  const hostZone = await getHostZoneForZone();
+
+  // (3) Guard sesión cross-subdomain. Sin sesión, branchea por zona:
+  //   - Custom domain → auth-gate localizado (S4d), NO redirect (loop trap).
+  //   - Subdomain canon → redirect a login apex con locale del place (S4c).
   const token = await getSessionTokenForZone();
   if (token === null) {
+    if (hostZone.zone === "custom-domain") {
+      const tGate = await getTranslations({
+        locale: hostZone.defaultLocale,
+        namespace: "customDomainRouting.authGate",
+      });
+      const gateLabels: AuthGateLabels = {
+        title: tGate("title"),
+        body: tGate("body", { slug: hostZone.slug }),
+        cta: tGate("cta", { slug: hostZone.slug }),
+        help: tGate("help"),
+      };
+      const canonicalUrl = buildSubdomainCanonicalUrl({
+        slug: hostZone.slug,
+        path: "/settings/domain",
+      });
+      return (
+        <AuthGateForCustomDomain
+          canonicalUrl={canonicalUrl}
+          labels={gateLabels}
+        />
+      );
+    }
     const fallbackLocale = await getPlaceLocaleFallback(placeSlug);
     redirect(buildApexLoginUrl({ defaultLocale: fallbackLocale }));
   }
 
-  // (3) Carga del place (memoizada con el layout vía React.cache).
+  // (4) Carga del place (memoizada con el layout vía React.cache).
   const place = await getPlaceForZone(placeSlug);
   if (place === null) notFound();
 
-  // (4) Lazy poll del custom domain. Atómica desde el punto de vista del
+  // (5) Lazy poll del custom domain. Atómica desde el punto de vista del
   // page: una invocación resuelve SELECT + (potencial) GET Vercel +
   // (potencial) UPDATE verified_at. Failure modes (DB error, Vercel down)
   // colapsan a `{status: "none"}` o `{status: "pending", vercelUnavailable:
   // true}` — la UI muestra copy calmo en cada caso, el page nunca tira.
   const state = await getCustomDomainStatus(place.id);
 
-  // (5) i18n del settings — locale del place (DB-based, ADR-0024). Tres
+  // (6) i18n del settings — locale del place (DB-based, ADR-0024). Tres
   // namespaces:
   //   - `placeSettings` (sidebar + title del shell);
   //   - `navHub` (account menu + drawer toggle, DRY con el Hub);

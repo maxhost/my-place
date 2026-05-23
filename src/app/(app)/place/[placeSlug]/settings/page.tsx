@@ -1,5 +1,9 @@
 import { getTranslations } from "next-intl/server";
 import { notFound, redirect } from "next/navigation";
+import {
+  AuthGateForCustomDomain,
+  type AuthGateLabels,
+} from "@/features/custom-domain-routing/public";
 import { logoutAction } from "@/features/nav-hub/public";
 import {
   NavPlaceLayout,
@@ -11,9 +15,13 @@ import {
   type LocaleSectionLabels,
   updateDefaultLocaleAction,
 } from "@/features/place-settings/public";
-import { buildApexLoginUrl } from "@/shared/lib/auth-redirect";
+import {
+  buildApexLoginUrl,
+  buildSubdomainCanonicalUrl,
+} from "@/shared/lib/auth-redirect";
 import { isServiceableSlug } from "@/shared/lib/host-routing";
 import {
+  getHostZoneForZone,
   getPlaceForZone,
   getPlaceLocaleFallback,
   getSessionTokenForZone,
@@ -21,34 +29,43 @@ import {
 
 // Page del settings — `{slug}.place.community/settings` (proxy reescribe a
 // `/place/{slug}/settings`, `docs/multi-tenancy.md`). S6 del feature
-// `settings` (`docs/features/settings/spec.md` §"Auth guard mechanism").
+// `settings` (`docs/features/settings/spec.md` §"Auth guard mechanism")
+// + Feature B S4d (ADR-0031 §"Auth gate UX", 2026-05-22).
 //
 // Server Component que orquesta el seam-split del settings V1, paralelo al
 // page del Hub (`(app)/inbox/[locale]/page.tsx`):
 //
 // 1. Gate estructural del slug (`isServiceableSlug`) — formato/reservados.
-// 2. Guard sesión cross-subdomain (`getSessionTokenForZone()` — memoizado
-//    junto al layout vía `React.cache()`). Sin sesión → redirect cross-
-//    subdomain al login del apex (`buildApexLoginUrl`, Feature B S4c). El
-//    locale del redirect proviene del lookup anónimo S4b
-//    (`getPlaceLocaleFallback`, memoizado por render — comparte la query
-//    con el layout si éste también la invocó por el `<html lang>`). Si el
-//    lookup no resuelve (slug archivado / inexistente / DB transitoria), el
-//    helper cae al canon 'es'. Antes de S4c esto era `redirect(
-//    "https://place.community/es/login")` — locale fijo aunque el owner
-//    configuró otro (bug pre-existente del audit S4).
-// 3. Carga del place vía `getPlaceForZone(placeSlug)` (también memoizado).
-//    Sabemos que hay sesión por (2), así que `null` ⇒ no-owner (RLS) o slug
+// 2. Resolución del host-zone (`getHostZoneForZone`, memoizado con el
+//    layout). Determina si la request entra por subdomain canon o por
+//    custom domain — necesario para decidir el branch de no-sesión en (3).
+// 3. Guard sesión cross-subdomain (`getSessionTokenForZone()` — memoizado
+//    junto al layout vía `React.cache()`). Sin sesión, branchea por zona:
+//      a. **Custom domain** (Feature B S4d): la cookie Neon Auth
+//         `Domain=.place.community` NO acompaña al custom host (V1 gap,
+//         Feature C OIDC cierra). Un redirect ciego al apex login causaría
+//         loop: owner aterriza en apex, autentica, vuelve al custom domain
+//         como visitor sin cookie. SUSTITUIR redirect por `<AuthGateForCustomDomain>`
+//         con copy localizado (`customDomainRouting.authGate.*` ×6 locales,
+//         S5) + link directo al subdomain canon (`buildSubdomainCanonicalUrl`,
+//         S4c) donde la cookie sí está scopeada.
+//      b. **Subdomain canon** (Feature B S4c): redirect cross-subdomain al
+//         login del apex (`buildApexLoginUrl`). El locale del redirect
+//         proviene del lookup anónimo S4b (`getPlaceLocaleFallback`,
+//         memoizado por render). Antes de S4c era hardcoded
+//         `"https://place.community/es/login"` — locale fijo (bug pre-existente).
+// 4. Carga del place vía `getPlaceForZone(placeSlug)` (memoizado).
+//    Sabemos que hay sesión por (3), así que `null` ⇒ no-owner (RLS) o slug
 //    no existente o archivado → `notFound()` (la 404 de la zona-place se
 //    sirve sin pistas de "no tenés permiso", spec §"Journeys C").
-// 4. i18n DB-based: `getTranslations({locale: place.defaultLocale, namespace:
+// 5. i18n DB-based: `getTranslations({locale: place.defaultLocale, namespace:
 //    "placeSettings"})` toma el override de locale del place (ADR-0024,
 //    patrón verificado en S1.5 — `docs/gotchas/i18n-locale-override-zona-
 //    place.md`). El namespace `navHub` se reusa para los labels del frame
 //    (logout, account menu, drawer toggle — mismo widget visual que el Hub,
 //    DRY).
-// 5. Render `<NavPlaceLayout>` con `activeSection="language"`. Children =
-//    placeholder calmo (S7 mete el form + Server Action UPDATE).
+// 6. Render `<NavPlaceLayout>` con `activeSection="language"`. Children =
+//    `<LocaleSection>` (S7).
 //
 // `dynamic = "force-dynamic"`: el guard depende de cookie + la query
 // depende de claims del request — nada SSG-cacheable. `preferredRegion =
@@ -75,22 +92,53 @@ export default async function PlaceSettingsPage({ params }: Props) {
   // arlo, así que es notFound() puro.
   if (!isServiceableSlug(placeSlug)) notFound();
 
-  // (2) Guard sesión. `null` = no logueado → cross-subdomain a login del
-  // apex con el locale del place (S4b lookup + S4c helper). NO throw:
-  // ausencia de sesión es estado válido del flujo.
+  // (2) Host-zone (memoizado con el layout). Necesario para diferenciar el
+  // branch de no-sesión en (3): redirect (subdomain canon) vs auth-gate
+  // (custom-domain, S4d).
+  const hostZone = await getHostZoneForZone();
+
+  // (3) Guard sesión. `null` = no logueado:
+  //   - Custom domain → auth-gate localizado (S4d), NO redirect (loop trap).
+  //   - Subdomain canon → redirect a login apex con locale del place (S4c).
   const token = await getSessionTokenForZone();
   if (token === null) {
+    if (hostZone.zone === "custom-domain") {
+      // Render `<AuthGateForCustomDomain>` con copy localizado en el
+      // `defaultLocale` configurado por el owner (resuelto en el lookup
+      // del proxy/layout, S1/S3). Link directo al subdomain canon donde la
+      // cookie `.place.community` sí está scopeada.
+      const tGate = await getTranslations({
+        locale: hostZone.defaultLocale,
+        namespace: "customDomainRouting.authGate",
+      });
+      const gateLabels: AuthGateLabels = {
+        title: tGate("title"),
+        body: tGate("body", { slug: hostZone.slug }),
+        cta: tGate("cta", { slug: hostZone.slug }),
+        help: tGate("help"),
+      };
+      const canonicalUrl = buildSubdomainCanonicalUrl({
+        slug: hostZone.slug,
+        path: "/settings",
+      });
+      return (
+        <AuthGateForCustomDomain
+          canonicalUrl={canonicalUrl}
+          labels={gateLabels}
+        />
+      );
+    }
     const fallbackLocale = await getPlaceLocaleFallback(placeSlug);
     redirect(buildApexLoginUrl({ defaultLocale: fallbackLocale }));
   }
 
-  // (3) Carga del place. Memoizado con el layout: en este punto la query
+  // (4) Carga del place. Memoizado con el layout: en este punto la query
   // ya corrió desde el `<html lang>` dinámico del layout — `getPlaceForZone`
   // retorna el resultado memoizado sin tocar Neon de nuevo.
   const place = await getPlaceForZone(placeSlug);
   if (place === null) notFound();
 
-  // (4) i18n del settings — locale del place (DB-based, ADR-0024). Tres
+  // (5) i18n del settings — locale del place (DB-based, ADR-0024). Tres
   // namespaces:
   //   - `placeSettings` (dominio: title + 6 items del sidebar);
   //   - `navHub` (frame compartido: account menu + drawer toggle + logout,
@@ -160,7 +208,7 @@ export default async function PlaceSettingsPage({ params }: Props) {
     errorNotice: tLang("errorNotice"),
   };
 
-  // (5) Render. `displayName=null` por ahora: la sección "Idioma" no
+  // (6) Render. `displayName=null` por ahora: la sección "Idioma" no
   // requiere identidad visible, y la query `loadPlaceBySlug` no la trae
   // (sería overhead). Si en V2 el avatar muestra iniciales reales, se
   // agrega un `userDisplayName` al payload — paralelo a `inbox` que sí lo

@@ -1,6 +1,12 @@
+import { headers } from "next/headers";
 import { cache } from "react";
 import { loadPlaceBySlug, type PlaceData } from "@/features/place/public";
+import { lookupPlaceByDomain } from "@/shared/lib/custom-domain-lookup";
 import { getAuthenticatedDb } from "@/shared/lib/db";
+import {
+  type HostZone,
+  resolveHostWithCustomDomains,
+} from "@/shared/lib/host-routing";
 import { lookupPlaceLocaleBySlug } from "@/shared/lib/place-locale-lookup";
 import { getSessionJwt } from "@/shared/lib/session";
 
@@ -102,3 +108,35 @@ export const getPlaceLocaleFallback = cache(
     return lookupPlaceLocaleBySlug(placeSlug);
   },
 );
+
+/**
+ * Resuelve la `HostZone` del request actual (Feature B S4d, ADR-0031 §"Auth
+ * gate UX"). Wrapper memoizado por render sobre
+ * `resolveHostWithCustomDomains` + `lookupPlaceByDomain` — exactamente el
+ * mismo cómputo que el layout ya hace para el defensive slug→host check
+ * (S3) y para el fallback de `<html lang>` en custom-domain (S3/S4c).
+ *
+ * `React.cache()` deduplica intra-render: la primera invocación (e.g. en el
+ * layout) corre la lectura del header `host` + (potencial) query del lookup
+ * SECURITY DEFINER; las siguientes (e.g. desde `settings/page.tsx` para
+ * detectar custom-domain y decidir auth-gate vs redirect, S4d) reusan el
+ * resultado sin re-tocar la red ni Neon.
+ *
+ * Política de skip estructural (heredada del wrapper subyacente,
+ * `host-routing.ts`): apex / `app.<root>` / `<slug>.<root>` / dev
+ * `*.localhost` / `*.vercel.app` NO consultan DB — sólo hosts candidatos
+ * reales a custom-domain pagan la query. Hot path V1 ya acotado en ADR-0031.
+ *
+ * Retorna `HostZone` (nunca tira): el wrapper subyacente colapsa errores
+ * a `{zone: "marketing"}` por defense-in-depth. El consumer interpreta:
+ *   - `zone === "custom-domain"` → auth-gate UX (S4d).
+ *   - otros → redirect a apex login (S4c).
+ */
+export const getHostZoneForZone = cache(async (): Promise<HostZone> => {
+  const hostHeader = (await headers()).get("host") ?? "";
+  return resolveHostWithCustomDomains(
+    hostHeader,
+    undefined,
+    lookupPlaceByDomain,
+  );
+});

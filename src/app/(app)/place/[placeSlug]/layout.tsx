@@ -1,11 +1,9 @@
 import { getTranslations } from "next-intl/server";
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { routing } from "@/i18n/routing";
-import { lookupPlaceByDomain } from "@/shared/lib/custom-domain-lookup";
-import { resolveHostWithCustomDomains } from "@/shared/lib/host-routing";
 import {
+  getHostZoneForZone,
   getPlaceForZone,
   getPlaceLocaleFallback,
 } from "./_lib/get-place-for-zone";
@@ -87,15 +85,13 @@ export default async function PlaceLayout({ children, params }: Props) {
   const { placeSlug } = await params;
 
   // Defensive slug→host validation + fuente de truth del locale en custom
-  // domain. La invocación a `resolveHostWithCustomDomains` reusa la política
-  // de skip estructural (host-routing.ts S2): subdomain canon, apex, *.localhost
+  // domain. `getHostZoneForZone` memoiza por render: la primera llamada
+  // (acá) corre la lectura del header `host` + (potencial) query del lookup
+  // S1/S3; las siguientes (e.g. `settings/page.tsx` para decidir auth-gate
+  // vs redirect, S4d) reusan el resultado sin re-tocar Neon. Política de
+  // skip estructural (host-routing.ts S2): subdomain canon, apex, *.localhost
   // y *.vercel.app NO consultan DB.
-  const hostHeader = (await headers()).get("host") ?? "";
-  const hostZone = await resolveHostWithCustomDomains(
-    hostHeader,
-    undefined,
-    lookupPlaceByDomain,
-  );
+  const hostZone = await getHostZoneForZone();
   if (hostZone.zone === "custom-domain" && hostZone.slug !== placeSlug) {
     // Algún actor accedió a `/place/{otherSlug}` por una ruta interna del host
     // de otro custom domain — fail-closed antes de leer DB owner-only.
