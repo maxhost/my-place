@@ -429,5 +429,11 @@
       "cta": "Ir a {slug}.place.community",
       "help": "Mientras tanto, tus visitantes pueden seguir usando este dominio normalmente."
     }
+  },
+  "placeNotFound": {
+    "title": "Esta página no existe.",
+    "body": "Puede que el enlace esté viejo o que la página se haya movido.",
+    "ctaHome": "Volver al inicio",
+    "ctaApex": "Ir a Place"
   }
 }
