@@ -242,6 +242,24 @@ Tras cerrar S2 (sso-keys + sso-ticket) y S3 (sso-state), los actuals del sub-mó
 
 **Pre-S4 verification baseline**: 647 LOC (medido con `wc -l src/shared/lib/sso/*.ts | grep -v test`). Tag de save point pre-addendum: `baseline/feature-c-s3-done`.
 
+#### Addendum 2026-05-23 (later) — sub-cap subido de 1000 a 1100 LOC
+
+Trigger: smoke production T1.1 de S11 detectó `sso_error=signature_invalid` aunque la firma del ticket era matemáticamente válida (postmortem operativo completo en `docs/gotchas/jose-jwks-redirect-manual.md`). Root cause: el JWKS apex responde HTTP 307 apex→www por config Vercel platform-level, y jose v6 hardcodea `redirect: 'manual'` en `createRemoteJWKSet` (`node_modules/jose@6.2.3/dist/webapi/jwks/remote.js` línea 19) — el redirect benigno se interpreta como respuesta inválida y throws, que el pipeline mapea (correctamente) a `signature_invalid`. El fix Opción D (ver §12 abajo) requirió un archivo nuevo en el sub-módulo: `src/shared/lib/sso/sso-jwks-fetcher.ts` (~140 LOC de source, sin tests).
+
+**LOC measurement antes del fix**: `wc -l src/shared/lib/sso/*.ts | grep -v test` → **1000 LOC exactos** (cap saturated, 0 margen residual). Post-fix: **~1140 LOC**. Bump justificado de **1000 → 1100 LOC**, con margen pequeño negativo residual (~40 LOC over en la primera medición; el cap se calibra a la realidad medida + buffer estricto: si futuras fixes del sub-módulo agregan más, se vuelve a pausar y se eleva otra vez con addendum equivalente. **Mismo principio que el bump previo 800→1000**: el cap es elástico bajo justificación documentada, NO abandonable).
+
+**Por qué +100 y no más**: el helper `sso-jwks-fetcher.ts` es ortogonal — un solo concern bien delimitado (JWKS fetch con safe redirect policy). No abre la puerta a más concerns en el sub-módulo. Si futuras fixes de seguridad demandan capacidad LOC adicional, cada bump pasa por addendum dedicado (no precedente automatic; no hay "presupuesto de growth" implícito).
+
+**Lo que NO cambia** (consistente con el bump previo 800→1000):
+- Cap shared/lib raíz: **800** (intacto). Este sub-cap es ortogonal.
+- Sub-cap por archivo: **300** (intacto). `sso-jwks-fetcher.ts` queda ~140 LOC, dentro.
+- Cap por función: **60** (intacto). `makeSafeRedirectFollowingFetch` queda ~50 LOC.
+- Otros sub-módulos `shared/lib/<name>/` futuros heredan **800** por default. Cualquier excepción requiere ADR addendum equivalente.
+
+**Pre-fix verification baseline**: 1000 LOC. Tags de save point:
+- Pre-fix: `baseline/pre-s11-fix-jwks-redirect`.
+- Post-fix code: `baseline/feature-c-s11.1-code`.
+
 ### 6. Local session JWT (custom domain)
 
 Claims del JWT seteado en `__Host-place_sso_session`:
@@ -366,6 +384,70 @@ Feature A (slices `custom-domain` + `custom-domain-verification`) y Feature B (s
 - `app.lookup_place_by_domain` + `lookupPlaceByDomain` wrapper: **reusados** en sso-init (validar host), sso-issue (validar aud), sso-redeem (validar host actual). 3 callers nuevos via función existente.
 - Proxy matcher (`src/proxy.ts:matcher`): el matcher actual `"/((?!api|_next|_vercel|.*\\..*).*)"` excluye `/api/*` correctamente. **Verify-only en S5**, NO modificación. Si hipotéticamente hubiera un bug, fix en S5; si no (esperado), `git diff` post-S5 sobre `src/proxy.ts` empty.
 - `getSessionTokenForZone` (Feature B internal lib): adaptado en S9 — return shape evolve de `string | null` a `{token: string; source: 'neon-auth' | 'sso-local'} | null`. Single owner del cambio (yo en S9, sin agentes paralelos) — 3 callers locked (`settings/page.tsx`, `settings/domain/page.tsx`, `getPlaceForZone`).
+
+### 12. Same-registrable-domain redirect policy (customFetch al JWKS apex)
+
+#### Addendum 2026-05-23 — síntoma diagnosticado en smoke production T1.1
+
+Smoke production T1.1 del cierre de S11 detectó el siguiente síntoma reproducible:
+
+- Owner real autenticado en apex visita `nocodecompany.co/settings` (custom domain verified).
+- Silent SSO arranca: init → issue → redeem. El ticket emitido por `/api/auth/sso-issue` es matemáticamente válido (verificado offline con scripts `verify-ticket.mjs` y `verify-ticket-www.mjs` desde shell — misma firma, misma key, mismo `aud`).
+- Redeem en custom domain aterriza en `?sso_error=signature_invalid` consistentemente.
+- Diagnóstico cross-host: `verify-ticket.mjs` fetcheando JWKS de `https://place.community/api/auth/sso-jwks` → fail; fetcheando JWKS de `https://www.place.community/api/auth/sso-jwks` → pass.
+- Root cause: el JWKS apex responde HTTP 307 → `https://www.place.community/api/auth/sso-jwks` por configuración Vercel platform-level apex→www (SEO + canonical URL, decisión arquitectónica de marketing).
+- `jose v6 createRemoteJWKSet` internamente llama `fetchJwks(url, headers, signal, fetchImpl)` con `redirect: 'manual'` **hardcodeado** en `node_modules/jose@6.2.3/dist/webapi/jwks/remote.js` línea 19. Ve el 307 como respuesta inválida (esperaba 200) y throws.
+- El pipeline del redeem mapea cualquier JWKS fetch fail a `sso_error=signature_invalid` (defense-in-depth correcta: no leak al cliente de qué exactamente falló).
+
+#### Por qué jose hardcodea `redirect: 'manual'`
+
+Defensa anti JWKS-hijack: un atacante en path del DNS (o en una CDN intermedia) podría redirigir el JWKS a un endpoint controlado con su propia public key. Tickets forjados por el atacante verificarían contra esa key falsa y el redeem mintea sesión local válida. La defensa de jose es **correcta y deliberada**.
+
+El problema: choca con el redirect platform-level de Vercel apex→www, que es benigno y arquitectónico (no es ataque; es config canonical URL del marketing). No hay knob de jose v6 default para distinguir "redirect benigno same-registrable" vs "redirect malicioso cross-registrable" — el default conservador rechaza todo.
+
+#### Decisión: customFetch + same-registrable-domain allowlist (Opción D)
+
+jose v6 exporta `customFetch` como Symbol export: escape hatch oficial para casos que necesitan policy custom sin perder la abstracción de `createRemoteJWKSet` (cache intra-process, key rotation handling, JWK Set parsing). Wire-up:
+
+```typescript
+import { customFetch, createRemoteJWKSet } from 'jose';
+createRemoteJWKSet(url, { [customFetch]: myFetch })
+```
+
+Helper `makeSafeRedirectFollowingFetch` en `src/shared/lib/sso/sso-jwks-fetcher.ts` sigue redirects **sólo** bajo policy estricta:
+1. **Same-registrable-domain** check (last-two-labels heuristic; naive para gTLDs, NO maneja ccTLDs con sufijo público multi-label tipo `*.co.uk`, `*.com.ar` — los trataría como single registrable). Documentado en header del archivo. Place actualmente sólo deploya bajo gTLDs (apex `place.community` verificado 2026-05-23 como gTLD).
+2. **`https:` only** — NO downgrade a `http:` aunque la redirect Location header lo indique.
+3. **≤3 hops** — Vercel apex→www es 1 hop real; +2 buffer para casos benignos sin riesgo de loop.
+
+Cualquier violación → throw `SsoJwksRedirectError` con código discriminado (`protocol_downgrade` | `cross_registrable_domain` | `too_many_redirects`) → jose envuelve en `JOSEError` → redeem cae en `sso_error=signature_invalid` (misma semántica que un fallo JWKS genérico — el cliente NO aprende nada nuevo del modo de falla, defense-in-depth preserved).
+
+**Restaura funcionalidad sin perder defense-in-depth**: redirect a host fuera del registrable se sigue rechazando, igual que jose default. Sólo se permite el caso benigno empíricamente medido (apex→www same-registrable + https).
+
+#### Tabla comparativa: 9 opciones evaluadas, D elegida
+
+| Opción | Descripción | Por qué descartada / elegida |
+|---|---|---|
+| A | Cambiar `NEXT_PUBLIC_APP_URL` a `https://www.place.community` | High blast radius: `rootDomain()` lo usa para cookie scoping cross-subdomain (Feature B) — cambiarlo rompe cookies existentes y la topología "dos mundos" canon. |
+| B | Hardcode `www.place.community` en JWKS URL del redeem | Frágil: rompe dev local (`localhost` no tiene www); ata el código al deploy actual; un futuro cambio Vercel rompería silently sin que ningún test lo detecte. |
+| C | Custom fetch que sigue redirects sin validar target | Pierde la defensa anti-hijack que jose puso por buena razón — un MITM podría redirigir JWKS a su propio endpoint. Anti-pattern de security. |
+| **D** | **customFetch + allowlist same-registrable + https + ≤3 hops** | **Elegida** — restaura funcionalidad sin perder defense-in-depth; alineado con escape hatch oficial de jose v6; ortogonal al resto del módulo (single concern). |
+| E | Deshabilitar redirect Vercel apex→www | Pierde SEO + impacto fuera del scope SSO; rompe expectations del marketing y de canonical URL del apex. |
+| F | Vercel rewrite exception sobre `/api/auth/sso-jwks` | Risky platform interaction; el behavior de rewrites vs redirects sobre paths específicos no está bien documentado y depende de orden interno de evaluación. |
+| G | Embed JWK pública como env var, skip fetch | Complica rotation (env var change en cada rotación 90d, requiere redeploy sincrónico) y rompe arquitectura del JWKS endpoint público (que existe precisamente para permitir rotation transparente). |
+| H | Build-time prefetch del JWKS, embed en bundle | Frágil vs rotation (cada rotación requiere re-deploy) y rompe contract de JWKS como endpoint dinámico (RFC 7517 implícito). |
+| I | Usar Vercel deployment URL directo (no apex) | Frágil: deployment URLs son ephemeral; cambian en cada deploy preview/production y rompen verifier de tickets ya emitidos. |
+
+#### Tests + ubicación de defensas
+
+- **10 unit tests** en `src/shared/lib/sso/__tests__/sso-jwks-fetcher.test.ts` cubren cada policy violation + happy paths: same-host pass, apex→www same-registrable pass, cross-registrable reject, http downgrade reject, >3 hops reject, 3xx sin Location header passthrough (deja que jose decida), 3xx con Location relative resuelto correctamente, default `maxRedirects=3` honored, custom `maxRedirects` honored, AbortSignal propagado en cada hop.
+- **Gotcha doc completo** en `docs/gotchas/jose-jwks-redirect-manual.md` — postmortem operativo del síntoma + repro steps + diagnostic flowchart; complementa este addendum (que documenta la decisión arquitectónica) sin duplicarlo (gotcha = "lo que muerde de nuevo si lo olvidás", ADR = "por qué decidimos así").
+- **Wire-up** en `src/app/api/auth/sso-redeem/route.ts` con import `customFetch` Symbol de jose + uso en options de `createRemoteJWKSet` dentro del singleton `getApexJwks()` (lazy, cacheado intra-process).
+
+#### Consecuencias forward
+
+- **Si jose v7+ acepta `redirect` configurable**: este helper puede simplificarse o eliminarse — revisar simultáneamente este addendum y la gotcha en cada bump major de jose. Tracking implícito en `docs/gotchas/jose-jwks-redirect-manual.md`.
+- **Si Place deploya bajo ccTLD multi-label** (`*.co.uk`, `*.com.ar`, `*.com.br`, etc.): el `getTwoLabelRoot` necesita reemplazarse por una PSL lib (ej. `tldts` o `psl`). Documentado en header del helper como invariante de evolución. La API pública (`makeSafeRedirectFollowingFetch`) es estable — el cambio es interno.
+- **Cron safety net #103 gana importancia** (ya documentado en §"Forward-compat con cron safety net" de Consecuencias arriba, y reforzado acá): si el JWKS endpoint cae o devuelve algo no parseable, el silent SSO rompe transparentemente desde la perspectiva del owner — el cron `*/15` permite detección proactiva del stale state antes de que el owner intente SSO.
 
 ## Alternativas rechazadas
 
