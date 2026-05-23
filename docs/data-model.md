@@ -92,9 +92,11 @@ CREATE TABLE place_domain (
   -- Espeja el estado de Vercel: se setea cuando Vercel reporta verified + SSL
   -- emitido (alta y verificación vía Vercel Domains API, ver multi-tenancy.md).
   verified_at     TIMESTAMPTZ,
-  -- OIDC client confidencial propio de este dominio (Relying Party). Referencia
-  -- lógica al client gestionado por el plugin OIDC de Better Auth; se provisiona
-  -- al verificarse el dominio y se revoca al archivarlo.
+  -- DEPRECATED post-ADR-0032 (Signed Ticket SSO). Queda nullable indefinidamente
+  -- como deuda forward-compat: si V2 vuelve a OIDC canonical, esta columna se
+  -- reutiliza. NULL en todas las filas V1 — Signed Ticket no requiere client_id
+  -- per dominio (el `aud` claim del ticket = host del custom domain, validado
+  -- contra `verified_at IS NOT NULL` directo).
   oauth_client_id TEXT UNIQUE,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   archived_at     TIMESTAMPTZ
@@ -112,7 +114,7 @@ CREATE UNIQUE INDEX place_domain_domain_active_unq
 
 **Invariante:** un dominio mapea a lo sumo a un place **activo** (`archived_at IS NULL`). Filas archived liberan el dominio para re-registro por el mismo o distinto owner. El history archived queda en DB para auditoría futura; la UI nunca lo muestra (page filtra `archived_at IS NULL`).
 
-**Estado V1: `oauth_client_id` queda NULL.** El provisioning del OIDC client (ADR-0001) se delega a Feature C; ADR-0027 (futura) cubrirá el provisioning retroactivo para rows con `verified_at IS NOT NULL AND oauth_client_id IS NULL`.
+**Estado post-ADR-0032: `oauth_client_id` queda NULL indefinidamente.** Feature C (Signed Ticket SSO, ADR-0032) **NO requiere** client OIDC per dominio — el `aud` claim del ticket ES256 = host del custom domain, validado contra `place_domain.verified_at IS NOT NULL AND archived_at IS NULL` directo en `lookupPlaceByDomain`. **ADR-0027 (prometida en ADR-0026) nunca se escribirá** — se supersede por ADR-0032 que clausura la deuda con decisión arquitectónica distinta (signed ticket en lugar de OIDC). La columna se preserva nullable como forward-compat: si V2 alguna vez vuelve a OIDC canonical (por aparición de external RPs), se reutiliza sin migration.
 
 ```sql
 CREATE TABLE membership (
@@ -217,13 +219,13 @@ Ver `docs/ontologia/miembros.md` para el detalle ontológico. En el schema:
 - **Capa contextual** (en `membership` + datos derivados por place): rol derivado (owner/miembro), fecha de join, contribuciones acumuladas calculadas por feature
 - **Capa privada**: settings del usuario, no expuestos a otros
 
-## Auth y OIDC (Neon Auth / Better Auth)
+## Auth y SSO (Neon Auth + Signed Ticket cross-domain)
 
-Place actúa como su propio OIDC Identity Provider. La topología y el flujo SSO son canónicos en `docs/architecture.md` § "Sesión y SSO". En el schema:
+Place usa **Neon Auth** (sobre Better Auth managed) para el apex `*.place.community` y **Signed Ticket pattern** (ADR-0032, refina ADR-0001 §1) para SSO desde custom domains. NO somos OIDC IdP canónico — el plugin OIDC Provider de Better Auth no está accesible desde Neon Auth managed; `oidc-provider` (panva) requeriría ~1500-2000 LOC adapter custom (validado 2026-05-22). La topología y el flujo SSO completo son canónicos en `docs/architecture.md` § "Sesión y SSO" + `docs/decisions/0032-custom-domain-sso-signed-ticket.md`. En el schema:
 
 - **Tablas de auth propiedad de la librería, en el schema `neon_auth`.** Verificado (2026-05-16, ADR-0005): Neon Auth provisionado con `auth_provider: better_auth`; tablas en el schema **`neon_auth`** (`user, session, account, verification, jwks` + plugin organization: `organization, member, invitation`). El core del producto va en **`public`**. El link `app_user.auth_user_id` → `neon_auth.user.id` es **referencia lógica cross-schema, sin FK hard**. **No se hand-spec-ean acá** ni se versionan en nuestras migraciones (Drizzle modela solo `public`; las gestiona Neon Auth). **No** usamos el plugin organization de Better Auth para modelar `place` — `place` vive en `public` (este schema); `neon_auth.organization/member/invitation` se ignoran para el dominio.
 - **Integración con `app_user` (decidido: separada, 1:1).** `app_user` es la capa de identidad universal del producto y vive **separada** de la tabla de login de Better Auth, con link 1:1 vía `app_user.auth_user_id UNIQUE`. Razón: la anonimización del derecho al olvido opera sobre `app_user` sin tocar las tablas de auth, y el modelo de dominio no se acopla al schema de la librería. `app_user` se provisiona por orquestación app-side (Server Action de signup) + guard JIT idempotente `ensureAppUser`, **no** por hook/trigger (Neon Auth gestionado, sin webhooks) — canónico en ADR-0006.
-- **Clients OIDC = solo custom domains (decidido: uno por dominio).** `*.place.community` (subdomains + inbox) comparten la cookie cross-subdomain y **no son RPs**. Cada custom domain es un RP con su **propio client confidencial**, provisionado al verificarse el dominio y revocado al archivarlo; el link vive en `place_domain.oauth_client_id`. Topología canónica en `architecture.md` § "Sesión y SSO".
+- **SSO cross-domain via Signed Ticket (ADR-0032, post-2026-05-22).** `*.place.community` (subdomains + inbox) comparten la cookie cross-subdomain `Domain=.place.community` (Neon Auth managed) y **no requieren SSO** entre ellos. Custom domains tienen **sesión local propia**: cookie host-only `__Host-place_sso_session` con JWT ES256 (firmado por apex, TTL 7d, claims `{iss:'place.community', sub:<neon_auth.user.id>, host:<custom_domain>, kid}`). El flow init → issue → redeem usa 4 endpoints (`/api/auth/sso-init`, `/api/auth/sso-issue`, `/api/auth/sso-redeem`, `/api/auth/sso-jwks`) + tabla `app.sso_jti_used` (single-use anti-replay, GC oportunista, función `app.consume_sso_jti` SECURITY DEFINER) + cookie efímera `__Host-place_sso_state` (CSRF + nonce echo, TTL 120s, HMAC firmada con HKDF de signing key). **NO** se provisiona OIDC client per dominio — la columna `place_domain.oauth_client_id` queda NULL indefinidamente (forward-compat). Audience binding (`aud` claim del ticket vs host del redeem) + jti single-use + state cookie CSRF + open-redirect validation triple (init, issue, redeem) = defense-in-depth. Continuidad RLS: `sub` del local session = `neon_auth.user.id` → `app.current_user_id()` retorna el mismo valor cross-domain, cero refactor de policies. Topología canónica + spec detallada en `architecture.md` § "Sesión y SSO" + ADR-0032.
 - **RLS base (ADR-0006/0010/0011).** El aislamiento entre places se enforcea en Postgres RLS por-operación, no solo en código. Identidad vía función propia `app.current_user_id()` (ADR-0011, no Neon RLS). Base: `app_user` solo accesible por su dueño (`app.current_user_id() = auth_user_id`); tablas con `place_id` solo por el owner del place (vía `place_ownership`). Acceso de miembros = por-feature encima de la base. Rol custom no-admin + JWT verificado por JWKS; sin Data API ni `anon`. Spec operativa: `docs/multi-tenancy.md` § RLS.
 - **TBD acotado restante:** firma de ID tokens (RS256 vs EdDSA) la gestiona Neon Auth (`neon_auth.jwks` presente) — detalle de implementación, no afecta el modelo.
 

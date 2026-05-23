@@ -13,7 +13,7 @@ Elecciones tecnológicas de Place y justificación de cada una. Cualquier cambio
 | UI library     | React 19                                        | Estándar                                                                                           |
 | Base de datos  | PostgreSQL 17 gestionado por **Neon**           | Postgres serverless con branching; relacional denso; aislamiento de places vía RLS de Postgres     |
 | Acceso a datos | **Drizzle ORM** (ADR-0004)                      | Thin query builder sin engine/binario (~7KB, cold start mínimo), conexión propia → RLS por request, schema en TS. Resuelve los 3 dolores que sacaron a Prisma. NO se vuelve a Prisma. |
-| Auth           | **Neon Auth** (sobre Better Auth)               | Mismo proveedor que la DB. Place es su propio OIDC IdP (plugin OIDC Provider) → SSO cross-domain para custom domains + inbox (ver `architecture.md` § Sesión y SSO). Migración: neon.com/docs/auth/migrate/from-legacy-auth |
+| Auth           | **Neon Auth** (sobre Better Auth) + **Signed Ticket SSO** (ADR-0032) | Mismo proveedor que la DB para apex `*.place.community`. **NO** somos OIDC IdP canónico — el plugin OIDC Provider de Better Auth no está accesible desde Neon Auth managed (validado 2026-05-22). SSO cross-domain a custom domains via Signed Ticket pattern (JWT ES256 short-lived, jose lib): el apex mintea tickets que el custom domain redeems por sesión local host-only. Refina ADR-0001 §1, supersede §3. Detalle en `architecture.md` § "Sesión y SSO" + ADR-0032. Migración Neon Auth: neon.com/docs/auth/migrate/from-legacy-auth |
 | Storage        | **TBD**                                         | Avatares / assets del place: proveedor pendiente. El uploader de icono del place se difiere a `/settings` post-signup (ADR-0005) para no bloquear el registro. |
 | Realtime       | **TBD**                                         | Si se necesita, se decide acotadamente cuando aparezca el caso de uso.                             |
 | Pagos          | **TBD**                                         | Mecanismo de cobro pendiente. ADR-0005 fija solo el arranque: trial 30d (`place.trial_ends_at`), `OWNER_PAYS`/`ACTIVE`, y al expirar → paywall `PAYMENT_PENDING` (ADR-0003). |
@@ -76,6 +76,19 @@ NEXT_PUBLIC_APP_DOMAIN=place.community
 # en dev local sin tokens el slice `/settings/domain` no opera.
 VERCEL_API_TOKEN=
 VERCEL_PROJECT_ID=
+
+# Custom Domain SSO (Feature C, ADR-0032) — Vercel-only, NUNCA en .env.local
+# committed. Consumidas por src/shared/lib/sso/sso-keys.ts. Setear en Vercel
+# dashboard para environments production + preview (preview branches del PR
+# pipeline necesitan testear el flow).
+# Generación de la key:
+#   openssl ecparam -name prime256v1 -genkey -noout -out tmp.pem
+#   openssl pkcs8 -topk8 -nocrypt -in tmp.pem -out signing-pkcs8.pem
+#   (contenido de signing-pkcs8.pem → Vercel env var; rm tmp.pem signing-pkcs8.pem)
+# Rotación operacional V1: manual cada 90 días (downtime ≤60s = TTL ticket).
+# V2 multi-key rotation (zero-downtime) diferido.
+PLACE_SSO_SIGNING_KEY=           # ES256 PKCS8 PEM private key (multiline)
+PLACE_SSO_SIGNING_KEY_KID=       # short string, ej. "2026-05-23-r1"
 ```
 
 Las variables de storage/realtime/pagos se agregan cuando se decida cada pieza. Los nombres exactos de Neon Auth/Resend/AI Gateway se confirman al implementar S1. **Todo lo que sea secret** (`*_SECRET`, `*_API_KEY`, `*_TOKEN`, `DATABASE_URL`) vive solo en `.env.local` / Vercel env, **nunca en git**.

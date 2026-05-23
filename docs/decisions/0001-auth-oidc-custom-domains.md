@@ -7,8 +7,13 @@
 > **Refinada por ADR-0026 + ADR-0028 (2026-05-21):**
 > - **Verificación V1** = lazy poll en page-load del Server Component (`/settings/domain` invoca Vercel Domains API cuando `place_domain.verified_at IS NULL`) + safety-net cron `*/15` opcional V1.1. **NO** es el polling continuo que el §Decisión #4 sugiere; ese modelo se difirió por costo/complejidad. Detalle: ADR-0026.
 > - **Lifecycle archived libera dominio** (partial unique index `(domain) WHERE archived_at IS NULL` en `place_domain`). Detalle: ADR-0026.
-> - **`place_domain.oauth_client_id` queda NULL en V1** — el provisioning OIDC del §Decisión #3 se delega a Feature C (callback handler en custom domain + SSO silencioso). ADR-0027 (futura) cubrirá el provisioning retroactivo cuando Feature C entre.
 > - **Layout del slice**: `src/features/custom-domain/` (slice propio promovido en S4 del plan Feature A). Detalle: ADR-0028.
+>
+> **Refinada por ADR-0032 (2026-05-22):**
+> - **§1 (topología "dos mundos de sesión")** se mantiene descriptivamente: apex con cookie cross-subdomain + custom domains con sesión local propia.
+> - **§3 SUPERSEDE — Signed Ticket en lugar de OIDC client per dominio.** Place NO es OIDC IdP canónico — el plugin OIDC Provider de Better Auth no está accesible desde Neon Auth managed (validado 2026-05-22) y `oidc-provider` (panva) requeriría ~1500-2000 LOC adapter custom + Koa/Next.js bridge. La industria de comunidades (Circle.so, Discourse, Memberstack) usa Signed Ticket pattern — Place adopta el patrón industria.
+> - **`place_domain.oauth_client_id` queda NULL indefinidamente** como deuda forward-compat (si V2 alguna vez vuelve a OIDC canonical, se reutiliza). **ADR-0027 (prometida en ADR-0026) nunca se escribirá** — se supersede por ADR-0032.
+> - **El SSO cross-domain** sigue siendo silencioso, pero el mecanismo NO es OIDC silent auth (`prompt=none`) sino Signed Ticket via 3 endpoints (`/api/auth/sso-init`, `/api/auth/sso-issue`, `/api/auth/sso-redeem`) + JWKS público en `/api/auth/sso-jwks`. Detalle: ADR-0032.
 
 Las ADR son registro histórico: no se editan, se reemplazan con una nueva ADR que la supersede.
 

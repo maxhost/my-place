@@ -10,6 +10,8 @@
 
 > **Refinada por ADR-0029 (2026-05-22):** la lazy verification V1 era incompleta — solo consultaba V9 `verified` (ownership challenge completado, sticky/append-only) ignorando V6 `misconfigured` (DNS actual, dinámico). El short-circuit de `getCustomDomainStatus:163-164` (return verified si `verified_at IS NOT NULL`) impedía detectar regresiones DNS post-verify. ADR-0029 cierra el gap: chequea ambos endpoints, elimina short-circuit, resetea `verified_at` cuando se detecta `misconfigured: true`. Resto de ADR-0026 sigue vigente (lazy poll en page-load, partial unique index, archived libera dominio).
 
+> **Refinada por ADR-0032 (2026-05-22) — §4 "OIDC client provisioning" OBSOLETA:** el "script idempotente de provisioning retroactivo" anticipado para ADR-0027 ya no aplica. Feature C (Signed Ticket SSO, ADR-0032) **NO requiere** client OIDC per dominio — el `aud` claim del ticket = host del custom domain, validado contra `place_domain.verified_at IS NOT NULL` directo. La columna `place_domain.oauth_client_id` queda NULL indefinidamente como deuda forward-compat. **ADR-0027 nunca se escribirá** — se supersede por ADR-0032. Resto de ADR-0026 sigue vigente (§1 lazy verification + §2 partial unique index + §3 single-domain V1 + §5 forward-compat Feature B/SECURITY DEFINER).
+
 Las ADR son registro histórico: no se editan, se reemplazan con una nueva ADR que la supersede.
 
 ## Contexto
