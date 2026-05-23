@@ -1,6 +1,6 @@
 # Custom Domain SSO — Spec
 
-> _Spec creado 2026-05-22 · Last-updated 2026-05-22. Status: **En implementación (Feature C)** — S0 cierra docs canónicos; S1–S10 ejecutan código; S11 cierra smoke + push. Cierra el slice nuevo `custom-domain-sso` (helpers en `src/shared/lib/sso/`, sub-cap LOC 800 propio) + 4 endpoints API (`/api/auth/sso-{init,issue,redeem,jwks}`) + 1 componente nuevo `<SsoFallbackPanel>` montado en el slice existente `custom-domain-routing`. Decisiones canónicas en [ADR-0032](../../decisions/0032-custom-domain-sso-signed-ticket.md). Plan ejecutado (sesiones + write-back) en [`./plan-sesiones.md`](./plan-sesiones.md). Baseline pre-implementación: `baseline/pre-feature-c` (= `baseline/feature-b-done` = `d20ab00`)._
+> _Spec creado 2026-05-22 · Last-updated 2026-05-23. **Status: V1 CERRADA — deployed + smoke production verde** ✅. Implementación cierra el sub-módulo `src/shared/lib/sso/` (sub-cap LOC 1100 propio, ver ADR-0032 §5 addenda) + 4 endpoints API (`/api/auth/sso-{init,issue,redeem,jwks}`) + 1 componente nuevo `<SsoFallbackPanel>` montado en el slice existente `custom-domain-routing` + sub-sesión S11.1 (fix JWKS redirect Opción D, ADR-0032 §12). Decisiones canónicas en [ADR-0032](../../decisions/0032-custom-domain-sso-signed-ticket.md). Plan ejecutado (sesiones + write-back con SHAs reales) en [`./plan-sesiones.md`](./plan-sesiones.md). Baseline pre-implementación: `baseline/pre-feature-c` (= `baseline/feature-b-done` = `d20ab00`). Baseline final: `baseline/feature-c-done`._
 
 ## Contexto
 
@@ -394,3 +394,54 @@ Estructura esperada post-S11:
 - **Driver Neon (ws)**: ADR-0018 §"Driver = neon-serverless".
 - **`React.cache()` dedup precedente**: `src/app/(app)/place/[placeSlug]/_lib/get-place-for-zone.ts`.
 - **Industry survey 2026-05-22**: Circle.so (`developers.circle.so/docs/sso-overview`) · Discourse (`meta.discourse.org/t/discourseconnect`) · Memberstack (`docs.memberstack.com/hc/en-us/articles/sso`).
+
+## Smoke ejecutado 2026-05-23
+
+### Setup
+
+- **Place de prueba**: `nocode` (slug), nombre "NoCode Community", custom domain `nocodecompany.co` (verified vía Feature A/B).
+- **Owner**: usuario Neon Auth `sub=5bc2b744-82dd-4aa7-909a-c84a994ebf28`, autenticado en `place.community` pre-smoke.
+- **Vercel env vars** seteadas production + preview: `PLACE_SSO_SIGNING_KEY` (PKCS8 PEM ES256) + `PLACE_SSO_SIGNING_KEY_KID=2026-05-23-r1`.
+- **Migration 0011** (`app.consume_sso_jti` SECURITY DEFINER + tabla `app.sso_jti_used`) aplicada en branch Neon main.
+- **JWKS público verificado** pre-smoke: `https://www.place.community/api/auth/sso-jwks` → 200 + `{"keys":[{"kty":"EC","crv":"P-256","kid":"2026-05-23-r1",...}]}`.
+
+### T1.1 inicial (commit `e61e027`, deploy `dpl_3LHtn6dn...`) — ROJO
+
+Owner real navega a `https://nocodecompany.co/settings`. Silent SSO arranca correctamente (init → issue → redeem), pero el redeem aterriza en `?sso_error=signature_invalid` consistentemente. **No es un bug del ticket ni de la signing key** — el ticket capturado de DevTools es matemáticamente válido (verificado offline con scripts `verify-ticket.mjs` / `verify-ticket-www.mjs`).
+
+**Root cause diagnosticado** (postmortem completo: `docs/gotchas/jose-jwks-redirect-manual.md`):
+- jose v6 hardcodea `redirect: 'manual'` en `dist/webapi/jwks/remote.js` línea 19 (defense-in-depth anti JWKS-hijack-via-redirect).
+- El JWKS apex `https://place.community/api/auth/sso-jwks` responde HTTP 307 → `https://www.place.community/api/auth/sso-jwks` por config Vercel platform-level apex→www.
+- jose ve el 307 como respuesta inválida (esperaba 200) y throws; el pipeline mapea correctamente a `signature_invalid` (no leak al cliente de qué falló).
+
+### S11.1 — fix Opción D (commits `23d4c72` code + `473c3e8` docs)
+
+**Fix production-grade** (validado vs 8 alternativas): nuevo helper `makeSafeRedirectFollowingFetch` en `src/shared/lib/sso/sso-jwks-fetcher.ts` inyectado vía `customFetch` Symbol export de jose al `createRemoteJWKSet`. Sigue redirects sólo bajo policy estricta: **same-registrable-domain + https + ≤3 hops**. Cualquier violación → `SsoJwksRedirectError` → mapea a `signature_invalid` (igual semántica que falla JWKS genérica).
+
+**TDD verde**: 10 tests nuevos en `src/shared/lib/sso/__tests__/sso-jwks-fetcher.test.ts` cubren no-redirect happy, apex→www same-registrable, subdomain↔subdomain, cross-registrable reject, https downgrade reject, max-hops, headers propagan, AbortSignal propaga, manual redirect forced.
+
+**Documentación**: postmortem operativo `docs/gotchas/jose-jwks-redirect-manual.md` + ADR-0032 §12 nuevo "Same-registrable-domain redirect policy" (decisión + tabla 9 alternativas + consecuencias forward) + ADR-0032 §5 addendum sub-cap LOC 1000 → 1100 (helper consumió ~140 LOC).
+
+### T1.1 retry post-fix (commit `473c3e8`, deploy `dpl_5fmp8Lfc7sagPiB8bPaGmJZ2dXM4`) — VERDE ✅
+
+Mismo flow (owner real navega a `https://nocodecompany.co/settings`), pipeline init → issue → redeem termina en `nocodecompany.co/settings` **sin** `sso_error`, con cookie `__Host-place_sso_session` correctamente seteada.
+
+**Evidencia** (cookie JWT decoded del DevTools Network tab):
+
+| Claim | Valor | Verificación |
+|---|---|---|
+| Header `alg` | `ES256` | ✓ matchea spec |
+| Header `kid` | `2026-05-23-r1` | ✓ matchea JWKS público |
+| `iss` | `place.community` | ✓ |
+| `sub` | `5bc2b744-82dd-4aa7-909a-c84a994ebf28` | ✓ **mismo Neon Auth user.id** → continuidad RLS empíricamente verificada cross-domain |
+| `host` | `nocodecompany.co` | ✓ defense-in-depth host claim |
+| `iat` | 1779572799 (2026-05-23 16:46:39 UTC) | ✓ |
+| `exp` | 1780177599 (2026-05-30 16:46:39 UTC) | ✓ exactos 7d = `LOCAL_SESSION_TTL_SECONDS` |
+| Cookie name | `__Host-place_sso_session` | ✓ prefix correcto (Path=/, Secure, HttpOnly enforced por browser) |
+| URL final | `https://nocodecompany.co/settings` sin `sso_error` | ✓ |
+
+### Conclusión
+
+Feature C V1 deployed end-to-end verde. El owner real autenticado en `place.community` accede a `nocodecompany.co/settings` con sesión local emitida transparentemente (~1-2s, sin click extra ni redirect visible al apex). Continuidad RLS verificada empíricamente — el `sub` del local session JWT coincide con el `neon_auth.user.id` original, por lo que `app.current_user_id()` retorna el mismo valor en custom domain que en apex (cero refactor de policies, ADR-0032 §6 cumplido).
+
+Bug T1.1 cerrado vía S11.1 (Opción D). Tag final: `baseline/feature-c-done`. Deploy production: `dpl_5fmp8Lfc7sagPiB8bPaGmJZ2dXM4`.
