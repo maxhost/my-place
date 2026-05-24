@@ -262,6 +262,22 @@ Trigger: smoke production T1.1 de S11 detectó `sso_error=signature_invalid` aun
 - Pre-fix: `baseline/pre-s11-fix-jwks-redirect`.
 - Post-fix code: `baseline/feature-c-s11.1-code`.
 
+#### Addendum 2026-05-23 (S11.3.B) — sub-cap subido de 1100 a 1400 LOC
+
+Trigger: smoke M1 owner-driven post-S11.2 detectó bug T1.3 (apex login no honra `?returnTo`). Fix V1 documentado en ADR-0033 introduce helper PURE nuevo `src/shared/lib/sso/validate-login-return-to.ts` (~128 LOC) en el sub-módulo. Co-localización justificada por mismo principio que `sso-jwks-fetcher.ts`: registrable-domain matching como invariante intra-Place trust.
+
+**LOC measurement pre-S11.3.B**: `wc -l src/shared/lib/sso/*.ts` → **1168 LOC** (cap previo 1100 con margen negativo aceptado ~40 LOC heredado del bump 1000→1100, no remediado en S11.2 que no tocó shared/lib/sso/). Post-S11.3.B: **1297 LOC**. Bump justificado de **1100 → 1400 LOC**, con margen positivo ~100 LOC residual para wire-up S11.3.C que NO tocará el sub-módulo pero deja headroom para futuros bug-fixes co-localizados (gotchas operacionales del flow seguramente seguirán apareciendo en el período post-deploy V1).
+
+**Por qué +300 y no +100 como bump previo**: el helper terminó siendo ~128 LOC vs estimación ~80 LOC del ADR-0033 §"Estructura del fix". La diferencia (+48 LOC) responde a doc-density apropiada para código de seguridad — comments verbose explicando policy + edge cases + rationale del allowlist explícito vs abierto. Sumado al margen negativo heredado de S11.1 (~40 LOC), el bump efectivo necesario fue +130 sobre cap previo, no +80. El bump +300 a 1400 da buffer adicional ~100 LOC para wire-up futuro sin volver a pausar y reabrir el cap. Calibrado a realidad medida + buffer estricto.
+
+**Lo que NO cambia** (consistente con bumps previos 800→1000→1100):
+- Cap shared/lib raíz: **800** (intacto). Este sub-cap es ortogonal.
+- Sub-cap por archivo: **300** (intacto). `validate-login-return-to.ts` queda 128 LOC, dentro.
+- Cap por función: **60** (intacto). `validateLoginReturnTo` queda ~30 LOC.
+- Otros sub-módulos `shared/lib/<name>/` futuros heredan **800** por default. Cualquier excepción requiere ADR addendum equivalente.
+
+**Pre-S11.3.B verification baseline**: 1168 LOC. Tag de save point: `baseline/pre-s11.3-fix-returnto` (= S11.2 close `17b5df5`). Post-S11.3.B: `baseline/feature-c-s11.3.B-helper`.
+
 ### 6. Local session JWT (custom domain)
 
 Claims del JWT seteado en `__Host-place_sso_session`:

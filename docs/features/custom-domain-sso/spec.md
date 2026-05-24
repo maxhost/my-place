@@ -543,9 +543,9 @@ El `?returnTo` viaja correctamente en URL. El bug está en el lado consumer (log
 - `useAccessForm` NO se toca — superficie del hook intacta (separation of concerns preservada; decisión `returnTo vs Hub` vive en componente Server-aware `AccessFlow`).
 - Backwards-compat: flows pre-Feature-C sin returnTo siguen al Hub canónico hardcoded (signup landing, login directo apex, etc.).
 
-**Sub-cap `shared/lib/sso/` post-S11.3**: 1100 (S11.1) → ~1180 (S11.3.B). Addendum single-line en ADR-0032 §5 documentando bump 1100 → 1200 (mismo patrón S3.5/S11.1).
+**Sub-cap `shared/lib/sso/` post-S11.3.B (medición real)**: bump efectivo **1100 → 1400 LOC** (pre-S11.3.B = 1168 LOC heredando margen negativo ~40 de S11.1; post-S11.3.B = 1297 LOC con helper PURE de 128 LOC vs ~80 LOC estimados — +60% por doc-density apropiada para código de seguridad; bump +300 incluye ~100 LOC buffer positivo forward-compat). Addendum dedicado en ADR-0032 §5 (`Addendum 2026-05-23 (S11.3.B) — sub-cap subido de 1100 a 1400 LOC`). Patrón consistente con bumps previos 800→1000 (S3.5) → 1100 (S11.1).
 
-**Status pre-implementación**: ADR-0033 escrita (S11.3.A, este commit). Implementación pendiente: S11.3.B (helper PURE + 12 tests TDD), S11.3.C (wire-up 3 archivos + 2 tests RTL nuevos + ajuste 3 tests existentes), S11.3.D (smoke M1 retry production + docs close + push bundle B+C+D).
+**Status post-S11.3.B**: helper PURE `validateLoginReturnTo` ✅ + 14 tests passing (12 canónicos del ADR-0033 + 2 secundarios `/api/auth/sso-init` + subdomain del apex) ✅ + addendum ADR-0032 §5 bump 1100 → 1400 escrito ✅. Pendiente: S11.3.C (wire-up 3 archivos + 2 tests RTL nuevos + ajuste 3 tests existentes), S11.3.D (smoke M1 retry production + docs close + push bundle B+C+D).
 
 ### T1.3 retry post-fix (post-S11.3.D, write-back en S11.3.D)
 
