@@ -99,6 +99,13 @@
       "when": 1779748135357,
       "tag": "0013_app_create_place_set_founder",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1779748235357,
+      "tag": "0014_app_elevate_to_owner",
+      "breakpoints": true
     }
   ]
 }
