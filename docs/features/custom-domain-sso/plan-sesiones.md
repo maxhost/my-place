@@ -1,13 +1,14 @@
 # Custom Domain SSO — Plan de sesiones (write-back final)
 
-> _Esqueleto inicial creado 2026-05-22 (S0). **Write-back final 2026-05-23 (S11)** con commit SHAs reales + tags confirmados + smoke production verde + deploy IDs Vercel. **Sub-sesión S11.1 (fix JWKS redirect Opción D, descubierto durante T1.1)** + **sub-sesión S11.2 (fix zone-cookie unawareness Opción B, descubierto durante T1.2 smoke owner-driven post-T1.1)** completan el cierre operativo de V1. El plan operacional completo (sesiones S-1 → S11 con justificación, parallel agents, locked files, LOC budget tracking, gap closure) vive en `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md` — single source of truth ejecutiva._
+> _Esqueleto inicial creado 2026-05-22 (S0). **Write-back final 2026-05-23 (S11)** con commit SHAs reales + tags confirmados + smoke production verde + deploy IDs Vercel. **Sub-sesión S11.1 (fix JWKS redirect Opción D, descubierto durante T1.1)** + **sub-sesión S11.2 (fix zone-cookie unawareness Opción B, descubierto durante T1.2 smoke owner-driven post-T1.1)** completaron el cierre del happy-path V1. **Sub-sesión S11.3 in-progress 2026-05-23 (fix bug T1.3: apex login honra `?returnTo` para cerrar el cold-start SSO M1 desde custom domain — bug pre-existing en login apex expuesto por Feature C, ADR-0033 canónica)**. El plan operacional completo (sesiones S-1 → S11 con justificación, parallel agents, locked files, LOC budget tracking, gap closure) vive en `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md` — single source of truth ejecutiva._
 
-## Status: **CERRADA — V1 deployed + smoke production verde T1.1 + T1.2** ✅
+## Status: **CERRADA happy-path (T1.1 + T1.2) · S11.3 in-progress (T1.3 cold-start M1)** ⏳
 
-Feature C V1 deployed a producción 2026-05-23 con dos sub-sesiones de fix post-deploy verificadas verde:
+Feature C V1 deployed a producción 2026-05-23 con dos sub-sesiones de fix post-deploy verificadas verde + una sub-sesión in-progress para cerrar el último gap funcional (cold-start M1):
 
 - **T1.1 (silent SSO signature_invalid)** cerrado por S11.1 (deploy `dpl_5fmp8Lfc7sagPiB8bPaGmJZ2dXM4`). Cookie `__Host-place_sso_session` correctamente seteada (claims `iss/sub/host/iat/exp` válidos, continuidad RLS empíricamente verificada con `sub` matcheando Neon Auth user.id).
-- **T1.2 (4 Server Actions broken on custom domain, RFC 6265 cookie scope)** cerrado por S11.2 (deploy TBD post-push). Helper zone-aware `getAuthenticatedDbForRequest` detecta la zona del request y resuelve la cookie correcta (Neon Auth en apex/subdomain, SSO local `__Host-place_sso_session` en custom domain). Las 4 actions migradas (`update-default-locale`, `register-custom-domain`, `archive-custom-domain`, `get-custom-domain-status`) ahora funcionan transparentemente en ambas zonas — UI populated + acciones owner ejecutables desde `nocodecompany.co/settings` y `nocodecompany.co/settings/domain`.
+- **T1.2 (4 Server Actions broken on custom domain, RFC 6265 cookie scope)** cerrado por S11.2 (deploy `dpl_2vhnAC2REbcjGgureWp85VRqpzj6` READY 2026-05-23). Helper zone-aware `getAuthenticatedDbForRequest` detecta la zona del request y resuelve la cookie correcta (Neon Auth en apex/subdomain, SSO local `__Host-place_sso_session` en custom domain). Las 4 actions migradas (`update-default-locale`, `register-custom-domain`, `archive-custom-domain`, `get-custom-domain-status`) ahora funcionan transparentemente en ambas zonas — UI populated + acciones owner ejecutables desde `nocodecompany.co/settings` y `nocodecompany.co/settings/domain`. Tag `baseline/feature-c-s11.2-done` = `17b5df5`.
+- **T1.3 (apex login descarta `?returnTo` en cold-start M1)** ⏳ in-progress vía S11.3 (ADR-0033 canónica). Bug pre-existing en login apex `/[locale]/login` (no contemplaba `searchParams.returnTo` + `AccessFlow.onSuccess` hardcoded a Hub canónico). Feature C lo expone sin causarlo — es la primera feature que envía users a `/login?returnTo=…` esperando honor. Fix: helper PURE `validateLoginReturnTo` con allowlist explícito + wire-up minimal en 3 archivos código. Status pre-implementación: S-1 save point ✅ + S11.3.A docs (este commit). Pendiente: S11.3.B (helper + 12 TDD tests), S11.3.C (wire-up), S11.3.D (smoke M1 retry + close + push).
 
 ## Mapeo S-1 → S11 (write-back con SHAs reales)
 
@@ -32,7 +33,12 @@ Feature C V1 deployed a producción 2026-05-23 con dos sub-sesiones de fix post-
 | **S11.2.A** | Foundation zone-aware: `decideAuthBranch` (PURE) + `getAuthenticatedDbForRequest` (integrator) + 8 tests | `20b44e8` | `baseline/feature-c-s11.2.A-foundation` |
 | **S11.2.B** | Migrar 4 Server Actions broken-on-custom-domain a helper zone-aware (2 exemplars Maxi + 2 parallel agents) | `bebfbf4` | `baseline/feature-c-s11.2.B-migrated` |
 | **S11.2.C (pre-push)** | Docs close-out S11.2: write-back plan-sesiones + spec T1.2 journey | `5e62f0d` | `baseline/feature-c-s11.2.C-pre-push` |
-| **S11.2 (close T1.2)** | Push bundle (A+B+C) + smoke production T1.2 retry VERDE + final write-back | TBD (este commit) | `baseline/feature-c-s11.2-done` |
+| **S11.2 (close T1.2)** | Push bundle (A+B+C) + smoke production T1.2 retry VERDE + final write-back | `17b5df5` | `baseline/feature-c-s11.2-done` |
+| **S-1 S11.3** | Save point pre-fix-returnto (tag-only, sin commit) | `17b5df5` (= s11.2-done) | `baseline/pre-s11.3-fix-returnto` |
+| **S11.3.A** | Docs canónica T1.3: ADR-0033 + spec write-back + plan-sesiones + gotcha + READMEs | TBD (backfill en S11.3.B) | `baseline/feature-c-s11.3.A-docs` |
+| **S11.3.B** | Helper PURE `validateLoginReturnTo` (~80 LOC) + 12 TDD tests + addendum ADR-0032 §5 bump sub-cap 1100 → 1200 | TBD | `baseline/feature-c-s11.3.B-helper` |
+| **S11.3.C** | Wire-up `page.tsx` + `AccessFlow` (`useAccessForm` intacto) + 2 tests RTL nuevos + ajuste 3 tests existentes | TBD | `baseline/feature-c-s11.3.C-wire` |
+| **S11.3.D** | Smoke M1 retry production VERDE + docs close + push autorizado bundle B+C+D | TBD | `baseline/feature-c-s11.3-done` |
 
 Detalle ejecutivo por sesión (justificación, parallel agents, locked files, pre/post-commit checklist, LOC tracking): `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md`.
 
@@ -64,6 +70,30 @@ Sub-sesión S11.2 ejecutada en 3 sub-fases con tags intermedios para rollback gr
 
 **Costo aceptable V1**: cada `getAuthenticatedDbForRequest` invocation repite zone resolution + JWT verification + SQL lookup a `app.lookup_place_by_domain`. En multi-helper actions con 3 calls internas = 3× roundtrips. Documentado in-code; V1.1 follow-up si telemetría demanda (memoizar decision con `React.cache` dentro del helper).
 
+### 5. S11.3 — fix bug T1.3 descubierto en smoke M1 owner-driven post-S11.2
+
+Trigger: con T1.1 + T1.2 verdes (silent SSO + Server Actions zone-aware), el smoke M1 owner-driven 2026-05-23 (visitor anónimo en incógnito → `nocodecompany.co/settings`) reveló que el flow SSO emite `?returnTo=<sso-issue URL>` correctamente desde `redirectToApexLogin` (`src/app/api/auth/sso-issue/route.ts:145-153`) pero **el login apex lo descarta silenciosamente** y aterriza al user en Hub canónico hardcoded.
+
+**Root cause**: bug pre-existing en `/[locale]/login` (page `src/app/(marketing)/[locale]/login/page.tsx` + componente `src/features/access/ui/access-flow.tsx` + hook `src/features/access/ui/use-access-form.ts`). Construidos en S9 del Hub V1 (ADR-0008/0009) para flow account-first SIN contemplar redirect-after-login. 5 smoking guns confirmados con file:line (ADR-0033 §"Smoking guns"):
+
+1. `page.tsx:22` — `type Props = { params }` sin `searchParams` → returnTo invisible.
+2. `page.tsx:38-41` — guard "ya logueado" hardcoded a Hub canónico.
+3. `page.tsx:81-88` — page no propaga returnTo al AccessFlow (no puede — no lo lee).
+4. `access-flow.tsx:52` — `onSuccess` hardcoded a Hub canónico.
+5. `use-access-form.ts:23,76` — `onSuccess: () => void` sin surface para returnTo.
+
+Los 5 forman cadena coherente: page NUNCA lee returnTo + guard NO lo respeta + componente cliente está cableado para descartarlo. El bug NO es del SSO flow (que emite correctamente) sino del **consumer del returnTo en login apex**.
+
+**Por qué no se detectó antes**: T1.1 y T1.2 partían siempre de owner ya logueado en apex (silent SSO toma path que mintea ticket sin pasar por login). Sólo el cold-start incógnita (M1) expone el gap. Feature C es la primera feature que envía users a `/login?returnTo=…` esperando honor.
+
+**Fix Opción única "page consumer del returnTo"** (ADR-0033 canónica): helper PURE nuevo `validateLoginReturnTo` en `src/shared/lib/sso/` (~80 LOC) con allowlist explícito (`/api/auth/sso-{issue,init}` + relative paths) + same-registrable-domain HTTPS para absolute URLs (precedente S11.1 `sso-jwks-fetcher` same-registrable-domain policy) + reject de open-redirect vectors. Wire-up minimal: page lee + valida + propaga, AccessFlow recibe nuevo prop `returnTo?: string` + closure en onSuccess, `useAccessForm` NO se toca (separation of concerns preservada).
+
+**Backwards-compat**: flows pre-Feature-C sin returnTo (signup landing, login directo apex marketing, etc.) siguen al Hub canónico hardcoded — comportamiento idéntico al pre-S11.3. Cero blast-radius colateral.
+
+**Alternativas rechazadas** (ADR-0033 §"Alternativas rechazadas"): (1) Server Action redirect server-side — incompatible con Better Auth contract; (2) reescribir flow Feature C para emitir tickets sin sesión apex — imposible by design; (3) cookie "intended destination" pre-login — over-engineering; (4) mover silent SSO al middleware — out of scope (ortogonal al bug); (5) allowlist abierto — over-permissive V1.
+
+Sub-sesión S11.3 ejecutada en 4 sub-fases con tags intermedios para rollback granular: **S-1 save point** (tag-only, `baseline/pre-s11.3-fix-returnto` = `17b5df5`, suite verde verificada), **S11.3.A docs** (este commit, single owner Maxi sequential — 5-6 docs cohesivos, sin agentes), **S11.3.B helper PURE** (single owner Maxi — código de seguridad), **S11.3.C wire-up** (single owner Maxi — 3 archivos cohesivos), **S11.3.D smoke + close + push** (single owner Maxi).
+
 ## Smoke production resultados (referencia)
 
 **Resultados completos**: ver `spec.md` §"Smoke ejecutado 2026-05-23".
@@ -74,6 +104,8 @@ Resumen:
 - **T1.1 retry post-fix** (commit `473c3e8` deploy `dpl_5fmp8Lfc...`): **VERDE** — cookie `__Host-place_sso_session` con claims `iss=place.community / sub=<neon_auth_user_id> / host=nocodecompany.co / iat / exp +7d` correctamente seteada en `nocodecompany.co/settings` post silent SSO.
 - **T1.2 inicial** (deploy `dpl_5fmp8Lfc...`, post-cookie set): `nocodecompany.co/settings` cargó la página pero **form de locale vacío** + `nocodecompany.co/settings/domain` no muestra dominio configurado. RLS-filtered a 0 rows porque `app.current_user_id()` retornó NULL en custom domain (cookie Neon Auth ausente por RFC 6265, las 4 Server Actions leían SÓLO Neon Auth) → triggered S11.2 fix.
 - **T1.2 retry post-fix** (commit `5e62f0d` deploy `dpl_2vhnAC2REbcjGgureWp85VRqpzj6`): **VERDE** — los 3 paths owner-driven (`/settings` form populated + `/settings/domain` dominio configurado + cambiar locale persiste) pasan. Server-side sanity (host routing + silent SSO trigger + JWKS apex) intacta. Detalle completo en `spec.md` §"T1.2 retry post-fix".
+- **T1.3 inicial (M1 cold-start owner-driven post-S11.2, 2026-05-23)**: **ROJO** — visitor anónimo en `nocodecompany.co/settings` dispara silent SSO correctamente (steps 1-4 OK), aterriza en apex login con `?returnTo=<sso-issue URL>` correctamente encoded, loguea, pero al submit **navega a Hub canónico hardcoded en lugar del returnTo** → triggered S11.3 fix (ADR-0033). Detalle en `spec.md` §"T1.3 inicial".
+- **T1.3 retry post-fix** (TBD post-S11.3.D): write-back de evidencia VERDE pendiente. Sección reservada en `spec.md` §"T1.3 retry post-fix".
 
 ## Comando de rollback total documentado
 
@@ -90,6 +122,14 @@ git reset --hard baseline/feature-c-done
 # Rollback granular S11.2:
 #   - S11.2.B (mantiene foundation): git reset --hard baseline/feature-c-s11.2.A-foundation
 #   - S11.2.A (vuelve a pre-S11.2):  git reset --hard baseline/feature-c-done
+
+# Rollback al pre-fix returnTo (estado S11.2 close, sin fix de bug T1.3):
+git reset --hard baseline/pre-s11.3-fix-returnto
+
+# Rollback granular S11.3:
+#   - S11.3.C (mantiene helper): git reset --hard baseline/feature-c-s11.3.B-helper
+#   - S11.3.B (mantiene docs):   git reset --hard baseline/feature-c-s11.3.A-docs
+#   - S11.3.A (vuelve a S11.2):  git reset --hard baseline/pre-s11.3-fix-returnto
 
 # Migration 0011 aplicada en branch Neon test/preview: DROP manual si rollback < S1:
 #   psql "$DATABASE_URL" -c "REVOKE EXECUTE ON FUNCTION app.consume_sso_jti(text, timestamptz) FROM \"app_system\";"
@@ -127,15 +167,23 @@ baseline/feature-c-done                 = 523fa8d   (S11 close T1.1: smoke verde
 baseline/feature-c-s11.2.A-foundation   = 20b44e8   (S11.2.A: decideAuthBranch PURE + getAuthenticatedDbForRequest + 8 tests)
 baseline/feature-c-s11.2.B-migrated     = bebfbf4   (S11.2.B: 4 Server Actions migradas a helper zone-aware)
 baseline/feature-c-s11.2.C-pre-push     = 5e62f0d   (S11.2.C pre-push: docs close-out + push autorizado bundle A+B+C)
-baseline/feature-c-s11.2-done           = TBD       (S11.2 close T1.2: smoke owner-driven VERDE + final write-back, este commit)
+baseline/feature-c-s11.2-done           = 17b5df5   (S11.2 close T1.2: smoke owner-driven VERDE + final write-back)
+baseline/pre-s11.3-fix-returnto         = 17b5df5   (= s11.2-done, save point pre-fix S11.3 cold-start M1)
+baseline/feature-c-s11.3.A-docs         = TBD       (S11.3.A docs: ADR-0033 + spec write-back + plan-sesiones + gotcha, backfill en S11.3.B)
+baseline/feature-c-s11.3.B-helper       = TBD       (S11.3.B: validateLoginReturnTo PURE + 12 TDD tests + addendum ADR-0032 §5 bump)
+baseline/feature-c-s11.3.C-wire         = TBD       (S11.3.C: wire-up page + AccessFlow + 2 tests RTL nuevos + ajuste 3 tests existentes)
+baseline/feature-c-s11.3-done           = TBD       (S11.3 close T1.3: smoke M1 retry VERDE + docs close + push bundle B+C+D)
 ```
 
 ## Pointers
 
 - **ADR canónica V1 de Feature C**: [`../../decisions/0032-custom-domain-sso-signed-ticket.md`](../../decisions/0032-custom-domain-sso-signed-ticket.md) — incluye §12 "Same-registrable-domain redirect policy" (post-S11.1).
-- **Spec del feature**: [`./spec.md`](./spec.md) — §"Smoke ejecutado 2026-05-23" con evidencia T1.1 verde.
-- **Tests checklist**: [`./tests.md`](./tests.md) — checklist TDD ejecutado verde.
+- **ADR canónica S11.3 (cold-start M1)**: [`../../decisions/0033-apex-login-honors-returnto.md`](../../decisions/0033-apex-login-honors-returnto.md) — refina ADR-0032 §2 step 2 (cierra contrato del lado consumer del `?returnTo` que `sso-issue` ya emitía correctamente).
+- **Spec del feature**: [`./spec.md`](./spec.md) — §"Smoke ejecutado 2026-05-23" (T1.1 + T1.2 VERDE) + §"T1.3 inicial ROJO + S11.3 fix" + §"T1.3 retry post-fix" (TBD post-S11.3.D).
+- **Tests checklist**: [`./tests.md`](./tests.md) — checklist TDD ejecutado verde para happy-path; tests S11.3 pending S11.3.B/.C.
 - **Gotcha S11.1**: [`../../gotchas/jose-jwks-redirect-manual.md`](../../gotchas/jose-jwks-redirect-manual.md) — postmortem operativo del bug T1.1.
+- **Gotcha S11.3**: [`../../gotchas/apex-login-returnto-honored.md`](../../gotchas/apex-login-returnto-honored.md) — postmortem operativo del bug T1.3 (cold-start M1 + 5 smoking guns + modelo mental para futuros consumers de `/login?returnTo=…`).
 - **Plan ejecutivo completo (single source of truth)**: `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md`.
 - **Save point pre-Feature-C (= Feature B done)**: tag `baseline/pre-feature-c` (commit `d20ab00`).
+- **Save point pre-S11.3 (= S11.2 done)**: tag `baseline/pre-s11.3-fix-returnto` (commit `17b5df5`).
 - **Precedente Feature B plan**: [`../custom-domain-routing/plan-sesiones.md`](../custom-domain-routing/plan-sesiones.md).
