@@ -2,7 +2,7 @@
 
 Schema del core del producto, expresado en **SQL (Postgres) ORM-agnóstico**. El método de acceso (ORM/query builder/SQL plano) está TBD; el modelo no depende de esa decisión. Cada feature agrega sus propias tablas respetando este core.
 
-> _Última actualización: 2026-05-21 (custom-domain V1.1, ADR-0026 — partial unique index sobre `place_domain.domain`)._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
+> _Última actualización: 2026-05-24 (Feature D V1, ADR-0035 — `place_ownership` WORM-via-DEFINER + `place.founder_user_id` + 4 funciones `SECURITY DEFINER` que canalizan toda mutación)._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
 
 ## Schema base
 
@@ -133,6 +133,20 @@ CREATE TABLE membership (
   UNIQUE (user_id, place_id)
 );
 
+-- WORM-via-DEFINER (ADR-0035 §4, Feature D V1 close 2026-05-24): tabla
+-- write-once-read-many vía SECURITY DEFINER. La RLS policy `po_sel` permite
+-- SELECT a los owners del place (via helper `app.current_user_owns_place`);
+-- INSERT/UPDATE/DELETE están REVOKED a `app_system` (defense-in-depth) →
+-- toda mutación pasa por 4 funciones `SECURITY DEFINER` que validan
+-- invariantes en cuerpo:
+--   - app.create_place                (CU1, migration 0013) — INSERT founder
+--   - app.elevate_to_owner            (CU2, migration 0014) — INSERT co-owner
+--   - app.revoke_ownership            (CU3, migration 0015) — DELETE co-owner
+--   - app.transfer_founder_ownership  (CU4, migration 0016) — UPDATE founder
+--                                                            + DELETE caller
+-- Síntoma de drift (mutación directa por código de feature): `ERROR:
+-- permission denied for table place_ownership`. Ver gotcha `docs/gotchas/
+-- place-ownership-defining-functions-only.md` (a crear en S6).
 CREATE TABLE place_ownership (
   id         TEXT PRIMARY KEY,
   user_id    TEXT NOT NULL REFERENCES app_user(id),
