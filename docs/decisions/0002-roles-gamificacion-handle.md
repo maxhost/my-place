@@ -1,5 +1,7 @@
 # 0002 — Roles owner/miembro, reconocimiento de pertenencia, ciclo de vida del handle
 
+> **Refinada por [ADR-0035](0035-place-ownership-multi-owner-v1.md) (2026-05-24):** multi-owner desde V1 + founder slot inmutable (`place.founder_user_id`) + transferencia 1:1 vía `app.transfer_founder_ownership`. El cuerpo histórico de esta ADR queda intacto (las ADRs no se editan); ADR-0035 lo refina sin invalidar — owner sigue siendo el rol derivado por `place_ownership`, ahora con N filas por place. Ver ADR-0035 §1 y §2.
+
 - **Fecha:** 2026-05-16
 - **Estado:** Aceptada
 - **Alcance:** producto (principio no negociable), ontología de miembros, modelo de datos

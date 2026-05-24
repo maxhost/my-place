@@ -1,5 +1,7 @@
 # 0003 — Lifecycle de cuenta y de place; tombstone; reemplazo de los 365 días
 
+> **Refinada por [ADR-0035](0035-place-ownership-multi-owner-v1.md) (2026-05-24):** la exención owner del §1 ("≥1 place activo") se interpreta literal post-multi-owner: cualquier owner (founder o co-owner) extiende la exención mientras el place esté `subscription_status IN ('ACTIVE','PAYMENT_PENDING','INACTIVATION_PROCESS')`. La revocación de ownership re-evalúa la condición. Sin cambio de schema; el wording de `data-model.md` § "Invariantes del dominio" se actualiza acorde. Ver ADR-0035 §5.
+
 - **Fecha:** 2026-05-16
 - **Estado:** Aceptada
 - **Alcance:** ontología de miembros, modelo de datos, billing (mecanismo TBD)

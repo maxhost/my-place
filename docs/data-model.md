@@ -79,6 +79,12 @@ CREATE TABLE place (
   -- Default: ambas OFF — un place nace solo con Discusiones; el owner
   -- activa Eventos y/o Biblioteca desde /settings cuando las quiere.
   enabled_features JSONB NOT NULL DEFAULT '[]',
+  -- Slot único del owner-fundador (creador del place o quien recibió transfer
+  -- de ownership). NOT NULL post back-fill de migration 0012 (ADR-0035).
+  -- Inmutable salvo por `app.transfer_founder_ownership` (SECURITY DEFINER).
+  -- Referencia lógica a app_user.id (sin FK hard, mismo criterio que
+  -- app_user.auth_user_id → neon_auth.user.id).
+  founder_user_id  TEXT NOT NULL,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   archived_at      TIMESTAMPTZ
 );
@@ -196,8 +202,10 @@ Las columnas `JSONB` no son libres: tienen un shape canónico validado con Zod e
 Reglas que el código debe enforzar. No son validaciones UI — son invariantes estructurales que viven en el modelo o en domain services.
 
 - **Máximo 150 miembros por place.** Al intentar agregar el miembro 151, el modelo rechaza con error estructural.
-- **Mínimo 1 owner por place activo.** Un place no puede quedar sin owner. Si un owner quiere irse, debe transferir primero.
-- **Transferencia de ownership requiere que el target sea miembro actual.** No se puede transferir a alguien externo al place.
+- **Mínimo 1 owner por place activo (enforce DB-side via DEFINER).** Un place no puede quedar sin owner. Enforce vía las funciones `app.revoke_ownership` y `app.transfer_founder_ownership` (`SECURITY DEFINER`, RAISE EXCEPTION en cuerpo) + `REVOKE INSERT, UPDATE, DELETE ON place_ownership FROM "app_system"` (defense-in-depth: ninguna ruta TS llega directo a SQL). Canónico: ADR-0035 §4.
+- **Founder slot único por place, no-delete por otro owner.** `place.founder_user_id` es el `app_user.id` del owner-fundador (creador o quien recibió transfer). Inmutable salvo por `app.transfer_founder_ownership` (`SECURITY DEFINER`, sólo el founder actual puede transferirlo a un owner pre-existente). Canónico: ADR-0035 §2.
+- **Transfer founder requiere target owner pre-existente.** El target de `app.transfer_founder_ownership` debe ser owner actual (≥2 owners pre-transfer); si N=1 (founder solo), el caller debe elevar primero a alguien vía `app.elevate_to_owner`. Bloqueado con RAISE EXCEPTION explícito. Canónico: ADR-0035 §2/§4.
+- **Multi-owner desde V1; co-owners se elevan desde miembros pre-existentes.** Un place tiene N owners simultáneos (N filas en `place_ownership` con mismo `place_id`); todos comparten poder operativo (CRUD owner-only vía policies de `place`/`membership`/`invitation`/`place_domain`). La asimetría es de origen (founder vs co-owner). `app.elevate_to_owner` requiere que el target sea miembro activo (`membership.left_at IS NULL`) del mismo place — no se puede elevar a externos. Canónico: ADR-0035 §1/§2.
 - **No se pueden mezclar billing modes.** Un place tiene un solo modo activo. Cambiar de modo requiere flow explícito. (Estrategia de pagos concreta: TBD.)
 - **Slug inmutable.** Ver `multi-tenancy.md`.
 - **Un usuario no puede tener dos memberships activas en el mismo place.** Enforzado por unique constraint `(user_id, place_id)`.
@@ -207,7 +215,7 @@ Reglas que el código debe enforzar. No son validaciones UI — son invariantes 
 - **Discusiones es la zona no-desactivable.** Es el primitivo del que derivan eventos y biblioteca; siempre está activa. Eventos y Biblioteca son zonas **opcionales** que el owner activa/desactiva desde `/settings/*` (`enabled_features`). Miembros no es una zona toggleable: los miembros existen siempre.
 - **`place.default_locale` editable por el owner, fijo para todos los miembros (ADR-0022).** Default `es` al crear; el owner puede cambiarlo en `/settings` a uno de los 6 locales operativos (`es/en/fr/pt/de/ca`, enforzado por `CHECK`). NO existe locale por-miembro: todos los miembros ven el chrome del place en `place.default_locale`. La zona pública (marketing, Hub) sigue el locale del path del visitante — son dos modos distintos canónicos en `architecture.md` § "i18n: dos modos de resolución de locale".
 - **Handle obligatorio y único global.** `app_user.handle NOT NULL UNIQUE`. Auto-asignado random no-usado al crear la cuenta, editable por el usuario, liberado para reuso **solo al borrar la cuenta** (no al salir de un place).
-- **Exención de la escala de inactividad.** La escala 6m/12m de cuenta NO corre mientras el usuario sea owner de ≥1 place activo O tenga ≥1 pago activo. Es una condición evaluada, no un flag permanente: al dejar de cumplir ambas, la cuenta entra a la escala. Ver ADR-0003.
+- **Exención de la escala de inactividad.** La escala 6m/12m de cuenta NO corre mientras el usuario sea owner de ≥1 place activo O tenga ≥1 pago activo. Es una condición evaluada, no un flag permanente: al dejar de cumplir ambas, la cuenta entra a la escala. Ver ADR-0003. **Post-ADR-0035:** "owner de ≥1 place activo" se interpreta literal post-multi-owner — cualquier owner (founder o co-owner) extiende la exención mientras el place esté `subscription_status IN ('ACTIVE','PAYMENT_PENDING','INACTIVATION_PROCESS')`. La revocación de ownership re-evalúa la condición.
 - **Alta owner-first: cuenta y place se crean juntos (saga, no transacción única).** El alta del apex crea `app_user` (+ identidad Better Auth) y luego `place` + `place_ownership` + `membership` vía la función atómica `app.create_place` (ADR-0005, refinado por ADR-0012 — INSERT directo denegado por RLS). Una cuenta queda sin place solo si falla ese último paso (reintento, no error fatal). Excepción de diseño: alta desde invitación o "join" del directorio crea cuenta + `membership` sin crear place.
 - **Place requiere suscripción del owner activa.** Sin pago, el place avanza por `subscription_status` hasta purga a los 12m. La eliminación/tombstone de un usuario que es único owner de un place activo se bloquea: primero transferir ownership o cerrar el place (extiende "mínimo 1 owner").
 
