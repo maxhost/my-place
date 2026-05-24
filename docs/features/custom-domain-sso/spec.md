@@ -1,6 +1,6 @@
 # Custom Domain SSO — Spec
 
-> _Spec creado 2026-05-22 · Last-updated 2026-05-23 (S11.3.A docs). **Status: V1 CERRADA — happy-path T1.1 + T1.2 deployed + smoke production verde** ✅. **Sub-sesión S11.3 en progreso** (fix bug T1.3: apex login `/[locale]/login` debe honrar `?returnTo` para que el cold-start SSO desde custom domain aterrice en el path solicitado en lugar de descartarlo y mandar al Hub canónico — bug pre-existing en login apex expuesto por el flow Feature C M1, ver ADR-0033 + spec §"T1.3 inicial ROJO"). Implementación cierra el sub-módulo `src/shared/lib/sso/` (sub-cap LOC 1100 propio, bumpeable a 1200 en S11.3.B, ver ADR-0032 §5 addenda) + 4 endpoints API (`/api/auth/sso-{init,issue,redeem,jwks}`) + 1 componente nuevo `<SsoFallbackPanel>` montado en el slice existente `custom-domain-routing` + sub-sesión S11.1 (fix JWKS redirect Opción D, ADR-0032 §12) + sub-sesión S11.2 (fix zone-cookie unawareness Opción B: nuevo helper `getAuthenticatedDbForRequest` zone-aware en `src/shared/lib/db-for-request.ts`/`-decision.ts` + migración de 4 Server Actions broken-on-custom-domain) + sub-sesión S11.3 in-progress (fix cold-start M1: helper PURE nuevo `validateLoginReturnTo` + wire-up minimal en page + AccessFlow). Decisiones canónicas en [ADR-0032](../../decisions/0032-custom-domain-sso-signed-ticket.md) + [ADR-0033](../../decisions/0033-apex-login-honors-returnto.md). Plan ejecutado (sesiones + write-back con SHAs reales) en [`./plan-sesiones.md`](./plan-sesiones.md). Baseline pre-implementación: `baseline/pre-feature-c` (= `baseline/feature-b-done` = `d20ab00`). Baseline S11.2: `baseline/feature-c-s11.2-done` = `17b5df5`. Baseline S11.3 pre-fix: `baseline/pre-s11.3-fix-returnto` = `17b5df5` (= S11.2-done). Baseline final S11.3: TBD post-S11.3.D._
+> _Spec creado 2026-05-22 · Last-updated 2026-05-23 (S11.3.D close). **Status: V1 CERRADA end-to-end — T1.1 + T1.2 + T1.3 (cold-start M1) deployed + smoke production verde** ✅. Implementación cierra el sub-módulo `src/shared/lib/sso/` (sub-cap LOC 1400 propio, ver ADR-0032 §5 addenda) + 4 endpoints API (`/api/auth/sso-{init,issue,redeem,jwks}`) + 1 componente nuevo `<SsoFallbackPanel>` montado en el slice existente `custom-domain-routing` + sub-sesión S11.1 (fix JWKS redirect Opción D, ADR-0032 §12) + sub-sesión S11.2 (fix zone-cookie unawareness Opción B: nuevo helper `getAuthenticatedDbForRequest` zone-aware en `src/shared/lib/db-for-request.ts`/`-decision.ts` + migración de 4 Server Actions broken-on-custom-domain) + sub-sesión S11.3 (fix cold-start M1, ADR-0033: helper PURE `validateLoginReturnTo` + wire-up minimal en `page.tsx` apex + `AccessFlow` cliente; `useAccessForm` intacto). Decisiones canónicas en [ADR-0032](../../decisions/0032-custom-domain-sso-signed-ticket.md) + [ADR-0033](../../decisions/0033-apex-login-honors-returnto.md). Plan ejecutado (sesiones + write-back con SHAs reales) en [`./plan-sesiones.md`](./plan-sesiones.md). Baseline pre-implementación: `baseline/pre-feature-c` (= `baseline/feature-b-done` = `d20ab00`). Baseline S11.2: `baseline/feature-c-s11.2-done` = `17b5df5`. Baseline S11.3 pre-fix: `baseline/pre-s11.3-fix-returnto` = `17b5df5` (= S11.2-done). Baseline final S11.3: `baseline/feature-c-s11.3-done` (close commit de este write-back)._
 
 ## Contexto
 
@@ -549,6 +549,42 @@ El `?returnTo` viaja correctamente en URL. El bug está en el lado consumer (log
 
 **Status post-S11.3.C**: wire-up `page.tsx` (92 → 122 LOC, +30 vs +18 estimado por doc-density apropiada del comment-block ADR-0033 inline + co-location del rationale en la guard "ya logueado" + propagación del `safeReturnTo`) ✅ + `AccessFlow` (227 → 240 LOC, +13 matches estimación exactly: prop `returnTo?: string` + JSDoc inline + closure en `onSuccess`) ✅ + `useAccessForm` **intacto** (120 LOC sin cambio — superficie del hook agnóstica del destino post-auth preservada, decisión documentada en ADR-0033 §"Wire-up useAccessForm") ✅ + 2 tests RTL nuevos en `access-flow.test.tsx` (`respeta returnTo si la page lo propaga → navigate al destino SSO en vez del Hub` + `regression: sin returnTo → Hub canónico — flows pre-Feature-C intactos`) ✅ + extensión backward-compat del helper `setup()` con prop opcional `returnTo` (los 3 tests navigate existentes — login exitoso, signup, idempotencia doble click — siguen passing sin cambio de behavior porque `returnTo` defaultea a `undefined`) ✅. Suite total: 70/70 files · **698/698 tests** (vs 696 baseline = +2 nuevos). Pendiente: S11.3.D (smoke M1 owner-driven production retry VERDE + docs close + push autorizado bundle B+C+D + backfill SHA de `S11.3.C` en plan-sesiones).
 
-### T1.3 retry post-fix (post-S11.3.D, write-back en S11.3.D)
+### T1.3 retry post-fix (commit `48b204b` = S11.3.C wire, deploy `dpl_FwjvKLuj9v9AmPM48ngrUwXU4Dpu`) — VERDE ✅
 
-_TBD post-smoke. Sección reservada para evidencia VERDE del cold-start M1 end-to-end: tabla de 5 pasos esperado vs obtenido + URL final aterriza en `https://nocodecompany.co/settings` con cookie `__Host-place_sso_session` seteada + deploy ID Vercel + commit SHA del bundle B+C+D._
+Push autorizado bundle A+B+C (commits `7d872ad` + `d03b30d` + `48b204b`) 2026-05-23. Deploy READY en 43s (`buildingAt` → `ready` = 43.4s, `dpl_FwjvKLuj9v9AmPM48ngrUwXU4Dpu`, alias `nocodecompany.co` + `place.community` + `www.place.community` + `app.place.community` mapeados).
+
+**Server-side sanity smoke** (no-cookies, plumbing del redirect chain post-deploy):
+
+| # | Endpoint | Esperado | Obtenido |
+|---|---|---|---|
+| 1 | `GET https://place.community/api/auth/sso-issue?aud=nocodecompany.co&state=…&nonce=…&returnTo=%2Fsettings` sin cookie Neon Auth | 307→`www.place.community`, 302 a apex login **con `?returnTo=` preservado URL-encoded** | ✅ `Location: https://place.community/es/login?returnTo=https%3A%2F%2Fplace.community%2Fapi%2Fauth%2Fsso-issue%3Faud%3Dnocodecompany.co%26state%3Dteststate%26nonce%3Dtestnonce%26returnTo%3D%252Fsettings` |
+| 2 | `GET https://www.place.community/es/login?returnTo=<URL del sso-issue de #1>` | 200 + form HTML (validateLoginReturnTo S11.3.B acepta apex same-registrable-domain HTTPS al allowlist `/api/auth/sso-issue`) | ✅ HTTP 200 + 14460 bytes (1.17s) |
+
+**Diferencia clave vs pre-fix**: paso #1 retornaba `Location: …/es/login` **sin** `?returnTo=` (bug T1.3 — el `redirectToApexLogin` en `sso-issue/route.ts:145-153` ya emitía el query correctamente, pero la page apex no lo leía → no había evidencia visible en URL del login del consumer-side discard). Post-fix S11.3.C: la URL del login conserva el `?returnTo=` URL-encoded (el server-side smoke capturó la URL exacta, idéntica en shape a la del paso #4 del owner-driven excepto por `state`/`nonce` random vs valores test).
+
+**Smoke owner-driven M1 cold-start** (2026-05-23, ventana incógnito limpia sin cookies previas, owner real de `nocodecompany.co`):
+
+| # | Acción | Esperado | Obtenido |
+|---|---|---|---|
+| 1 | Navegar a `https://nocodecompany.co/settings` | Redirect chain a apex login con `?returnTo=<sso-issue URL>` preservado | ✅ Redirigió a login de `place.community` |
+| 2 | Form de login renderea normal (no crash con returnTo válido) | Form servido (200) + email/password inputs | ✅ Form servido normal |
+| 3 | Submit con credenciales owner de `nocodecompany.co` | `loginAction` exitoso → `AccessFlow.onSuccess` honra `returnTo` (S11.3.C closure) → navega cross-domain al `sso-issue` apex | ✅ Identificación exitosa |
+| 4 | `sso-issue` ahora con cookie Neon Auth → mintea ticket → 302 a `nocodecompany.co/api/auth/sso-redeem?ticket=…&state=…&returnTo=%2Fsettings` → redeem valida → setea cookie `__Host-place_sso_session` → 302 a `/settings` | Aterriza en `https://nocodecompany.co/settings` con sesión SSO local + form populated zone-aware (S11.2 fix) | ✅ Redirigió a `nocodecompany.co/settings` |
+
+**Cita literal del user post-smoke** (2026-05-23):
+
+> "paso perfectamente. entre a nocodecompany.co/settings me dirigio al login de place.community despues de identificarme me redirigio a nocodecompany.co/settings"
+
+**Diferencia clave vs T1.3 inicial pre-fix** (smoke ROJO documentado arriba en §"T1.3 inicial"): el step 4 ahora aterriza en el path solicitado (`/settings` en custom domain) en lugar de descartar el `returnTo` y mandar a Hub canónico (`app.place.community/es/`). El cold-start M1 — el último gap funcional de Feature C V1 — queda cerrado end-to-end transparente para el owner: silent SSO → apex login → submit → returnTo honrado → ticket → redeem → cookie SSO local → settings.
+
+**Continuidad con T1.1 + T1.2**: la cookie `__Host-place_sso_session` seteada por el redeem (post-login) tiene los claims canónicos (`iss=place.community / sub=<neon_auth_user_id> / host=nocodecompany.co / iat / exp +7d`) verificados en T1.1; las 4 Server Actions migradas zone-aware (S11.2: `update-default-locale`, `register-custom-domain`, `archive-custom-domain`, `get-custom-domain-status`) leen la cookie correctamente del custom domain → form populated + UI funcional sin click extra. M1 cierra el último gap del cold-start; M2 (sesión apex activa) sigue verde por T1.2; M3 (Neon Auth expirado) subsumido por M1.
+
+### Conclusión final Feature C V1
+
+Feature C V1 **deployed end-to-end verde 2026-05-23** cubriendo los 3 escenarios canónicos del cold-start SSO desde custom domain:
+
+- **M1 (cold start, anónimo)**: T1.3 VERDE ✅ — owner llega a custom domain sin sesión apex previa → silent SSO → apex login → returnTo honrado → vuelve transparente.
+- **M2 (sesión apex activa)**: T1.1 + T1.2 VERDE ✅ — silent SSO toma path directo (sso-issue detecta sesión Neon Auth → mintea ticket sin pasar por login) + Server Actions zone-aware funcionan.
+- **M3 (ambos expirados)**: subsumido por M1, no requiere prueba independiente.
+
+Bug T1.1 cerrado vía S11.1 (Opción D `customFetch` same-registrable-domain). Bug T1.2 cerrado vía S11.2 (Opción B helper `getAuthenticatedDbForRequest` zone-aware). Bug T1.3 cerrado vía S11.3 (Opción única ADR-0033: page consumer del `?returnTo` con helper PURE `validateLoginReturnTo` allowlist + wire-up minimal). Tag final: `baseline/feature-c-s11.3-done` (= close commit S11.3.D). Sub-cap final `src/shared/lib/sso/`: 1400 LOC (bumps elásticos documentados en ADR-0032 §5: 800 → 1000 [S3.5] → 1100 [S11.1] → 1400 [S11.3.B]).
