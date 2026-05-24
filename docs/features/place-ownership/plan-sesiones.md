@@ -6,6 +6,17 @@
 
 S0 docs cerrado. S1-S6 pending.
 
+> **Ajuste operacional (2026-05-24, hot-patch durante S1):** el refactor de
+> `app.create_place` (originalmente planeado para S5 migration 0016) se
+> **anticipó a S1 como migration 0013** por gap del plan S0: el `SET NOT NULL`
+> de `founder_user_id` (S1) sin refactor del único caller oficial
+> (`app.create_place`) creaba ventana de fragilidad S1-S5 donde la creación
+> de places fallaba en runtime con `23502 not_null_violation`. Pattern
+> industry-standard expand-contract: no aplicamos constraint hasta que la
+> única vía de creación lo respete. Consecuencia: migrations S2/S3/S4 bumpean
+> a 0014/0015/0016; S5 queda con sólo regression tests + `data-model.md`
+> write-back (sin migration nueva).
+
 Comando de rollback total inmediato (estado pre-Feature-D):
 
 ```bash
@@ -14,15 +25,17 @@ git reset --hard baseline/pre-feature-d
 
 ## Sesiones
 
-### S1 — Migration 0012: refactor RLS + helper DEFINER + back-fill
+### S1 — Migration 0012 + 0013: refactor RLS + helper DEFINER + back-fill + create_place setea founder
 
-**Objetivo único**: cerrar el refactor estructural de `place_ownership` — DROP de policies SELF, REVOKE INSERT/UPDATE/DELETE, helper `app.current_user_owns_place` SECURITY DEFINER, nueva policy `po_sel` con helper, ALTER `place` + back-fill `founder_user_id` + SET NOT NULL.
+**Objetivo único**: cerrar el refactor estructural de `place_ownership` — DROP de policies SELF, REVOKE INSERT/UPDATE/DELETE, helper `app.current_user_owns_place` SECURITY DEFINER, nueva policy `po_sel` con helper, ALTER `place` + back-fill `founder_user_id` + SET NOT NULL + refactor de `app.create_place` para setear founder en el INSERT (anticipado de S5 — ver Ajuste operacional arriba).
 
-**Archivos esperados** (3-4):
+**Archivos esperados** (5-8):
 - `src/db/migrations/0012_place_ownership_worm_via_definer.sql` (migration nueva).
+- `src/db/migrations/0013_app_create_place_set_founder.sql` (migration nueva — anticipada de S5).
 - `src/db/__tests__/rls-place-ownership.test.ts` (14 tests TDD nuevos). LOC budget: 250-280; si excede 295 → Plan B split en `rls-place-ownership-structural.test.ts` + `rls-place-ownership-matrix.test.ts`.
-- `src/db/schema/index.ts` regenerated por Drizzle introspect (post-migration) — sólo schema refresh, no edición manual.
-- `src/db/migrations/meta/_journal.json` actualizado.
+- `src/db/schema/index.ts` — edición manual quirúrgica: `place.founderUserId text NOT NULL` + reemplazo de las 3 policies SELF (`po_sel`/`po_upd`/`po_del`) por única `po_sel` via helper SECURITY DEFINER. Drizzle introspect no genera ni SECURITY DEFINER ni REVOKE — todo el SQL crítico vive en migrations a mano.
+- `src/db/migrations/meta/_journal.json` actualizado (entries 12 + 13).
+- **Hot-fix Tipo B** (test seeds raw que crean places sin `founder_user_id`): 7 archivos de tests existentes con `INSERT INTO place (slug,name,billing_mode)` raw necesitan agregar `founder_user_id` en su seed — los Tipo A (que usan `app.create_place`) se autofixean con migration 0013. Archivos tocados: `rls.test.ts`, `rls-place-domain.test.ts`, `auth-db.test.ts`, `db-with-verifier.test.ts`, `lookup-place-by-domain.test.ts`, `lookup-place-locale-by-slug.test.ts`, `get-inbox-payload.test.ts`, `load-place-by-slug.test.ts`.
 
 **Locked files** (NO modificar):
 - `docs/decisions/0035-place-ownership-multi-owner-v1.md` — canónica.
@@ -58,12 +71,12 @@ Ref: ADR-0035 §3 + §Decisión 2.
 
 ---
 
-### S2 — Migration 0013: `app.elevate_to_owner` SECURITY DEFINER
+### S2 — Migration 0014: `app.elevate_to_owner` SECURITY DEFINER
 
 **Objetivo único**: implementar la función DEFINER que canaliza el INSERT en `place_ownership` para promover un miembro activo a co-owner, validando 5 invariantes en cuerpo.
 
 **Archivos esperados** (2):
-- `src/db/migrations/0013_app_elevate_to_owner.sql` (nueva migration con la función `LANGUAGE plpgsql` + `SECURITY DEFINER` + `SET search_path = public, pg_temp` + REVOKE PUBLIC + GRANT `app_system`).
+- `src/db/migrations/0014_app_elevate_to_owner.sql` (nueva migration con la función `LANGUAGE plpgsql` + `SECURITY DEFINER` + `SET search_path = public, pg_temp` + REVOKE PUBLIC + GRANT `app_system`).
 - `src/db/__tests__/elevate-to-owner.test.ts` (8 tests TDD nuevos).
 
 **Locked files** (NO modificar):
@@ -83,7 +96,7 @@ Ref: ADR-0035 §3 + §Decisión 2.
 
 **Commit message format**:
 ```
-feat(db): migration 0013 — app.elevate_to_owner SECURITY DEFINER + 8 tests TDD
+feat(db): migration 0014 — app.elevate_to_owner SECURITY DEFINER + 8 tests TDD
 
 Ref: ADR-0035 §Decisión 2 (CU2). Pre-conditions in body:
 caller owns place; target active member; target not already owner; place exists.
@@ -93,12 +106,12 @@ caller owns place; target active member; target not already owner; place exists.
 
 ---
 
-### S3 — Migration 0014: `app.revoke_ownership` SECURITY DEFINER
+### S3 — Migration 0015: `app.revoke_ownership` SECURITY DEFINER
 
 **Objetivo único**: implementar la función DEFINER que canaliza el DELETE de `place_ownership` para remover un co-owner, validando 6 invariantes en cuerpo (founder no-delete + no self-revoke + caller owner + target owner + N>1 defense-in-depth + scoping).
 
 **Archivos esperados** (2):
-- `src/db/migrations/0014_app_revoke_ownership.sql`.
+- `src/db/migrations/0015_app_revoke_ownership.sql`.
 - `src/db/__tests__/revoke-ownership.test.ts` (10 tests TDD nuevos).
 
 **Locked files** (NO modificar):
@@ -118,7 +131,7 @@ caller owns place; target active member; target not already owner; place exists.
 
 **Commit message format**:
 ```
-feat(db): migration 0014 — app.revoke_ownership SECURITY DEFINER + 10 tests TDD
+feat(db): migration 0015 — app.revoke_ownership SECURITY DEFINER + 10 tests TDD
 
 Ref: ADR-0035 §Decisión 2 (CU3) + §4 (WORM defense-in-depth N>1).
 Founder no-delete + no self-revoke V1 enforced en cuerpo.
@@ -128,12 +141,12 @@ Founder no-delete + no self-revoke V1 enforced en cuerpo.
 
 ---
 
-### S4 — Migration 0015: `app.transfer_founder_ownership` SECURITY DEFINER
+### S4 — Migration 0016: `app.transfer_founder_ownership` SECURITY DEFINER
 
 **Objetivo único**: implementar la función DEFINER que canaliza el `UPDATE place.founder_user_id` + `DELETE place_ownership` (caller) de forma atómica, validando 5 invariantes en cuerpo (caller founder + target owner + target ≠ caller + place exists + autenticación).
 
 **Archivos esperados** (2):
-- `src/db/migrations/0015_app_transfer_founder_ownership.sql`.
+- `src/db/migrations/0016_app_transfer_founder_ownership.sql`.
 - `src/db/__tests__/transfer-founder-ownership.test.ts` (10 tests TDD nuevos). LOC budget: ~230. Plan B split si excede 295.
 
 **Locked files** (NO modificar):
@@ -153,7 +166,7 @@ Founder no-delete + no self-revoke V1 enforced en cuerpo.
 
 **Commit message format**:
 ```
-feat(db): migration 0015 — app.transfer_founder_ownership SECURITY DEFINER + 10 tests TDD
+feat(db): migration 0016 — app.transfer_founder_ownership SECURITY DEFINER + 10 tests TDD
 
 Ref: ADR-0035 §Decisión 2 (CU4). Atomic UPDATE founder + DELETE caller-ownership.
 Pre-condition: target ya owner (no transfer-without-successor).
@@ -163,13 +176,12 @@ Pre-condition: target ya owner (no transfer-without-successor).
 
 ---
 
-### S5 — Migration 0016: `app.create_place` refactor + data-model.md write-back
+### S5 — Regression tests `app.create_place` + data-model.md write-back (sin migration nueva)
 
-**Objetivo único**: refactorar `app.create_place` para incluir `place.founder_user_id := caller.user_id` en el INSERT, regression tests, y completar la sección final de `data-model.md` con el schema post-migration + invariantes nuevos.
+**Objetivo único**: 5 regression tests sobre `app.create_place` (verifica que setea `founder_user_id` correctamente — el refactor mismo se hizo en S1 migration 0013) + completar la sección final de `data-model.md` con el schema post-migrations + invariantes nuevos.
 
-**Archivos esperados** (3):
-- `src/db/migrations/0016_app_create_place_set_founder.sql` (CREATE OR REPLACE FUNCTION con la línea `INSERT INTO place (..., founder_user_id) VALUES (..., v_uid)`).
-- `src/db/__tests__/create-place-founder.test.ts` o extensión de `create-place.test.ts` existente (5 tests TDD nuevos).
+**Archivos esperados** (2):
+- `src/db/__tests__/create-place-founder.test.ts` o extensión de `create-place.test.ts` existente (5 tests TDD nuevos — regression sobre la migration 0013 ya aplicada en S1).
 - `docs/data-model.md` — sección `place` añade `founder_user_id text NOT NULL`; sección `place_ownership` refleja "INSERT/UPDATE/DELETE denegado por REVOKE — toda mutación vía 4 funciones DEFINER"; sección "Invariantes del dominio" agrega "founder slot único per place, no-delete por otro owner" + "transferencia founder requiere target owner pre-existente" + "exención owner literal post-multi-owner: cualquier owner extiende la exención mientras el place esté activo".
 
 **Locked files** (NO modificar):
@@ -192,10 +204,10 @@ Pre-condition: target ya owner (no transfer-without-successor).
 
 **Commit message format**:
 ```
-feat(db): migration 0016 — app.create_place setea founder_user_id + 5 tests regression + data-model.md write-back
+docs+test(db): 5 regression tests app.create_place founder + data-model.md write-back
 
-Ref: ADR-0035 §Decisión 2 (CU1 refinado) + §Consecuencias (data-model.md).
-Refina ADR-0012 §3 incluyendo founder_user_id en el INSERT del creator.
+Ref: ADR-0035 §Consecuencias (data-model.md). Refactor de app.create_place
+ya aplicado en S1 (migration 0013, anticipado por gap del plan original S5).
 ```
 
 **Tag baseline esperado**: `baseline/feature-d-s5-done`.
@@ -274,13 +286,14 @@ Cada migration documenta inline en su header el reverse-SQL exacto. Esqueleto ca
 ```sql
 -- 0012 reverse (S1): REVOKE EXECUTE + DROP FUNCTION app.current_user_owns_place(text);
 --   DROP POLICY po_sel ON place_ownership + CREATE POLICY po_sel/po_upd/po_del SELF (cuerpo previo);
---   GRANT INSERT,UPDATE,DELETE ON place_ownership TO "app_system";
---   ALTER TABLE place DROP COLUMN founder_user_id.
--- 0013 reverse (S2): REVOKE EXECUTE + DROP FUNCTION app.elevate_to_owner(text, text).
--- 0014 reverse (S3): REVOKE EXECUTE + DROP FUNCTION app.revoke_ownership(text, text).
--- 0015 reverse (S4): REVOKE EXECUTE + DROP FUNCTION app.transfer_founder_ownership(text, text).
--- 0016 reverse (S5): CREATE OR REPLACE FUNCTION app.create_place(...) con cuerpo previo
---   (sin la línea de founder_user_id en el INSERT).
+--   GRANT UPDATE,DELETE ON place_ownership TO "app_system" (INSERT ya revocado en 0001);
+--   ALTER TABLE place DROP COLUMN founder_user_id (precedido por reverse de 0013).
+-- 0013 reverse (S1): CREATE OR REPLACE FUNCTION app.create_place(...) con cuerpo
+--   previo (sin la línea de founder_user_id en el INSERT) — ambos overloads 5-arg y 6-arg.
+-- 0014 reverse (S2): REVOKE EXECUTE + DROP FUNCTION app.elevate_to_owner(text, text).
+-- 0015 reverse (S3): REVOKE EXECUTE + DROP FUNCTION app.revoke_ownership(text, text).
+-- 0016 reverse (S4): REVOKE EXECUTE + DROP FUNCTION app.transfer_founder_ownership(text, text).
+-- S5 sin migration nueva (sólo regression tests + data-model.md write-back).
 ```
 
 Cada sesión que aplique su migration tiene la responsabilidad de validar que el reverse del header efectivamente revierte limpio antes de tag baseline.

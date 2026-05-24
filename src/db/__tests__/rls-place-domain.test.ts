@@ -8,12 +8,14 @@ import { endRlsAdminPool, inRlsTx, type RlsTx } from "./db-test-pool";
 afterAll(() => endRlsAdminPool());
 
 const APP_USER = `INSERT INTO app_user (auth_user_id,email,display_name,handle) VALUES ($1,$2,'X',$3) RETURNING id`;
-const PLACE = `INSERT INTO place (slug,name,billing_mode) VALUES ($1,$2,'OWNER_PAYS') RETURNING id`;
+// ADR-0035 §2: `place.founder_user_id NOT NULL` desde S1. Seeds raw lo setean
+// explícito; el founder es por convención el primer owner (MIN granted_at).
+const PLACE = `INSERT INTO place (slug,name,billing_mode,founder_user_id) VALUES ($1,$2,'OWNER_PAYS',$3) RETURNING id`;
 
 async function seedPlaceA(tx: RlsTx) {
   const [{ id: uA }] = (await tx.seed(APP_USER, ["authA", "a@x.com", "handle_a"])) as Array<{ id: string }>;
   const [{ id: uB }] = (await tx.seed(APP_USER, ["authB", "b@x.com", "handle_b"])) as Array<{ id: string }>;
-  const [{ id: pidA }] = (await tx.seed(PLACE, ["place-a", "Place A"])) as Array<{ id: string }>;
+  const [{ id: pidA }] = (await tx.seed(PLACE, ["place-a", "Place A", uA])) as Array<{ id: string }>;
   await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [uA, pidA]);
   const [{ id: domainId }] = (await tx.seed(
     `INSERT INTO place_domain (place_id,domain) VALUES ($1,'a.example') RETURNING id`,
@@ -23,7 +25,7 @@ async function seedPlaceA(tx: RlsTx) {
 }
 
 async function seedSecondPlaceOwnedBy(tx: RlsTx, ownerUserId: string, slug: string) {
-  const [{ id: pid }] = (await tx.seed(PLACE, [slug, "Other"])) as Array<{ id: string }>;
+  const [{ id: pid }] = (await tx.seed(PLACE, [slug, "Other", ownerUserId])) as Array<{ id: string }>;
   await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [ownerUserId, pid]);
   return pid;
 }

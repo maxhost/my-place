@@ -125,11 +125,11 @@ Heredado del precedente `docs/features/custom-domain-sso/tests.md` §S1. Feature
 
 ---
 
-## S5 — `app.create_place` regression (migration 0016)
+## S5 — `app.create_place` regression (sin migration nueva — refactor anticipado a S1 migration 0013)
 
 ### `src/db/__tests__/create-place-founder.test.ts` (nuevo o extender `create-place.test.ts` si existe)
 
-**Por qué importa:** S5 refina `app.create_place` para setear `founder_user_id := caller.user_id`. Bug = nuevos places nacen sin founder (NOT NULL violation) o con founder = otro user (privilege escalation).
+**Por qué importa:** la migration 0013 (S1) refinó `app.create_place` para setear `founder_user_id := caller.user_id`. S5 ejecuta regression tests sobre esa migration ya aplicada — confirma que nuevos places nacen con founder correcto + que el wire-up no introdujo privilege escalation. Bug = nuevos places nacen con founder = otro user, o sin founder (NOT NULL violation).
 
 **Harness:** `inRlsTx` con seed-as-`neondb_owner` (3 users distintos: alice, bob, carol).
 

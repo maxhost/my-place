@@ -85,6 +85,20 @@
       "when": 1779661635357,
       "tag": "0011_sso_jti_consume",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1779748035357,
+      "tag": "0012_place_ownership_worm_via_definer",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1779748135357,
+      "tag": "0013_app_create_place_set_founder",
+      "breakpoints": true
     }
   ]
 }

@@ -19,9 +19,12 @@ async function seedPlaceA(tx: RlsTx) {
     `INSERT INTO app_user (auth_user_id,email,display_name,handle)
      VALUES ('authB','b@x.com','B','handle_b') RETURNING id`,
   )) as Array<{ id: string }>;
+  // ADR-0035 §2: `place.founder_user_id NOT NULL` desde S1. Seed raw setea
+  // explícito al uA (founder = creador = primer owner, MIN(granted_at)).
   const [{ id: pid }] = (await tx.seed(
-    `INSERT INTO place (slug,name,billing_mode)
-     VALUES ('place-a','Place A','OWNER_PAYS') RETURNING id`,
+    `INSERT INTO place (slug,name,billing_mode,founder_user_id)
+     VALUES ('place-a','Place A','OWNER_PAYS',$1) RETURNING id`,
+    [uA],
   )) as Array<{ id: string }>;
   await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [uA, pid]);
   await tx.seed(`INSERT INTO membership (user_id,place_id) VALUES ($1,$2)`, [uA, pid]);
@@ -190,8 +193,9 @@ describe("S4 RLS — member-read (ADR-0021)", () => {
       const { uB, pid: pidA } = await seedPlaceA(tx);
       // uB es owner de un segundo place pB; además es miembro de pA.
       const [{ id: pidB }] = (await tx.seed(
-        `INSERT INTO place (slug,name,billing_mode)
-         VALUES ('place-b','Place B','OWNER_PAYS') RETURNING id`,
+        `INSERT INTO place (slug,name,billing_mode,founder_user_id)
+         VALUES ('place-b','Place B','OWNER_PAYS',$1) RETURNING id`,
+        [uB],
       )) as Array<{ id: string }>;
       await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [uB, pidB]);
       await tx.seed(`INSERT INTO membership (user_id,place_id) VALUES ($1,$2)`, [uB, pidB]);

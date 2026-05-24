@@ -44,9 +44,11 @@ async function seedPlaceA(tx: RlsTx) {
     `INSERT INTO app_user (auth_user_id,email,display_name,handle)
      VALUES ('authA','a@x.com','A','handle_a') RETURNING id`,
   )) as Array<{ id: string }>;
+  // ADR-0035 §2: founder = primer owner (uA).
   const [{ id: pid }] = (await tx.seed(
-    `INSERT INTO place (slug,name,billing_mode)
-     VALUES ('place-a','Place A','OWNER_PAYS') RETURNING id`,
+    `INSERT INTO place (slug,name,billing_mode,founder_user_id)
+     VALUES ('place-a','Place A','OWNER_PAYS',$1) RETURNING id`,
+    [uA],
   )) as Array<{ id: string }>;
   await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [
     uA,

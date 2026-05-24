@@ -45,6 +45,10 @@ async function seedPlace(
   opts: {
     slug: string;
     name: string;
+    // ADR-0035 §2: `place.founder_user_id NOT NULL` desde S1. El caller pasa
+    // el user que también será el primer owner (semántica histórica creator =
+    // founder). Cada caller del helper ya tiene un seedUser previo.
+    founderUserId: string;
     themeAccent?: string;
     status?: "ACTIVE" | "PAYMENT_PENDING" | "INACTIVATION_PROCESS" | "INACTIVE";
     archived?: boolean;
@@ -54,8 +58,8 @@ async function seedPlace(
     ? JSON.stringify({ colors: { accent: opts.themeAccent, bg: "#FFF", ink: "#000" } })
     : "{}";
   const [{ id }] = (await tx.seed(
-    `INSERT INTO place (slug,name,billing_mode,theme_config,subscription_status,archived_at)
-     VALUES ($1,$2,'OWNER_PAYS',$3::jsonb,$4::place_subscription_status,$5)
+    `INSERT INTO place (slug,name,billing_mode,theme_config,subscription_status,archived_at,founder_user_id)
+     VALUES ($1,$2,'OWNER_PAYS',$3::jsonb,$4::place_subscription_status,$5,$6)
      RETURNING id`,
     [
       opts.slug,
@@ -63,6 +67,7 @@ async function seedPlace(
       theme,
       opts.status ?? "ACTIVE",
       opts.archived ? new Date().toISOString() : null,
+      opts.founderUserId,
     ],
   )) as Array<{ id: string }>;
   return id;
@@ -104,8 +109,8 @@ describe("app.get_inbox_payload — shape canónico del Hub (sesión 2, ADR-0021
   it("user con 2 places owner → alfabético + isOwner:true en ambos", async () => {
     await inRlsTx(async (tx) => {
       const uA = await seedUser(tx, "authA", "Ana");
-      const pidBosque = await seedPlace(tx, { slug: "bosque", name: "Bosque" });
-      const pidAcuario = await seedPlace(tx, { slug: "acuario", name: "Acuario" });
+      const pidBosque = await seedPlace(tx, { slug: "bosque", name: "Bosque", founderUserId: uA });
+      const pidAcuario = await seedPlace(tx, { slug: "acuario", name: "Acuario", founderUserId: uA });
       await makeOwner(tx, uA, pidBosque);
       await makeOwner(tx, uA, pidAcuario);
       await tx.as("authA");
@@ -119,7 +124,7 @@ describe("app.get_inbox_payload — shape canónico del Hub (sesión 2, ADR-0021
     await inRlsTx(async (tx) => {
       const uOwner = await seedUser(tx, "authO", "Owner");
       const uMember = await seedUser(tx, "authM", "Miembro");
-      const pid = await seedPlace(tx, { slug: "yoga", name: "Yoga" });
+      const pid = await seedPlace(tx, { slug: "yoga", name: "Yoga", founderUserId: uOwner });
       await makeOwner(tx, uOwner, pid);
       await makeMember(tx, uMember, pid);
       await tx.as("authM");
@@ -137,9 +142,9 @@ describe("app.get_inbox_payload — shape canónico del Hub (sesión 2, ADR-0021
     await inRlsTx(async (tx) => {
       const uA = await seedUser(tx, "authA", "Ana");
       const uOwnerExt = await seedUser(tx, "authX", "Otro");
-      const pidAcuario = await seedPlace(tx, { slug: "acuario", name: "Acuario" });
-      const pidZoom = await seedPlace(tx, { slug: "zoom", name: "Zoom" });
-      const pidBosque = await seedPlace(tx, { slug: "bosque", name: "Bosque" });
+      const pidAcuario = await seedPlace(tx, { slug: "acuario", name: "Acuario", founderUserId: uA });
+      const pidZoom = await seedPlace(tx, { slug: "zoom", name: "Zoom", founderUserId: uA });
+      const pidBosque = await seedPlace(tx, { slug: "bosque", name: "Bosque", founderUserId: uOwnerExt });
       await makeOwner(tx, uA, pidAcuario);
       await makeOwner(tx, uA, pidZoom);
       await makeOwner(tx, uOwnerExt, pidBosque);
@@ -155,10 +160,11 @@ describe("app.get_inbox_payload — shape canónico del Hub (sesión 2, ADR-0021
   it("places archivados (archived_at NOT NULL) NO aparecen", async () => {
     await inRlsTx(async (tx) => {
       const uA = await seedUser(tx, "authA", "Ana");
-      const pidActivo = await seedPlace(tx, { slug: "activo", name: "Activo" });
+      const pidActivo = await seedPlace(tx, { slug: "activo", name: "Activo", founderUserId: uA });
       const pidArchivado = await seedPlace(tx, {
         slug: "archivado",
         name: "Archivado",
+        founderUserId: uA,
         archived: true,
       });
       await makeOwner(tx, uA, pidActivo);
@@ -175,6 +181,7 @@ describe("app.get_inbox_payload — shape canónico del Hub (sesión 2, ADR-0021
       const pid = await seedPlace(tx, {
         slug: "mi-club",
         name: "Mi Club",
+        founderUserId: uA,
         themeAccent: "#aabbcc",
       });
       await makeOwner(tx, uA, pid);
@@ -187,14 +194,15 @@ describe("app.get_inbox_payload — shape canónico del Hub (sesión 2, ADR-0021
   it("status viene como string del enum (ACTIVE / PAYMENT_PENDING / INACTIVATION_PROCESS / INACTIVE)", async () => {
     await inRlsTx(async (tx) => {
       const uA = await seedUser(tx, "authA", "Ana");
-      const pidA = await seedPlace(tx, { slug: "a", name: "AAA", status: "ACTIVE" });
-      const pidB = await seedPlace(tx, { slug: "b", name: "BBB", status: "PAYMENT_PENDING" });
+      const pidA = await seedPlace(tx, { slug: "a", name: "AAA", status: "ACTIVE", founderUserId: uA });
+      const pidB = await seedPlace(tx, { slug: "b", name: "BBB", status: "PAYMENT_PENDING", founderUserId: uA });
       const pidC = await seedPlace(tx, {
         slug: "c",
         name: "CCC",
         status: "INACTIVATION_PROCESS",
+        founderUserId: uA,
       });
-      const pidD = await seedPlace(tx, { slug: "d", name: "DDD", status: "INACTIVE" });
+      const pidD = await seedPlace(tx, { slug: "d", name: "DDD", status: "INACTIVE", founderUserId: uA });
       await makeOwner(tx, uA, pidA);
       await makeOwner(tx, uA, pidB);
       await makeOwner(tx, uA, pidC);
@@ -218,6 +226,7 @@ describe("app.get_inbox_payload — shape canónico del Hub (sesión 2, ADR-0021
         slug: "pago-pendiente",
         name: "Pago Pendiente",
         status: "PAYMENT_PENDING",
+        founderUserId: uA,
       });
       await makeOwner(tx, uA, pid);
       await tx.as("authA");

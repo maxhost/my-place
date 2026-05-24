@@ -18,17 +18,25 @@ afterAll(() => endRlsAdminPool());
 
 // Sembra un place fresco (sin owner — la lookup no requiere ownership; el
 // DEFINER bypassa RLS y el filtro es sólo `archived_at IS NULL`). Devuelve
-// `{ pid, slug, locale }`.
+// `{ pid, slug, locale }`. ADR-0035 §2: `place.founder_user_id NOT NULL`
+// desde S1; el helper crea un app_user dummy interno (la lookup no lee la
+// columna, sólo se satisface el constraint).
 async function seedPlace(
   tx: RlsTx,
   opts: { slug: string; locale?: string; archived?: boolean } = { slug: "p1" },
 ): Promise<{ pid: string; slug: string; locale: string }> {
   const archivedExpr = opts.archived ? "now()" : "NULL";
   const locale = opts.locale ?? "es";
+  const dummyAuth = `dummy-${opts.slug}-${Math.random().toString(36).slice(2, 8)}`;
+  const [{ id: founderId }] = (await tx.seed(
+    `INSERT INTO app_user (auth_user_id,email,display_name,handle)
+     VALUES ($1, $2, 'D', $3) RETURNING id`,
+    [dummyAuth, `${dummyAuth}@x.com`, `h_${dummyAuth}`],
+  )) as Array<{ id: string }>;
   const [{ id }] = (await tx.seed(
-    `INSERT INTO place (slug, name, billing_mode, default_locale, archived_at)
-     VALUES ($1, 'P', 'OWNER_PAYS', $2, ${archivedExpr}) RETURNING id`,
-    [opts.slug, locale],
+    `INSERT INTO place (slug, name, billing_mode, default_locale, archived_at, founder_user_id)
+     VALUES ($1, 'P', 'OWNER_PAYS', $2, ${archivedExpr}, $3) RETURNING id`,
+    [opts.slug, locale, founderId],
   )) as Array<{ id: string }>;
   return { pid: id, slug: opts.slug, locale };
 }

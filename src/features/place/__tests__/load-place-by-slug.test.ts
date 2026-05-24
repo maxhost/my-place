@@ -37,6 +37,9 @@ async function seedPlace(
   opts: {
     slug: string;
     name: string;
+    // ADR-0035 §2: `place.founder_user_id NOT NULL` desde S1. El caller pasa
+    // el user que también será el primer owner (semántica creator = founder).
+    founderUserId: string;
     defaultLocale?: PlaceLocale;
     themeAccent?: string;
     archived?: boolean;
@@ -48,8 +51,8 @@ async function seedPlace(
       })
     : "{}";
   const [{ id }] = (await tx.seed(
-    `INSERT INTO place (slug,name,billing_mode,theme_config,default_locale,archived_at)
-     VALUES ($1,$2,'OWNER_PAYS',$3::jsonb,$4,$5)
+    `INSERT INTO place (slug,name,billing_mode,theme_config,default_locale,archived_at,founder_user_id)
+     VALUES ($1,$2,'OWNER_PAYS',$3::jsonb,$4,$5,$6)
      RETURNING id`,
     [
       opts.slug,
@@ -57,6 +60,7 @@ async function seedPlace(
       theme,
       opts.defaultLocale ?? "es",
       opts.archived ? new Date().toISOString() : null,
+      opts.founderUserId,
     ],
   )) as Array<{ id: string }>;
   return id;
@@ -88,6 +92,7 @@ describe("loadPlaceBySlug — RLS owner-only del settings (S3, ADR-0010 + ADR-00
       const pid = await seedPlace(tx, {
         slug: "mi-club",
         name: "Mi Club",
+        founderUserId: uOwner,
         themeAccent: "#aabbcc",
       });
       await makeOwner(tx, uOwner, pid);
@@ -114,6 +119,7 @@ describe("loadPlaceBySlug — RLS owner-only del settings (S3, ADR-0010 + ADR-00
       const pid = await seedPlace(tx, {
         slug: "ein-platz",
         name: "Ein Platz",
+        founderUserId: uOwner,
         defaultLocale: "de",
       });
       await makeOwner(tx, uOwner, pid);
@@ -136,7 +142,7 @@ describe("loadPlaceBySlug — RLS owner-only del settings (S3, ADR-0010 + ADR-00
     await inRlsTx(async (tx) => {
       const uOwner = await seedUser(tx, "authOwner", "Owner");
       const uOutsider = await seedUser(tx, "authOutsider", "Outsider");
-      const pid = await seedPlace(tx, { slug: "ajeno", name: "Ajeno" });
+      const pid = await seedPlace(tx, { slug: "ajeno", name: "Ajeno", founderUserId: uOwner });
       await makeOwner(tx, uOwner, pid);
       // uOutsider NO tiene ownership ni membership.
       void uOutsider;
@@ -152,7 +158,7 @@ describe("loadPlaceBySlug — RLS owner-only del settings (S3, ADR-0010 + ADR-00
     await inRlsTx(async (tx) => {
       const uOwner = await seedUser(tx, "authOwner", "Owner");
       const uMember = await seedUser(tx, "authMember", "Member");
-      const pid = await seedPlace(tx, { slug: "yoga", name: "Yoga" });
+      const pid = await seedPlace(tx, { slug: "yoga", name: "Yoga", founderUserId: uOwner });
       await makeOwner(tx, uOwner, pid);
       await makeMember(tx, uMember, pid);
       await tx.as("authMember");
@@ -166,7 +172,7 @@ describe("loadPlaceBySlug — RLS owner-only del settings (S3, ADR-0010 + ADR-00
   it("slug inexistente → retorna null", async () => {
     await inRlsTx(async (tx) => {
       const uOwner = await seedUser(tx, "authOwner", "Owner");
-      const pid = await seedPlace(tx, { slug: "mio", name: "Mio" });
+      const pid = await seedPlace(tx, { slug: "mio", name: "Mio", founderUserId: uOwner });
       await makeOwner(tx, uOwner, pid);
       await tx.as("authOwner");
 
@@ -182,6 +188,7 @@ describe("loadPlaceBySlug — RLS owner-only del settings (S3, ADR-0010 + ADR-00
       const pid = await seedPlace(tx, {
         slug: "archivado",
         name: "Archivado",
+        founderUserId: uOwner,
         archived: true,
       });
       await makeOwner(tx, uOwner, pid);

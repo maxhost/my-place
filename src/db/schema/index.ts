@@ -89,6 +89,12 @@ export const place = pgTable("place", {
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
+  // Founder slot único, inmutable salvo `app.transfer_founder_ownership`
+  // (ADR-0035 §2). Referencia lógica a `app_user.id` sin FK hard (mismo
+  // criterio que `app_user.auth_user_id`, ADR-0006). Back-fill determinístico
+  // `MIN(granted_at).user_id` per place en migration 0012; `app.create_place`
+  // lo setea en el INSERT desde S5.
+  founderUserId: text("founder_user_id").notNull(),
   // Idioma del chrome del place, editable por owner (ADR-0022, feature
   // `settings`). 6 locales operativos (ADR-0024); el CHECK constraint es
   // defense-in-depth — el zod del wizard ya valida el enum cerrado, pero la
@@ -202,25 +208,20 @@ export const placeOwnership = pgTable(
       .references(() => place.id),
     grantedAt: tstz("granted_at").notNull().defaultNow(),
   },
-  // INSERT: sin policy (denegado + REVOKE — vía app.create_place, ADR-0012 §1).
-  // SELECT/UPDATE/DELETE recursion-safe: referencian app_user, NUNCA
-  // place_ownership (la auto-referencia da `infinite recursion`, ADR-0012 §2).
+  // WORM-via-DEFINER (ADR-0035 §3 + §4, migration 0012): toda mutación
+  // (INSERT/UPDATE/DELETE) está denegada por REVOKE explícito a `app_system`
+  // y canalizada por las 4 funciones DEFINER (`app.create_place`,
+  // `app.elevate_to_owner`, `app.revoke_ownership`,
+  // `app.transfer_founder_ownership`). Sólo `po_sel` via helper
+  // `app.current_user_owns_place` SECURITY DEFINER (anti-recursión: el
+  // sub-SELECT a `place_ownership` desde una policy sobre la propia tabla
+  // daría `infinite recursion`; el DEFINER bypassa la propia RLS).
   (t) => [
     unique().on(t.userId, t.placeId),
     pgPolicy("po_sel", {
       for: "select",
       to: appSystem,
-      using: sql`EXISTS (SELECT 1 FROM app_user au WHERE au.id = ${t.userId} AND au.auth_user_id = (select app.current_user_id()))`,
-    }),
-    pgPolicy("po_upd", {
-      for: "update",
-      to: appSystem,
-      using: sql`EXISTS (SELECT 1 FROM app_user au WHERE au.id = ${t.userId} AND au.auth_user_id = (select app.current_user_id()))`,
-    }),
-    pgPolicy("po_del", {
-      for: "delete",
-      to: appSystem,
-      using: sql`EXISTS (SELECT 1 FROM app_user au WHERE au.id = ${t.userId} AND au.auth_user_id = (select app.current_user_id()))`,
+      using: sql`app.current_user_owns_place(${t.placeId})`,
     }),
   ],
 );

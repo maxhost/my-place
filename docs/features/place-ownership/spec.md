@@ -30,7 +30,7 @@ V1 expone **4 casos de uso atómicos**, uno por función `SECURITY DEFINER`. Cad
 
 ### CU1 — Crear place (founder automático)
 
-Función: `app.create_place(p_slug text, p_name text, ...)` — **ya existente** desde ADR-0012 §3; se refina en S5 para incluir `INSERT INTO place (..., founder_user_id) VALUES (..., v_uid)` donde `v_uid` es el `app_user.id` del caller (extraído de `app.current_user_id()`).
+Función: `app.create_place(p_slug text, p_name text, ...)` — **ya existente** desde ADR-0012 §3; se refina en S1 (migration 0013, anticipada del plan original S5 por gap operacional — ver `plan-sesiones.md` §Status) para incluir `INSERT INTO place (..., founder_user_id) VALUES (..., v_uid)` donde `v_uid` es el `app_user.id` del caller (extraído de `app.current_user_id()`).
 
 - **Precondición**: caller autenticado (`app.current_user_id() IS NOT NULL`); slug disponible (unicidad ya enforced).
 - **Postcondición**: nueva fila `place` con `founder_user_id = caller.user_id`; nueva fila `place_ownership` con `place_id` + `user_id = caller.user_id`; nueva fila `membership` del caller.

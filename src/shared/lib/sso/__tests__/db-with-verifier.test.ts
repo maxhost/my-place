@@ -62,10 +62,11 @@ async function seedPlaceForUser(tx: RlsTx, authSub: string) {
      VALUES ($1, $2, $3, $4) RETURNING id`,
     [authSub, `${authSub}@x.com`, authSub.toUpperCase(), `h_${authSub}`],
   )) as Array<{ id: string }>;
+  // ADR-0035 §2: founder = creador del place (= primer owner = `userId`).
   const [{ id: placeId }] = (await tx.seed(
-    `INSERT INTO place (slug,name,billing_mode)
-     VALUES ($1, $2, 'OWNER_PAYS') RETURNING id`,
-    [`place-${authSub}`, `Place ${authSub}`],
+    `INSERT INTO place (slug,name,billing_mode,founder_user_id)
+     VALUES ($1, $2, 'OWNER_PAYS', $3) RETURNING id`,
+    [`place-${authSub}`, `Place ${authSub}`, userId],
   )) as Array<{ id: string }>;
   await tx.seed(
     `INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`,
