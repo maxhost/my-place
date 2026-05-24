@@ -36,8 +36,8 @@ Feature C V1 deployed a producción 2026-05-23 con dos sub-sesiones de fix post-
 | **S11.2 (close T1.2)** | Push bundle (A+B+C) + smoke production T1.2 retry VERDE + final write-back | `17b5df5` | `baseline/feature-c-s11.2-done` |
 | **S-1 S11.3** | Save point pre-fix-returnto (tag-only, sin commit) | `17b5df5` (= s11.2-done) | `baseline/pre-s11.3-fix-returnto` |
 | **S11.3.A** | Docs canónica T1.3: ADR-0033 + spec write-back + plan-sesiones + gotcha + READMEs | `7d872ad` | `baseline/feature-c-s11.3.A-docs` |
-| **S11.3.B** | Helper PURE `validateLoginReturnTo` (~128 LOC actual vs ~80 est) + 14 tests passing (12 canónicos + 2 secundarios: `/api/auth/sso-init` allowlist hit + subdomain del apex same-registrable) + addendum ADR-0032 §5 bump sub-cap 1100 → 1400 (medición real pre 1168 → post 1297, +100 buffer) | TBD (backfill en S11.3.C) | `baseline/feature-c-s11.3.B-helper` |
-| **S11.3.C** | Wire-up `page.tsx` + `AccessFlow` (`useAccessForm` intacto) + 2 tests RTL nuevos + ajuste 3 tests existentes | TBD | `baseline/feature-c-s11.3.C-wire` |
+| **S11.3.B** | Helper PURE `validateLoginReturnTo` (~128 LOC actual vs ~80 est) + 14 tests passing (12 canónicos + 2 secundarios: `/api/auth/sso-init` allowlist hit + subdomain del apex same-registrable) + addendum ADR-0032 §5 bump sub-cap 1100 → 1400 (medición real pre 1168 → post 1297, +100 buffer) | `d03b30d` | `baseline/feature-c-s11.3.B-helper` |
+| **S11.3.C** | Wire-up `page.tsx` (92→122 LOC, +30 vs +18 est por doc-density del wire SSO) + `AccessFlow` (227→240 LOC, +13 matches est exactly) + `useAccessForm` **intacto** (120 LOC, superficie del hook agnóstica del destino preservada per ADR-0033) + 2 tests RTL nuevos (`respeta returnTo` + `regression Hub sin returnTo`, total 7→9 passing) + extensión backward-compat del helper `setup()` con prop opcional `returnTo` (los 3 tests navigate existentes siguen pasando sin cambio de behavior — pass `undefined` default) | TBD (backfill en S11.3.D) | `baseline/feature-c-s11.3.C-wire` |
 | **S11.3.D** | Smoke M1 retry production VERDE + docs close + push autorizado bundle B+C+D | TBD | `baseline/feature-c-s11.3-done` |
 
 Detalle ejecutivo por sesión (justificación, parallel agents, locked files, pre/post-commit checklist, LOC tracking): `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md`.
@@ -170,8 +170,8 @@ baseline/feature-c-s11.2.C-pre-push     = 5e62f0d   (S11.2.C pre-push: docs clos
 baseline/feature-c-s11.2-done           = 17b5df5   (S11.2 close T1.2: smoke owner-driven VERDE + final write-back)
 baseline/pre-s11.3-fix-returnto         = 17b5df5   (= s11.2-done, save point pre-fix S11.3 cold-start M1)
 baseline/feature-c-s11.3.A-docs         = 7d872ad   (S11.3.A docs: ADR-0033 + spec write-back + plan-sesiones + gotcha)
-baseline/feature-c-s11.3.B-helper       = TBD       (S11.3.B: validateLoginReturnTo PURE 128 LOC + 14 tests + addendum ADR-0032 §5 bump 1100→1400, backfill en S11.3.C)
-baseline/feature-c-s11.3.C-wire         = TBD       (S11.3.C: wire-up page + AccessFlow + 2 tests RTL nuevos + ajuste 3 tests existentes)
+baseline/feature-c-s11.3.B-helper       = d03b30d   (S11.3.B: validateLoginReturnTo PURE 128 LOC + 14 tests + addendum ADR-0032 §5 bump 1100→1400)
+baseline/feature-c-s11.3.C-wire         = TBD       (S11.3.C: wire-up page 92→122 + AccessFlow 227→240 + useAccessForm intacto + 2 tests RTL nuevos, total suite 698/698, backfill en S11.3.D)
 baseline/feature-c-s11.3-done           = TBD       (S11.3 close T1.3: smoke M1 retry VERDE + docs close + push bundle B+C+D)
 ```
 

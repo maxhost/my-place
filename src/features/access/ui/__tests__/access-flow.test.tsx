@@ -49,7 +49,13 @@ function makeAuth(over: Partial<AccessSubmit> = {}): AccessSubmit {
   };
 }
 
-function setup(opts: { auth?: AccessSubmit; navigate?: (url: string) => void } = {}) {
+function setup(opts: {
+  auth?: AccessSubmit;
+  navigate?: (url: string) => void;
+  /** ADR-0033 §"Wire-up AccessFlow": override post-auth opcional (ya
+   *  validado server-side por `validateLoginReturnTo` en la page apex). */
+  returnTo?: string;
+} = {}) {
   const auth = opts.auth ?? makeAuth();
   const navigate = opts.navigate ?? vi.fn();
   const utils = render(
@@ -57,6 +63,7 @@ function setup(opts: { auth?: AccessSubmit; navigate?: (url: string) => void } =
       labels={LABELS}
       auth={auth}
       locale="es"
+      returnTo={opts.returnTo}
       termsHref="/es/terminos"
       privacyHref="/es/privacidad"
       homeHref="/es"
@@ -172,6 +179,36 @@ describe("AccessFlow — form account-first (S9, S5c)", () => {
       ).toBeInTheDocument(),
     );
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  // ADR-0033 (S11.3.C) — cold-start SSO M1: cuando la page apex propaga un
+  // `returnTo` ya validado server-side (allowlist `sso-issue`/`sso-init` +
+  // same-registrable-domain + HTTPS, ver `validateLoginReturnTo`), el form
+  // honra ese destino en lugar del Hub canónico. Sin returnTo → Hub default
+  // (backwards-compat con signup/login pre-Feature-C; covered en regression).
+  it("respeta returnTo si la page lo propaga → navigate al destino SSO en vez del Hub", async () => {
+    const user = userEvent.setup();
+    const returnTo =
+      "https://place.community/api/auth/sso-issue?aud=nocodecompany.co&state=abc&nonce=def&returnTo=%2Fsettings";
+    const { auth, navigate } = setup({ returnTo });
+    await login(user);
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith(returnTo));
+    expect(navigate).not.toHaveBeenCalledWith(
+      "https://app.place.community/es/",
+    );
+    expect(auth.login).toHaveBeenCalledWith("vos@ejemplo.com", "supersegura");
+  });
+
+  it("regression: sin returnTo → Hub canónico (flows pre-Feature-C intactos)", async () => {
+    const user = userEvent.setup();
+    const { navigate } = setup({ returnTo: undefined });
+    await login(user);
+
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith("https://app.place.community/es/"),
+    );
+    expect(navigate).toHaveBeenCalledTimes(1);
   });
 
   it("idempotencia: doble click no dispara dos autenticaciones", async () => {

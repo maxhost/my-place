@@ -31,6 +31,7 @@ export function AccessFlow({
   labels,
   auth,
   locale,
+  returnTo,
   termsHref,
   privacyHref,
   homeHref,
@@ -40,6 +41,15 @@ export function AccessFlow({
   auth: AccessSubmit;
   /** Locale activo para construir la URL del Hub post-auth. */
   locale: string;
+  /** ADR-0033 (S11.3.C) — override del destino post-auth. La page apex de
+   *  login propaga el `searchParams.returnTo` SÓLO si pasa
+   *  `validateLoginReturnTo` (helper PURE en `shared/lib/sso/`, S11.3.B):
+   *  allowlist `sso-issue`/`sso-init` + same-registrable-domain HTTPS +
+   *  relative paths. **NUNCA confiar en este input client-side sin
+   *  validación server-side previa** — el componente sólo lo navega.
+   *  Sin returnTo (ausente o inválido en la page) → Hub canónico
+   *  default (backwards-compat con signup/login pre-Feature-C). */
+  returnTo?: string;
   termsHref: string;
   privacyHref: string;
   homeHref: string;
@@ -49,7 +59,11 @@ export function AccessFlow({
   const a = useAccessForm({
     labels,
     auth,
-    onSuccess: () => navigate(`https://app.place.community/${locale}/`),
+    // Closure sobre `returnTo`: la decisión vive aquí (no en el hook), que
+    // se mantiene agnóstico del destino post-auth. Decisión documentada en
+    // ADR-0033 §"Wire-up useAccessForm" — superficie del hook intacta.
+    onSuccess: () =>
+      navigate(returnTo ?? `https://app.place.community/${locale}/`),
   });
   const l = labels;
 
