@@ -1,6 +1,8 @@
 # Hub post-login (`app.place.community`) — V1: lista de tus lugares
 
 > _Spec creado 2026-05-19, revisado 2026-05-19 (audit + sidebar/mobile-first). Última edición 2026-05-19: corregido el SQL de `app.get_inbox_payload()` para reflejar el shape canónico `theme_config.colors.accent` (no `theme_config.accent`) y para construir el JSON con `jsonb_build_object` explícito (no `row_to_jsonb` sobre subquery)._ Status: V1 listo para implementar (sesiones 1-2 completadas; ver `plan-sesiones.md`). Cierra los gaps que `multi-tenancy.md:10`, `architecture.md:49+54` y ADR-0001 §36 dejaron prometidos pero no especificados.
+>
+> _Addendum 2026-05-23 (DS S3, post-Feature C S11.3, ADR-0033): el bullet del `/login` en §"Auth + redirects" se mantiene canónico, pero suma una responsabilidad adicional — honrar `?returnTo` cuando viene en query para cerrar el cold-start SSO M1 desde custom domain (visitor anónimo en `nocodecompany.co/settings` → silent SSO → apex login → returnTo al `sso-issue`). Ver §"Auth + redirects addendum post-S11.3" abajo para el contrato completo (allowlist V1, validación, backwards-compat con signup/login directo)._
 
 ## Contexto
 
@@ -29,10 +31,39 @@ El hub no es un dashboard. Sigue los principios de `producto.md`: nada grita, si
 
 **Auth + redirects (per G1 del audit, nueva estrategia):**
 - **Landing pública (`place.community/{locale}/`)** sigue 100% static — sin auth check, sin redirect. El user logueado puede visitarla normalmente.
-- **`/login`** (apex marketing) chequea sesión ANTES de renderizar el form. Si hay sesión válida → `redirect("https://app.place.community/{locale}/")`. Si no → muestra form normal.
+- **`/login`** (apex marketing) chequea sesión ANTES de renderizar el form. Si hay sesión válida → `redirect("https://app.place.community/{locale}/")` (default). Si no → muestra form normal. **Post-S11.3 (ADR-0033):** además lee `?returnTo` opcional del query; si es válido (validado por `validateLoginReturnTo`, ver addendum abajo) reemplaza el destino default tanto en el guard "ya logueado" como en el `onSuccess` del form. Sin returnTo → Hub canónico igual que pre-S11.3.
 - **`/crear`** (apex marketing, wizard) chequea sesión ANTES de renderizar. Si hay sesión válida y el path es entrada directa (no proveniente del wizard authed) → `redirect("https://app.place.community/{locale}/")`. Esto previene que un user logueado caiga en el wizard place-first por accidente.
   - **Excepción:** desde el estado vacío del hub, el CTA "Crear un lugar" lleva a `/crear` con un query param o flag que indica "autenticado, mostrar wizard authed". La página detecta y muestra el wizard en modo authed (skip Paso 3 cuenta).
 - **Hub (`app.place.community/{locale}/`)** chequea sesión PRIMERO. Si null → `redirect("https://place.community/{locale}/login")`.
+
+**Auth + redirects — addendum post-S11.3 (Feature C V1 cold-start SSO M1, ADR-0033)**
+
+Post-Feature-C V1 deployed 2026-05-23, el `/login` del apex tiene un **contrato adicional opcional** sobre el `?returnTo` query param. El bullet del `/login` arriba mantiene la semántica V1 (anónimo → form; logueado → Hub) y agrega: cuando viene `?returnTo=<URL válida>` en query, ese destino reemplaza al Hub canónico tanto si el user ya está logueado (guard server-side) como tras submit exitoso del form (callback client-side).
+
+**Qué problema resuelve.** El cold-start SSO M1 de Feature C (visitor anónimo navega directo a `https://nocodecompany.co/settings` sin sesión apex previa) requiere que el user pase por el login apex para crear la sesión Neon Auth que luego permitirá al `/api/auth/sso-issue` mintar el ticket. Sin honrar `?returnTo`, el user logueaba bien pero aterrizaba en el Hub canónico y perdía el contexto del settings que originalmente quería visitar. Detalle del bug T1.3 y por qué no se detectó antes (Feature C M2/M3 nunca ejercitan login apex en su path crítico) en ADR-0033 §"Evidencia del bug".
+
+**Quién emite el `returnTo` (consumer V1).** Único caller confirmado: `redirectToApexLogin` en `src/app/api/auth/sso-issue/route.ts:145-153` — cuando `sso-issue` detecta `getSessionJwt() === null`, redirige a `https://www.place.community/{locale}/login?returnTo=<URL completa al sso-issue con todos los query params del flow>`. La URL al `sso-issue` incluye `aud=<custom domain>`, `state=<csrf>`, `nonce=<csrf>` y `returnTo=<path original del custom domain>` URL-encoded.
+
+**Validación del `returnTo` (single point of truth).** Server-side en la page (`src/app/(marketing)/[locale]/login/page.tsx:58`) vía helper PURE `validateLoginReturnTo` (`src/shared/lib/sso/validate-login-return-to.ts`). Policy V1 conservadora:
+
+| Input | Veredicto |
+|---|---|
+| Relative path (`/foo?x=1#y`) sin `//` ni `://` | ✓ preservado |
+| Absolute HTTPS + same-registrable-domain + path ∈ `{/api/auth/sso-issue, /api/auth/sso-init}` | ✓ preservado |
+| Protocol-relative (`//attacker.com/x`) | ✗ → `null` |
+| Scheme-relative (`javascript:`, `data:`, `mailto:`) | ✗ → `null` |
+| Absolute attacker domain (`https://attacker.com/...`) | ✗ → `null` |
+| Absolute same-registrable HTTP (no HTTPS) | ✗ → `null` |
+| Absolute same-registrable HTTPS + path NO allowlistado | ✗ → `null` |
+| `null` / `undefined` / empty / whitespace-only | ✗ → `null` |
+
+Allowlist explícito de paths absolutos (no startsWith, no substring): ampliar V2 requiere ADR aparte + nuevo test + bump del Set. Cost-of-mistake asimétrico — open-redirect = vector phishing severo. Relative paths abiertos OK porque aterrizan en el apex mismo (same-origin del login, sin vector cross-domain). Precedent same-registrable-domain: `src/shared/lib/sso/sso-jwks-fetcher.ts` (S11.1) para el redirect policy del fetch JWKS — mismo principio "registrable domain matching como invariante intra-Place" co-localizado en el sub-módulo `shared/lib/sso/`.
+
+**Wire-up del contrato (3 archivos código tocados en S11.3.C).** Layer de props: `LoginPage` extiende `Props` con `searchParams: Promise<{returnTo?: string}>`, valida con `validateLoginReturnTo(rawReturnTo, rootDomain())`, propaga `returnTo={safeReturnTo ?? undefined}` al `<AccessFlow>`. Layer de componente: `AccessFlow` acepta prop opcional `returnTo?: string` y lo usa en el callback `onSuccess: () => navigate(returnTo ?? "https://app.place.community/${locale}/")`. Layer de hook: `useAccessForm` queda intacto — la decisión `returnTo vs Hub canónico` vive en el closure del `onSuccess` que `AccessFlow` construye (separation of concerns preservada, hook agnóstico del destino).
+
+**Backwards-compat preservada.** Sin `?returnTo` en query (signup desde landing apex, login directo desde apex marketing, futuros flows account-first internos no migrados) → `safeReturnTo === null` → fallback hardcoded `https://app.place.community/${locale}/` idéntico al comportamiento pre-S11.3. Cero regresión en los 2 journeys §"Auth + redirects" originales (A.1 + A.2 + A.3 + A.4 de §Journeys).
+
+**Variantes nuevas a la matriz §Journeys (M1 cold-start SSO desde custom domain).** Subsumido en el journey B variants pero documentado canónicamente en `docs/features/custom-domain-sso/spec.md` §"Conclusión final Feature C V1" y ADR-0033 §"Scope del bug". M1 hoy aterriza transparente: visitor anónimo navega `nocodecompany.co/settings` → silent SSO trigger S10 → `/api/auth/sso-init` → `sso-issue` → `?returnTo` preservado al apex login → submit → returnTo honrado → vuelve al `sso-issue` con sesión Neon Auth válida → ticket emitido → redeem en custom domain → cookie `__Host-place_sso_session` seteada → aterriza en `nocodecompany.co/settings` con sesión local. Smoke owner-driven M1 verde 2026-05-23 (cita literal del user: "paso perfectamente. entre a nocodecompany.co/settings me dirigio al login de place.community despues de identificarme me redirigio a nocodecompany.co/settings").
 
 **i18n del hub:**
 - Path prefix obligatorio en zona hub: `app.place.community/es/`, `/en/`, `/fr/`, `/pt/`.
