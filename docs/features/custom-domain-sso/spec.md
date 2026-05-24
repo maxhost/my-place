@@ -476,20 +476,29 @@ Smoke owner-driven inmediatamente después del T1.1 verde: con cookie `__Host-pl
 
 **Costo aceptable V1**: cada `getAuthenticatedDbForRequest` invocation repite zone resolution + JWT verification + SQL lookup a `app.lookup_place_by_domain` (SECURITY DEFINER STABLE, prepared stmt cached al pool). En multi-helper actions con 3 calls internas = 3× roundtrips. Documentado in-code; V1.1 follow-up si telemetría demanda (memoizar decision con `React.cache` dentro del helper).
 
-### T1.2 retry post-fix (commit TBD, deploy TBD) — PENDIENTE POST-PUSH
+### T1.2 retry post-fix (commit `5e62f0d`, deploy `dpl_2vhnAC2REbcjGgureWp85VRqpzj6`) — VERDE ✅
 
-Mismos 3 paths que T1.2 inicial. Esperado:
+Smoke owner-driven 2026-05-23 post-push (deploy READY en ~42s, alias `nocodecompany.co` mapeado correctamente):
 
-| Path | Esperado |
-|---|---|
-| `nocodecompany.co/settings` | Form de locale populated con valor actual del place |
-| `nocodecompany.co/settings/domain` | Sección "Dominio configurado" con `nocodecompany.co` + estado verified |
-| `nocodecompany.co/settings` cambiar locale | UPDATE persiste + revalidación cache + UI refleja cambio |
+| # | Path | Esperado | Obtenido |
+|---|---|---|---|
+| 1 | `nocodecompany.co/settings` | Form de locale populated con valor actual del place | ✅ Form populated (locale `es` correcto del place) |
+| 2 | `nocodecompany.co/settings/domain` | Sección "Dominio configurado" con `nocodecompany.co` + estado verified | ✅ Dominio configurado visible + verified |
+| 3 | `nocodecompany.co/settings` cambiar locale → submit | UPDATE persiste + revalidación cache + UI refleja cambio | ✅ Persiste + revalida |
 
-Esta sección se actualiza con evidencia real post-push autorizado + smoke owner-driven verde.
+**Server-side sanity smoke** (no-cookies, plumbing post-deploy intacta):
+
+| # | Endpoint | Esperado | Obtenido |
+|---|---|---|---|
+| 1 | `GET https://nocodecompany.co/` | 200 (host routing alive, Feature B intacto) | ✅ HTTP 200 |
+| 2 | `GET https://nocodecompany.co/settings` sin cookie | 307 → `/api/auth/sso-init?returnTo=%2Fsettings` (silent SSO trigger S10 intacto) | ✅ HTTP 307 + Location correcto |
+| 3 | `GET https://nocodecompany.co/settings/domain` sin cookie | 307 → `/api/auth/sso-init?returnTo=%2Fsettings%2Fdomain` | ✅ HTTP 307 + Location correcto |
+| 4 | `GET https://www.place.community/api/auth/sso-jwks` | 200 + `Content-Type: application/jwk-set+json` (S5 intacto) | ✅ HTTP 200 + content-type correcto |
+
+**Observación arquitectónica confirmada**: el path en custom domain NO incluye locale segment (`/settings` no `/es/settings`) — by-design del rendering en custom domain, la page renderea en el `place.default_locale` cargado de DB. Cambiar el locale via Server Action persiste el nuevo `default_locale` a DB; el próximo render lo levanta sin tocar el path. Comportamiento esperado, idéntico al pre-S11.2 (la migración S11.2 no tocó el routing/path, sólo el helper de DB que las Server Actions usan).
 
 ### Conclusión
 
 Feature C V1 deployed end-to-end verde para el flow completo: silent SSO mintea cookie local (T1.1) + Server Actions zone-aware que leen la cookie correcta según zona (T1.2). El owner real autenticado en `place.community` accede a `nocodecompany.co/settings` con sesión local emitida transparentemente (~1-2s, sin click extra ni redirect visible al apex) **y** las 4 Server Actions owner-only funcionan transparentemente en ambas zonas (apex y custom domain). Continuidad RLS verificada empíricamente — el `sub` del local session JWT coincide con el `neon_auth.user.id` original, por lo que `app.current_user_id()` retorna el mismo valor en custom domain que en apex (cero refactor de policies, ADR-0032 §6 cumplido).
 
-Bug T1.1 cerrado vía S11.1 (Opción D). Bug T1.2 cerrado vía S11.2 (Opción B). Tag final: `baseline/feature-c-s11.2-done`. Deploy production T1.2: TBD post-push.
+Bug T1.1 cerrado vía S11.1 (Opción D). Bug T1.2 cerrado vía S11.2 (Opción B). Tag final: `baseline/feature-c-s11.2-done`. Deploy production T1.2: `dpl_2vhnAC2REbcjGgureWp85VRqpzj6` READY 2026-05-23 (commit `5e62f0d` pre-final-close; el post-smoke write-back de evidencia VERDE va en el commit S11.2 close subsiguiente sobre el mismo deploy READY).

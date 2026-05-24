@@ -31,8 +31,8 @@ Feature C V1 deployed a producción 2026-05-23 con dos sub-sesiones de fix post-
 | **S11 (close T1.1)** | Smoke E2E T1.1 verde + docs close + write-back + push autorizado | `523fa8d` | `baseline/feature-c-done` |
 | **S11.2.A** | Foundation zone-aware: `decideAuthBranch` (PURE) + `getAuthenticatedDbForRequest` (integrator) + 8 tests | `20b44e8` | `baseline/feature-c-s11.2.A-foundation` |
 | **S11.2.B** | Migrar 4 Server Actions broken-on-custom-domain a helper zone-aware (2 exemplars Maxi + 2 parallel agents) | `bebfbf4` | `baseline/feature-c-s11.2.B-migrated` |
-| **S11.2.C (pre-push)** | Docs close-out S11.2: write-back plan-sesiones + spec T1.2 journey | TBD (este commit) | `baseline/feature-c-s11.2.C-pre-push` |
-| **S11.2 (close T1.2)** | Push bundle (A+B+C) + smoke production T1.2 retry + final write-back | TBD post-smoke | `baseline/feature-c-s11.2-done` |
+| **S11.2.C (pre-push)** | Docs close-out S11.2: write-back plan-sesiones + spec T1.2 journey | `5e62f0d` | `baseline/feature-c-s11.2.C-pre-push` |
+| **S11.2 (close T1.2)** | Push bundle (A+B+C) + smoke production T1.2 retry VERDE + final write-back | TBD (este commit) | `baseline/feature-c-s11.2-done` |
 
 Detalle ejecutivo por sesión (justificación, parallel agents, locked files, pre/post-commit checklist, LOC tracking): `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md`.
 
@@ -73,7 +73,7 @@ Resumen:
 - **T1.1 inicial** (commit `e61e027` deploy `dpl_3LHtn6dn...`): `sso_error=signature_invalid` → triggered S11.1 fix.
 - **T1.1 retry post-fix** (commit `473c3e8` deploy `dpl_5fmp8Lfc...`): **VERDE** — cookie `__Host-place_sso_session` con claims `iss=place.community / sub=<neon_auth_user_id> / host=nocodecompany.co / iat / exp +7d` correctamente seteada en `nocodecompany.co/settings` post silent SSO.
 - **T1.2 inicial** (deploy `dpl_5fmp8Lfc...`, post-cookie set): `nocodecompany.co/settings` cargó la página pero **form de locale vacío** + `nocodecompany.co/settings/domain` no muestra dominio configurado. RLS-filtered a 0 rows porque `app.current_user_id()` retornó NULL en custom domain (cookie Neon Auth ausente por RFC 6265, las 4 Server Actions leían SÓLO Neon Auth) → triggered S11.2 fix.
-- **T1.2 retry post-fix** (commit TBD post-push deploy TBD): **pendiente de push autorizado + smoke owner-driven**. Esperado: UI populated en ambas pages + acciones owner ejecutables.
+- **T1.2 retry post-fix** (commit `5e62f0d` deploy `dpl_2vhnAC2REbcjGgureWp85VRqpzj6`): **VERDE** — los 3 paths owner-driven (`/settings` form populated + `/settings/domain` dominio configurado + cambiar locale persiste) pasan. Server-side sanity (host routing + silent SSO trigger + JWKS apex) intacta. Detalle completo en `spec.md` §"T1.2 retry post-fix".
 
 ## Comando de rollback total documentado
 
@@ -126,8 +126,8 @@ baseline/feature-c-s11.1-jwks-fix       = 473c3e8   (S11.1 docs: gotcha + ADR §
 baseline/feature-c-done                 = 523fa8d   (S11 close T1.1: smoke verde + write-back)
 baseline/feature-c-s11.2.A-foundation   = 20b44e8   (S11.2.A: decideAuthBranch PURE + getAuthenticatedDbForRequest + 8 tests)
 baseline/feature-c-s11.2.B-migrated     = bebfbf4   (S11.2.B: 4 Server Actions migradas a helper zone-aware)
-baseline/feature-c-s11.2.C-pre-push     = TBD       (S11.2.C pre-push: docs close-out, este commit)
-baseline/feature-c-s11.2-done           = TBD       (S11.2 close T1.2: smoke verde + final write-back, post-push)
+baseline/feature-c-s11.2.C-pre-push     = 5e62f0d   (S11.2.C pre-push: docs close-out + push autorizado bundle A+B+C)
+baseline/feature-c-s11.2-done           = TBD       (S11.2 close T1.2: smoke owner-driven VERDE + final write-back, este commit)
 ```
 
 ## Pointers
