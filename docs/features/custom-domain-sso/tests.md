@@ -57,7 +57,7 @@ Heredado del precedente `docs/features/custom-domain-routing/tests.md`. En Featu
 - [ ] **`aud` mismatch**: ticket emitido con `aud='nocodecompany.co'`, verify con `expectedAud='otrocustom.com'` → throws `SsoTicketError('aud_mismatch')`.
 - [ ] **Expired**: ticket con `exp=now()-1s` → throws `SsoTicketError('expired')` (jose enforce).
 - [ ] **Signature tampered**: modificar último carácter del JWS → throws `SsoTicketError('signature_invalid')`.
-- [ ] **`iss` wrong**: ticket emitido con `iss='attacker.com'` → throws `SsoTicketError('iss_wrong')` (verify enforce `issuer: 'place.community'`).
+- [ ] **`iss` mismatch**: ticket emitido con `iss='attacker.com'` → throws `SsoTicketError('iss_mismatch')` (verify enforce `issuer: 'place.community'`). Código canónico del discriminated union es `iss_mismatch`, ver `src/shared/lib/sso/sso-ticket.ts:84`.
 - [ ] **Missing claim**: ticket sin `jti` (o sin `nonce`, o sin `state`) → throws `SsoTicketError('missing_claim')`.
 - [ ] **Key config error**: `loadSigningKey()` con env ausente → throws `SsoKeyConfigError` específica (no `Error` genérico).
 - [ ] **JWKS shape**: `loadPublicJwks()` retorna `{keys: [{kty:'EC', crv:'P-256', x, y, kid, use:'sig', alg:'ES256'}]}` (validation field-by-field).

@@ -14,11 +14,11 @@ ADR-0032 supersede ADR-0001 §3: Feature C implementa **Signed Ticket**. El apex
 
 ## Slice
 
-**Nombre canónico**: `custom-domain-sso` (sin slice `src/features/custom-domain-sso/`). El módulo nuevo vive en `src/shared/lib/sso/` con sub-cap LOC 800 propio. Los Server Actions y la UI no existen como concepto cohesivo (el flow es server-side redirect chain, no form interactivo); un slice acá sería ceremonia sin beneficio. Decisión documentada en ADR-0032 §5.
+**Nombre canónico**: `custom-domain-sso` (sin slice `src/features/custom-domain-sso/`). El módulo nuevo vive en `src/shared/lib/sso/` con sub-cap LOC **1400 propio** post-S11.3.B (bumps elásticos 800 [original] → 1000 [S3.5] → 1100 [S11.1] → 1400 [S11.3.B], documentados en ADR-0032 §5 addenda). Los Server Actions y la UI no existen como concepto cohesivo (el flow es server-side redirect chain, no form interactivo); un slice acá sería ceremonia sin beneficio. Decisión documentada en ADR-0032 §5.
 
 **LOC budget**:
 
-- `src/shared/lib/sso/` sub-cap propio: **800 LOC** (separado del shared/lib raíz). Proyección post-S4: ~680 LOC; post-S8: ~710 LOC + barrel ~20 = ~730 LOC.
+- `src/shared/lib/sso/` sub-cap propio: **1400 LOC** (separado del shared/lib raíz, bumps elásticos por addendum dedicado por evento — ADR-0032 §5). LOC actual post-S11.3.B: **1297 LOC** (medido con `wc -l src/shared/lib/sso/*.ts` excluyendo `__tests__/`, ~100 LOC headroom positivo).
 - `src/features/custom-domain-routing/ui/sso-fallback-panel.tsx`: ~80 LOC (cuenta hacia el cap 1500 del slice existente).
 - Endpoints `/api/auth/sso-*`: ~50 (jwks) + ~150 (issue) + ~120 (init) + ~180 (redeem) = ~500 LOC en `src/app/api/auth/`.
 
@@ -29,25 +29,39 @@ ADR-0032 supersede ADR-0001 §3: Feature C implementa **Signed Ticket**. El apex
 - `next` server primitives: `cookies()`, `headers()`, `NextResponse.redirect`.
 - Helpers existentes reusados: `lookupPlaceByDomain` (Feature B), `getSessionJwt` + `verifyAccessToken` (Feature A), `buildApexAuthFallback` (Feature B).
 
-**Public surface (TBD post-S6)**: el barrel `src/shared/lib/sso/index.ts` expone:
+**Public surface** (post-V1, barrel `src/shared/lib/sso/index.ts` con `export *` desde cada sub-módulo):
 
 ```typescript
-// Sign/verify (S2)
-export { signSsoTicket, verifySsoTicket, SsoTicketError } from './sso-ticket';
-export type { SsoTicketClaims } from './sso-ticket';
+// Sign/verify ticket (S2)
+export { signSsoTicket, verifySsoTicket, SsoTicketError, buildTicketClaims }
+  from './sso-ticket';
+export type { SsoTicketClaims, BuildTicketClaimsOptions } from './sso-ticket';
 // Keys (S2)
-export { loadSigningKey, loadPublicJwks, SsoKeyConfigError } from './sso-keys';
-// State cookie (S3)
-export { generateState, generateNonce, signStateCookie, verifyStateCookie } from './sso-state';
-export { validateReturnTo, STATE_COOKIE_NAME, STATE_COOKIE_MAX_AGE } from './sso-state';
-// Local session (S4)
-export { mintLocalSession, verifyLocalSession, LOCAL_SESSION_COOKIE_NAME, LOCAL_SESSION_MAX_AGE } from './sso-session';
+export { loadSigningKey, loadPublicJwks, SsoKeyConfigError,
+         __resetSsoKeyCacheForTests } from './sso-keys';
+// State cookie + relative returnTo (S3)
+export { generateState, generateNonce, signStateCookie, verifyStateCookie,
+         validateReturnTo, STATE_COOKIE_NAME, STATE_COOKIE_MAX_AGE_SECONDS,
+         __resetSsoStateCacheForTests } from './sso-state';
+// Local session JWT (S4)
+export { mintLocalSession, verifyLocalSession, LOCAL_SESSION_COOKIE_NAME,
+         LOCAL_SESSION_ISSUER, LOCAL_SESSION_TTL_SECONDS } from './sso-session';
 // DB bridge (S4)
-export { getAuthenticatedDbWithVerifier, getCustomDomainDb } from './db-with-verifier';
+export { getAuthenticatedDbWithVerifier } from './db-with-verifier';
 export type { TokenVerifier } from './db-with-verifier';
 // jti consume (S8)
 export { consumeSsoJti } from './sso-jti-consume';
+// JWKS fetcher con same-registrable-domain redirect policy (S11.1)
+export { makeSafeRedirectFollowingFetch } from './sso-jwks-fetcher';
+// Apex login returnTo validator (S11.3.B) — allowlist `/api/auth/sso-{issue,init}`
+export { validateLoginReturnTo } from './validate-login-return-to';
 ```
+
+**Notas**:
+- **NO existe `getCustomDomainDb` wrapper** (propuesto en plan original, descartado pre-implementación). Consumers llaman `getAuthenticatedDbWithVerifier(token, verifyLocalSession, fn)` directo — único caller V1 es `getPlaceForZone` (S9). Decisión en ADR-0032 §7.
+- **Constants names**: `STATE_COOKIE_MAX_AGE_SECONDS` (120s, no `MAX_AGE`) + `LOCAL_SESSION_TTL_SECONDS` (7d, no `MAX_AGE`).
+- **Test escape hatches** (`__reset*ForTests`): re-exportados intencionalmente para que tests integración (no co-locados con el helper) puedan invalidar caches singleton. **Convención**: prefijo `__` señala "test-only API, no usar en runtime".
+- **`validateReturnTo` (S3, sso-state)** vs **`validateLoginReturnTo` (S11.3.B, validate-login-return-to)**: dos validadores distintos con scope distinto. El primero valida paths relative para el sso-init/sso-issue/sso-redeem flow; el segundo valida URLs absolute al apex con allowlist explícito para `searchParams.returnTo` del login apex. Co-localizados en mismo sub-módulo por compartir principio same-registrable-domain trust.
 
 El slice `custom-domain-routing` extiende su `public.ts` con `SsoFallbackPanel` + `SsoFallbackLabels` (S6).
 
@@ -105,16 +119,33 @@ Redime el ticket. Query: `?ticket=<jwt>&state=<>&returnTo=<>`.
 
 **Side effects**:
 
-1. Lee + verifica state cookie con `verifyStateCookie` → null/invalid = redirect `returnTo + '?sso_error=state_invalid'`.
-2. Constant-time comparison del `state` query vs state cookie. Mismatch = `?sso_error=state_mismatch`.
-3. Carga JWKS apex con `createRemoteJWKSet(new URL('https://place.community/api/auth/sso-jwks'))` (jose cachea intra-process por 5min).
-4. `verifySsoTicket(ticket, host, jwks)` → throws con `SsoTicketError` mapeado a `?sso_error=<code>` (`expired`, `signature_invalid`, `aud_mismatch`, `missing_claim`, `iss_wrong`).
-5. Valida `nonce` del ticket === nonce del state cookie.
-6. Re-valida `aud === host` actual (defense-in-depth, jose ya lo hizo).
-7. Consume `jti` vía `consumeSsoJti(jti, exp)` (wrapper TS sobre `app.consume_sso_jti`). False = `?sso_error=replay`.
-8. `mintLocalSession({sub, host})` → cookie `__Host-place_sso_session` (HttpOnly, Secure, SameSite=Lax, Path=/, `Max-Age=7d`).
-9. Borra state cookie (`Max-Age=0`).
-10. Re-valida `returnTo` + redirect 302 a path interno.
+1. Parse query con Zod (`ticket`, `state`, `returnTo`). Falla = `?sso_error=invalid_query`.
+2. Lee + verifica state cookie con `verifyStateCookie` → null/invalid = redirect `returnTo + '?sso_error=state_invalid'`.
+3. Constant-time comparison del `state` query vs state cookie. Mismatch = `?sso_error=state_mismatch`.
+4. Carga JWKS apex con `createRemoteJWKSet(new URL('https://place.community/api/auth/sso-jwks'), { [customFetch]: makeSafeRedirectFollowingFetch(...) })` (jose cachea intra-process por 5min; customFetch S11.1 envuelve fetch con same-registrable-domain redirect policy + ≤3 hops + HTTPS-only).
+5. `verifySsoTicket(ticket, host, jwks)` → throws `SsoTicketError` mapeado a `?sso_error=<code>` (códigos canónicos `sso-ticket.ts:79-92`).
+6. Valida `nonce` del ticket === nonce del state cookie. Mismatch = `?sso_error=nonce_mismatch`.
+7. Re-valida `aud === host` actual (defense-in-depth, jose ya lo hizo).
+8. Consume `jti` vía `consumeSsoJti(jti, exp)` (wrapper TS sobre `app.consume_sso_jti`). False = `?sso_error=replay`.
+9. `mintLocalSession({sub, host})` → cookie `__Host-place_sso_session` (HttpOnly, Secure, SameSite=Lax, Path=/, `Max-Age=7d`).
+10. Borra state cookie (`Max-Age=0`).
+11. Re-valida `returnTo` + redirect 302 a path interno.
+
+**Lista canónica de `?sso_error=<code>` codes emitidos por el redeem** (cruzar con `src/app/api/auth/sso-redeem/route.ts`):
+
+| Code | Trigger | Step que lo emite |
+|---|---|---|
+| `invalid_query` | Query params malformados (Zod fail) | 1 |
+| `state_invalid` | State cookie ausente o malformada | 2 |
+| `state_mismatch` | State query ≠ state cookie | 3 |
+| `nonce_mismatch` | Nonce del ticket ≠ nonce del state cookie | 6 |
+| `aud_mismatch` | `aud` claim del ticket ≠ host actual (jose) | 5, 7 (defense-in-depth) |
+| `expired` | `exp` claim del ticket en el pasado | 5 |
+| `signature_invalid` | Firma del JWS no verifica vs JWKS apex | 5 |
+| `iss_mismatch` | `iss` claim ≠ `place.community` | 5 |
+| `missing_claim` | Algún claim requerido falta (sub/aud/nonce/state/jti) | 5 |
+| `jwt_malformed` | Token no parsea como JWS válido | 5 |
+| `replay` | `jti` ya consumido (DB returns false) | 8 |
 
 **Error paths SIEMPRE redirigen, nunca renderean HTML**. Separación clean: handler = API; page de UI consume `?sso_error=<code>` query y renderiza `<SsoFallbackPanel>`. Pattern documentado en ADR-0032 §2 + §A12.
 
@@ -346,31 +377,7 @@ V1 cobertura E2E: curl scenarios programáticos (S11 §"Smoke ejecutado") + smok
 
 ## Smoke ejecutado
 
-> **Placeholder vacío hasta S11**. Esta sección se popula al cierre con (a) curl scenarios programáticos (10 escenarios listados en plan de sesiones), (b) smoke production user-driven, (c) verificación pre-push (`pnpm typecheck && pnpm lint && pnpm test && pnpm build`).
-
-Estructura esperada post-S11:
-
-```
-| # | Escenario | Esperado | Obtenido |
-|---|---|---|---|
-| 1 | `GET /api/auth/sso-init?returnTo=/settings` (host=nocodecompany.co) | 302 + state cookie | TBD |
-| 2 | `GET /api/auth/sso-issue?aud=&state=&nonce=&returnTo=` con apex cookie | 302 a redeem con ticket | TBD |
-| 3 | `GET /api/auth/sso-redeem?ticket=&state=&returnTo=` con state cookie | 302 a `/settings` + session cookie | TBD |
-| 4 | `GET /settings` con session cookie | 200 settings HTML (no fallback, no gate) | TBD |
-| 5 | Replay #3 con mismo jti | 302 `?sso_error=replay` | TBD |
-| 6 | State cookie tampered | `?sso_error=state_invalid` | TBD |
-| 7 | Ticket emitido para otro host | `?sso_error=aud_mismatch` | TBD |
-| 8 | Open-redirect `returnTo=//attacker.com` | aterriza en `/`, no en attacker | TBD |
-| 9 | Apex sin sesión: sso-issue | redirect a apex login con returnTo preservado | TBD |
-| 10 | `GET /api/auth/sso-jwks` | 200 + cache headers + JWK Set válido | TBD |
-```
-
-**Smoke production user-driven** (post-push autorizado):
-
-- Owner real loguea en apex `place.community`.
-- Navega a `nocodecompany.co/settings`.
-- Observa silent SSO (URL nunca para >1s en `/api/auth/sso-*`).
-- Aterriza en settings con sesión local + acción owner ejecutable (e.g. cambiar locale del place).
+> **Esta sección consolida la evidencia VERDE end-to-end del cierre operativo de Feature C V1**. La sección populada vive abajo: §"Smoke ejecutado 2026-05-23" (smoke production T1.1 retry post-S11.1) + §"T1.2 retry post-fix" (post-S11.2) + §"T1.3 retry post-fix" (post-S11.3.D) + §"Conclusión final Feature C V1". El placeholder original con 10 escenarios programáticos quedó superseded por los smokes owner-driven reales del cierre.
 
 ## Pointers
 
@@ -386,7 +393,7 @@ Estructura esperada post-S11:
 - **Data model update post-C**: [`../../data-model.md`](../../data-model.md) §"Auth y OIDC" + comentario SQL en `place_domain.oauth_client_id` (DEPRECATED).
 - **Stack update post-C**: [`../../stack.md`](../../stack.md) línea 16 + §env vars (`PLACE_SSO_SIGNING_KEY` + KID).
 - **Gotchas nuevos**: [`../../gotchas/host-prefix-cookie-path.md`](../../gotchas/host-prefix-cookie-path.md), [`../../gotchas/sso-signing-key-no-log.md`](../../gotchas/sso-signing-key-no-log.md), [`../../gotchas/jose-jwks-redirect-manual.md`](../../gotchas/jose-jwks-redirect-manual.md) (S11.1).
-- **Módulo nuevo (creado S2-S8)**: `src/shared/lib/sso/` (sub-cap LOC 1100 propio post-S11.1 addendum).
+- **Módulo nuevo (creado S2-S8 + S11.1 + S11.3.B)**: `src/shared/lib/sso/` (sub-cap LOC **1400** propio post-S11.3.B addendum; bumps elásticos 800 → 1000 [S3.5] → 1100 [S11.1] → 1400 [S11.3.B] documentados en ADR-0032 §5 addenda; LOC actual 1297 con ~100 LOC headroom positivo).
 - **Helper zone-aware (creado S11.2.A)**: `src/shared/lib/db-for-request.ts` (integrator) + `src/shared/lib/db-for-request-decision.ts` (PURE) + `src/shared/lib/__tests__/db-for-request.test.ts` (8 tests PURE).
 - **Endpoints API (creados S5/S7/S8)**: `src/app/api/auth/sso-{init,issue,redeem,jwks}/route.ts`.
 - **Componente nuevo (creado S6)**: `src/features/custom-domain-routing/ui/sso-fallback-panel.tsx`.
