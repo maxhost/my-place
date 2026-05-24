@@ -4,7 +4,21 @@
 
 ## Status
 
-S0 docs cerrado. S1-S6 pending.
+**Feature D V1 cerrada end-to-end** (2026-05-24, S0–S6 ✓). Smoke E2E 5/5 verde contra branch ephemeral Neon `smoke-feature-d-s6-2026-05-24` (off production, cleaned). Pre-push checklist: typecheck/lint/test/build verde + `git diff baseline/feature-d-s5-done -- src/` empty (S6 sólo docs). Push pendiente de autorización turn-by-turn del user.
+
+SHAs por sesión (todas locales pre-push):
+
+| Sesión | Commit SHA | Tag baseline | Resumen |
+|---|---|---|---|
+| S0 | `f7cb47a` (off save point `aaf238b`) | `baseline/feature-d-s0-done` | Docs ADR-0035 + spec + tests + plan-sesiones + banner refinements |
+| S1 | `d4b4d03` | `baseline/feature-d-s1-done` | Migrations 0012+0013 — WORM-via-DEFINER + helper `current_user_owns_place` + `founder_user_id` + refactor `app.create_place` (5+6 arg) — 14 tests TDD verdes |
+| S2 | `76d6ecc` | `baseline/feature-d-s2-done` | Migration 0014 — `app.elevate_to_owner` SECURITY DEFINER — 8 tests TDD verdes |
+| S3 | `d34aab0` | `baseline/feature-d-s3-done` | Migration 0015 — `app.revoke_ownership` SECURITY DEFINER — 10 tests TDD verdes |
+| S4 | `191c07a` | `baseline/feature-d-s4-done` | Migration 0016 — `app.transfer_founder_ownership` SECURITY DEFINER — 10 tests TDD verdes |
+| S5 | `c979b4b` | `baseline/feature-d-s5-done` | 5 regression tests `create_place` founder + `data-model.md` write-back (sin migration nueva) |
+| S6 | (resuelto vía tag) | `baseline/feature-d-s6-done` | Smoke E2E 5/5 + gotcha `place-ownership-defining-functions-only.md` + README index + write-back plan-sesiones + spec §"Smoke ejecutado" |
+
+Suite final: **761/761 verde** (baseline pre-Feature-D 714 + 47 nuevos: S1 14 + S2 8 + S3 10 + S4 10 + S5 5).
 
 > **Ajuste operacional (2026-05-24, hot-patch durante S1):** el refactor de
 > `app.create_place` (originalmente planeado para S5 migration 0016) se

@@ -153,6 +153,26 @@ Tras S6 (cierre operativo del slice), la verificación manual incluye correr las
 
 Resultados se logean en S6 (mismo patrón que el smoke `dpl_*` de Feature C); si algún assert falla, S6 no cierra y se abre debugging session.
 
+### Smoke ejecutado (2026-05-24, S6 close)
+
+Ejecutado vía Neon MCP contra branch ephemeral `smoke-feature-d-s6-2026-05-24` (id `br-summer-waterfall-ap1y7m78`, off production `br-divine-credit-ap9ty5er` — pre-Feature-D, sin migrations 0012-0016 aplicadas) → aplicadas las 5 migrations en orden + seed + smoke + cleanup (branch eliminada). Esto valida **el migration chain completo** end-to-end + la funcionalidad + el REVOKE regression. Schema post-aplicación verificado: `helper:true, elevate:true, revoke:true, transfer:true, founder_user_id NOT NULL:true, único po_sel, sys_insert/update/delete:false, sys_select:true`.
+
+Setup: 3 `app_user` (alice/bob/carol) + `app.create_place('smoke-s6-place', ..., 'es')` como alice → pid `8598d7be-c9b8-42c4-9106-f6f279071872`.
+
+| Step | Acción | Resultado | Verde |
+|---|---|---|---|
+| 1 | Como alice → `app.create_place(...)` | `founder_user_id = alice.id` + `ownership_rows=1` + `membership_rows=1` + `billing_mode='OWNER_PAYS'` + `subscription_status='ACTIVE'` | ✓ |
+| 2a | Como alice → `app.elevate_to_owner(bob, place)` | INSERT verde; `owners_after_elevate=2` | ✓ |
+| 2b | Re-llamar duplicate elevate | `NeonDbError: target is already an owner` (P0001) | ✓ |
+| 3a | Como bob → `app.revoke_ownership(alice, place)` | `NeonDbError: cannot revoke founder ownership` (P0001) | ✓ |
+| 3b | Como bob → `app.revoke_ownership(bob, place)` | `NeonDbError: cannot self-revoke ownership; use transfer or future step-down` (P0001) | ✓ |
+| 4 | Como alice (founder) → `app.transfer_founder_ownership(bob, place)` | `founder_after=bob` + `alice_ownership_rows=0` (eliminada) + `bob_ownership_rows=1` (intacta) + `alice_membership_active=1` (preservada) + `total_owners_after_transfer=1` | ✓ |
+| 5a | Como `app_system` → `INSERT INTO place_ownership ...` directo | `NeonDbError: permission denied for table place_ownership` (42501) | ✓ |
+| 5b | Bonus: `UPDATE place_ownership SET granted_at=now() ...` directo | `NeonDbError: permission denied for table place_ownership` (42501) | ✓ |
+| 5c | Bonus: `DELETE FROM place_ownership WHERE ...` directo | `NeonDbError: permission denied for table place_ownership` (42501) | ✓ |
+
+**Resultado: 5/5 steps verde + 2 bonus (UPDATE/DELETE direct denial)**. Las 4 funciones DEFINER + WORM-via-DEFINER defense-in-depth confirmadas end-to-end contra schema fresco (production). Branch ephemeral eliminada post-smoke (cleanup limpio).
+
 ## Pointers
 
 - **ADR canónica V1 de Feature D**: [`../../decisions/0035-place-ownership-multi-owner-v1.md`](../../decisions/0035-place-ownership-multi-owner-v1.md).
