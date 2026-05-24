@@ -113,6 +113,13 @@
       "when": 1779748335357,
       "tag": "0015_app_revoke_ownership",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1779748435357,
+      "tag": "0016_app_transfer_founder_ownership",
+      "breakpoints": true
     }
   ]
 }
