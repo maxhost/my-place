@@ -2,7 +2,7 @@
 
 Inventario de todo lo que Place incluye o quiere incluir. Es el **backlog y mapa**, no el spec.
 
-> _Última actualización: 2026-05-19._ Documento vivo. Compilado desde los docs canónicos (ontología, ADRs, stack) + lo que el owner bajó de la cabeza. No se taggea MVP por feature: **casi todo entra**; lo que es posterior se marca como `Roadmap`/`Parked` acá y la **landing** decide qué muestra como "futuro / próximamente".
+> _Última actualización: 2026-05-23._ Documento vivo. Compilado desde los docs canónicos (ontología, ADRs, stack) + lo que el owner bajó de la cabeza. No se taggea MVP por feature: **casi todo entra**; lo que es posterior se marca como `Roadmap`/`Parked` acá y la **landing** decide qué muestra como "futuro / próximamente".
 
 **Convención de specs:** cada feature, cuando se va a construir, tiene `docs/features/<slug>/spec.md` (un archivo por feature; si crece, la carpeta admite anexos). Spec antes de código (ver `CLAUDE.md`). Este README los enlaza cuando existan.
 
@@ -30,7 +30,7 @@ Inventario de todo lo que Place incluye o quiere incluir. Es el **backlog y mapa
 | Elegir zonas | El owner activa las que necesita: discusiones (siempre), eventos, biblioteca | Plataforma | `data-model.md`, `ontologia/*` |
 | Multi-tenancy subdomain | `{slug}.place.community` + routing por hostname | Plataforma | `multi-tenancy.md` |
 | Hub post-login | Navegador del usuario en `app.place.community/{locale}` (topbar + sidebar mobile-first). V1 entrega la vista "Tus lugares" (owner + miembro). V2 sumará DMs y Actividad como vistas en el mismo hub | Plataforma | [`features/inbox/`](inbox/spec.md) |
-| Custom domains | Dominio propio del place vía Vercel API + OIDC client por dominio | Plataforma | `multi-tenancy.md`, ADR-0001 |
+| Custom domains | Dominio propio del place vía Vercel API + Signed Ticket SSO desde apex (Features A+B+C V1 deployed) | Plataforma | `multi-tenancy.md`, ADR-0001 (refinada por ADR-0026/0031/0032/0033) |
 | Gate de horario | Place accesible solo en horario; owner exceptuado | Plataforma | `architecture.md` § Gate |
 | Settings del owner | Activar/desactivar zonas, horario, theming, ownership | Plataforma | `data-model.md` |
 
@@ -38,7 +38,7 @@ Inventario de todo lo que Place incluye o quiere incluir. Es el **backlog y mapa
 
 | Feature | Qué es | Estado | Canónico |
 |---|---|---|---|
-| Auth (Neon Auth/Better Auth) | OIDC IdP propio, SSO cross-domain | Plataforma | ADR-0001, `stack.md` |
+| Auth (Neon Auth/Better Auth) | Apex/subdomain via cookie Neon Auth `Domain=.place.community`; custom domain via Signed Ticket SSO (cookie local host-only) | Plataforma | ADR-0001 (refinada por ADR-0032), `stack.md` |
 | Onboarding | Alta owner-first: crear place + cuenta, wizard 3 pasos, saga de signup | Core | `features/onboarding/`, ADR-0005/0006/0007 |
 | Roles owner/miembro | Owner vs miembro; rol derivado | Core | ADR-0002, `data-model.md` |
 | Lifecycle de cuenta | Inactividad 6m/12m, tombstone, derecho al olvido | Core | ADR-0003 |

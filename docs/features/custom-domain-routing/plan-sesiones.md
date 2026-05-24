@@ -2,6 +2,8 @@
 
 > _Write-back ejecutado 2026-05-22. Plan original archivado en `~/.claude/plans/wise-greeting-mccarthy.md` (referencia histórica). Esta página documenta lo que efectivamente se cerró por sesión — commits, tags, desviaciones del plan original, y por qué._
 
+> **DS S2 update (2026-05-23)**: Este plan de sesiones es histórico (Feature B V1 cerrada). Las menciones forward-looking a "Feature C OIDC SSO" / "`prompt=none`" reflejaban el plan original (ADR-0001), pero **Feature C V1 se entregó con Signed Ticket pattern (ADR-0032)**, no con OIDC canonical. Endpoints reales: `/api/auth/sso-{init,issue,redeem,jwks}` (no callback handler OIDC). Slice canónico de Feature C: [`docs/features/custom-domain-sso/`](../custom-domain-sso/spec.md). El componente `<AuthGateForCustomDomain>` (Feature B V1) sigue existiendo pero ahora se reach via CTA fallback de `<SsoFallbackPanel>` (S6 Feature C), no como branch primario.
+
 ## Resumen ejecutivo
 
 - **Baseline previo**: `baseline/pre-feature-b` @ `1dea7b5` (Feature A V1 deployed READY).
@@ -108,7 +110,7 @@ Sesión S4 del plan original tenía scope amplio (helper + gate UI + 3 page modi
 
 ## Estado final post-S6
 
-`baseline/feature-b-done` ✅ — Feature B Custom Domain Host Routing V1 cerrada end-to-end (planning + 11 sesiones + push + deploy READY + smoke production server-side). Producción sirve el contenido del place transparentemente en `https://nocodecompany.co/...` con URL pública intacta, SSL Let's Encrypt válido y AuthGate localizado para owners en owner-only pages. Slice `custom-domain-routing` queda como punto de extensión para Feature C (OIDC SSO).
+`baseline/feature-b-done` ✅ — Feature B Custom Domain Host Routing V1 cerrada end-to-end (planning + 11 sesiones + push + deploy READY + smoke production server-side). Producción sirve el contenido del place transparentemente en `https://nocodecompany.co/...` con URL pública intacta, SSL Let's Encrypt válido y AuthGate localizado para owners en owner-only pages. Slice `custom-domain-routing` recibió `<SsoFallbackPanel>` en S6 de Feature C V1 (ADR-0032, Signed Ticket) — extensión ya realizada, no future.
 
 ## Rollback disponible
 
@@ -127,12 +129,12 @@ Las migrations 0009 + 0010 quedan aplicadas en el branch Neon `dev`; en `product
 ## Riesgos pendientes documentados
 
 - **Cron safety net (#103)**: opcional V1.1. Post-B su importancia aumenta — si owner cambia provider DNS sin re-configurar, visitante verá SSL error de Vercel mientras `verified_at IS NOT NULL` queda stale. Lazy poll dual V9+V6 (ADR-0029) cubre el escenario sólo cuando el owner vuelve a `/settings/domain`. Detalle en ADR-0031 §"Operational risks" + spec.md §"Operational risks".
-- **Auth gap cookie cross-domain**: Feature C cierra estructuralmente con OIDC SSO + cookie host-only del custom domain con JWT propio + silent SSO via `prompt=none`. V1 ya cubre el UX con gate page (ADR-0031 §4).
+- **Auth gap cookie cross-domain**: Feature C V1 (ADR-0032, **Signed Ticket pattern**) cierra estructuralmente con cookie host-only `__Host-place_sso_session` + silent redirect chain `init→issue→redeem` (no `prompt=none`, que es OIDC-specific). Gate page V1 (Feature B) queda como CTA fallback dentro de `<SsoFallbackPanel>`.
 - **V2 cache layer del lookup**: criterio cuantitativo en ADR-0031 §6 — p95 proxy > 100ms 1h sostenido OR rate > 100/min 10min OR reporte cualitativo "rutea lento la primera vez del día". Cualquiera de los 3 → V2 con TTL 60s en module scope del wrapper.
 
 ## Próximos pasos
 
 1. **Push autorizado por el user** (turn-by-turn explícito) → Vercel auto-deploy → `maybe-migrate.mjs` aplica 0009 + 0010 en production branch.
 2. **Smoke production** (6 escenarios, sección §"Smoke ejecutado" del spec.md). Tag final `baseline/feature-b-done` al cierre.
-3. **Feature C** (OIDC SSO desde custom domain) — plan separado cuando user autorice.
+3. **Feature C** (Signed Ticket SSO desde custom domain, ADR-0032) — **V1 deployed 2026-05-23**. Slice: [`docs/features/custom-domain-sso/`](../custom-domain-sso/spec.md).
 4. **#103 Cron safety net** — agendar follow-up técnico de calidad operativa post-B; sin blocker, pero con importancia técnica creciente.

@@ -111,8 +111,8 @@ export default async function PlaceLayout({ children, params }: Props) {
       : null;
 
   // Precedence del `lang`:
-  //   1. `place.default_locale` — owner con sesión en subdomain canon o (en V1.1
-  //      con Feature C) custom domain con OIDC. Autoridad máxima.
+  //   1. `place.default_locale` — owner con sesión en subdomain canon o custom
+  //      domain (Feature C V1: Signed Ticket SSO local, ADR-0032). Autoridad máxima.
   //   2. `hostZone.defaultLocale` — visitor anónimo en CUSTOM DOMAIN; el lookup
   //      S1/S3 ya resolvió el locale configurado por el owner.
   //   3. `anonymousCanonLocale` — visitor anónimo en SUBDOMAIN CANON (S4c,

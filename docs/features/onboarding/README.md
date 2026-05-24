@@ -48,7 +48,7 @@ Spec de **comportamiento esperado** de la feature de onboarding (alta owner-firs
 - **Aceptación de invitación end-to-end como UI de S1**: en S1 se cierra el **diseño** y se aplica la RLS sin romperla; la pantalla de aceptación `/invite/{token}` y su Server Action pueden construirse en la misma tanda o inmediatamente después (ver `plan-sesiones.md`), pero la creación/listado/revocación de invitaciones por el owner sí está cubierta por la base owner-only de S1.
 - **Settings del place** (editar horario, theming, activar zonas): post-S1, gateado por email verificado.
 - **Social/Google login**: auth v1 = email+password solamente (ADR-0005 §9).
-- **Custom domains**: el alta/verificación de dominios propios y su OIDC client son flujo aparte (ADR-0001, `multi-tenancy.md`); el onboarding solo deja al place servible en `{slug}.place.community`. El link de invitación contempla el caso "dominio verificado" como ramificación de host, pero no provisiona dominios.
+- **Custom domains**: el alta/verificación de dominios propios es flujo aparte (Features A+B+C V1 deployed; ADR-0026/0031/0032; `multi-tenancy.md`); el onboarding solo deja al place servible en `{slug}.place.community`. El link de invitación contempla el caso "dominio verificado" como ramificación de host, pero no provisiona dominios.
 
 ---
 

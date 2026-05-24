@@ -48,7 +48,7 @@ El hub no es un dashboard. Sigue los principios de `producto.md`: nada grita, si
 - **Switch de cuenta** (multi-identity) — no V1.
 - **Búsqueda/filtro** de la lista — V1 sin búsqueda (el usuario típico tendrá <10 places).
 - **Botón "Volver al hub" dentro de un place** — entra con la spec de "place miembro UI" (no esta spec).
-- **Logout SSO cross-RP global** — V1 logout del apex desautentica subdomains (cookie compartida); custom domains no aplica todavía.
+- **Logout cross-domain global** — V1 logout del apex desautentica subdomains (cookie Neon Auth compartida `Domain=.place.community`); para custom domains la sesión local Signed Ticket (cookie `__Host-place_sso_session`, ADR-0032) requiere logout independiente (V2: logout cascade que invalide ambas).
 - **Tombstoned/purged places (12m+ INACTIVE)** — no aparecen físicamente (purga real per ADR-0003).
 
 ## Journeys
@@ -78,7 +78,7 @@ El hub no es un dashboard. Sigue los principios de `producto.md`: nada grita, si
 
 ```
 1. User visita https://mi-lugar.place.community/{locale}/login (o https://mi-lugar.com/...).
-2. Completa login → cookie cross-subdomain (apex .place.community) o SSO OIDC (custom).
+2. Completa login → cookie cross-subdomain (apex .place.community) o Signed Ticket SSO local (custom domain, Feature C V1, ADR-0032).
 3. Server-side: redirect a https://mi-lugar.place.community/{locale}/ (home del place).
 4. Listo. El hub no se atraviesa.
 ```

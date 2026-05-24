@@ -4,9 +4,9 @@
 
 ## Contexto
 
-`{slug}.place.community/settings/domain` es la **segunda sección funcional** del settings (la primera fue "Idioma del place", `docs/features/settings/spec.md`). Activa el item "Dominio" del grupo **Identidad** del sidebar V1.1. El owner registra el dominio propio del place (e.g. `comunidad.mi-marca.com`), Vercel valida DNS + emite SSL automáticamente, y `place_domain.verified_at` queda con timestamp. Una vez verificado, el dominio queda **listo** para que Features B (host routing `mi-place.com → place`) y C (OIDC SSO desde custom domain) lo activen en planes posteriores; este V1 NO toca routing ni OIDC.
+`{slug}.place.community/settings/domain` es la **segunda sección funcional** del settings (la primera fue "Idioma del place", `docs/features/settings/spec.md`). Activa el item "Dominio" del grupo **Identidad** del sidebar V1.1. El owner registra el dominio propio del place (e.g. `comunidad.mi-marca.com`), Vercel valida DNS + emite SSL automáticamente, y `place_domain.verified_at` queda con timestamp. Una vez verificado, el dominio queda **listo** — el routing real lo activó Feature B (`docs/features/custom-domain-routing/`) y el SSO desde custom domain lo activó Feature C (`docs/features/custom-domain-sso/`, ADR-0032, Signed Ticket pattern — V1 deployed). Este slice V1 NO tocó routing ni SSO; eso fue responsabilidad de Feature B y Feature C respectivamente.
 
-Este spec describe la **parte de settings UI y funcionalidad** del custom domain V1 — la rebanada vertical que va desde el form vacío hasta la fila `place_domain` con `verified_at IS NOT NULL`. Las decisiones operativas (lazy verification, partial unique, archived libera dominio, single-domain V1, `oauth_client_id` NULL hasta Feature C, forward-compat Feature B con `SECURITY DEFINER`) viven en [ADR-0026](../../decisions/0026-custom-domain-v1-lazy-verification.md), que **refina** [ADR-0001](../../decisions/0001-auth-oidc-custom-domains.md) sobre el mecanismo concreto de verificación.
+Este spec describe la **parte de settings UI y funcionalidad** del custom domain V1 — la rebanada vertical que va desde el form vacío hasta la fila `place_domain` con `verified_at IS NOT NULL`. Las decisiones operativas (lazy verification, partial unique, archived libera dominio, single-domain V1, `oauth_client_id` NULL indefinidamente — forward-compat: si V2 vuelve a OIDC canonical se reutiliza; ADR-0032 deprecó la ruta OIDC canónica vía plugin —, forward-compat Feature B con `SECURITY DEFINER`) viven en [ADR-0026](../../decisions/0026-custom-domain-v1-lazy-verification.md), que **refina** [ADR-0001](../../decisions/0001-auth-oidc-custom-domains.md) sobre el mecanismo concreto de verificación.
 
 ## Scope V1 (resumen)
 
@@ -23,8 +23,8 @@ Detalles canónicos en [ADR-0026](../../decisions/0026-custom-domain-v1-lazy-ver
 
 **OUT** (cada uno con razón):
 - **Host routing** (`mi-place.com → place`): Feature B, plan posterior.
-- **OIDC SSO** desde custom domain + callback handler: Feature C, plan posterior.
-- **OIDC client provisioning** (`oauth_client_id`): Feature C; en V1 queda NULL, ADR-0027 retroactiva.
+- **SSO desde custom domain**: cubierto por Feature C (ADR-0032, Signed Ticket pattern — V1 deployed). Slice canónico: `docs/features/custom-domain-sso/`. No hay callback handler (el pattern usa 3 endpoints `/api/auth/sso-{init,issue,redeem}`).
+- **OIDC client provisioning** (`oauth_client_id`): **NO se hace nunca**. La columna queda NULL indefinidamente. ADR-0032 deprecó la ruta OIDC canónica (el plugin OIDC Provider de Better Auth no es accesible desde Neon Auth managed). ADR-0027 nunca se escribirá. La columna se preserva como forward-compat por si V2 vuelve a OIDC canonical.
 - **Multi-domain por place**: V2; schema lo permite, UI/action enforce 1.
 - **IDN/punycode**: V1 rechaza con mensaje claro; V2+ si los clientes lo piden.
 - **Wildcards** (`*.empresa.com`): V2+; rechazado por `validateCustomDomain`.
@@ -282,8 +282,8 @@ Detalle por archivo en [`tests.md`](./tests.md). Resumen del scope V1:
 ## Out of scope (textual del plan)
 
 - **Host routing real** (`mi-place.com → place`): Feature B, plan posterior. Sin hooks en este slice. ADR-0026 §"Forward-compat Feature B" documenta el approach con `SECURITY DEFINER`.
-- **OIDC SSO** login desde custom domain + callback handler: Feature C, plan posterior. Requiere Better Auth OIDC Provider plugin cableado.
-- **OIDC client provisioning** (`oauth_client_id`): Feature C; en V1 queda NULL. ADR-0027 (futura) documentará el script idempotente para provisionar retroactivamente todos los `place_domain` con `verified_at IS NOT NULL AND oauth_client_id IS NULL`.
+- **SSO desde custom domain**: cubierto por Feature C V1 (ADR-0032, Signed Ticket pattern). Slice: `docs/features/custom-domain-sso/`. NO usa Better Auth OIDC Provider plugin (no accesible desde Neon Auth managed). No hay callback handler.
+- **OIDC client provisioning** (`oauth_client_id`): **NO aplica**. ADR-0032 deprecó la ruta OIDC canónica. ADR-0027 nunca se escribirá. La columna queda NULL indefinidamente como forward-compat.
 - **Multi-domain por place**: V2; el schema lo permite (FK `place_id` no único), la UI/action enforce 1 vía pre-check. V2 es solo quitar el pre-check + ajustar UI. Cero migration.
 - **IDN/punycode**: V1 rechaza con mensaje claro `idn_not_supported`. V2+ si los clientes lo piden (requiere normalización ASCII ↔ Unicode bidireccional + decisión UX sobre qué forma mostrar).
 - **Wildcards** (`*.empresa.com`): V2+; `validateCustomDomain` rechaza el asterisco. Vercel los soporta pero el use case es enterprise.

@@ -1,5 +1,7 @@
 # Plan de implementación — Feature Custom Domain V1 (sección "Dominio" en `/settings`)
 
+> **DS S2 update (2026-05-23)**: Este plan de sesiones es histórico (Feature A V1 cerrada). Las menciones forward-looking a "Feature C OIDC SSO" / "ADR-0027" reflejaban el plan original (ADR-0001), pero **Feature C V1 se entregó con Signed Ticket pattern (ADR-0032)**, no con OIDC canonical. La columna `oauth_client_id` queda NULL indefinidamente (forward-compat). ADR-0027 nunca se escribirá. Spec canónico de Feature C: [`docs/features/custom-domain-sso/`](../custom-domain-sso/spec.md).
+
 > _Creado 2026-05-21_. Referencia abreviada del plan canónico vivo en `/Users/maxi/.claude/plans/wise-greeting-mccarthy.md`. Las sesiones de implementación se documentan acá de forma resumida; el plan vivo, detallado, con pseudocódigo, riesgos y matriz de archivos, vive en el plan file referenciado. Si hay desacuerdo entre este doc y el plan, gana el plan.
 >
 > **Nota retroactiva (2026-05-21, S4 close)**: este plan describe los paths bajo `src/features/place-settings/{ui,actions,types}/...domain*` que fueron la asunción de S0. **En S4 se promovió** el sub-feature Dominio a slice propio `src/features/custom-domain/` (ADR-0028: cap LOC ≤1500 del slice anfitrión + ADR/spec/migration propias). Los archivos viven actualmente en `src/features/custom-domain/{ui,actions,types,__tests__}/`. El comportamiento, la spec, las migrations y los tests son idénticos — sólo cambió el namespace físico. Las referencias debajo a `place-settings/{ui,actions,types}/...domain*` se mantienen como histórico del plan original.
@@ -190,7 +192,7 @@ Cierre documental + smoke checklist + push autorizado por el user.
 
 ### Files
 
-- **M** `docs/multi-tenancy.md` §"Dominios propios" — reescribir al estado V1 actual (lazy verification + partial unique + archived libera + `oauth_client_id` NULL hasta Feature C).
+- **M** `docs/multi-tenancy.md` §"Dominios propios" — reescribir al estado V1 actual (lazy verification + partial unique + archived libera + `oauth_client_id` NULL indefinidamente (ADR-0032 deprecó la ruta OIDC canónica; forward-compat)).
 - **M** `docs/features/settings/spec.md` línea 50 — quitar "Sección Dominio" de "Fuera de V1"; entry en §"Sección Dominio (V1.1)" con pointer.
 - **M** `docs/features/settings/plan-sesiones.md` — entry "Custom Domain V1" como histórico cerrado.
 - **M** `docs/decisions/0001-auth-oidc-custom-domains.md` — banner top "Refinada por ADR-0026".
@@ -256,7 +258,7 @@ Si en S5 manual smoke se observa que el lazy poll cubre el 99% de los casos, S6 
 ## Forward-compat con Features B y C
 
 - **Feature B — Custom Domain Host Routing**: plan posterior. Toca `src/shared/lib/host-routing.ts`. Necesitará función Postgres `app.lookup_place_by_domain(host)` `SECURITY DEFINER` (RLS owner-only no aplica al edge proxy sin claim). Documentado en ADR-0026 §"Consecuencias futuras"; cero hooks en este slice.
-- **Feature C — Custom Domain OIDC SSO**: plan posterior. Toca `src/app/api/auth/callback/custom-domain/route.ts` (nuevo) + provisioning del OIDC client. Provisioning retroactivo del `oauth_client_id` documentado en ADR-0027 (futura). Cero hooks en este slice.
+- **Feature C — Custom Domain SSO (V1 deployed, Signed Ticket, ADR-0032)**: entregada el 2026-05-23. Endpoints reales: `/api/auth/sso-{init,issue,redeem,jwks}` (NO callback handler OIDC). Sin provisioning del OIDC client (la columna `oauth_client_id` queda NULL indefinidamente). Cero hooks en este slice — Feature C consume `app.lookup_place_by_domain` (Feature A/B) sin modificar el schema de `place_domain`. Spec canónico: [`docs/features/custom-domain-sso/spec.md`](../custom-domain-sso/spec.md).
 
 ---
 

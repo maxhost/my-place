@@ -303,7 +303,7 @@ Heredado del precedente `docs/features/custom-domain/tests.md` y del canon `upda
 - **Driver Neon (ws vs http)** — la decisión §3 de ADR-0031 fija ws con gating step manual. Si Vercel fuerza Edge en futuro, swap del driver es 1 file (~15 LOC) + no requiere nueva ADR.
 - **Cache V2 in-memory** — V1 no la implementa (ADR-0031 §6). Criterio cuantitativo de activación (p95 > 100ms / req rate > 100/min sostenido / owner report) es operativo, no testeable en vitest.
 - **Cron safety net (#103)** — diferido a post-B (ADR-0031 §"Forward-compat"). Si en producción aparece un caso de `verified_at` stale + SSL error, S6 V1.1 activa el cron y agrega sus propios tests.
-- **OIDC SSO desde custom domain (Feature C)** — fuera de scope. El gate page V1 cubre el gap UX; Feature C lo evoluciona estructuralmente con `prompt=none` silent SSO.
+- **SSO desde custom domain (Feature C)** — fuera de scope de este test suite (Feature B). Cubierto por suite de [`docs/features/custom-domain-sso/tests.md`](../custom-domain-sso/tests.md). Pattern real: **Signed Ticket** (ADR-0032), no OIDC. Silent SSO via server-side redirect chain `init→issue→redeem` (no `prompt=none`). El gate page V1 (Feature B) queda como CTA fallback dentro de `<SsoFallbackPanel>` (componente Feature C-S6 montado en este slice).
 - **Server Components (layout, gate page) con vitest directo más allá de los tests acá listados** — canon `update-default-locale.ts:13`. La validación profunda es typecheck + build + smoke vivo (S6).
 - **Performance del proxy** — no se mide en vitest. Latencia esperable Neon iad1: 5-20ms/query; aceptable per ADR-0031 §6.
 - **Webhook Vercel domain status** — Vercel no expone events de domain status (ADR-0031 §Alternativas A4); lazy poll + lookup directo cubre.
