@@ -75,12 +75,35 @@ export const appUser = pgTable(
     createdAt: tstz("created_at").notNull().defaultNow(),
   },
   // self-only FOR ALL: incluye su INSERT (sin chicken-egg — ADR-0012 §1).
+  // au_peer_member_read FOR SELECT (ADR-0038, migration 0021): extiende
+  // SELECT con peer-read — el caller puede leer la fila de OTRO user si
+  // ambos comparten membership activa en algún place. Postgres OR-ea ambas
+  // policies para SELECT (caller lee su propia fila vía au_self + filas de
+  // peers vía au_peer_member_read). INSERT/UPDATE/DELETE siguen self-only
+  // porque au_peer_member_read es FOR SELECT — no aplica a mutaciones.
+  // Owners ven a todos los miembros activos de su place por invariante
+  // ADR-0035 §2 (owners son siempre miembros). Sin esta policy, Feature E
+  // (members list + invitations) sería imposible sin DEFINER ad-hoc.
   (t) => [
     pgPolicy("au_self", {
       for: "all",
       to: appSystem,
       using: sql`(select app.current_user_id()) = ${t.authUserId}`,
       withCheck: sql`(select app.current_user_id()) = ${t.authUserId}`,
+    }),
+    pgPolicy("au_peer_member_read", {
+      for: "select",
+      to: appSystem,
+      using: sql`EXISTS (
+        SELECT 1
+          FROM membership my_m
+          JOIN app_user my_au ON my_au.id = my_m.user_id
+          JOIN membership other_m ON other_m.user_id = ${t.id}
+                                 AND other_m.place_id = my_m.place_id
+         WHERE my_au.auth_user_id = (select app.current_user_id())
+           AND my_m.left_at IS NULL
+           AND other_m.left_at IS NULL
+      )`,
     }),
   ],
 );
