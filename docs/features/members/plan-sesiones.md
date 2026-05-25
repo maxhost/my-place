@@ -276,15 +276,22 @@ Public.ts re-exporta tipos para futuras features consumers.
 
 ### S7 — Server Actions invitations + updateMyHeadline wrapper
 
-**Objetivo único**: 4 Server Actions de la capa invitations + headline. Cada action ≤80 LOC. Pattern canónico: `getAuthenticatedDbForRequest` (ADR-0034) + zod parse + invoke DEFINER + try/catch + map error + revalidatePath.
+**Objetivo único**: 3 Server Actions de la capa invitations + headline. Cada action ≤80 LOC. Pattern canónico: `getAuthenticatedDbForRequest` (ADR-0034) + zod parse + invoke DEFINER + try/catch + map error + revalidatePath.
 
-**Archivos esperados** (4-6):
-- `src/features/members/actions/create-invitation.ts` (~70 LOC).
-- `src/features/members/actions/revoke-invitation.ts` (~50 LOC).
-- `src/features/members/actions/update-my-headline.ts` (~60 LOC — wrapper sobre `app.update_my_headline` DEFINER de S1).
-- `src/features/members/actions/__tests__/create-invitation.test.ts` (~150 LOC).
-- `src/features/members/actions/__tests__/revoke-invitation.test.ts` (~120 LOC).
-- `src/features/members/actions/__tests__/update-my-headline.test.ts` (~120 LOC).
+> **Re-baseline S7 (2026-05-25)**: estrategia de tests ajustada a **seam-split puro** por consistencia con canon vigente del codebase. Precedentes vivos `update-default-locale.ts:13`, `auth-actions.ts:8`, `loginAction`/`signUpAccountAction`/`logoutAction`/`createPlaceAction` documentan que Server Actions cruzan `next/headers` + Neon Auth + DB y se verifican por typecheck + smoke en producción, NO vitest. Lo testeable con vitest es la **lógica pura extraída** (precedentes: `_v6-helpers.ts`, `decideAuthBranch`, `access-flow.test.tsx`). Detectado mid-S7 al auditar harness existente; el plan original (vitest action mocks) habría inaugurado pattern nuevo y agregado deuda de mocks fragiles. Decisión confirmada por user vía AskUserQuestion turno S7. Reaplica al planeo de S8 (mismo split).
+
+**Archivos esperados** (7):
+- `src/features/members/actions/_lib/schemas.ts` (~60 LOC — 3 zod schemas exportados puros).
+- `src/features/members/actions/_lib/map-invite-error.ts` (~40 LOC — regex sobre error message → tag `InviteError`).
+- `src/features/members/actions/_lib/map-revoke-error.ts` (~35 LOC — regex sobre error message → tag `RevokeInviteError`).
+- `src/features/members/actions/_lib/map-headline-error.ts` (~30 LOC — regex sobre error message → tag `HeadlineError`).
+- `src/features/members/actions/_lib/__tests__/map-invite-error.test.ts` (~80 LOC).
+- `src/features/members/actions/_lib/__tests__/map-revoke-error.test.ts` (~60 LOC).
+- `src/features/members/actions/_lib/__tests__/map-headline-error.test.ts` (~60 LOC).
+- `src/features/members/actions/_lib/__tests__/schemas.test.ts` (~70 LOC).
+- `src/features/members/actions/create-invitation.ts` (~60 LOC — wiring delgado sobre `_lib/`).
+- `src/features/members/actions/revoke-invitation.ts` (~45 LOC).
+- `src/features/members/actions/update-my-headline.ts` (~50 LOC).
 
 **Locked files** (NO modificar):
 - Tipos `src/features/members/types.ts` (cerrado S6 — si requiere ampliación, revisar antes).
@@ -292,15 +299,15 @@ Public.ts re-exporta tipos para futuras features consumers.
 - Shared/ui (cerrada S5).
 - Migrations.
 
-**Tests TDD**: ver `tests.md` §S7 (~15 tests con harness action mocks).
+**Tests TDD**: ver `tests.md` §S7 (re-baseline seam-split: ~20 vitest puros sobre `_lib/`; actions verificadas por typecheck + smoke S12).
 
-**LOC budget estimado**: ≤570 LOC en 6 archivos.
+**LOC budget re-baseline**: ≤500 LOC en 11 archivos (3 actions delgadas + 4 modules `_lib/` + 4 test files puros).
 
 **Pre-commit checklist**:
-- [ ] `pnpm test src/features/members/actions` verde.
-- [ ] `pnpm typecheck` clean.
+- [ ] `pnpm test src/features/members/actions` verde (cubre `_lib/` puro).
+- [ ] `pnpm typecheck` clean (verifica wiring de actions).
 - [ ] Cada action usa `getAuthenticatedDbForRequest` (grep guard).
-- [ ] Cada action usa zod (grep guard).
+- [ ] Cada action usa zod (vía import `_lib/schemas`, grep guard).
 - [ ] Cada action invoca `revalidatePath` post-success (grep guard).
 
 **Commit message format**:

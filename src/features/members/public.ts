@@ -24,12 +24,30 @@
 // Lo que NO se exporta (intencional):
 //   - Shapes crudos de las queries (LoadedMemberRow, etc.) — internos al
 //     wrapper, no consumibles por capas superiores.
-//   - Server Actions de S7-S8 — todavía no implementadas; se agregan al
-//     barrel cuando existan.
+//   - Mapeo de errores `_lib/` y zod schemas — internos al slice; cualquier
+//     consumer cross-feature usa las actions, no los maps puros.
 //   - UI components (S9-S10) — se agregan al barrel cuando existan.
 
 export { loadMembers } from "./queries/load-members";
 export { loadPendingInvitations } from "./queries/load-pending-invitations";
+
+export {
+  createInvitationAction,
+  type CreateInvitationResult,
+} from "./actions/create-invitation";
+export {
+  revokeInvitationAction,
+  type RevokeInvitationResult,
+} from "./actions/revoke-invitation";
+export {
+  updateMyHeadlineAction,
+  type UpdateMyHeadlineResult,
+} from "./actions/update-my-headline";
+export type {
+  CreateInvitationInput,
+  RevokeInvitationInput,
+  UpdateMyHeadlineInput,
+} from "./actions/_lib/schemas";
 
 export {
   getMemberRole,

@@ -223,39 +223,57 @@ Las queries de S6 + Server Actions de S7-S8 se testean con el mismo harness (que
 
 ---
 
-## S7 — Server Actions invitations + headline
+## S7 — Server Actions invitations + headline (re-baseline seam-split 2026-05-25)
 
-### `src/features/members/actions/__tests__/create-invitation.test.ts`
+> Cambio de estrategia: vitest **NO** mockea Server Actions (canon vigente — ver plan-sesiones §S7 nota re-baseline). Se testea **lógica pura extraída** a `_lib/`. Las actions delgadas se verifican por typecheck + smoke S12.
+
+### `src/features/members/actions/_lib/__tests__/schemas.test.ts`
+
+**Casos cubiertos (7):**
+
+- [ ] `createInvitationSchema` happy: `{placeId, email valid, expiresInDays: 7}` → success.
+- [ ] `createInvitationSchema` invalid_email: `'no-arroba'` → fail.
+- [ ] `createInvitationSchema` invalid_expires below: `expiresInDays: 0` → fail.
+- [ ] `createInvitationSchema` invalid_expires above: `expiresInDays: 91` → fail.
+- [ ] `revokeInvitationSchema` happy: `{invitationId}` → success.
+- [ ] `updateMyHeadlineSchema` happy 280: `'a'.repeat(280)` → success.
+- [ ] `updateMyHeadlineSchema` too_long: `'a'.repeat(281)` → fail; null y `''` ambos pasan.
+
+### `src/features/members/actions/_lib/__tests__/map-invite-error.test.ts`
 
 **Casos cubiertos (5):**
 
-- [ ] Happy: formData válido → invoca `app.create_invitation` + retorna `{ok: true, invitationId, link}`; revalidatePath llamado.
-- [ ] Zod error email inválido: formData con email malformado → retorna `{ok: false, error: 'invalid_email'}`; NO toca DB.
-- [ ] Zod error expiresInDays out of range: 0 o 91 → `{ok: false, error: 'invalid_expires'}`; NO toca DB.
-- [ ] DB error not authenticated: claim vacío → maps a `{ok: false, error: 'unauthorized'}`.
-- [ ] DB error not owner: caller member → maps a `{ok: false, error: 'not_owner'}`.
+- [ ] `28000` / `'no autenticado'` → `'unauthorized'`.
+- [ ] `'caller is not an owner of this place'` → `'not_owner'`.
+- [ ] `'expires_at must be in the future'` → `'expires_in_past'`.
+- [ ] `P0002` / `'app_user inexistente'` → `'unauthorized'`.
+- [ ] Unknown error message → `'generic'`.
 
-### `src/features/members/actions/__tests__/revoke-invitation.test.ts`
+### `src/features/members/actions/_lib/__tests__/map-revoke-error.test.ts`
+
+**Casos cubiertos (5):**
+
+- [ ] `28000` → `'unauthorized'`.
+- [ ] `'invitation not found'` → `'not_found'`.
+- [ ] `'caller is not an owner of this place'` → `'not_owner'`.
+- [ ] `'cannot revoke already-accepted invitation'` → `'already_accepted'`.
+- [ ] Unknown → `'generic'`.
+
+### `src/features/members/actions/_lib/__tests__/map-headline-error.test.ts`
 
 **Casos cubiertos (4):**
 
-- [ ] Happy: invitationId válido → invoke DEFINER + revalidatePath.
-- [ ] Not found: invitationId inexistente → maps a `{ok: false, error: 'not_found'}`.
-- [ ] Not owner: caller member → maps a `{ok: false, error: 'not_owner'}`.
-- [ ] Already accepted: maps a `{ok: false, error: 'already_accepted'}`.
+- [ ] `28000` → `'unauthorized'`.
+- [ ] `P0002` → `'unauthorized'` (compat con `update_my_headline` migration 0017).
+- [ ] `'caller is not an active member of this place'` → `'not_member'`.
+- [ ] Unknown → `'generic'`.
 
-### `src/features/members/actions/__tests__/update-my-headline.test.ts`
+**Total S7: 21 vitest puros (sin next/headers ni DB).**
 
-**Casos cubiertos (6):**
-
-- [ ] Happy: headline válido → invoke DEFINER + revalidatePath.
-- [ ] Set NULL: headline = null → invoke DEFINER con NULL; OK.
-- [ ] Zod max 280: headline 281 chars → `{ok: false, error: 'too_long'}`; NO toca DB.
-- [ ] Not authenticated → `{ok: false, error: 'unauthorized'}`.
-- [ ] Not member → `{ok: false, error: 'not_member'}`.
-- [ ] Empty string `''`: valid (length 0 satisface max 280) → invoke DEFINER OK.
-
-**Total S7: 15 vitest.**
+**Actions (wiring delgado, sin vitest)**: 3 archivos verificados por:
+- `pnpm typecheck` (firma + import correcto de `_lib/`).
+- Grep guards pre-commit (uso de `getAuthenticatedDbForRequest` + `revalidatePath`).
+- Smoke E2E en S12 (happy path real con DB + Neon Auth).
 
 ---
 
