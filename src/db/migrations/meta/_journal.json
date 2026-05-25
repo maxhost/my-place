@@ -127,6 +127,13 @@
       "when": 1779748535357,
       "tag": "0017_membership_headline_place_invite_quota",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1779748635357,
+      "tag": "0018_app_create_invitation",
+      "breakpoints": true
     }
   ]
 }
