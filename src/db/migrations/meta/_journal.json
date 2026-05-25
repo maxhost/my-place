@@ -134,6 +134,13 @@
       "when": 1779748635357,
       "tag": "0018_app_create_invitation",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1779748735357,
+      "tag": "0019_app_revoke_invitation",
+      "breakpoints": true
     }
   ]
 }
