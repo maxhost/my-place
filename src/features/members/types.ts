@@ -28,9 +28,12 @@
 //
 // Locked durante S7-S12: ampliar este archivo requiere revisión explícita
 // (regla plan-sesiones §S7 §S8 §S9-S11). El alcance V1 está cerrado por
-// las 3 DEFINER nuevas de Feature E (S2/S3/S4) + 1 DEFINER S1 (headline)
-// + 3 DEFINER de Feature D reutilizadas (elevate/revoke/transfer). 7
-// errors V1 + 1 helper de derivación.
+// las 3 DEFINER nuevas de Feature E (S2/S3/S4) + 1 DEFINER S1 (headline);
+// las 3 DEFINER de Feature D reutilizadas (elevate/revoke/transfer) viven
+// en el slice hermano `src/features/members-ownership/` (extracción Plan B
+// S10.5 — ver `members-ownership/types.ts` para `ElevateError`,
+// `RevokeError`, `TransferError`). 4 errors V1 en este slice + 1 helper
+// de derivación.
 
 /**
  * Miembro activo del place (fila en `membership` con `left_at IS NULL`).
@@ -206,62 +209,7 @@ export type HeadlineError =
   | "too_long"
   | "generic";
 
-/**
- * Errores de `elevateToOwnerAction` (S8, wrap sobre `app.elevate_to_owner`
- * migration 0014 — Feature D, reutilizada).
- *
- * - `place_not_found`: DEFINER P0001 'place not found' — placeId no
- *   existe (caso edge, el wizard lo crea siempre).
- * - `target_not_member`: DEFINER P0001 'target is not an active member'
- *   — target no tiene membership activa (debe joinear primero).
- * - `target_already_owner`: DEFINER P0001 'target is already an owner'
- *   — idempotent, UI ⇒ refresh.
- */
-export type ElevateError =
-  | "unauthorized"
-  | "not_owner"
-  | "place_not_found"
-  | "target_not_member"
-  | "target_already_owner"
-  | "generic";
-
-/**
- * Errores de `revokeOwnershipAction` (S8, wrap sobre `app.revoke_ownership`
- * migration 0015 — Feature D, reutilizada).
- *
- * - `target_not_owner`: DEFINER P0001 'target is not an owner of this
- *   place' — target ya no tiene ownership (idempotent, UI ⇒ refresh).
- * - `cannot_revoke_founder`: DEFINER P0001 'cannot revoke founder
- *   ownership' — usar `transferFounderOwnershipAction` primero.
- * - `cannot_self_revoke`: DEFINER P0001 'cannot self-revoke ownership;
- *   use transfer or future step-down'. V1 sin auto-step-down.
- * - `last_owner`: DEFINER P0001 'cannot revoke the only remaining owner'
- *   — invariante ADR-0035 §2 (al menos 1 owner siempre).
- */
-export type RevokeError =
-  | "unauthorized"
-  | "not_owner"
-  | "target_not_owner"
-  | "cannot_revoke_founder"
-  | "cannot_self_revoke"
-  | "last_owner"
-  | "generic";
-
-/**
- * Errores de `transferFounderOwnershipAction` (S8, wrap sobre
- * `app.transfer_founder_ownership` migration 0016 — Feature D, reutilizada).
- *
- * - `not_founder`: DEFINER P0001 'caller is not the founder of this
- *   place' — sólo el founder puede transferir (co-owners no).
- * - `target_not_owner`: DEFINER P0001 'target is not an owner; elevate
- *   first' — target debe ser owner antes de recibir el founder slot.
- * - `cannot_transfer_to_self`: DEFINER P0001 'cannot transfer to self'.
- * - `place_not_found`: DEFINER P0001 'place not found'.
- */
-export type TransferError =
-  | "unauthorized"
-  | "not_founder"
-  | "place_not_found"
-  | "target_not_owner"
-  | "cannot_transfer_to_self"
-  | "generic";
+// Los 3 errors del slot ownership (`ElevateError`, `RevokeError`, `TransferError`)
+// se movieron a `src/features/members-ownership/types.ts` (extracción Plan B
+// S10.5, ver header). Consumidores cross-slice los importan desde
+// `@/features/members-ownership/public`.

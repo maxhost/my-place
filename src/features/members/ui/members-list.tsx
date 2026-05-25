@@ -3,11 +3,13 @@
 import Image from "next/image";
 
 import { Badge } from "@/shared/ui/badge";
+import type {
+  elevateToOwnerAction,
+  revokeOwnershipAction,
+  transferFounderOwnershipAction,
+} from "@/features/members-ownership/public";
 
-import type { elevateToOwnerAction } from "../actions/elevate-to-owner";
 import type { removeMemberAction } from "../actions/remove-member";
-import type { revokeOwnershipAction } from "../actions/revoke-ownership";
-import type { transferFounderOwnershipAction } from "../actions/transfer-founder-ownership";
 import { getMemberRole, type Member } from "../types";
 import {
   MemberRowActionsMenu,

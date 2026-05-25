@@ -4,18 +4,17 @@ import { useState } from "react";
 
 import { ConfirmDialog } from "@/shared/ui/confirm-dialog";
 import { ContextMenu, type ContextMenuItem } from "@/shared/ui/context-menu";
-
-import type { elevateToOwnerAction } from "../actions/elevate-to-owner";
-import type { removeMemberAction } from "../actions/remove-member";
-import type { revokeOwnershipAction } from "../actions/revoke-ownership";
-import type { transferFounderOwnershipAction } from "../actions/transfer-founder-ownership";
 import type {
   ElevateError,
-  Member,
-  RemoveMemberError,
+  elevateToOwnerAction,
   RevokeError,
+  revokeOwnershipAction,
   TransferError,
-} from "../types";
+  transferFounderOwnershipAction,
+} from "@/features/members-ownership/public";
+
+import type { removeMemberAction } from "../actions/remove-member";
+import type { Member, RemoveMemberError } from "../types";
 
 // `<MemberRowActionsMenu />` — Feature E V1 §S10. Context menu per-fila
 // que canaliza las 4 ownership/membership actions (`elevate`, `revoke`,

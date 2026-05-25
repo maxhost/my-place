@@ -37,6 +37,16 @@
 // los 3 contracts de labels para que el page S11 pueda tipear el
 // dispatch desde el i18n.
 //
+// S10.5 — **Plan B split**: los 3 wrappers Feature D reutilizadas
+// (`elevateToOwnerAction`, `revokeOwnershipAction`,
+// `transferFounderOwnershipAction`) + sus error types + Input types se
+// movieron al slice hermano `src/features/members-ownership/`
+// (plan-sesiones §S8 nota LOC + §S10 pre-commit checklist). Este barrel
+// queda con: queries + invitations + headline + remove-member (slice
+// core de membership). La UI (`<MembersList />` + `<MemberRowActionsMenu />`)
+// importa las 3 ownership actions cross-slice desde
+// `@/features/members-ownership/public`.
+//
 // Lo que NO se exporta (intencional):
 //   - Shapes crudos de las queries (LoadedMemberRow, etc.) — internos al
 //     wrapper, no consumibles por capas superiores.
@@ -62,40 +72,22 @@ export {
   removeMemberAction,
   type RemoveMemberResult,
 } from "./actions/remove-member";
-export {
-  elevateToOwnerAction,
-  type ElevateToOwnerResult,
-} from "./actions/elevate-to-owner";
-export {
-  revokeOwnershipAction,
-  type RevokeOwnershipResult,
-} from "./actions/revoke-ownership";
-export {
-  transferFounderOwnershipAction,
-  type TransferFounderOwnershipResult,
-} from "./actions/transfer-founder-ownership";
 export type {
   CreateInvitationInput,
-  ElevateToOwnerInput,
   RemoveMemberInput,
   RevokeInvitationInput,
-  RevokeOwnershipInput,
-  TransferFounderOwnershipInput,
   UpdateMyHeadlineInput,
 } from "./actions/_lib/schemas";
 
 export {
   getMemberRole,
-  type ElevateError,
   type HeadlineError,
   type InviteError,
   type Member,
   type MemberRole,
   type PendingInvitation,
   type RemoveMemberError,
-  type RevokeError,
   type RevokeInviteError,
-  type TransferError,
 } from "./types";
 
 export {

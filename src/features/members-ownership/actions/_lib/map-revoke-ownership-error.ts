@@ -2,8 +2,8 @@ import type { RevokeError } from "../../types";
 
 // Mapeo puro DEFINER error → tag `RevokeError`. Espejo de migration 0015
 // (`app.revoke_ownership`, Feature D — reutilizada por Feature E). La DEFINER
-// con mayor superficie de errores de las 4 wrappers (7 ramas distintas:
-// unauthorized, not_owner, target_not_owner, cannot_revoke_founder,
+// con mayor superficie de errores de las 3 wrappers del slice (7 ramas
+// distintas: unauthorized, not_owner, target_not_owner, cannot_revoke_founder,
 // cannot_self_revoke, last_owner, generic).
 //
 // Política anti-info-leak: errores desconocidos → `'generic'`. `'unauthorized'`
