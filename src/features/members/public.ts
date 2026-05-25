@@ -27,12 +27,21 @@
 // reales (`createInvitationAction` / `revokeInvitationAction`) y el slice
 // queda testeable RTL puro con `vi.fn()`.
 //
+// S10 cierra los componentes UI con 3 Client Components: `<MembersList />`
+// (tabla con avatar+handle+headline+badges), `<MemberRowActionsMenu />`
+// (context menu condicional por matriz role × role del caller × row) y
+// `<HeadlineEditor />` (inline editor self-only del headline). Mismo
+// seam-split: 4 actions del slot ownership/membership (elevate/revoke/
+// remove/transfer) + updateMyHeadlineAction se inyectan como props —
+// page S11 inyecta las reales, tests RTL `vi.fn()`. Re-exporta también
+// los 3 contracts de labels para que el page S11 pueda tipear el
+// dispatch desde el i18n.
+//
 // Lo que NO se exporta (intencional):
 //   - Shapes crudos de las queries (LoadedMemberRow, etc.) — internos al
 //     wrapper, no consumibles por capas superiores.
 //   - Mapeo de errores `_lib/` y zod schemas — internos al slice; cualquier
 //     consumer cross-feature usa las actions, no los maps puros.
-//   - UI components S10 — se agregan al barrel cuando existan.
 
 export { loadMembers } from "./queries/load-members";
 export { loadPendingInvitations } from "./queries/load-pending-invitations";
@@ -97,3 +106,19 @@ export {
   PendingInvitationsTab,
   type PendingInvitationsTabLabels,
 } from "./ui/pending-invitations-tab";
+export {
+  MembersList,
+  type MembersListActions,
+  type MembersListCallerContext,
+  type MembersListLabels,
+} from "./ui/members-list";
+export {
+  MemberRowActionsMenu,
+  type MemberRowActionsMenuActions,
+  type MemberRowActionsMenuCallerContext,
+  type MemberRowActionsMenuLabels,
+} from "./ui/member-row-actions-menu";
+export {
+  HeadlineEditor,
+  type HeadlineEditorLabels,
+} from "./ui/headline-editor";
