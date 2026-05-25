@@ -43,9 +43,29 @@ export {
   updateMyHeadlineAction,
   type UpdateMyHeadlineResult,
 } from "./actions/update-my-headline";
+export {
+  removeMemberAction,
+  type RemoveMemberResult,
+} from "./actions/remove-member";
+export {
+  elevateToOwnerAction,
+  type ElevateToOwnerResult,
+} from "./actions/elevate-to-owner";
+export {
+  revokeOwnershipAction,
+  type RevokeOwnershipResult,
+} from "./actions/revoke-ownership";
+export {
+  transferFounderOwnershipAction,
+  type TransferFounderOwnershipResult,
+} from "./actions/transfer-founder-ownership";
 export type {
   CreateInvitationInput,
+  ElevateToOwnerInput,
+  RemoveMemberInput,
   RevokeInvitationInput,
+  RevokeOwnershipInput,
+  TransferFounderOwnershipInput,
   UpdateMyHeadlineInput,
 } from "./actions/_lib/schemas";
 

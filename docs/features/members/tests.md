@@ -277,49 +277,88 @@ Las queries de S6 + Server Actions de S7-S8 se testean con el mismo harness (que
 
 ---
 
-## S8 — Server Actions member mgmt + ownership wrappers
+## S8 — Server Actions member mgmt + ownership wrappers (re-baseline seam-split 2026-05-25)
 
-### `src/features/members/actions/__tests__/remove-member.test.ts`
+> Cambio de estrategia: vitest **NO** mockea Server Actions (extensión del canon S7 — ver plan-sesiones §S8 nota re-baseline). Se testea **lógica pura extraída** a `_lib/` (4 nuevos schemas + 4 nuevos map-error modules). Las 4 actions delgadas se verifican por typecheck + smoke S12. Mismo principio del precedente S7.
 
-**Casos cubiertos (5):**
+### `src/features/members/actions/_lib/__tests__/schemas.test.ts` (EDIT — +4 describes)
 
-- [ ] Happy → invoke DEFINER + revalidatePath.
-- [ ] Not authenticated → `unauthorized`.
-- [ ] Not owner → `not_owner`.
-- [ ] Target is owner → `target_is_owner`.
-- [ ] Self-remove → `cannot_self_remove`.
+Extensión sobre el file ya existente de S7 (3 schemas) — añade describes para los 4 nuevos schemas con shape `{placeId, targetUserId}`.
 
-### `src/features/members/actions/__tests__/elevate-to-owner.test.ts`
+**Casos nuevos cubiertos (8):**
 
-**Casos cubiertos (5):**
+- [ ] `removeMemberSchema` happy: `{placeId: 'place_x', targetUserId: 'usr_y'}` → success.
+- [ ] `removeMemberSchema` placeId vacío → fail (zod `.min(1)`).
+- [ ] `elevateToOwnerSchema` happy → success.
+- [ ] `elevateToOwnerSchema` targetUserId vacío → fail.
+- [ ] `revokeOwnershipSchema` happy → success.
+- [ ] `revokeOwnershipSchema` placeId vacío → fail.
+- [ ] `transferFounderOwnershipSchema` happy → success.
+- [ ] `transferFounderOwnershipSchema` targetUserId vacío → fail.
 
-- [ ] Happy → invoke DEFINER + revalidatePath.
-- [ ] Not authenticated → `unauthorized`.
-- [ ] Not owner → `not_owner`.
-- [ ] Target not member → `target_not_member`.
-- [ ] Target already owner → `target_already_owner`.
+### `src/features/members/actions/_lib/__tests__/map-remove-member-error.test.ts` (nuevo)
 
-### `src/features/members/actions/__tests__/revoke-ownership.test.ts`
+Espejo del pattern S7 `map-invite-error.test.ts`. Cubre cada rama de migration 0020 `app.remove_member` + `unauthorized` y `generic`.
 
-**Casos cubiertos (5):**
+**Casos cubiertos (6):**
 
-- [ ] Happy → invoke DEFINER + revalidatePath.
-- [ ] Target is founder → `cannot_revoke_founder`.
-- [ ] Self-revoke → `cannot_self_revoke`.
-- [ ] Not owner → `not_owner`.
-- [ ] Target not owner → `target_not_owner`.
+- [ ] `SQLSTATE 28000 / 'no autenticado'` → `'unauthorized'`.
+- [ ] `SQLSTATE P0002 / 'app_user inexistente'` → `'unauthorized'`.
+- [ ] `'caller is not an owner of this place'` → `'not_owner'`.
+- [ ] `'target is an owner; revoke ownership first'` → `'target_is_owner'`.
+- [ ] `'cannot self-remove; use leave_place (V1.1+)'` → `'cannot_self_remove'`.
+- [ ] `'target is not an active member'` → `'target_not_active_member'`.
+- [ ] Error desconocido → `'generic'`.
 
-### `src/features/members/actions/__tests__/transfer-founder-ownership.test.ts`
+### `src/features/members/actions/_lib/__tests__/map-elevate-error.test.ts` (nuevo)
 
-**Casos cubiertos (5):**
+Cubre cada rama de migration 0014 `app.elevate_to_owner` (Feature D).
 
-- [ ] Happy → invoke DEFINER + revalidatePath.
-- [ ] Not founder → `not_founder`.
-- [ ] Target not owner → `target_not_owner`.
-- [ ] Target = caller → `cannot_transfer_to_self`.
-- [ ] Not authenticated → `unauthorized`.
+**Casos cubiertos (6):**
 
-**Total S8: 20 vitest.**
+- [ ] `SQLSTATE 28000` → `'unauthorized'`.
+- [ ] `SQLSTATE P0002` → `'unauthorized'`.
+- [ ] `'caller is not an owner of this place'` → `'not_owner'`.
+- [ ] `'place not found'` → `'place_not_found'`.
+- [ ] `'target is already an owner'` → `'target_already_owner'`.
+- [ ] `'target is not an active member'` → `'target_not_member'`.
+- [ ] Error desconocido → `'generic'`.
+
+### `src/features/members/actions/_lib/__tests__/map-revoke-ownership-error.test.ts` (nuevo)
+
+Cubre cada rama de migration 0015 `app.revoke_ownership` (Feature D — la DEFINER con mayor superficie de errores: 7 ramas distintas).
+
+**Casos cubiertos (7):**
+
+- [ ] `SQLSTATE 28000` → `'unauthorized'`.
+- [ ] `SQLSTATE P0002` → `'unauthorized'`.
+- [ ] `'caller is not an owner of this place'` → `'not_owner'`.
+- [ ] `'target is not an owner of this place'` → `'target_not_owner'`.
+- [ ] `'cannot revoke founder ownership'` → `'cannot_revoke_founder'`.
+- [ ] `'cannot self-revoke ownership; use transfer or future step-down'` → `'cannot_self_revoke'`.
+- [ ] `'cannot revoke the only remaining owner'` → `'last_owner'`.
+- [ ] Error desconocido → `'generic'`.
+
+### `src/features/members/actions/_lib/__tests__/map-transfer-error.test.ts` (nuevo)
+
+Cubre cada rama de migration 0016 `app.transfer_founder_ownership` (Feature D).
+
+**Casos cubiertos (6):**
+
+- [ ] `SQLSTATE 28000` → `'unauthorized'`.
+- [ ] `SQLSTATE P0002` → `'unauthorized'`.
+- [ ] `'place not found'` → `'place_not_found'`.
+- [ ] `'caller is not the founder of this place'` → `'not_founder'`.
+- [ ] `'target is not an owner; elevate first'` → `'target_not_owner'`.
+- [ ] `'cannot transfer to self'` → `'cannot_transfer_to_self'`.
+- [ ] Error desconocido → `'generic'`.
+
+**Total S8: 37 vitest puros (8 schemas ext + 7 map-remove + 7 map-elevate + 8 map-revoke-ownership + 7 map-transfer; cada map cubre 1 caso por rama observable + 1 caso `'generic'` default).**
+
+**Actions (wiring delgado, sin vitest)**: 4 archivos verificados por:
+- `pnpm typecheck` (firma + import correcto de `_lib/`).
+- Grep guards pre-commit (uso de `getAuthenticatedDbForRequest` + `revalidatePath` + zod via `_lib/schemas`).
+- Smoke E2E en S12 (happy path real con DB + Neon Auth — CU4 remove, CU5 elevate, CU6 revoke, CU7 transfer).
 
 ---
 
@@ -455,8 +494,8 @@ V1 esperado al cierre S12:
 | S4 — `app.remove_member` | 10 | — |
 | S5 — Shared UI (3 componentes × 6 tests) | 18 | — |
 | S6 — Queries (load-members + load-pending-invitations) | 12 | — |
-| S7 — Server Actions invitations + headline | 15 | — |
-| S8 — Server Actions member mgmt + ownership wrappers | 20 | — |
+| S7 — Server Actions invitations + headline (seam-split puro) | 21 | — |
+| S8 — Server Actions member mgmt + ownership wrappers (seam-split puro) | 37 | — |
 | S9 — UI invite modal + pending tab | 10 | — |
 | S10 — UI members list + actions menu + headline editor | 15 | — |
 | S11 — i18n parity + page render smoke | 3 | 2 (dev server + check-translations) |

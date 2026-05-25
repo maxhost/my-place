@@ -329,29 +329,43 @@ Pattern canónico: getAuthenticatedDbForRequest + zod + DEFINER + revalidatePath
 
 **Objetivo único**: 4 Server Actions wrappers (removeMember + 3 sobre Feature D DEFINERs ya existentes — elevate/revoke/transfer). Mismo pattern que S7.
 
-**Archivos esperados** (4-8):
-- `src/features/members/actions/remove-member.ts` (~60 LOC).
-- `src/features/members/actions/elevate-to-owner.ts` (~50 LOC).
-- `src/features/members/actions/revoke-ownership.ts` (~50 LOC).
-- `src/features/members/actions/transfer-founder-ownership.ts` (~50 LOC).
-- `src/features/members/actions/__tests__/remove-member.test.ts` (~150 LOC).
-- `src/features/members/actions/__tests__/elevate-to-owner.test.ts` (~100 LOC).
-- `src/features/members/actions/__tests__/revoke-ownership.test.ts` (~100 LOC).
-- `src/features/members/actions/__tests__/transfer-founder-ownership.test.ts` (~100 LOC).
+> **Re-baseline S8 (2026-05-25)**: estrategia de tests = **seam-split puro** (extiende canon S7 re-baseline). Las 4 actions cruzan `next/headers` + Neon Auth + DB → NO vitest (precedentes S7 + `update-default-locale` + `auth-actions`). Lo testeable con vitest es la lógica pura extraída a `_lib/`: 4 schemas zod nuevos (extendiendo `_lib/schemas.ts` ya existente) + 4 nuevos `_lib/map-<X>-error.ts` modules (espejos de S7 `map-invite-error.ts` / `map-revoke-error.ts` / `map-headline-error.ts`). Actions verificadas por typecheck + smoke S12. Reaplica la nota de re-baseline S7 §plan-sesiones a esta sesión por consistencia.
+
+**Archivos esperados** (13):
+- `src/features/members/actions/_lib/schemas.ts` (EDIT: +4 schemas `removeMemberSchema` / `elevateToOwnerSchema` / `revokeOwnershipSchema` / `transferFounderOwnershipSchema` — todos `{placeId, targetUserId}` — +4 `…Input` tipos exportados).
+- `src/features/members/actions/_lib/map-remove-member-error.ts` (~50 LOC — regex sobre error message + SQLSTATE → tag `RemoveMemberError`).
+- `src/features/members/actions/_lib/map-elevate-error.ts` (~50 LOC — regex + SQLSTATE → `ElevateError`).
+- `src/features/members/actions/_lib/map-revoke-ownership-error.ts` (~55 LOC — regex + SQLSTATE → `RevokeError`; cubre last_owner + cannot_revoke_founder + cannot_self_revoke + target_not_owner).
+- `src/features/members/actions/_lib/map-transfer-error.ts` (~50 LOC — regex + SQLSTATE → `TransferError`; cubre not_founder + cannot_transfer_to_self + target_not_owner + place_not_found).
+- `src/features/members/actions/_lib/__tests__/schemas.test.ts` (EDIT: +4 describe blocks happy + edge para los 4 nuevos schemas).
+- `src/features/members/actions/_lib/__tests__/map-remove-member-error.test.ts` (~60 LOC, 6 casos).
+- `src/features/members/actions/_lib/__tests__/map-elevate-error.test.ts` (~55 LOC, 6 casos).
+- `src/features/members/actions/_lib/__tests__/map-revoke-ownership-error.test.ts` (~60 LOC, 7 casos).
+- `src/features/members/actions/_lib/__tests__/map-transfer-error.test.ts` (~55 LOC, 6 casos).
+- `src/features/members/actions/remove-member.ts` (~55 LOC — wiring delgado wraps `app.remove_member`).
+- `src/features/members/actions/elevate-to-owner.ts` (~45 LOC — wraps Feature D `app.elevate_to_owner`).
+- `src/features/members/actions/revoke-ownership.ts` (~45 LOC — wraps Feature D `app.revoke_ownership`).
+- `src/features/members/actions/transfer-founder-ownership.ts` (~45 LOC — wraps Feature D `app.transfer_founder_ownership`).
+- `src/features/members/public.ts` (EDIT: +4 action exports + 4 Result types + 4 Input types).
 
 **Locked files** (NO modificar):
-- Actions de S7.
+- Actions de S7 (cerradas — sólo extensión de `_lib/schemas.ts` que ES file compartido).
 - Migrations Feature D (las 4 DEFINERs ya cerradas; sólo wraps).
 - Migration 0020 (cerrada S4).
+- `types.ts` (cerrado S6 — `RemoveMemberError` / `ElevateError` / `RevokeError` / `TransferError` ya definidos).
 
-**Tests TDD**: ver `tests.md` §S8 (~20 tests action wrappers).
+**Tests TDD**: ver `tests.md` §S8 re-baseline (~25 vitest puros sobre `_lib/`; actions verificadas por typecheck + smoke S12).
 
-**LOC budget estimado**: ≤660 LOC. Feature slice acumulado S6-S8: ~1870 LOC — **excede cap 1500**. **Acción**: re-evaluar al cierre S8 si feature requiere split (ej. `src/features/members-ownership/` separado para los 3 wrappers Feature D + tests). Decisión Plan B documentada upfront para evitar sorpresa al final.
+**LOC budget re-baseline**: ≤640 LOC en 14 archivos (4 actions delgadas + 4 map-error modules + schemas ext + 4 test files puros + public.ts edit). Feature slice acumulado S6-S8: **proyectado ~2168 LOC — excede cap 1500**. **Acción upfront**: documentar al cierre S8 que el cap se excede; decisión de split (`src/features/members-ownership/` para los 3 wrappers Feature D + sus tests, dejando members core con queries + invitations + headline + remove-member) se tomará después de S10 cuando UI determine el footprint real (S9-S10 agregan otros ~1500 LOC de UI). Lock en S8: NO bloquear S9 por LOC cap — el split se documenta y se ejecuta como sesión-X bisagra entre S10 y S11 si LOC final lo confirma.
 
 **Pre-commit checklist**:
-- [ ] `pnpm test src/features/members/actions/remove-member` y los 3 wrappers verdes.
-- [ ] `pnpm typecheck` clean.
-- [ ] `find src/features/members -name '*.ts' -o -name '*.tsx' | xargs wc -l | tail -1` reporta total ≤1500 LOC; si excede, abrir issue de split para sesión futura ANTES de continuar a S9.
+- [ ] `pnpm test src/features/members/actions/_lib` verde (cubre 4 nuevos map-error + schemas extension).
+- [ ] `pnpm typecheck` clean (verifica wiring 4 actions + public.ts re-exports).
+- [ ] Cada action usa `getAuthenticatedDbForRequest` (grep guard).
+- [ ] Cada action usa zod (vía import de `_lib/schemas`, grep guard).
+- [ ] Cada action invoca `revalidatePath(`/${placeSlug}/settings/members`)` post-success (grep guard).
+- [ ] `wc -l` cada archivo nuevo ≤300; función ≤60.
+- [ ] LOC slice total documentado al final del commit message (`find src/features/members -name '*.ts' -o -name '*.tsx' | xargs wc -l`).
 
 **Commit message format**:
 ```
@@ -362,7 +376,13 @@ feat(members): Server Actions member mgmt + ownership wrappers (S8)
 - revokeOwnershipAction (wraps Feature D app.revoke_ownership)
 - transferFounderOwnershipAction (wraps Feature D app.transfer_founder_ownership)
 
-Wrappers TS unify Feature D primitives + Feature E remove en single slice UI.
+Pattern canónico (seam-split S7 re-baseline): getAuthenticatedDbForRequest +
+zod (extendido en _lib/schemas) + DEFINER + map-<X>-error + revalidatePath.
+4 nuevos vitest puros sobre _lib/ + ext schemas.test.ts. Actions verificadas
+por typecheck + smoke S12.
+
+LOC slice total: <NNNN> (excede cap 1500 — decisión de split aplazada a
+post-S10, ver plan-sesiones §S8 nota LOC).
 ```
 
 **Tag baseline esperado**: `baseline/feature-e-s8-done`.

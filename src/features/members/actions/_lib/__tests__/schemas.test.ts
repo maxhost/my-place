@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   createInvitationSchema,
+  elevateToOwnerSchema,
+  removeMemberSchema,
   revokeInvitationSchema,
+  revokeOwnershipSchema,
+  transferFounderOwnershipSchema,
   updateMyHeadlineSchema,
 } from "../schemas";
 
@@ -92,5 +96,81 @@ describe("updateMyHeadlineSchema (S7, wrap app.update_my_headline)", () => {
       headline: "",
     });
     expect(emptyResult.success).toBe(true);
+  });
+});
+
+// S8 schemas — 4 actions wrap sobre DEFINERs Feature E/D. Shape canónico
+// `{placeId, targetUserId}` para las 4. Validación zod app-side = identidad
+// estructural (strings no vacíos); la DEFINER hace la validación semántica.
+
+describe("removeMemberSchema (S8, wrap app.remove_member)", () => {
+  it("happy: {placeId, targetUserId} → success", () => {
+    const result = removeMemberSchema.safeParse({
+      placeId: "place_abc",
+      targetUserId: "usr_xyz",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("placeId vacío → fail (zod .min(1))", () => {
+    const result = removeMemberSchema.safeParse({
+      placeId: "",
+      targetUserId: "usr_xyz",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("elevateToOwnerSchema (S8, wrap app.elevate_to_owner)", () => {
+  it("happy → success", () => {
+    const result = elevateToOwnerSchema.safeParse({
+      placeId: "place_abc",
+      targetUserId: "usr_xyz",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("targetUserId vacío → fail", () => {
+    const result = elevateToOwnerSchema.safeParse({
+      placeId: "place_abc",
+      targetUserId: "",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("revokeOwnershipSchema (S8, wrap app.revoke_ownership)", () => {
+  it("happy → success", () => {
+    const result = revokeOwnershipSchema.safeParse({
+      placeId: "place_abc",
+      targetUserId: "usr_xyz",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("placeId vacío → fail", () => {
+    const result = revokeOwnershipSchema.safeParse({
+      placeId: "",
+      targetUserId: "usr_xyz",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("transferFounderOwnershipSchema (S8, wrap app.transfer_founder_ownership)", () => {
+  it("happy → success", () => {
+    const result = transferFounderOwnershipSchema.safeParse({
+      placeId: "place_abc",
+      targetUserId: "usr_xyz",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("targetUserId vacío → fail", () => {
+    const result = transferFounderOwnershipSchema.safeParse({
+      placeId: "place_abc",
+      targetUserId: "",
+    });
+    expect(result.success).toBe(false);
   });
 });
