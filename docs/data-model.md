@@ -2,7 +2,7 @@
 
 Schema del core del producto, expresado en **SQL (Postgres) ORM-agnóstico**. El método de acceso (ORM/query builder/SQL plano) está TBD; el modelo no depende de esa decisión. Cada feature agrega sus propias tablas respetando este core.
 
-> _Última actualización: 2026-05-24 (Feature D V1, ADR-0035 — `place_ownership` WORM-via-DEFINER + `place.founder_user_id` + 4 funciones `SECURITY DEFINER` que canalizan toda mutación)._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
+> _Última actualización: 2026-05-24 (Feature E S0 docs canónicas — ADR-0036 `membership.headline` opcional ≤280 chars per place + ADR-0037 `place.member_invite_quota` schema-only V1 default 0)._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
 
 ## Schema base
 
@@ -85,6 +85,15 @@ CREATE TABLE place (
   -- Referencia lógica a app_user.id (sin FK hard, mismo criterio que
   -- app_user.auth_user_id → neon_auth.user.id).
   founder_user_id  TEXT NOT NULL,
+  -- Cupo máximo de invitaciones concurrentes que cada miembro NO-owner del
+  -- place puede crear. Owner está exento (helper `app.current_user_owns_place`
+  -- bypasea el chequeo). Default 0 = comportamiento histórico ADR-0010:
+  -- sólo owner invita. ADR-0037 V1 SHIP SCHEMA-ONLY — la columna existe pero
+  -- `app.create_invitation` (Feature E S2, migration 0018) la ignora y mantiene
+  -- gate hardcoded owner-only; V2+ agrega UI editor + counter en `membership`
+  -- + gate en cuerpo de `create_invitation` + decremento on cancel/expire.
+  member_invite_quota INT NOT NULL DEFAULT 0
+                       CHECK (member_invite_quota >= 0),
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   archived_at      TIMESTAMPTZ
 );
@@ -128,6 +137,14 @@ CREATE TABLE membership (
   user_id   TEXT NOT NULL REFERENCES app_user(id),
   place_id  TEXT NOT NULL REFERENCES place(id),
   -- Sin columna role: owner se deriva de place_ownership; si no, es miembro.
+  -- Headline opcional ≤280 chars (ADR-0036): texto personal corto del miembro
+  -- en ESTE place específico (capa 2 contextual — no viaja entre places). NULL
+  -- por default; sólo el propio miembro lo edita (UPDATE acotado por
+  -- user_id = caller en la Server Action `updateMyHeadlineAction`). El owner
+  -- del place NO edita el headline de otros (es identidad personal, no
+  -- curaduría del lugar). Render condicional en UI: bloque desaparece cuando
+  -- NULL (no hay placeholder forzado). Migration 0017 (Feature E S1).
+  headline  TEXT CHECK (headline IS NULL OR length(headline) <= 280),
   joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   left_at   TIMESTAMPTZ,
   UNIQUE (user_id, place_id)
@@ -232,6 +249,8 @@ Reglas que el código debe enforzar. No son validaciones UI — son invariantes 
 - **Exención de la escala de inactividad.** La escala 6m/12m de cuenta NO corre mientras el usuario sea owner de ≥1 place activo O tenga ≥1 pago activo. Es una condición evaluada, no un flag permanente: al dejar de cumplir ambas, la cuenta entra a la escala. Ver ADR-0003. **Post-ADR-0035:** "owner de ≥1 place activo" se interpreta literal post-multi-owner — cualquier owner (founder o co-owner) extiende la exención mientras el place esté `subscription_status IN ('ACTIVE','PAYMENT_PENDING','INACTIVATION_PROCESS')`. La revocación de ownership re-evalúa la condición.
 - **Alta owner-first: cuenta y place se crean juntos (saga, no transacción única).** El alta del apex crea `app_user` (+ identidad Better Auth) y luego `place` + `place_ownership` + `membership` vía la función atómica `app.create_place` (ADR-0005, refinado por ADR-0012 — INSERT directo denegado por RLS). Una cuenta queda sin place solo si falla ese último paso (reintento, no error fatal). Excepción de diseño: alta desde invitación o "join" del directorio crea cuenta + `membership` sin crear place.
 - **Place requiere suscripción del owner activa.** Sin pago, el place avanza por `subscription_status` hasta purga a los 12m. La eliminación/tombstone de un usuario que es único owner de un place activo se bloquea: primero transferir ownership o cerrar el place (extiende "mínimo 1 owner").
+- **`membership.headline` ≤ 280 caracteres (ADR-0036).** Texto personal corto, opcional, contextual al place (NO viaja entre places — vive en capa 2 de identidad). Enforce DB-side vía `CHECK (headline IS NULL OR length(headline) <= 280)` + zod del action `updateMyHeadlineAction` (defense-in-depth ante drift app-side). Sólo el propio miembro lo edita (`user_id = caller`); el owner del place NO edita el headline de otros. Render condicional en UI: bloque desaparece cuando NULL.
+- **`place.member_invite_quota` ≥ 0 (ADR-0037, V1 schema-only).** Cupo máximo de invitaciones concurrentes por miembro no-owner del place. Owner exento vía `app.current_user_owns_place` (cualquiera de los N owners por ADR-0035 §1). Default 0 = sólo owner invita (comportamiento histórico ADR-0010). V1 (Feature E): la columna existe pero `app.create_invitation` la IGNORA — gate hardcoded `caller is owner`. V2+ agregará UI editor + counter `membership.invitations_used` + gate por cupo en cuerpo de `create_invitation` + decremento on cancel/expire (cita literal user: "si la invitacion no fue aceptada el miembro podra eliminarla o cancelarla y volver a usarla para invitar a alguien mas").
 
 ## Capas de identidad de un usuario
 

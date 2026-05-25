@@ -2,7 +2,7 @@
 
 Documento final del objeto "miembros" en Place. Incluye identidad del usuario, perfil contextual, y DMs. Todas las decisiones tomadas. Listo para construir.
 
-> _Última actualización: 2026-05-16._ Ontología canónica del dominio. Si una decisión de producto cambia, se actualiza acá **en la misma sesión** y se ajusta la fecha; el schema (`docs/data-model.md`) es su expresión, no su fuente.
+> _Última actualización: 2026-05-24 (ADR-0036 — `headline` opcional ≤280 chars per place; el principio "identidad-por-contribución" sigue siendo el corazón y el headline es complemento, no sustituto)._ Ontología canónica del dominio. Si una decisión de producto cambia, se actualiza acá **en la misma sesión** y se ajusta la fecha; el schema (`docs/data-model.md`) es su expresión, no su fuente.
 
 ---
 
@@ -40,9 +40,9 @@ Esta separación no es un feature de privacidad — es **cómo funciona la ident
 
 Un perfil tradicional tiene un campo "bio" o "about me" donde te describís. "Dev, escritor amateur, fan de Bilardo."
 
-En Place no hay bio. **Tu identidad contextual en un place es lo que hiciste en ese place**. Cuántos temas trajiste, en cuántos participaste, qué documentos subiste, desde cuándo sos miembro, qué rol tenés. Sos lo que aportaste al lugar, no lo que dijiste que eras.
+En Place **el corazón de tu identidad contextual es lo que hiciste en ese place**. Cuántos temas trajiste, en cuántos participaste, qué documentos subiste, desde cuándo sos miembro, qué rol tenés. Sos primariamente lo que aportaste al lugar, no lo que dijiste que eras.
 
-Si querés que los demás sepan algo sobre vos, lo contás en una discusión, lo traés al lugar como todo lo demás. No hay un formulario para declarar quién sos.
+Si querés que los demás sepan algo sobre vos, lo contás en una discusión, **o complementás tu perfil con un `headline` corto y opcional** (≤280 chars, per place — ver §"Identidad contextual"). Pero el headline es un complemento, no el centro de gravedad — el grueso del perfil sigue construido por contribución, no por declaración. No hay un formulario largo para declarar quién sos.
 
 ### Tres — No hay página "miembros"
 
@@ -88,8 +88,9 @@ Lo que viaja con vos entre places:
 Lo que vive en cada place, no viaja entre places:
 
 - **Antigüedad**: cuándo te sumaste a este place específico. "Desde marzo 2024".
-- **Rol**: owner o miembro. **Owner** = creador del place o quien otro owner designe; **miembro** = todo el resto. No hay rol "admin": la administración delegada será una feature futura de *grupos con permisos granulares* que el owner crea (un grupo "admin" con miembros elegidos). Asignado por estructura, no por declaración.
-- **Contribuciones**: temas que trajiste, mensajes que escribiste, documentos que subiste, eventos que creaste. Métricas de actividad real, no vanidad. Se muestran como hechos, no como puntaje.
+- **Rol**: owner o miembro. **Owner** = creador del place (founder) o quien otro owner designe (co-owner, multi-owner desde V1 vía ADR-0035); **miembro** = todo el resto. No hay rol "admin": la administración delegada será una feature futura de *grupos con permisos granulares* que el owner crea (un grupo "admin" con miembros elegidos). Asignado por estructura, no por declaración.
+- **Headline opcional** (≤280 chars, ADR-0036): texto personal corto del miembro, distinto por place, NULL por default. El miembro lo escribe si quiere matizar su perfil contextual ("recién mudada del barrio", "mamá de Iván y Eli", "encantado del jugo de zanahoria"). Complementa a las contribuciones; no las reemplaza. Sólo el propio miembro lo edita (el owner no edita la identidad personal de otros).
+- **Contribuciones**: temas que trajiste, mensajes que escribiste, documentos que subiste, eventos que creaste. Métricas de actividad real, no vanidad. Se muestran como hechos, no como puntaje. **Es el primario del perfil** — el headline puede o no estar; las contribuciones siempre están.
 - **Actividad reciente**: última aparición en el place, últimos temas donde participaste, últimos documentos que subiste.
 - **Reconocimientos específicos del place**: si el place define títulos honoríficos, alguna marca especial. Esto es customizable por place y totalmente opcional.
 
@@ -117,16 +118,16 @@ No abre un perfil universal, no abre un "about page", no te lleva a otra pantall
 **Lo que muestra**:
 
 - Nombre + avatar + handle (capa universal)
+- **Headline** (si lo seteó, ≤280 chars) — texto corto personal del miembro en este place. Render condicional: cuando es NULL, el bloque entero no aparece (no hay placeholder "Add a bio" ni similar)
 - Antigüedad en este place: "Lucía está en El Taller desde marzo 2024"
-- Sus contribuciones acumuladas en este place: "14 temas traídos, 48 mensajes, 3 documentos subidos"
+- Sus contribuciones acumuladas en este place: "14 temas traídos, 48 mensajes, 3 documentos subidos" — **es el corazón del perfil**, siempre visible
 - Actividad reciente: "Su último tema: TDD en proyectos chicos · reabierto hace 2 días"
 - Rol: owner / miembro
 - Botón para iniciar DM: "Iniciar conversación"
 
 **Lo que NO muestra**:
 
-- Bio escrita por ella
-- Edad, género, ubicación, pronombres (a menos que ella los haya compartido en una discusión del place)
+- Edad, género, ubicación, pronombres (a menos que ella los haya compartido en una discusión del place o en su headline)
 - Otros places a los que pertenece (eso es capa privada)
 - Stats agregados de toda su actividad en Place
 - Última vez que estuvo online en general
@@ -237,7 +238,7 @@ El handle es:
 
 Para proteger el primitivo:
 
-- **No hay bio escrita por el miembro**. Tu identidad es lo que hacés.
+- **No hay bio universal**. La identidad cross-place (capa 1) es mínima: nombre, avatar, handle. El `headline` opcional (capa 2) vive en cada `membership` — no viaja entre places por diseño (ADR-0036).
 - **No hay "followers/following"**. Place no es red social, es lugar.
 - **No hay página pública del perfil fuera de places**.
 - **No hay stats vanidosos** tipo "total posts, total likes". Los stats son hechos contextuales, no métricas.
