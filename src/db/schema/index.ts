@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   check,
+  integer,
   jsonb,
   pgEnum,
   pgPolicy,
@@ -120,6 +121,14 @@ export const place = pgTable("place", {
     .default(sql`'[]'::jsonb`),
   createdAt: tstz("created_at").notNull().defaultNow(),
   archivedAt: tstz("archived_at"),
+  // Cupo configurable de invitaciones por miembro (ADR-0037 §1, migration
+  // 0017). V1 schema-only: la columna existe pero no se consume en runtime
+  // (gate de `app.create_invitation` queda hardcoded owner-only V1, ADR-0037
+  // §4). V2+ agrega UI editor + counter `membership.invitations_used` + gate.
+  // DEFAULT 0 preserva el comportamiento histórico pre-ADR-0037. El CHECK
+  // `>= 0` es defense-in-depth — el zod del UI V2+ ya validará no-negativo,
+  // pero la DB asegura el invariante aún si el caller saltea la app layer.
+  memberInviteQuota: integer("member_invite_quota").notNull().default(0),
 },
   // INSERT: sin policy (denegado por construcción + REVOKE en la migración —
   // la creación va por app.create_place, ADR-0012 §1). SELECT/UPDATE/DELETE
@@ -131,6 +140,10 @@ export const place = pgTable("place", {
     check(
       "place_default_locale_check",
       sql`${t.defaultLocale} IN ('es', 'en', 'fr', 'pt', 'de', 'ca')`,
+    ),
+    check(
+      "place_member_invite_quota_nonneg_chk",
+      sql`${t.memberInviteQuota} >= 0`,
     ),
   ],
 );
@@ -186,6 +199,14 @@ export const membership = pgTable(
       .references(() => place.id),
     joinedAt: tstz("joined_at").notNull().defaultNow(),
     leftAt: tstz("left_at"),
+    // Bio contextual opcional per place (ADR-0036, migration 0017). Refina
+    // ontologia/miembros.md §"Identidad contextual (capa 2)" — el corazón
+    // de la identidad sigue siendo la contribución; el headline es un
+    // complemento opcional ≤280 chars. Edición SELF-ONLY: el owner NO edita
+    // headlines ajenos (ADR-0036 §3). El UPDATE va vía DEFINER
+    // `app.update_my_headline` (spec.md §"Decisión operativa" — column
+    // exposure isolation), NO vía UPDATE directo.
+    headline: text("headline"),
   },
   // INSERT: sin policy (denegado + REVOKE — vía app.create_place, ADR-0012 §1).
   (t) => [
@@ -193,6 +214,10 @@ export const membership = pgTable(
     pgPolicy("membership_sel", { for: "select", to: appSystem, using: ownerOnly(t.placeId) }),
     pgPolicy("membership_upd", { for: "update", to: appSystem, using: ownerOnly(t.placeId) }),
     pgPolicy("membership_del", { for: "delete", to: appSystem, using: ownerOnly(t.placeId) }),
+    check(
+      "membership_headline_length_chk",
+      sql`${t.headline} IS NULL OR length(${t.headline}) <= 280`,
+    ),
   ],
 );
 
