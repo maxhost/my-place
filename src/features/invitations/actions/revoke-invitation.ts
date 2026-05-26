@@ -10,12 +10,9 @@ import {
   revokeInvitationSchema,
 } from "./_lib/schemas";
 
-// Server Action S7 — wrap sobre `app.revoke_invitation` (migration 0019).
-// Pattern canónico ADR-0034: getAuthenticatedDbForRequest + zod + DEFINER
-// + map error + revalidatePath. Wiring delgado sobre `_lib/`.
-//
-// DELETE físico (capability ceases to exist — comment migration 0019). El
-// caller no necesita el row eliminado; void return desde la DEFINER.
+// Wrap sobre `app.revoke_invitation` (migration 0019). Pattern canónico
+// ADR-0034. DELETE físico (capability cesa de existir — la DEFINER retorna
+// void; caller no necesita el row).
 
 export type RevokeInvitationResult =
   | { ok: true }

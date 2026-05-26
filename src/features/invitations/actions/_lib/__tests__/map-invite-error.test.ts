@@ -2,12 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { mapInviteError } from "../map-invite-error";
 
-// Tests puros del mapeo DEFINER error → `InviteError` tag. La función
-// inspecciona `err.code` (SQLSTATE PG, preferido) + `err.message` (string
-// del RAISE EXCEPTION). Espejo de migration 0018 (`app.create_invitation`)
-// + migration 0017 P0002 reutilizable.
+// Espejo migration 0018 (`app.create_invitation`) + 0017 P0002 reutilizable.
 
-describe("mapInviteError (S7, _lib pure)", () => {
+describe("mapInviteError", () => {
   it("SQLSTATE 28000 / 'no autenticado' → 'unauthorized'", () => {
     const err = Object.assign(new Error("no autenticado"), { code: "28000" });
     expect(mapInviteError(err)).toBe("unauthorized");

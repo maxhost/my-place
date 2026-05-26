@@ -8,20 +8,10 @@ import {
   InviteMemberModal,
 } from "../invite-member-modal";
 
-// Tests RTL de `<InviteMemberModal />` — flujo capability-based invitation
-// (Feature E V1 §S9, spec §CU2). Seam-split canónico: `createAction` se
-// inyecta como prop (tests `vi.fn()`; page S11 inyecta `createInvitationAction`
-// real). Strings ES hardcoded — i18n extraction diferida a S11
-// (plan-sesiones.md §S9 "Locked files").
-//
-// Cobertura (5 casos, tests.md §S9):
-//   1. Form abierto: email + expiresInDays + submit visibles.
-//   2. Submit válido invoca createAction con shape correcto + post-success
-//      muestra el link `${inviteBaseUrl}/invite/<token>` visible + copiable.
-//   3. Click "Copiar link" ⇒ navigator.clipboard.writeText(link) + status
-//      "¡Copiado!" aparece.
-//   4. Email inválido ⇒ mensaje inline rojo, action NO invocada.
-//   5. Action error not_owner ⇒ feedback inline, modal sigue montado.
+// Tests RTL de `<InviteMemberModal />` (capability-based invitation, spec
+// §CU2). Seam-split: `createAction` inyectada como prop (tests `vi.fn()`;
+// page S11 inyecta `createInvitationAction` real). Strings ES hardcoded —
+// i18n extraction diferida a S11.
 
 const LABELS: InviteMemberModalLabels = {
   title: "Invitar miembro",

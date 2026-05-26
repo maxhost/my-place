@@ -1,68 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createInvitationSchema,
-  removeMemberSchema,
-  revokeInvitationSchema,
-  updateMyHeadlineSchema,
-} from "../schemas";
+import { removeMemberSchema, updateMyHeadlineSchema } from "../schemas";
 
-// Tests puros (sin DB, sin next/headers) de los 3 zod schemas que las
-// Server Actions de S7 usan como primera red de defense-in-depth (CLAUDE.md
-// §"Zod para todo input externo"). Los schemas son `_lib/` privado del slice;
-// las actions los consumen vía import directo. Sí se exportan los tipos
-// `…Input` desde `_lib/` porque las actions los re-exportan en su signature.
+// Tests puros (sin DB, sin next/headers) de los 2 zod schemas que las
+// Server Actions de este slice usan como primera red de defense-in-depth
+// (CLAUDE.md §"Zod para todo input externo"). Los schemas son `_lib/`
+// privado del slice; las actions los consumen vía import directo. Sí se
+// exportan los tipos `…Input` desde `_lib/` porque las actions los
+// re-exportan en su signature.
 //
 // Cobertura V1: happy + cada rama de fail relevante. Los strings de error
-// son zod-internos (NO superficie public); las actions colapsan zod fail a
-// tags discriminables (`invalid_email`, `invalid_expires`, `too_long`).
-
-describe("createInvitationSchema (S7, wrap app.create_invitation)", () => {
-  it("happy: {placeId, email valid, expiresInDays 7} → success", () => {
-    const result = createInvitationSchema.safeParse({
-      placeId: "place_abc123",
-      email: "newcomer@example.com",
-      expiresInDays: 7,
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("invalid_email: 'no-arroba' → fail (no toca DB)", () => {
-    const result = createInvitationSchema.safeParse({
-      placeId: "place_abc123",
-      email: "no-arroba",
-      expiresInDays: 7,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("invalid_expires below: expiresInDays = 0 → fail", () => {
-    const result = createInvitationSchema.safeParse({
-      placeId: "place_abc123",
-      email: "ok@example.com",
-      expiresInDays: 0,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("invalid_expires above: expiresInDays = 91 → fail", () => {
-    const result = createInvitationSchema.safeParse({
-      placeId: "place_abc123",
-      email: "ok@example.com",
-      expiresInDays: 91,
-    });
-    expect(result.success).toBe(false);
-  });
-});
-
-describe("revokeInvitationSchema (S7, wrap app.revoke_invitation)", () => {
-  it("happy: {invitationId} → success", () => {
-    const result = revokeInvitationSchema.safeParse({
-      invitationId: "inv_xyz789",
-    });
-    expect(result.success).toBe(true);
-  });
-});
+// son zod-internos (NO superficie public); las actions colapsan zod fail
+// a tags discriminables (`too_long`).
+//
+// Slice diet S10.7 — tests de los 2 invitations schemas
+// (`createInvitationSchema`, `revokeInvitationSchema`) viven en
+// `src/features/invitations/actions/_lib/__tests__/schemas.test.ts`
+// (extracción ADR-0041).
 
 describe("updateMyHeadlineSchema (S7, wrap app.update_my_headline)", () => {
   it("happy 280: 'a'.repeat(280) → success (boundary)", () => {
@@ -99,9 +53,11 @@ describe("updateMyHeadlineSchema (S7, wrap app.update_my_headline)", () => {
 // S8 schema — wrap sobre `app.remove_member` (migration 0020, Feature E S5).
 // Shape `{placeId, targetUserId}`; validación zod = identidad estructural.
 //
-// S10.5 — tests de los 3 schemas del slot ownership viven en
-// `src/features/place-ownership-actions/actions/_lib/__tests__/schemas.test.ts`
-// (extracción Plan B).
+// Slice diet — tests de schemas extraídos viven en slices hermanos:
+//   - `place-ownership-actions/actions/_lib/__tests__/schemas.test.ts`
+//     (S10.5 Plan B): los 3 schemas del slot ownership.
+//   - `invitations/actions/_lib/__tests__/schemas.test.ts` (S10.7
+//     ADR-0041): los 2 schemas del slot invitations.
 
 describe("removeMemberSchema (S8, wrap app.remove_member)", () => {
   it("happy: {placeId, targetUserId} → success", () => {

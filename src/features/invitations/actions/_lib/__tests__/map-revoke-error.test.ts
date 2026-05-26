@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { mapRevokeInviteError } from "../map-revoke-error";
 
-// Tests puros del mapeo DEFINER error → `RevokeInviteError` tag. Espejo de
-// migration 0019 (`app.revoke_invitation`).
+// Espejo migration 0019 (`app.revoke_invitation`).
 
-describe("mapRevokeInviteError (S7, _lib pure)", () => {
+describe("mapRevokeInviteError", () => {
   it("SQLSTATE 28000 → 'unauthorized'", () => {
     const err = Object.assign(new Error("no autenticado"), { code: "28000" });
     expect(mapRevokeInviteError(err)).toBe("unauthorized");

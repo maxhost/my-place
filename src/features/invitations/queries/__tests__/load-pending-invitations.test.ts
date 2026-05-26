@@ -6,16 +6,8 @@ import {
 } from "@/db/__tests__/db-test-pool";
 import { loadPendingInvitations } from "../load-pending-invitations";
 
-// Feature E · S6 (tests.md §S6, 2026-05-24) — query foundation del slice
-// `members` para el tab "Pendientes" de `/settings/members`.
-// `loadPendingInvitations(executor, placeId)` retorna `PendingInvitation[]`
-// con sólo las invitaciones accionables (pending no expiradas), ordenadas
-// por urgencia (`expires_at ASC` — las que vencen antes primero).
-//
-// La RLS owner-only de `invitation` (`invitation_all` FOR ALL con
-// `ownerOnly(t.placeId)`) hace el guard naturalmente: si el caller no es
-// owner del place, la query retorna `[]` sin throw.
-//
+// loadPendingInvitations: filtra accionables (pending no expiradas),
+// ordena por urgencia, RLS owner-only retorna `[]` para no-owner.
 // Patrón seed-as-owner / assert-as-`app_system` idéntico a
 // `load-members.test.ts`. ROLLBACK siempre.
 

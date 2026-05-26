@@ -1,13 +1,9 @@
 import type { RevokeInviteError } from "../../types";
 
 // Mapeo puro DEFINER error → tag `RevokeInviteError`. Espejo de migration
-// 0019 (`app.revoke_invitation`). Inspecciona `err.code` (SQLSTATE) +
-// `err.message`. Política anti-info-leak: unknown → `'generic'`.
-//
-// Diferencia vs `mapInviteError`: NO mapea P0002 porque `app.revoke_invitation`
-// NO hace lookup app_user (comment migration 0019 §"Por qué NO P0002") —
-// 28000 cubre el path autenticación + el owner check colapsa todos los
-// otros casos a `'not_owner'`.
+// 0019 (`app.revoke_invitation`). Unknown → `'generic'` (anti-info-leak).
+// NO mapea P0002 (la DEFINER no hace lookup app_user — comment migration
+// 0019); 28000 cubre auth; owner check colapsa el resto a `'not_owner'`.
 
 function readCode(err: unknown): string | undefined {
   if (typeof err === "object" && err !== null) {

@@ -1,18 +1,9 @@
 import type { InviteError } from "../../types";
 
-// Mapeo puro DEFINER error → tag `InviteError`. Inspecciona `err.code`
-// (SQLSTATE) y `err.message` (string del RAISE EXCEPTION). Espejo de
-// migration 0018 (`app.create_invitation`) — los strings y codes son
-// contract con la DB; un drift acá rompe el test puro inmediatamente.
-//
-// Política anti-info-leak: errores desconocidos colapsan a `'generic'`
-// (NO se exponen al cliente). El caller (Server Action) lo retorna como
-// `{ok: false, error: 'generic'}` y la UI muestra copy genérico.
-//
-// `'unauthorized'` agrupa 28000 (sin claim) + P0002 (claim sin app_user)
-// porque ambos son "sesión rota" desde la perspectiva UX. Distinguir no
-// agrega valor V1 — un V2 podría discriminar si quisiéramos UX-distinta
-// para "tu cuenta nunca arrancó en este place".
+// Mapeo puro DEFINER error → tag `InviteError`. Espejo de migration 0018
+// (`app.create_invitation`); strings + codes son contract con DB — drift
+// rompe test puro. Unknown → `'generic'` (anti-info-leak). `'unauthorized'`
+// agrupa 28000 + P0002 (ambos "sesión rota" UX-side).
 
 function readCode(err: unknown): string | undefined {
   if (typeof err === "object" && err !== null) {

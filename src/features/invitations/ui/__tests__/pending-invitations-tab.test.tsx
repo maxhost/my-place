@@ -9,18 +9,10 @@ import {
   PendingInvitationsTab,
 } from "../pending-invitations-tab";
 
-// Tests RTL de `<PendingInvitationsTab />` — listado de invitaciones pending
-// + revoke con confirm (Feature E V1 §S9, spec §CU3). Seam-split canónico:
-// `revokeAction` se inyecta como prop. Strings ES hardcoded — i18n S11.
-//
-// Cobertura (5 casos, tests.md §S9):
-//   1. Lista N invitations: cada fila muestra email + caducidad + botón.
-//   2. Array vacío ⇒ empty state visible.
-//   3. Click "Revocar" ⇒ abre <ConfirmDialog> (shared/ui S5).
-//   4. Confirm ⇒ invoca revokeAction(invitationId, placeSlug).
-//   5. revokeAction error already_accepted ⇒ feedback inline + fila NO
-//      desaparece (la revalidación post-success es responsabilidad del page
-//      RSC; este componente NO hace mutación optimista V1).
+// Tests RTL de `<PendingInvitationsTab />` (spec §CU3). Seam-split:
+// `revokeAction` inyectada como prop. Strings ES hardcoded — i18n S11.
+// La revalidación post-success es del page RSC; este componente NO hace
+// mutación optimista V1.
 
 const LABELS: PendingInvitationsTabLabels = {
   emptyTitle: "Sin invitaciones pendientes",

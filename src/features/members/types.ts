@@ -1,7 +1,8 @@
 // SoT canónica de tipos del slice `members` (Feature E V1, S6). Consumido
-// por queries (`./queries/*`, S6), Server Actions (`./actions/*`, S7-S8) y
-// UI (`./ui/*`, S9-S10). Re-exportado por `./public.ts` para consumers
-// cross-feature (page `/settings/members` + futuras integraciones).
+// por queries (`./queries/load-members`), Server Actions (`./actions/{
+// remove-member,update-my-headline}`) y UI (`./ui/{members-list,member-row-
+// actions-menu,headline-editor}`). Re-exportado por `./public.ts` para
+// consumers cross-feature (page `/settings/members` + futuras integraciones).
 //
 // Decisiones canónicas que estos tipos materializan:
 //
@@ -19,21 +20,25 @@
 //   asumirlo.
 //
 // - **Error unions por capability** (1 por DEFINER consumida): cada
-//   Server Action wrapper (S7-S8) retorna un Result `{ok: true, …} |
-//   {ok: false, error: <ErrorUnion>}`. Los strings de cada union son la
-//   superficie public-stable que la UI rama por `switch` exhaustivo. Los
-//   wrappers maps regex(message)→tag; los message strings DEFINER son
-//   internals de DB y NO se exponen al cliente (canon ADR-0010 §"errores
-//   discriminables", anti-info-leak).
+//   Server Action wrapper retorna un Result `{ok: true, …} | {ok: false,
+//   error: <ErrorUnion>}`. Los strings de cada union son la superficie
+//   public-stable que la UI rama por `switch` exhaustivo. Los wrappers
+//   maps regex(message)→tag; los message strings DEFINER son internals de
+//   DB y NO se exponen al cliente (canon ADR-0010 §"errores discriminables",
+//   anti-info-leak).
 //
-// Locked durante S7-S12: ampliar este archivo requiere revisión explícita
-// (regla plan-sesiones §S7 §S8 §S9-S11). El alcance V1 está cerrado por
-// las 3 DEFINER nuevas de Feature E (S2/S3/S4) + 1 DEFINER S1 (headline);
-// las 3 DEFINER de Feature D reutilizadas (elevate/revoke/transfer) viven
-// en el slice hermano `src/features/place-ownership-actions/` (extracción Plan B
-// S10.5 — ver `place-ownership-actions/types.ts` para `ElevateError`,
-// `RevokeError`, `TransferError`). 4 errors V1 en este slice + 1 helper
-// de derivación.
+// Slice diet S10.5-S10.7: este file quedó con `Member` + `MemberRole` +
+// `getMemberRole` + `RemoveMemberError` + `HeadlineError`. Los tipos
+// extraídos viven en slices hermanos capability-named:
+//   - `place-ownership-actions/types.ts` (S10.5 Plan B, renombrado en
+//     S10.6 ADR-0040): `ElevateError`, `RevokeError`, `TransferError` +
+//     Input types — los 3 wrappers Feature D reutilizadas.
+//   - `invitations/types.ts` (S10.7 ADR-0041): `PendingInvitation`,
+//     `InviteError`, `RevokeInviteError` — el slot `invitation`
+//     (migrations 0018-0019). 2 errors V1 + 1 shape de query.
+//
+// 2 errors V1 en este slice (`RemoveMemberError`, `HeadlineError`) +
+// 1 helper puro de derivación de rol.
 
 /**
  * Miembro activo del place (fila en `membership` con `left_at IS NULL`).
@@ -65,33 +70,6 @@ export type Member = {
   joinedAt: Date;
   isOwner: boolean;
   isFounder: boolean;
-};
-
-/**
- * Invitación pendiente (no aceptada y no expirada) visible al owner del
- * place en el tab "Pendientes" de `/settings/members`.
- *
- * Shape canónico que `loadPendingInvitations` retorna. V1 NO expone el
- * `token` (es la capability — la UI sólo necesita identificar la fila
- * para revoke + mostrar caducidad). Para regenerar el link copiable, el
- * owner re-crea la invitación (mismo email + nueva fecha) — V1.1+
- * podría agregar "copiar link" sobre invitación existente.
- *
- * - `invitationId`: PK opaca de `invitation.id`. Pasada a
- *   `revokeInvitationAction`.
- * - `email`: email destinatario que el owner ingresó. Display-only —
- *   gating es por capability/token (ADR-0010 §2), NO por email lookup.
- * - `expiresAt`: timestamp de expiración. UI calcula "expira en 3 días"
- *   client-side via `Intl.RelativeTimeFormat`.
- * - `invitedByDisplayName`: nombre del owner que creó la invitación
- *   (JOIN `app_user`). Multi-owner ⇒ útil saber QUIÉN invitó (ej.:
- *   "alice invitó a bob@x.com").
- */
-export type PendingInvitation = {
-  invitationId: string;
-  email: string;
-  expiresAt: Date;
-  invitedByDisplayName: string;
 };
 
 /**
@@ -133,48 +111,6 @@ export function getMemberRole(member: Member): MemberRole {
 }
 
 /**
- * Errores discriminables de `createInvitationAction` (S7, wrap sobre
- * `app.create_invitation` migration 0018 + zod app-side).
- *
- * - `unauthorized`: caller sin sesión (DEFINER `28000`) o sin `app_user`
- *   (`P0002`). UI ⇒ "necesitás iniciar sesión".
- * - `not_owner`: caller no es owner del place (DEFINER P0001 'caller is
- *   not an owner of this place'). Cubre member-no-owner V1 + cross-place.
- * - `invalid_email`: zod rechaza formato — input no es email parseable.
- *   No toca DB. UI ⇒ error inline en el input.
- * - `invalid_expires`: zod rechaza `expiresInDays` fuera de [1, 90].
- *   No toca DB.
- * - `expires_in_past`: DEFINER P0001 'expires_at must be in the future'.
- *   Defense-in-depth: el cómputo zod `now() + days` siempre debería caer
- *   en el futuro, pero clock skew client/server podría disparar este.
- * - `generic`: cualquier otro fallo (red, 5xx, drift de schema).
- */
-export type InviteError =
-  | "unauthorized"
-  | "not_owner"
-  | "invalid_email"
-  | "invalid_expires"
-  | "expires_in_past"
-  | "generic";
-
-/**
- * Errores de `revokeInvitationAction` (S7, wrap sobre `app.revoke_invitation`
- * migration 0019).
- *
- * - `not_found`: DEFINER P0001 'invitation not found' — token/id ya
- *   inválido (otro owner la revocó concurrentemente, o expiró + purga).
- * - `already_accepted`: DEFINER P0001 'cannot revoke already-accepted
- *   invitation'. UI ⇒ "esa invitación ya fue aceptada; usá 'remover
- *   miembro' para sacar a la persona".
- */
-export type RevokeInviteError =
-  | "unauthorized"
-  | "not_owner"
-  | "not_found"
-  | "already_accepted"
-  | "generic";
-
-/**
  * Errores de `removeMemberAction` (S8, wrap sobre `app.remove_member`
  * migration 0020).
  *
@@ -211,5 +147,11 @@ export type HeadlineError =
 
 // Los 3 errors del slot ownership (`ElevateError`, `RevokeError`, `TransferError`)
 // se movieron a `src/features/place-ownership-actions/types.ts` (extracción Plan B
-// S10.5, ver header). Consumidores cross-slice los importan desde
-// `@/features/place-ownership-actions/public`.
+// S10.5, renombrado S10.6 ADR-0040 — ver header).
+//
+// Los tipos del slot invitations (`PendingInvitation`, `InviteError`,
+// `RevokeInviteError`) se movieron a `src/features/invitations/types.ts`
+// (extracción S10.7 ADR-0041).
+//
+// Consumidores cross-slice los importan desde los `public.ts` respectivos
+// (regla ESLint ADR-0039 — sin deep-imports cross-slice).
