@@ -55,7 +55,7 @@ export type UpdateMyHeadlineInput = z.infer<typeof updateMyHeadlineSchema>;
 //
 // S10.5 — los 3 schemas del slot ownership (`elevateToOwnerSchema`,
 // `revokeOwnershipSchema`, `transferFounderOwnershipSchema`) + sus Input
-// types se movieron a `src/features/members-ownership/actions/_lib/schemas.ts`
+// types se movieron a `src/features/place-ownership-actions/actions/_lib/schemas.ts`
 // (extracción Plan B).
 
 export const removeMemberSchema = z.object({

@@ -100,7 +100,7 @@ describe("updateMyHeadlineSchema (S7, wrap app.update_my_headline)", () => {
 // Shape `{placeId, targetUserId}`; validación zod = identidad estructural.
 //
 // S10.5 — tests de los 3 schemas del slot ownership viven en
-// `src/features/members-ownership/actions/_lib/__tests__/schemas.test.ts`
+// `src/features/place-ownership-actions/actions/_lib/__tests__/schemas.test.ts`
 // (extracción Plan B).
 
 describe("removeMemberSchema (S8, wrap app.remove_member)", () => {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Zod schemas puros (sin DB, sin next/headers) que las 3 Server Actions del
-// slice `members-ownership` usan como primera red de defense-in-depth
+// slice `place-ownership-actions` usan como primera red de defense-in-depth
 // (CLAUDE.md §"Zod para todo input externo"). Extracción S10.5 desde
 // `members/actions/_lib/schemas.ts` — sólo los 3 schemas del slot ownership
 // se movieron acá; los 4 schemas del slice members (`createInvitation`,

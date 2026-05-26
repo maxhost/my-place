@@ -11,7 +11,7 @@ import type {
   revokeOwnershipAction,
   TransferError,
   transferFounderOwnershipAction,
-} from "@/features/members-ownership/public";
+} from "@/features/place-ownership-actions/public";
 
 import type { removeMemberAction } from "../actions/remove-member";
 import type { Member, RemoveMemberError } from "../types";

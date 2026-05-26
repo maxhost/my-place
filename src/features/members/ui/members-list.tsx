@@ -7,7 +7,7 @@ import type {
   elevateToOwnerAction,
   revokeOwnershipAction,
   transferFounderOwnershipAction,
-} from "@/features/members-ownership/public";
+} from "@/features/place-ownership-actions/public";
 
 import type { removeMemberAction } from "../actions/remove-member";
 import { getMemberRole, type Member } from "../types";

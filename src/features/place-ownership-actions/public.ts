@@ -1,4 +1,4 @@
-// Interfaz pública del slice `members-ownership` (Feature E V1, S10.5,
+// Interfaz pública del slice `place-ownership-actions` (Feature E V1, S10.5,
 // paradigma vertical-slice `docs/architecture.md` §17-25): los demás
 // features / rutas (page `/[placeSlug]/(place)/settings/members` S11 +
 // consumers cross-slice) importan SÓLO desde acá, nunca de internals.

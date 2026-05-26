@@ -1,4 +1,4 @@
-// SoT canónica de tipos del slice `members-ownership` (Feature E V1, S10.5).
+// SoT canónica de tipos del slice `place-ownership-actions` (Feature E V1, S10.5).
 // Slice hermano de `members/` — extracción Plan B (plan-sesiones §S8 nota
 // LOC + §S10 pre-commit checklist) para mantener slices bajo el cap heurístico
 // (CLAUDE.md §"Límites de tamaño": feature ≤ 1500 LOC). Contiene los wrappers
@@ -14,7 +14,7 @@
 //   Las 3 actions tocan EXCLUSIVAMENTE ese slot; el founder slot
 //   (`place.founder_user_id`) se mueve atómicamente en transfer.
 // - **Acoplamiento bajo con `members/`**: solo `members/ui/` (S10) consume
-//   estas actions — vía `@/features/members-ownership/public`. Cross-slice
+//   estas actions — vía `@/features/place-ownership-actions/public`. Cross-slice
 //   limpio (paradigma vertical-slice `docs/architecture.md` §17-25).
 // - **Reversibilidad**: si V1.1+ agrega más operaciones de ownership
 //   (delegación, expiry de ownership temporal, etc.), el slice crece en

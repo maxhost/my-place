@@ -40,12 +40,12 @@
 // S10.5 — **Plan B split**: los 3 wrappers Feature D reutilizadas
 // (`elevateToOwnerAction`, `revokeOwnershipAction`,
 // `transferFounderOwnershipAction`) + sus error types + Input types se
-// movieron al slice hermano `src/features/members-ownership/`
+// movieron al slice hermano `src/features/place-ownership-actions/`
 // (plan-sesiones §S8 nota LOC + §S10 pre-commit checklist). Este barrel
 // queda con: queries + invitations + headline + remove-member (slice
 // core de membership). La UI (`<MembersList />` + `<MemberRowActionsMenu />`)
 // importa las 3 ownership actions cross-slice desde
-// `@/features/members-ownership/public`.
+// `@/features/place-ownership-actions/public`.
 //
 // Lo que NO se exporta (intencional):
 //   - Shapes crudos de las queries (LoadedMemberRow, etc.) — internos al

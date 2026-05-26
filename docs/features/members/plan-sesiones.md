@@ -356,7 +356,7 @@ Pattern canónico: getAuthenticatedDbForRequest + zod + DEFINER + revalidatePath
 
 **Tests TDD**: ver `tests.md` §S8 re-baseline (~25 vitest puros sobre `_lib/`; actions verificadas por typecheck + smoke S12).
 
-**LOC budget re-baseline**: ≤640 LOC en 14 archivos (4 actions delgadas + 4 map-error modules + schemas ext + 4 test files puros + public.ts edit). Feature slice acumulado S6-S8: **proyectado ~2168 LOC — excede cap 1500**. **Acción upfront**: documentar al cierre S8 que el cap se excede; decisión de split (`src/features/members-ownership/` para los 3 wrappers Feature D + sus tests, dejando members core con queries + invitations + headline + remove-member) se tomará después de S10 cuando UI determine el footprint real (S9-S10 agregan otros ~1500 LOC de UI). Lock en S8: NO bloquear S9 por LOC cap — el split se documenta y se ejecuta como sesión-X bisagra entre S10 y S11 si LOC final lo confirma.
+**LOC budget re-baseline**: ≤640 LOC en 14 archivos (4 actions delgadas + 4 map-error modules + schemas ext + 4 test files puros + public.ts edit). Feature slice acumulado S6-S8: **proyectado ~2168 LOC — excede cap 1500**. **Acción upfront**: documentar al cierre S8 que el cap se excede; decisión de split (`src/features/place-ownership-actions/` — originalmente nombrado `members-ownership/` en S10.5, renombrado en S10.6 por ADR-0040 a su nombre canónico capability-named — para los 3 wrappers Feature D + sus tests, dejando members core con queries + invitations + headline + remove-member) se tomará después de S10 cuando UI determine el footprint real (S9-S10 agregan otros ~1500 LOC de UI). Lock en S8: NO bloquear S9 por LOC cap — el split se documenta y se ejecuta como sesión-X bisagra entre S10 y S11 si LOC final lo confirma.
 
 **Pre-commit checklist**:
 - [ ] `pnpm test src/features/members/actions/_lib` verde (cubre 4 nuevos map-error + schemas extension).
@@ -447,7 +447,7 @@ i18n strings hardcoded temp ES — extraction a S11.
 
 **Tests TDD**: ver `tests.md` §S10.
 
-**LOC budget estimado**: ≤920 LOC. **CHECK feature slice cap** al cierre S10 — si excede 1500, ejecutar Plan B split (`members-ownership/` slice separado).
+**LOC budget estimado**: ≤920 LOC. **CHECK feature slice cap** al cierre S10 — si excede 1500, ejecutar Plan B split (`place-ownership-actions/` slice separado — nombre post-S10.6 ADR-0040; originalmente `members-ownership/` durante S10.5).
 
 **Pre-commit checklist**:
 - [ ] `pnpm test src/features/members/ui/members-list` verde.
@@ -603,7 +603,10 @@ Cada sesión que aplique su migration tiene la responsabilidad de validar que el
 
 Para que ninguna sesión re-decida estos puntos por su cuenta:
 
-- **Wrappers TS sobre Feature D DEFINERs van en `src/features/members/actions/`** (no en `src/features/place-ownership/` — Feature D cerró sin UI y sin actions; Feature E es el UI consumer de esas primitives. Sin re-arquitectura).
+- **Wrappers TS sobre Feature D DEFINERs viven en `src/features/place-ownership-actions/`** (slice hermano, NO en `members/actions/` ni en `place-ownership/`). Evolución de la decisión:
+  - **Original (pre-S10.5)**: ir en `src/features/members/actions/` (no en `place-ownership/` porque Feature D cerró sin UI y sin actions; Feature E es el UI consumer de esas primitives — sin re-arquitectura).
+  - **Plan B (S10.5)**: extracción a slice hermano `members-ownership/` por LOC cap del slice `members/` (proyección S6-S10 superó 1500 LOC — CLAUDE.md §"Límites de tamaño").
+  - **Rename (S10.6, ADR-0040)**: `members-ownership/` → `place-ownership-actions/`. Razón: el nombre original mapeaba la relación consumer ("ownership consumida por members/ui/") en lugar de la capability ("acciones que mutan place_ownership"). El nombre canónico capability-named hace explícita la dependencia hacia el slot del schema (no hacia el consumer UI). Cross-slice import único: `members/ui/{members-list,member-row-actions-menu}` → `@/features/place-ownership-actions/public`. La cohesión por capability + cap LOC + reversibilidad estructural se mantienen — sólo cambia el nombre.
 - **`updateMyHeadlineAction` invoca DEFINER `app.update_my_headline`**, no UPDATE directo (decisión §"Decisión operativa" de spec.md — column-level isolation via DEFINER es más seguro que policy + scope app-side).
 - **Capability-based link copy** (NO email sending V1) por canon ADR-0010 §2 — el owner copia el link del modal post-create y lo manda manualmente.
 - **Place archived es operable** (invitations + member-remove permitidos sobre archived places) — canon §"Decisión operativa" spec.md, idéntica a Feature D §"Decisión operativa".

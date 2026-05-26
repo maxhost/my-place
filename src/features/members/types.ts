@@ -30,8 +30,8 @@
 // (regla plan-sesiones §S7 §S8 §S9-S11). El alcance V1 está cerrado por
 // las 3 DEFINER nuevas de Feature E (S2/S3/S4) + 1 DEFINER S1 (headline);
 // las 3 DEFINER de Feature D reutilizadas (elevate/revoke/transfer) viven
-// en el slice hermano `src/features/members-ownership/` (extracción Plan B
-// S10.5 — ver `members-ownership/types.ts` para `ElevateError`,
+// en el slice hermano `src/features/place-ownership-actions/` (extracción Plan B
+// S10.5 — ver `place-ownership-actions/types.ts` para `ElevateError`,
 // `RevokeError`, `TransferError`). 4 errors V1 en este slice + 1 helper
 // de derivación.
 
@@ -210,6 +210,6 @@ export type HeadlineError =
   | "generic";
 
 // Los 3 errors del slot ownership (`ElevateError`, `RevokeError`, `TransferError`)
-// se movieron a `src/features/members-ownership/types.ts` (extracción Plan B
+// se movieron a `src/features/place-ownership-actions/types.ts` (extracción Plan B
 // S10.5, ver header). Consumidores cross-slice los importan desde
-// `@/features/members-ownership/public`.
+// `@/features/place-ownership-actions/public`.

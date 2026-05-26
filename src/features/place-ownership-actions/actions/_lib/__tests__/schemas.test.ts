@@ -7,7 +7,7 @@ import {
 } from "../schemas";
 
 // Tests puros (sin DB, sin next/headers) de los 3 zod schemas que las
-// Server Actions del slice `members-ownership` usan como primera red de
+// Server Actions del slice `place-ownership-actions` usan como primera red de
 // defense-in-depth (CLAUDE.md §"Zod para todo input externo"). Cobertura V1:
 // happy + cada rama de fail relevante. Shape canónico `{placeId, targetUserId}`
 // para las 3; validación zod app-side = identidad estructural (strings no
