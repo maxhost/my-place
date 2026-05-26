@@ -1,8 +1,8 @@
-# `invitations` slice V1.1 (Accept Flow) — Plan de sesiones
+# `invitations` slice V1.1 + V1.2 (Accept Flow + cross-domain coherence) — Plan de sesiones
 
-> _Plan operativo S0-S6 para Feature E V1.1. Status canónico abajo. Decisión arquitectónica en [ADR-0044](../../decisions/0044-invite-accept-flow.md). Spec en [`./spec.md`](./spec.md). Tests TDD en [`./tests.md`](./tests.md). Save point pre-V1.1: `baseline/pre-feature-e-invite-accept` = `7ab4d26` (Feature E V1 cerrada + deployada prod)._
+> _Plan operativo S0-S6 para V1.1 (cerrada) + S0-S4 para V1.2 (en curso). Status canónico abajo. Decisión arquitectónica V1.1 en [ADR-0044](../../decisions/0044-invite-accept-flow.md), V1.2 en [ADR-0046](../../decisions/0046-invite-flow-cross-domain-coherence.md). Spec en [`./spec.md`](./spec.md). Tests TDD en [`./tests.md`](./tests.md). Save point pre-V1.1: `baseline/pre-feature-e-invite-accept` = `7ab4d26`. Save point pre-V1.2: `baseline/feature-e-invite-accept-done` = `627ad4c`._
 
-## Status
+## Status V1.1
 
 | Sesión | Status | Tag | Commit | Notas |
 |---|---|---|---|---|
@@ -12,7 +12,17 @@
 | S3 — page + Client panel + RTL + helper | ✓ done | `baseline/feature-e-invite-accept-s3-done` | `492ecd3` | RSC + Client + tampering check |
 | S4 — i18n placeInvitation × 6 locales | ✓ done | `baseline/feature-e-invite-accept-s4-done` | `f1368ca` | es first, 5 agentes paralelos |
 | S5 — invite signup CTA via `/login?mode=signup` | ✓ done (re-scoped) | `baseline/feature-e-invite-accept-s5-done` | `a4445cc` | Repivot ADR-0045 supersede ADR-0044 §D3 — `/crear` intacto (PlaceWizard 3-pasos), CTA signup repivoteado a `/login?mode=signup` |
-| S6 — smoke E2E + write-back + push | ✓ done (con fix mid-S6) | `baseline/feature-e-invite-accept-done` | (este commit) | Smoke reveló P0002 post-signup → fix `c13fcfd` (TX 1 ensureAppUser) → re-deploy + retry ✓; 6/10 steps ✓, 4 deferred V1.2 (UX tri-domain). |
+| S6 — smoke E2E + write-back + push | ✓ done (con fix mid-S6) | `baseline/feature-e-invite-accept-done` | `627ad4c` | Smoke reveló P0002 post-signup → fix `c13fcfd` (TX 1 ensureAppUser) → re-deploy + retry ✓; 6/10 steps ✓, 4 deferred V1.2 (UX tri-domain). |
+
+## Status V1.2
+
+| Sesión | Status | Tag | Commit | Notas |
+|---|---|---|---|---|
+| S0 — ADR-0046 + docs setup | ✓ done | `baseline/feature-e-invite-v1.2-s0-done` | (este commit) | ADR-0046 (~480 LOC docs) + README index + spec §Followups V1.2 (S0 cerrado) + plan §Status V1.2 (esta sección). 7 decisiones canon, 8 alternativas rechazadas (α-θ), 11 gaps mapeados. Save point pre-V1.2 = `627ad4c`. |
+| S1 (Sesión A) — URL emission zone-aware | pending | `baseline/feature-e-invite-v1.2-s-a-done` | — | Wrapper `lookupCustomDomainBySlug` (Feature A barrel) + helper `buildPlaceCanonicalUrl` (`auth-redirect.ts`) + wire 2 callsites (settings/members modal + invite page) + tests. ~80 LOC + ~40 LOC tests. |
+| S2 (Sesión B) — `inviteContext` branding + toggle hide | pending | `baseline/feature-e-invite-v1.2-s-b-done` | — | Extender `<AccessFlow>` con prop `inviteContext` (header del place + hide toggle login/signup) + lookup `invitation_preview` en `(marketing)/[locale]/{login,crear}/page.tsx` cuando `?invite=` + i18n keys × 6 locales + tests. ~70 LOC + i18n + ~50 LOC tests. |
+| S3 (Sesión C) — Silent SSO post-credential | pending | `baseline/feature-e-invite-v1.2-s-c-done` | — | Builder helper `buildSsoInitUrlForInvite(opts)` server-side + `onSuccess` del `<AccessFlow>` navega a custom domain `sso-init` cuando aplica + tests E2E del builder. ~150-200 LOC + ~100 LOC tests. |
+| S4 (Sesión D) — Smoke E2E matriz 2x2 + push | pending | `baseline/feature-e-invite-v1.2-done` | — | Smoke matriz 2x2 (place con/sin custom domain × visitor logged/unlogged) + re-validar 4 steps V1.1 deferidos (3/6/9/10) + write-back evidence en `spec.md` + push autorizado por turno. ~80 LOC docs. |
 
 **Guardrails canónicos** (recordatorio del user pre-S0, aplican a todas las sesiones):
 
