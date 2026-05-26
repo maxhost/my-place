@@ -211,6 +211,46 @@ Tras S6 (cierre operativo V1.1), la verificación manual end-to-end contra produ
 
 Resultados se logean en S6 (mismo patrón que el smoke `dpl_*` de Feature C y D); si algún assert falla, S6 no cierra y se abre debugging session.
 
+### Smoke ejecutado (2026-05-26, S6 close)
+
+**Deploys involucrados**:
+
+| Deploy ID | Commit | State | Notas |
+|---|---|---|---|
+| `dpl_Ajam4PSpFy6YsnPXX7uo9GvnBFhK` | `a4445cc` (S5) | READY (~53s) | Build inicial post-S5. Reveló bug P0002 en step 7. |
+| `dpl_GBYXwwPDKkN1DtAdQPxQxuphPj11` | `c13fcfd` (S6 fix) | READY (~44s, turbopack) | Fix `ensureAppUser` TX 1 pre-DEFINER. Validó step 7 + 4 + 5 + 8. |
+
+**Token usado**: `ee9b2c497e2940fd865d6c7b5f154d707a39fef9d91e4341beaa1efebf4616ab` (place `mi-place`, invitee `mqwmfdxicixgjhtqfv@gonrr.net`, expires `2026-06-02T21:39:19.917Z`). Place `mi-place` con custom domain configurado (`nocodecompany.co` activo en aliases del deploy, ver §"Followups V1.2").
+
+**Resultados por step**:
+
+| Step | Cobertura | Resultado | Evidencia |
+|---|---|---|---|
+| 1. Setup token | ✓ | Token emitido via `/settings/members` modal "Invitar"; Neon `invitation` row con `accepted_at NULL` + `expires_at > NOW()`. | Neon query confirma fila. |
+| 2. Preview unauth | ✓ | Incognito → `https://mi-place.place.community/invite/{token}` → header "Invitación a Mi place" + email preview + 2 CTAs (login + signup). | User-driven confirm. |
+| 3. Login round-trip (existing user) | **Deferred V1.2** | — | Requiere nueva invitación + cuenta existente. Funcionalmente cubierto por step 7 path post-fix. |
+| 4. Accept submit | ✓ | Click "Aceptar" (post-fix) → success → redirect a `https://mi-place.place.community/`. **Triple evidencia Neon** (post-deploy fix): `invitation.accepted_at = 2026-05-26T22:23:08.914Z` · `app_user.created_at = 22:23:08.866Z` (precede `accepted_at` por 48ms → valida TX 1 split) · `membership.joined_at = 22:23:08.914Z, left_at = NULL`. | 3 queries Neon en SQL transcript. |
+| 5. Re-accept 404 | ✓ | Re-abrir invite URL post-accept → page "Esta página no existe" (Next.js `notFound()` desde `app.invitation_preview` que ahora tira P0007 `invitación ya utilizada`). | User-driven confirm + Neon `accepted_at` no cambia. |
+| 6. Email mismatch | **Deferred V1.2** | — | Requiere 2da cuenta apex con email distinto. RTL tests 8 cubren el path interno (`__tests__/invite-acceptance-panel.test.tsx` describe "render auth email mismatch"). |
+| 7. Signup round-trip (ADR-0045) | ✓ (con fix mid-S6) | Incognito → "Crear cuenta" → URL `/login?returnTo=…&mode=signup` ✓ → tab signup pre-seleccionado ✓ (no login default — ADR-0045 §D2/D3) → signup OK → redirect al invite URL → CU-Accept-2 panel ✓ → click "Aceptar" → **inicialmente "Algo salió mal" (bug P0002)**. Diagnóstico-first: 3 evidencias Neon + ADR-0008 §2/§4 → fix wire `ensureAppUser` TX 1 (commit `c13fcfd`) → re-deploy → refresh invite URL → "Aceptar" → success → Hub del place. `/crear` intacto verificado (PlaceWizard 3 pasos sin regresión). | Bug doc en `docs/gotchas/accept-invitation-requires-ensure-app-user-tx1.md`. |
+| 8. Cross-place tampering | ✓ | Modificar URL a slug distinto manteniendo token → page "Esta página no existe". Tampering check RSC (`get-invitation-meta-by-token.ts`) corta el render. | User-driven confirm. |
+| 9. i18n smoke | **Deferred V1.2** | — | Requiere admin switch de `place.default_locale` a `en`. Covered estructuralmente por S4 (6 locales × 13 keys + `check-translations` parity gate). |
+| 10. Place full P0009 | **Deferred / skip** | — | Requires 150 memberships pre-creadas — skipeado per plan §S6 ("opcional, V1.1 OK skipear"). Cubierto por mapping unit test (`map-accept-error.test.ts:53-58`). |
+
+**Cobertura**: 6/10 steps validados E2E contra producción (1, 2, 4, 5, 7, 8). 4/10 deferred (3, 6, 9, 10) — covered estructuralmente por RTL tests + i18n parity gate + unit tests + (post-V1.2) re-ejecución coordinada con el fix UX tri-domain. **Critical path post-signup** (step 7 con fix) ✓.
+
+**Bug + fix mid-S6**:
+- **Descubierto en step 7**: post-signup accept retorna copy genérico "Algo salió mal" en panel; 0 logs en Vercel runtime.
+- **Root cause (3 evidencias Neon + canon doc)**: `signUpAccountAction` no crea `app_user` por design (ADR-0008 §2/§4); el invite Accept no pasa por PlaceWizard (único path que sembraba `app_user` via `place-creation/create-place.ts:71-77`); DEFINER `app.accept_invitation` tira P0002 al no encontrar `app_user`; `mapAcceptError(P0002)` mapea correcto a `{kind: 'app_user_missing'}` pero `errorCopy` del panel cae al `default: errorUnknown` (no había copy específico).
+- **Fix**: wire `ensureAppUser` en TX 1 separada antes de TX 2 del DEFINER. Patrón canónico `create-place.ts:65-77` (ADR-0005 §4). Commit `c13fcfd`, +42 −5 LOC en `acceptInvitationAction`. Tests 1046/1046 sin regresión (action es seam-split integrator, validado por typecheck + smoke retry).
+- **Gotcha registrado** (canon CLAUDE.md §Gotchas: 3/3 criterios — no derivable, síntoma confuso, volvería a morder): `docs/gotchas/accept-invitation-requires-ensure-app-user-tx1.md` con pattern obligatorio para cualquier futura action invocable post-signup sin pasar por PlaceWizard.
+
+## Followups V1.2 (post-S6)
+
+- **UX tri-domain coherence**: el flow accept cruza 3 URLs (subdomain invite emission → apex `/login` auth → subdomain accept return). Para places con custom domain configurado, el `nocodecompany.co` ni siquiera aparece en el flow — el invite siempre se emite contra `{slug}.place.community`. Issue raised por el user en S6 smoke (2026-05-26): "Esto genera una desconfianza terrible porque el usuario jamás sabe dónde está de verdad". Scope: arquitectural, requiere ADR + sesión bis (probable dependencia de Feature C extensions o cookie scope policy). Bloquea finish smoke steps 3/6/9/10 (decisión user: deferred post-UX).
+- **Re-ejecución smoke steps 3/6/9/10**: cuando V1.2 cierre el flow UX, re-correr los 4 steps deferidos para confirmar funcionalidad end-to-end intacta + i18n locale switch + login round-trip con cuenta existente + mismatch path.
+- **Auditoría DEFINERs post-signup**: revisar futuras Server Actions invocables sin PlaceWizard intermedio. Lista candidata + test rápido en gotcha doc `accept-invitation-requires-ensure-app-user-tx1.md` §"Cuándo vuelve a morder".
+
 ## Pointers
 
 - **ADR canónica V1.1**: [`../../decisions/0044-invite-accept-flow.md`](../../decisions/0044-invite-accept-flow.md).

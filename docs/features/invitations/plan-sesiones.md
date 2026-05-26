@@ -6,13 +6,13 @@
 
 | Sesión | Status | Tag | Commit | Notas |
 |---|---|---|---|---|
-| S0 — docs setup | en curso | — | — | ADR-0044 + spec + plan + tests + rebaseline members spec §Smoke step 3 |
-| S1 — acceptInvitationAction + tests | pending | `baseline/feature-e-invite-accept-s1-done` | — | TDD: schemas + map-error + action |
-| S2 — validateLoginReturnTo extension | pending | `baseline/feature-e-invite-accept-s2-done` | — | TDD: 6 nuevos describes |
-| S3 — page + Client panel + RTL + helper | pending | `baseline/feature-e-invite-accept-s3-done` | — | RSC + Client + tampering check |
-| S4 — i18n placeInvitation × 6 locales | pending | `baseline/feature-e-invite-accept-s4-done` | — | es first, 5 agentes paralelos |
-| S5 — /crear returnTo support | pending | `baseline/feature-e-invite-accept-s5-done` | — | extension /crear post-signup |
-| S6 — smoke E2E + write-back + push | pending | `baseline/feature-e-invite-accept-done` | — | push autorizado por turno |
+| S0 — docs setup | ✓ done | `baseline/feature-e-invite-accept-s0-done` | `7ca3652` | ADR-0044 + spec + plan + tests + rebaseline members spec §Smoke step 3 |
+| S1 — acceptInvitationAction + tests | ✓ done | `baseline/feature-e-invite-accept-s1-done` | `e8747ae` | TDD: schemas + map-error + action |
+| S2 — validateLoginReturnTo extension | ✓ done | `baseline/feature-e-invite-accept-s2-done` | `f8b6d2f` | TDD: 6 nuevos describes |
+| S3 — page + Client panel + RTL + helper | ✓ done | `baseline/feature-e-invite-accept-s3-done` | `492ecd3` | RSC + Client + tampering check |
+| S4 — i18n placeInvitation × 6 locales | ✓ done | `baseline/feature-e-invite-accept-s4-done` | `f1368ca` | es first, 5 agentes paralelos |
+| S5 — invite signup CTA via `/login?mode=signup` | ✓ done (re-scoped) | `baseline/feature-e-invite-accept-s5-done` | `a4445cc` | Repivot ADR-0045 supersede ADR-0044 §D3 — `/crear` intacto (PlaceWizard 3-pasos), CTA signup repivoteado a `/login?mode=signup` |
+| S6 — smoke E2E + write-back + push | ✓ done (con fix mid-S6) | `baseline/feature-e-invite-accept-done` | (este commit) | Smoke reveló P0002 post-signup → fix `c13fcfd` (TX 1 ensureAppUser) → re-deploy + retry ✓; 6/10 steps ✓, 4 deferred V1.2 (UX tri-domain). |
 
 **Guardrails canónicos** (recordatorio del user pre-S0, aplican a todas las sesiones):
 
@@ -362,6 +362,26 @@ docs(invitations): write-back smoke E2E evidence + plan-sesiones Status (V1.1 S6
 **Rollback S6**: 
 - Pre-push: `git reset --hard baseline/feature-e-invite-accept-s5-done`.
 - Post-push si smoke falla: revert + force-push (requiere autorización explícita user — destructivo en remote).
+
+#### S6 close — write-back retroactivo (2026-05-26)
+
+**Cronología real ejecutada**:
+
+1. **S6.a — Pre-flight gates**: typecheck ✓ · lint ✓ · suite 1046/1046 ✓ · build ✓ con ruta `ƒ /place/[placeSlug]/invite/[token]` registrada.
+2. **S6.b — Push autorizado S0-S5**: `maxhost main` + `origin main` (mirror) + 6 tags `baseline/feature-e-invite-accept-s{0..5}-done`. Push a 2 remotes per user authorization.
+3. **S6.c — Vercel deploy READY**: `dpl_Ajam4PSpFy6YsnPXX7uo9GvnBFhK` (commit `a4445cc`), build ~53s, aliases `place.community` / `*.place.community` / `app.place.community` / `nocodecompany.co` activos.
+4. **S6.d — Smoke E2E user-driven**: steps 1, 2, 7 (parcial), 4, 5, 8 ✓. **Bug descubierto en step 7**: post-signup el accept retorna copy genérico "Algo salió mal".
+5. **S6.d.fix — Diagnóstico + fix mid-S6** (no planeado pre-S6, requerido por smoke):
+   - Root cause (3 evidencias Neon + canon ADR-0008 §2/§4): `signUpAccountAction` no crea `app_user`; el invite Accept no pasa por PlaceWizard → DEFINER tira P0002 → `mapAcceptError` correcto pero `errorCopy` del panel cae al `default: errorUnknown`.
+   - Fix: wire `ensureAppUser` en TX 1 separada antes de TX 2 del DEFINER en `accept-invitation.ts` (patrón canónico `create-place.ts:65-77`, ADR-0005 §4). Commit `c13fcfd`, +42 −5 LOC, suite 1046/1046 sin regresión.
+   - Deploy `dpl_GBYXwwPDKkN1DtAdQPxQxuphPj11` (~44s turbopack). User retry step 7 → success → triple evidencia Neon (timestamps prueban TX 1 split).
+   - Gotcha registrado en `docs/gotchas/accept-invitation-requires-ensure-app-user-tx1.md` (criterio CLAUDE.md §Gotchas 3/3).
+6. **S6.d (cont)**: steps 5 + 8 ejecutados post-fix ✓ (`Esta página no existe` esperado).
+7. **Steps 3, 6, 9, 10 deferred a V1.2** (decisión user, post-fix UX tri-domain raised mid-S6 — issue arquitectural separado).
+8. **S6.e — Write-back evidence**: spec.md §"Smoke ejecutado (2026-05-26, S6 close)" tabla 10 steps + §"Followups V1.2"; plan-sesiones §Status fill; gotcha doc.
+9. **S6.f — Commit write-back + tag final + push**.
+
+**Cobertura final V1.1 S6**: critical path post-signup ✓ (step 7 con fix), defenses anti-doxx ✓ (steps 5, 8), preview unauth ✓ (step 2), accept submit + Neon triple evidence ✓ (step 4). 6/10 E2E + 4/10 estructuralmente cubiertos (RTL + i18n parity + unit tests) + deferred re-execution post-V1.2 UX fix.
 
 ## Mecanismo de rollback
 
