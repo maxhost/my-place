@@ -16,7 +16,7 @@ Este documento es el índice de las decisiones arquitectónicas. El detalle de c
 
 ## Reglas de aislamiento entre módulos
 
-Inviolables. Enforzadas por eslint con `no-restricted-paths`.
+Inviolables. Enforzadas por eslint con el built-in `no-restricted-imports` (ADR-0039 — Path B: regla strict de `/public` + escape hatch puntual `eslint-disable-next-line` cuando el barrel arrastra `"use server"` y un test puro necesita deep-import).
 
 - Una feature nunca importa archivos internos de otra. Solo consume lo que la otra exporta en su `public.ts`.
 - `shared/` nunca importa de `features/`. Primitivos UI compartidos entre dos slices peer viven en `src/shared/ui/` (precedente canónico: `shared/ui/app-shell/` consumido por `nav-hub` y `nav-place`, ADR-0023). Si dos slices necesitan el mismo componente, extraerlo a `shared/ui/` antes que importarlo via `public.ts` cross-feature — el shell no es producto de ninguna feature en particular.

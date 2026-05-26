@@ -7,7 +7,10 @@ import type {
 // Deep import al archivo de definición (no al barrel `public.ts`) para
 // evitar arrastrar `registerCustomDomainAction` `"use server"` →
 // `next/headers` → vitest rompe. Mismo patrón que
-// `custom-domain/__tests__/_domain-section-helpers.tsx:3-4`.
+// `custom-domain/__tests__/_domain-section-helpers.tsx:3-4`. Rationale
+// formal y escape hatch declarado en ADR-0039 §"Escape hatch documentado"
+// + ADR-0030 §"el slice anfitrión es la SoT de DnsRecord y sus mappers".
+// eslint-disable-next-line no-restricted-imports -- ADR-0039 Path B
 import {
   v6ConfigToDnsRecords,
   vercelRecordsToDnsRecords,

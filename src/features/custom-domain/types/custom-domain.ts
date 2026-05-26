@@ -18,7 +18,12 @@
 // verification) porque su shape de salida es `DnsRecord` — SoT del tipo
 // vive acá, los helpers que producen instancias viven junto al tipo.
 // Cross-slice consumption: `custom-domain-verification` los importa via
-// `@/features/custom-domain/public`.
+// deep-import a `@/features/custom-domain/types/custom-domain` (NO al
+// barrel `/public`) por workaround Vitest — el barrel arrastra
+// `registerCustomDomainAction` `"use server"` → `next/headers` → vitest
+// rompe. La excepción está marcada `eslint-disable-next-line
+// no-restricted-imports` en los 2 importadores con rationale completo.
+// Ver ADR-0039 §"Escape hatch documentado".
 
 import type { DomainConfig } from "@/shared/lib/vercel";
 
