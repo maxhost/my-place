@@ -1,0 +1,179 @@
+import { notFound } from "next/navigation";
+
+import { acceptInvitationAction } from "@/features/invitations/public";
+import { logoutAction } from "@/features/nav-hub/public";
+import { routing } from "@/i18n/routing";
+import { getAuth } from "@/shared/lib/auth";
+import {
+  buildApexLoginUrl,
+  buildSubdomainCanonicalUrl,
+} from "@/shared/lib/auth-redirect";
+import { isServiceableSlug } from "@/shared/lib/host-routing";
+import { rootDomain } from "@/shared/lib/root-domain";
+
+import { getPlaceLocaleFallback } from "../../_lib/get-place-for-zone";
+import {
+  InviteAcceptancePanel,
+  type InviteAcceptancePanelLabels,
+} from "./_components/invite-acceptance-panel";
+import { getInvitationMetaByToken } from "./_lib/get-invitation-meta-by-token";
+
+// V1.1 S3 — page RSC `/place/[placeSlug]/invite/[token]` (Feature E Accept
+// Flow, ADR-0044). El proxy reescribe `{slug}.place.community/invite/{tok}`
+// → `/place/{slug}/invite/{tok}` (multi-tenancy.md). Vive bajo zona-place
+// para heredar el `<html lang>` dinámico del layout y para que el
+// cross-place tampering check (RSC vs DB) sea natural.
+//
+// ## Pipeline
+//
+// 1. Gate estructural del `placeSlug` (`isServiceableSlug`) — formato +
+//    no-reservado. Antes de cualquier I/O.
+// 2. `getInvitationMetaByToken(token, placeSlug)` — wraps
+//    `app.invitation_preview` + tampering check + token shape gate. Cualquier
+//    `kind !== 'ok'` → `notFound()` (404 sin doxx, anti-info-leak).
+// 3. Session detect via `getAuth().getSession()` (sólo apex JWT — el invitee
+//    típicamente NO es owner del place, así que `getPlaceForZone` retornaría
+//    null sin agregar info). Si hay sesión, leemos el email para que el
+//    panel pueda decidir match / mismatch pre-action.
+// 4. Locale resolution: `place.default_locale` no es lecturable owner-only
+//    sin sesión apex válida, así que para el invitee anónimo usamos el
+//    lookup anónimo `getPlaceLocaleFallback(placeSlug)` (memoizado por
+//    render con el layout). Fallback `routing.defaultLocale` ('es').
+// 5. URL composition: loginUrl + signupUrl con `returnTo` absoluto al
+//    invite URL; hubUrl = `app.${rootDomain}/${locale}/`; placeHomeUrl =
+//    subdomain canon home.
+// 6. Render `<InviteAcceptancePanel>` con todas las props derivadas + el
+//    `acceptInvitationAction` server inyectado + `logoutAction.bind(null,
+//    locale)` para el mismatch CTA.
+//
+// ## i18n placeholder strings (S4 reemplaza)
+//
+// V1.1 S3 hardcodea labels en español (placeholders pre-S4 — S4 wires up
+// `getTranslations({namespace: "placeInvitation"})` + paridad ×6 locales,
+// plan-sesiones.md §S4). Las strings inyectadas como `labels` prop son
+// API-compatible con S4: el panel sigue recibiendo el mismo shape.
+//
+// ## Dynamic + region
+//
+// `force-dynamic` porque el render depende de cookie + DB; nada SSG-
+// cacheable. `preferredRegion = "iad1"` por co-location con Neon
+// (architecture.md §Performance).
+
+export const dynamic = "force-dynamic";
+export const preferredRegion = "iad1";
+
+type Props = {
+  params: Promise<{ placeSlug: string; token: string }>;
+};
+
+async function getCurrentUserEmail(): Promise<string | null> {
+  try {
+    const session = await getAuth().getSession();
+    const email = session.data?.user?.email;
+    return typeof email === "string" && email.length > 0 ? email : null;
+  } catch {
+    // Cookie ausente, SDK error, transport — todos colapsan a "anónimo".
+    return null;
+  }
+}
+
+function isAppLocale(value: string | null): value is string {
+  return value !== null && (routing.locales as readonly string[]).includes(value);
+}
+
+export default async function InviteAcceptPage({ params }: Props) {
+  const { placeSlug, token } = await params;
+
+  // (1) Gate estructural del slug — antes de cualquier I/O.
+  if (!isServiceableSlug(placeSlug)) notFound();
+
+  // (2) Preview + cross-place tampering + token shape gate. Anti-info-leak:
+  // not-found Y cross-place-tampering ambos colapsan a 404 sin pistas.
+  const meta = await getInvitationMetaByToken(token, placeSlug);
+  if (meta.kind !== "ok") notFound();
+
+  // (3) Session detect apex. El invitee típicamente NO es owner del place,
+  // así que no usamos `getPlaceForZone` (RLS retornaría null sin info útil).
+  // Sólo necesitamos el email para decidir match/mismatch en el panel.
+  const currentUserEmail = await getCurrentUserEmail();
+
+  // (4) Locale resolution. Visitor anónimo / non-owner: `place.default_
+  // locale` no es lecturable sin sesión owner. `getPlaceLocaleFallback`
+  // (memoizado por render con el layout) abre el canal anónimo via
+  // `app.lookup_place_locale_by_slug` (SECURITY DEFINER). Fallback canónico
+  // 'es' (ADR-0024 §default).
+  const localeFallback = await getPlaceLocaleFallback(placeSlug);
+  const locale: string = isAppLocale(localeFallback)
+    ? localeFallback
+    : routing.defaultLocale;
+
+  // (5) URL composition. Invite URL absoluto al subdomain canon del place
+  // (consumer base del returnTo cross-subdomain). El URL incluye token sin
+  // encoding extra (es lowercase hex, URL-safe).
+  const inviteUrl = `${buildSubdomainCanonicalUrl({
+    slug: placeSlug,
+    path: "/",
+  }).replace(/\/$/, "")}/invite/${token}`;
+  const returnToParam = encodeURIComponent(inviteUrl);
+
+  const baseLoginUrl = buildApexLoginUrl({ defaultLocale: locale });
+  const loginUrl = `${baseLoginUrl}?returnTo=${returnToParam}`;
+
+  // `/crear` apex con returnTo prefilled — V1.1 S5 extiende `/crear` para
+  // honrar el param (pre-S5 lo ignora silenciosamente, fallback a Hub
+  // canónico; tras S5 el round-trip cierra al invite URL).
+  const signupUrl = `https://${rootDomain()}/${locale}/crear?returnTo=${returnToParam}`;
+
+  const hubUrl = `https://app.${rootDomain()}/${locale}/`;
+  const placeHomeUrl = buildSubdomainCanonicalUrl({
+    slug: placeSlug,
+    path: "/",
+  });
+
+  // (6) i18n labels placeholder ES — V1.1 S4 reemplaza por
+  // `getTranslations({locale, namespace: "placeInvitation"})`. Mantener
+  // strings en español neutro hasta entonces (defaultLocale del proyecto).
+  const labels: InviteAcceptancePanelLabels = {
+    header: "Invitación a {placeName}",
+    previewEmail: "Esta invitación es para {email}",
+    acceptButton: "Aceptar invitación a {placeName}",
+    declineLink: "No, gracias",
+    ctaLogin: "Iniciar sesión",
+    ctaSignup: "Crear cuenta",
+    emailMismatchTitle: "El email no coincide",
+    emailMismatchBody:
+      "Esta invitación es para {invEmail}. Estás logueado como {currentEmail}.",
+    emailMismatchLogoutCta: "Cerrar sesión y entrar como {invEmail}",
+    errorExpired:
+      "Esta invitación venció. Pedí una nueva a quien te invitó.",
+    errorAlreadyUsed: "Esta invitación ya se usó.",
+    errorPlaceFull:
+      "Este lugar alcanzó su cupo máximo (150 miembros). Hablá con quien te invitó.",
+    errorUnknown:
+      "Algo salió mal. Intentá de nuevo o pedí una nueva invitación.",
+  };
+
+  // `onLogout`: Server Action bind sobre `logoutAction(locale)` — invoca
+  // `getAuth().signOut()` y retorna el `redirectTo` del apex landing
+  // (descartado por el panel, que navega a `loginUrl` con returnTo).
+  const onLogout = logoutAction.bind(null, locale);
+
+  return (
+    <main id="contenido" className="flex min-h-screen flex-col">
+      <InviteAcceptancePanel
+        token={token}
+        placeSlug={placeSlug}
+        placeName={meta.placeName}
+        inviteeEmail={meta.inviteeEmail}
+        currentUserEmail={currentUserEmail}
+        loginUrl={loginUrl}
+        signupUrl={signupUrl}
+        hubUrl={hubUrl}
+        placeHomeUrl={placeHomeUrl}
+        acceptInvitationAction={acceptInvitationAction}
+        onLogout={onLogout}
+        labels={labels}
+      />
+    </main>
+  );
+}
