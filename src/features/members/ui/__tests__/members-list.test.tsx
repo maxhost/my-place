@@ -3,30 +3,29 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Member } from "../../types";
 import {
-  type MemberRowActionsMenuLabels,
-  type MembersListActions,
-  type MembersListCallerContext,
   type MembersListLabels,
   MembersList,
 } from "../members-list";
 
 // Tests RTL de `<MembersList />` — Feature E V1 §S10 (tests.md §S10, spec
-// §"UI screens" S10). Seam-split canónico: las 4 actions (elevate/revoke/
-// remove/transfer) se inyectan como `actions` prop. Tests usan `vi.fn()`;
-// el page S11 inyecta las reales (`elevateToOwnerAction` etc.). Strings
-// ES hardcoded — extracción i18n diferida a S11.
+// §"UI screens" S10). Post S10.9 (ADR-0043): la lista pasa a render-prop
+// puro — sólo recibe `members` + `labels` + opcionalmente `renderRowActions`.
+// El menú de acciones por fila vive a page-level co-located
+// (`src/app/.../settings/members/_components/member-row-actions-menu.tsx`)
+// y el page S11 lo inyecta vía `renderRowActions={(m) => <MemberRowActionsMenu
+// member={m} ... />}`. Esto reduce la lista a una capa presentacional pura
+// — sin actions, sin callerCtx, sin labels del menú.
 //
-// Cobertura (4 casos, tests.md §S10 `members-list.test.tsx`):
+// Cobertura (6 casos):
 //   1. Render array members → cada fila muestra display_name + handle.
 //   2. Member con headline NOT NULL → bloque headline visible.
-//   3. Member con headline NULL → bloque headline NO renderea (sin placeholder
-//      pasivo, decisión ADR-0036 §1).
-//   4. Badges: founder muestra Badge variant=founder; co-owner Badge variant=owner;
-//      miembro sin badge.
-//
-// El test acá NO valida los items internos del MemberRowActionsMenu — eso lo
-// cubre `member-row-actions-menu.test.tsx` (matriz 6 casos). Acá sólo
-// verificamos la composición list-level.
+//   3. Member con headline NULL → bloque NO renderea (sin placeholder pasivo,
+//      decisión ADR-0036 §1).
+//   4. Badges: founder muestra Badge variant=founder; co-owner Badge
+//      variant=owner; miembro sin badge.
+//   5. `renderRowActions` ausente → no slot por fila (regresa null/undefined).
+//   6. `renderRowActions` presente → invocado por cada member con el objeto
+//      correcto + slot visible en cada `<li>`.
 
 const FOUNDER: Member = {
   userId: "u_alice",
@@ -68,71 +67,19 @@ const LABELS: MembersListLabels = {
   badgeOwner: "Owner",
 };
 
-const MENU_LABELS: MemberRowActionsMenuLabels = {
-  triggerLabel: "Acciones para {name}",
-  elevateLabel: "Hacer co-owner",
-  removeLabel: "Remover miembro",
-  revokeOwnershipLabel: "Revocar co-owner",
-  transferFounderLabel: "Transferir founder",
-  confirmRemoveTitle: "Remover miembro",
-  confirmRemoveBody: "¿Remover a {name} del place?",
-  confirmRevokeTitle: "Revocar co-owner",
-  confirmRevokeBody: "{name} dejará de ser co-owner.",
-  confirmTransferTitle: "Transferir founder",
-  confirmTransferBody: "Vas a transferir el rol de founder a {name}. Perdés tu ownership.",
-  confirmYes: "Confirmar",
-  confirmNo: "Cancelar",
-  errorUnauthorized: "Necesitás iniciar sesión.",
-  errorNotOwner: "Solo los owners pueden hacer esto.",
-  errorNotFounder: "Solo el founder puede transferir.",
-  errorTargetIsOwner: "Primero revocá su rol de co-owner.",
-  errorCannotSelfRemove: "No podés removerte a vos mismo.",
-  errorTargetNotActiveMember: "Esta persona ya no es miembro activa.",
-  errorCannotRevokeFounder: "El founder no se puede revocar — transferí primero.",
-  errorCannotSelfRevoke: "No podés revocarte a vos mismo.",
-  errorLastOwner: "No podés revocar al último owner del place.",
-  errorTargetNotOwner: "Esta persona ya no es owner.",
-  errorTargetAlreadyOwner: "Esta persona ya es owner.",
-  errorTargetNotMember: "Esta persona no es miembro activa.",
-  errorCannotTransferToSelf: "No podés transferir a vos mismo.",
-  errorPlaceNotFound: "Place no encontrado.",
-  errorGeneric: "Algo salió mal. Probá de nuevo.",
-};
-
-function makeActions(): MembersListActions {
-  return {
-    elevateAction: vi.fn(async () => ({ ok: true as const })),
-    revokeOwnershipAction: vi.fn(async () => ({ ok: true as const })),
-    removeAction: vi.fn(async () => ({ ok: true as const })),
-    transferFounderAction: vi.fn(async () => ({ ok: true as const })),
-  };
-}
-
 function setup(
   opts: {
     members?: Member[];
-    callerCtx?: MembersListCallerContext;
-    actions?: MembersListActions;
+    renderRowActions?: (member: Member) => React.ReactNode;
   } = {},
 ) {
-  const callerCtx = opts.callerCtx ?? {
-    userId: "u_alice",
-    isOwner: true,
-    isFounder: true,
-  };
-  const actions = opts.actions ?? makeActions();
-  const utils = render(
+  return render(
     <MembersList
       members={opts.members ?? [FOUNDER, COOWNER, MEMBER]}
-      callerCtx={callerCtx}
-      placeId="place_42"
-      placeSlug="mi-club"
-      actions={actions}
       labels={LABELS}
-      menuLabels={MENU_LABELS}
+      renderRowActions={opts.renderRowActions}
     />,
   );
-  return { ...utils, actions };
 }
 
 describe("<MembersList />", () => {
@@ -179,5 +126,37 @@ describe("<MembersList />", () => {
 
     expect(within(carolRow).queryByText("Fundador")).not.toBeInTheDocument();
     expect(within(carolRow).queryByText("Owner")).not.toBeInTheDocument();
+  });
+
+  it("`renderRowActions` ausente → no slot por fila (regresa null)", () => {
+    setup();
+    // Si no hay slot, no debe haber ningún testid `actions-slot`.
+    expect(screen.queryByTestId(/actions-slot/)).not.toBeInTheDocument();
+  });
+
+  it("`renderRowActions` presente → invocado por cada member con shape correcto + slot visible", () => {
+    const renderRowActions = vi.fn((member: Member) => (
+      <span data-testid={`actions-slot-${member.handle}`}>
+        slot:{member.handle}
+      </span>
+    ));
+    setup({ renderRowActions });
+
+    // Invocado exactamente 3 veces, una por member.
+    expect(renderRowActions).toHaveBeenCalledTimes(3);
+    expect(renderRowActions).toHaveBeenNthCalledWith(1, FOUNDER);
+    expect(renderRowActions).toHaveBeenNthCalledWith(2, COOWNER);
+    expect(renderRowActions).toHaveBeenNthCalledWith(3, MEMBER);
+
+    // Slot renderizado por cada fila.
+    expect(screen.getByTestId("actions-slot-alice")).toHaveTextContent(
+      "slot:alice",
+    );
+    expect(screen.getByTestId("actions-slot-bob")).toHaveTextContent(
+      "slot:bob",
+    );
+    expect(screen.getByTestId("actions-slot-carol")).toHaveTextContent(
+      "slot:carol",
+    );
   });
 });

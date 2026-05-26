@@ -1,30 +1,24 @@
 "use client";
 
 import Image from "next/image";
+import type { ReactNode } from "react";
 
 import { Badge } from "@/shared/ui/badge";
-import type {
-  elevateToOwnerAction,
-  revokeOwnershipAction,
-  transferFounderOwnershipAction,
-} from "@/features/place-ownership-actions/public";
 
-import type { removeMemberAction } from "../actions/remove-member";
 import { getMemberRole, type Member } from "../types";
-import {
-  MemberRowActionsMenu,
-  type MemberRowActionsMenuLabels,
-} from "./member-row-actions-menu";
 
 // `<MembersList />` — Feature E V1 §S10 (spec.md §"UI screens", tests.md §S10).
-// Lista de memberships activas del place + composición de
-// `<MemberRowActionsMenu />` por fila. Consume `Member[]` de `loadMembers`
-// (S6) — el page RSC S11 inyecta el array + actions + callerCtx.
+// Lista presentacional pura de memberships activas. Consume `Member[]` de
+// `loadMembers` (S6). El page S11 inyecta el array.
 //
-// Seam-split canónico: las 4 Server Actions (elevate/revoke/remove/transfer)
-// se inyectan como `actions` prop. Tests RTL pasan `vi.fn()`; el page S11
-// inyecta las reales. `<MemberRowActionsMenu />` es co-slice — se importa
-// directo (no seam adicional entre componentes del mismo slice).
+// **Post S10.9 (ADR-0043)**: la lista YA NO compone `<MemberRowActionsMenu />`
+// internamente. Adopta el patrón render-prop: el page-level co-located
+// `<MemberRowActionsMenu />` (vive en `src/app/.../settings/members/_components/`)
+// se inyecta vía `renderRowActions={(member) => <MemberRowActionsMenu ... />}`.
+// Razón: el menú ensambla 2 slices (`members/` + `place-ownership-actions/`)
+// y su composición es naturalmente trabajo del page; mover la wiring a
+// page-level libera ~553 LOC del slice `members/` (cerró el gap restante
+// post-S10.6/S10.7/S10.8 sin romper el cap heurístico ≤1500).
 //
 // **Avatar**: render `<Image unoptimized>` cuando `avatarUrl != null`;
 // fallback `<span>` con inicial cuando null. Decorativo (`aria-hidden="true"`)
@@ -41,22 +35,8 @@ import {
 // badge; miembro común sin badge. La derivación es pura (fail-loud sobre
 // invariantes violados — ADR-0035 §2).
 //
-// **i18n**: strings ES hardcoded via `labels` + `menuLabels`. Extracción
-// a `t('placeMembers.*')` diferida a S11 (plan-sesiones §S11).
-
-export type MembersListCallerContext = {
-  /** `app_user.id` del caller — usado para comparar contra `member.userId` (self-row). */
-  userId: string;
-  isOwner: boolean;
-  isFounder: boolean;
-};
-
-export type MembersListActions = {
-  elevateAction: typeof elevateToOwnerAction;
-  revokeOwnershipAction: typeof revokeOwnershipAction;
-  removeAction: typeof removeMemberAction;
-  transferFounderAction: typeof transferFounderOwnershipAction;
-};
+// **i18n**: strings ES hardcoded via `labels`. Extracción a
+// `t('placeMembers.*')` diferida a S11 (plan-sesiones §S11).
 
 export interface MembersListLabels {
   emptyTitle: string;
@@ -65,8 +45,6 @@ export interface MembersListLabels {
   badgeOwner: string;
 }
 
-export type { MemberRowActionsMenuLabels };
-
 function avatarInitial(displayName: string): string {
   const first = displayName.trim().charAt(0);
   return first ? first.toUpperCase() : "?";
@@ -74,20 +52,18 @@ function avatarInitial(displayName: string): string {
 
 export function MembersList({
   members,
-  callerCtx,
-  placeId,
-  placeSlug,
-  actions,
   labels,
-  menuLabels,
+  renderRowActions,
 }: {
   members: Member[];
-  callerCtx: MembersListCallerContext;
-  placeId: string;
-  placeSlug: string;
-  actions: MembersListActions;
   labels: MembersListLabels;
-  menuLabels: MemberRowActionsMenuLabels;
+  /**
+   * Render-prop opcional para el slot de acciones por fila. El page S11
+   * inyecta `(member) => <MemberRowActionsMenu member={member} ... />` desde
+   * el componente page-level co-located (ADR-0043). Ausente → la lista no
+   * renderiza nada en el slot (legítimo para vistas de sólo-lectura V1.1+).
+   */
+  renderRowActions?: (member: Member) => ReactNode;
 }) {
   if (members.length === 0) {
     return (
@@ -145,14 +121,7 @@ export function MembersList({
                   )}
                 </div>
               </div>
-              <MemberRowActionsMenu
-                member={member}
-                callerCtx={callerCtx}
-                placeId={placeId}
-                placeSlug={placeSlug}
-                actions={actions}
-                labels={menuLabels}
-              />
+              {renderRowActions?.(member)}
             </li>
           );
         })}

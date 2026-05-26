@@ -12,14 +12,28 @@ import type {
   TransferError,
   transferFounderOwnershipAction,
 } from "@/features/place-ownership-actions/public";
-
-import type { removeMemberAction } from "../actions/remove-member";
-import type { Member, RemoveMemberError } from "../types";
+import type {
+  Member,
+  removeMemberAction,
+  RemoveMemberError,
+} from "@/features/members/public";
 
 // `<MemberRowActionsMenu />` — Feature E V1 §S10. Context menu per-fila
 // que canaliza las 4 ownership/membership actions (`elevate`, `revoke`,
 // `remove`, `transfer`). Matriz role × role + flows canónicos en spec.md
 // §"UI screens" S10 y tests.md §S10 (`<MemberRowActionsMenu />`).
+//
+// **Post S10.9 (ADR-0043)**: vive a page-level co-located en
+// `src/app/(app)/place/[placeSlug]/settings/members/_components/`. El page
+// S11 lo inyecta a `<MembersList renderRowActions={(m) => <MemberRowActionsMenu
+// member={m} ... />} />`. Razón: el menú ensambla 2 slices (`members/` +
+// `place-ownership-actions/`) — esa composición es naturalmente trabajo del
+// page, no del slice. Como cross-slice consumer obligado al barrel `/public`
+// (regla ESLint ADR-0039), no encajaba en ninguno de los dos slices padre
+// sin recrear acoplamiento. La page-level co-location (convención Next.js
+// `_*` = privado / no-route) lo mantiene cerca de su único consumer real
+// sin crear un slice nuevo (que violaría ADR-0028 §"Política a futuro" —
+// sin DEFINER ni spec propia).
 //
 // Decisiones que no son derivables de la matriz pública:
 //   - Sólo el founder eleva (UI restrictiva V1; DEFINER permite cualquier

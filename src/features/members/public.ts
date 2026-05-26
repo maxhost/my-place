@@ -1,28 +1,37 @@
 // Interfaz pública del slice `members` (Feature E V1, paradigma
 // vertical-slice `docs/architecture.md` §17-25): los demás features /
-// rutas (futuro page `/[placeSlug]/(place)/settings/members/page.tsx`
-// S11 + consumers cross-slice) importan SÓLO desde acá, nunca de
-// internals (regla ESLint ADR-0039 valida).
+// rutas (page `/[placeSlug]/(place)/settings/members/page.tsx` S11 +
+// consumers cross-slice) importan SÓLO desde acá, nunca de internals
+// (regla ESLint ADR-0039 valida).
 //
-// Slice diet S10.5-S10.8 — este slice quedó con el core de membership:
+// Slice diet S10.5-S10.9 — este slice quedó con el core de membership:
 //   - `loadMembers` (query) — listado roster del place.
 //   - `removeMemberAction` — wrap sobre `app.remove_member`.
 //   - `Member` + `MemberRole` + `getMemberRole` — shape + derivación rol.
 //   - `RemoveMemberError` — 1 error union discriminable.
-//   - `<MembersList />` + `<MemberRowActionsMenu />` — 2 Client Components UI.
+//   - `<MembersList />` — Client Component presentacional puro (render-prop
+//     `renderRowActions` para el slot por fila).
 //
 // Slices hermanos extraídos por capability (cap LOC ≤1500 CLAUDE.md):
 //   - `place-ownership-actions/` (S10.5 Plan B, S10.6 ADR-0040):
 //     3 wrappers Feature D reutilizadas (`elevateToOwnerAction`,
 //     `revokeOwnershipAction`, `transferFounderOwnershipAction`) + sus
-//     error/Input types. Consumido cross-slice por `members/ui/{
-//     members-list,member-row-actions-menu}`.
+//     error/Input types. Consumido cross-slice por el menú page-level
+//     (post-S10.9) y por consumers futuros.
 //   - `invitations/` (S10.7 ADR-0041): 1 query + 2 actions + 2 UI
 //     components + tipos + schemas. Consumido cross-slice por el page
 //     S11 que ensambla `<MembersList />` + `<PendingInvitationsTab />`.
 //   - `member-profile/` (S10.8 ADR-0042): 1 action + 1 UI component +
 //     tipos. Consumido cross-slice por el page S11 (sección "Tu perfil
 //     en este place"). Reserva V1.1+ para avatar contextual.
+//
+// Componente page-level co-located (S10.9 ADR-0043) — NO vive en este
+// slice:
+//   - `<MemberRowActionsMenu />` (`src/app/.../settings/members/
+//     _components/member-row-actions-menu.tsx`): context menu por fila
+//     que ensambla 4 actions cruzando `members/` (1) + `place-ownership-
+//     actions/` (3). El page S11 lo inyecta a `<MembersList />` vía
+//     render-prop `renderRowActions`. Razón en ADR-0043.
 //
 // Lo que NO se exporta (intencional):
 //   - Shapes crudos de las queries (LoadedMemberRow, etc.) — internos al
@@ -47,13 +56,5 @@ export {
 
 export {
   MembersList,
-  type MembersListActions,
-  type MembersListCallerContext,
   type MembersListLabels,
 } from "./ui/members-list";
-export {
-  MemberRowActionsMenu,
-  type MemberRowActionsMenuActions,
-  type MemberRowActionsMenuCallerContext,
-  type MemberRowActionsMenuLabels,
-} from "./ui/member-row-actions-menu";

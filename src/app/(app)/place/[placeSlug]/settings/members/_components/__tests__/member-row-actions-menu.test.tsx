@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { Member } from "../../types";
+import type { Member } from "@/features/members/public";
 import {
   MemberRowActionsMenu,
   type MemberRowActionsMenuActions,
