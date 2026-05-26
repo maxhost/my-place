@@ -257,34 +257,62 @@ feat(i18n): placeInvitation namespace × 6 locales (V1.1 S4)
 
 ---
 
-### S5 — `/crear` honra `returnTo` post-signup
+### S5 — invite signup CTA via `/login?mode=signup` (re-scoped, ADR-0045 supersede §D3 de ADR-0044)
 
-**Scope**: extender `src/app/[locale]/crear/page.tsx` para que post-signup haga redirect a `returnTo` (validado vía `validateLoginReturnTo`) en lugar del Hub canónico hardcoded.
+> **Repivot 2026-05-26 (mismo día que S0/§D3)**: el diagnóstico pre-S5 reveló que `/crear` es el **PlaceWizard** (3 pasos: identidad+estilo+cuenta), NO un signup-only flow. Implementar §D3 as-written forzaría al invitee a crear un place propio que no quiere. Repivot canónico documentado in-extenso en [ADR-0045](../../decisions/0045-invite-signup-cta-via-login-mode-signup.md). `/crear` queda 100% intacto. Plan original (texto pre-repivot) en git history del file pre-S5.
 
-**Files**:
-- `src/app/[locale]/crear/page.tsx` [M: ~80 LOC + ~40 LOC modificadas] — parse `?returnTo=` del searchParams + validate via `validateLoginReturnTo` + propagar al handler post-signup. Si valid → redirect a returnTo; si invalid o ausente → redirect al Hub canónico (backwards-compat).
+**Scope re-scoped**: el CTA "Crear cuenta" de la page de invite apunta a `/login?returnTo=…&mode=signup` (en vez de `/crear?returnTo=…`). El page apex `/login` ya honra `returnTo` desde S11.3 (ADR-0033) + el allowlist V1.1 S2 ya acepta absolutas `/invite/[token]`. Nuevo: param query `?mode=login|signup` que pre-selecciona tab al primer render. Whitelist strict + fallback `"login"`, additivo + backwards-compat con todos los entry points existentes (signup desde landing, login directo, cold-start SSO M1, etc.).
 
-**Files potencialmente extendidos** (TBD durante S5 según implementación actual de `/crear`):
-- Si `/crear` invoca un handler/Server Action de signup, extender el handler para aceptar `returnTo` como param y devolver el redirect target.
-- Si `/crear` es Client Component con form submit a un endpoint API → extender el endpoint.
+**Files (5 code + 2 tests + ya escritos antes de S5-commit: 1 ADR nueva + 2 docs writeback)**:
 
-**Pre-S5 research** (primera tarea de S5): leer `src/app/[locale]/crear/page.tsx` actual + `src/features/access/` o equivalente para entender el flow signup actual. Detect si hay seam de extensión natural o si requiere refactor mayor (en cuyo caso bumpear scope o defer).
+```
+src/features/access/ui/
+├── use-access-form.ts                            [M: +3 LOC]    (opt initialMode?: Mode)
+├── access-flow.tsx                               [M: +4 LOC]    (prop initialMode pass-through)
+└── __tests__/
+    └── access-flow.test.tsx                      [M: ~+30 LOC]  (1 test nuevo: initialMode="signup" arranca con tab signup activo)
+
+src/app/(marketing)/[locale]/login/
+└── page.tsx                                      [M: ~+6 LOC]   (parse searchParams.mode + whitelist + pass initialMode)
+
+src/app/(app)/place/[placeSlug]/invite/[token]/
+├── page.tsx                                      [M: ~3 LOC]    (signupUrl: /crear → /login?mode=signup + comment update)
+└── _components/__tests__/
+    └── invite-acceptance-panel.test.tsx          [M: ~1 LOC]    (baseProps.signupUrl literal update — sin behavior change)
+
+docs/
+├── decisions/0045-invite-signup-cta-via-login-mode-signup.md  [N: ~150 LOC]  (ADR canónica del repivot)
+├── decisions/README.md                           [M: +1 entry ADR-0045]
+├── features/invitations/spec.md                  [M: ~6 lines]  (4 refs /crear → /login?mode=signup)
+└── features/invitations/plan-sesiones.md         [M: este §S5 write-back]
+```
+
+**Files NO tocados (explícito, ADR-0045 §D5)**:
+- `src/app/(marketing)/[locale]/crear/page.tsx` — PlaceWizard intacto.
+- `src/features/place-wizard/` — slice intacto.
+- `src/features/place-creation/` — slice intacto.
+
+**Pre-S5 research** (cumplido pre-implementación):
+- Read `src/app/(marketing)/[locale]/crear/page.tsx` → confirma PlaceWizard (3 pasos), no signup flow.
+- Read `src/app/(marketing)/[locale]/login/page.tsx` → confirma `<AccessFlow>` ya tiene login+signup tabs + ya honra `returnTo` (ADR-0033).
+- Read `src/features/access/ui/access-flow.tsx` + `use-access-form.ts` → confirma `useState<Mode>("login")` hardcoded — extensión via `initialMode?` es additiva pura.
+- Read `src/shared/lib/sso/validate-login-return-to.ts` → confirma S2 ya acepta absolutas same-registrable-domain matching `/invite/[a-f0-9]{32,256}`.
 
 **Verificación pre-commit**:
 - `pnpm typecheck`: clean.
-- `pnpm test`: tests existentes `/crear` verde + nuevos tests post-signup-redirect.
-- Tests nuevos: validar que returnTo aceptado pasa al redirect target, returnTo rechazado fallback a Hub.
-- Manual: `pnpm dev` → abrir `/crear?returnTo=/invite/{token}` → signup → verificar redirect al invite URL.
+- `pnpm lint`: clean.
+- `pnpm test`: suite verde + 1 test nuevo en `access-flow.test.tsx` + 8 tests existentes intactos + 8 tests del invite panel intactos.
+- Sin browser smoke en S5 — smoke E2E manual contra prod en S6.
 
-**LOC budget**: si page actual <250 LOC, +80 lo deja <330 → mover lógica a `_lib/handle-signup-return-to.ts` para mantener page ≤300.
+**LOC budget**: ~50 code + ~30 test = sin pressure de caps. ADR + docs writeback = ~190 LOC (no cuentan a caps de slices).
 
-**TDD obligatorio**: tests del path returnTo + tests del fallback.
+**TDD obligatorio**: test nuevo `<AccessFlow initialMode="signup">` arranca con tab signup activo (`aria-pressed=true` en el botón Crear cuenta + form de signup renderizado: Tu nombre + terms visibles) — escribir primero, ver fallar, implementar `initialMode` pass-through, ver pasar.
 
-**Agentes paralelos**: NO — `/crear` es un file central, cambios deben ser serial.
+**Agentes paralelos**: NO — cambios cruzan 3 capas (hook + componente + page) con dependencia secuencial. Yo serial.
 
 **Commit**:
 ```
-feat(access): /crear honra returnTo post-signup (V1.1 S5 — extiende flow apex)
+feat(access): /login acepta ?mode=signup + invite CTA signup → /login (V1.1 S5, supersede ADR-0044 §D3)
 ```
 
 **Tag**: `baseline/feature-e-invite-accept-s5-done`.

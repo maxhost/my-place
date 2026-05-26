@@ -21,9 +21,12 @@ export function useAccessForm(opts: {
   auth: AccessSubmit;
   /** Callback disparado en login/signup exitoso (la ruta navega al Hub). */
   onSuccess: () => void;
+  /** ADR-0045 §D3 — tab activo al primer render. Default `"login"`. Sólo
+   *  decide initial state; post-mount el user switchea via `switchMode()`. */
+  initialMode?: Mode;
 }) {
   const { labels } = opts;
-  const [mode, setMode] = useState<Mode>("login");
+  const [mode, setMode] = useState<Mode>(opts.initialMode ?? "login");
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState("");

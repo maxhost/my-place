@@ -6,7 +6,7 @@
 
 El slice `invitations/` fue extraído desde `members/` en Feature E V1 (ADR-0041, 2026-05-25) con dos capabilities ya production-grade: **create** (`createInvitationAction` que emite token + URL `/invite/{token}`) y **revoke** (`revokeInvitationAction` que elimina invitación pending). Smoke E2E post-deploy V1 (2026-05-26) detectó que la tercera capability del slot — **accept** (consumer del token-link) — no estaba implementada: `GET /invite/{token}` retorna 404 porque ni la ruta ni el page existen. ADR-0044 §Contexto documenta la evidencia triple (Neon prod + Vercel logs + codebase grep).
 
-V1.1 cierra ese gap: agrega `acceptInvitationAction` (Server Action wrapper sobre el primitive DB `app.accept_invitation` ya existente desde migration 0003) + page consumer `(app)/place/[placeSlug]/invite/[token]/page.tsx` (RSC server-rendered con preview unauth + consent panel) + extiende `validateLoginReturnTo` (ADR-0033) para que el flow `unauthenticated → login → back to invite` funcione end-to-end + extiende `/crear` para honrar `returnTo` post-signup.
+V1.1 cierra ese gap: agrega `acceptInvitationAction` (Server Action wrapper sobre el primitive DB `app.accept_invitation` ya existente desde migration 0003) + page consumer `(app)/place/[placeSlug]/invite/[token]/page.tsx` (RSC server-rendered con preview unauth + consent panel) + extiende `validateLoginReturnTo` (ADR-0033) para que el flow `unauthenticated → login → back to invite` funcione end-to-end + extiende `/login` apex con param opcional `?mode=login|signup` para pre-seleccionar tab signup desde el CTA "Crear cuenta" del invite (ADR-0045 supersede §D3 original que planteaba extender `/crear`).
 
 V1.1 NO requiere migration nueva. El primitive `app.accept_invitation` está deployado en producción con 7 SQLSTATEs canónicos. La feature es 100% código de aplicación + i18n × 6 locales.
 
@@ -26,7 +26,7 @@ Las 4 decisiones canónicas se documentan in-extenso en ADR-0044 §Decisión. Re
 
 **Consent explícito (D2)**: el RSC renderiza preview + botón "Aceptar invitación". NO auto-accept en GET. Razón: el token es capability (ADR-0010 §2), el click es el acto de aceptación. Defensa contra preview-fetch automáticos (iMessage/Slack bots).
 
-**Unauthenticated path (D3)**: preview unauth (vía `app.invitation_preview`, no requiere claim) + 2 CTAs (login + signup) con `returnTo` absoluto al URL invite. Login usa `/login?returnTo=...` (flow apex existente, allowlist extendido en S2). Signup usa `/crear?returnTo=...` (flow apex extendido en S5 — actualmente `/crear` no honra returnTo).
+**Unauthenticated path (D3, repivot ADR-0045)**: preview unauth (vía `app.invitation_preview`, no requiere claim) + 2 CTAs (login + signup) con `returnTo` absoluto al URL invite. Ambos CTAs apuntan al mismo apex `/login` (allowlist extendido en S2 para aceptar absolutas `/invite/[token]`), diferenciados por query param `mode`: Login usa `/login?returnTo=…`, Signup usa `/login?returnTo=…&mode=signup` (S5 extiende `/login` con prop `initialMode` y param query whitelist `?mode=login|signup`). ADR-0044 §D3 original planteaba `/crear?returnTo=…` para signup pero el diagnóstico pre-S5 reveló que `/crear` es el PlaceWizard (3 pasos: identidad+estilo+cuenta) — ADR-0045 supersede §D3 y `/crear` queda intacto.
 
 **Email match estricto V1 (D4)**: si invitee autenticado tiene email distinto, panel error explícito + CTA logout con returnTo pre-cargado. NO auto-switch de cuenta V1 (out of scope — multi-account no soportado).
 
@@ -145,8 +145,13 @@ src/shared/lib/sso/
 └── __tests__/
     └── validate-login-return-to.test.ts         [M: +90 LOC]   (~6 nuevos describes)
 
-src/app/[locale]/crear/
-└── page.tsx                                     [M: ~80 LOC + ~40 LOC modificadas]  (returnTo handler)
+src/features/access/ui/                          (ADR-0045 supersede §D3 — sin tocar /crear)
+├── use-access-form.ts                           [M: +3 LOC]    (opt initialMode?)
+├── access-flow.tsx                              [M: +4 LOC]    (prop initialMode pass-through)
+└── __tests__/access-flow.test.tsx               [M: ~+30 LOC]  (1 test initialMode="signup")
+
+src/app/(marketing)/[locale]/login/
+└── page.tsx                                     [M: ~+6 LOC]   (parse searchParams.mode + whitelist + pass initialMode)
 
 src/i18n/messages/
 ├── es.json                                      [M: +1 namespace placeInvitation]
@@ -159,7 +164,7 @@ src/i18n/messages/
 src/i18n/messages-loader.ts                      [M: +1 namespace en el merge]
 ```
 
-**LOC total V1.1**: ~280 LOC al slice `invitations/` (cierra en ~1777, dentro del sub-cap bumpeado 1800 — ADR-0044 §D6) + ~590 LOC en page consumer (fuera del slice) + ~115 LOC en `shared/lib/sso/` + ~120 LOC en `/crear` + ~i18n (~80 keys × 6 locales = ~480 LOC distribuidas en 6 JSONs).
+**LOC total V1.1**: ~280 LOC al slice `invitations/` (cierra en ~1777, dentro del sub-cap bumpeado 1800 — ADR-0044 §D6) + ~590 LOC en page consumer (fuera del slice) + ~115 LOC en `shared/lib/sso/` + ~50 LOC en `access/` + `/login` (ADR-0045 supersede §D3 — antes proyectado ~120 LOC en `/crear` que ya no se toca) + ~i18n (~80 keys × 6 locales = ~480 LOC distribuidas en 6 JSONs).
 
 ## Gaps conscientes V1.1
 
@@ -199,7 +204,7 @@ Tras S6 (cierre operativo V1.1), la verificación manual end-to-end contra produ
 4. **Accept submit**: click "Aceptar invitación a mi-place" → button loading state → success → redirect a `https://mi-place.place.community/` (Hub del place). Verificar Neon: `invitation.accepted_at NOT NULL`, nueva fila `membership (user_id, place_id)`.
 5. **Smoke autenticado direct (re-accept attempt)**: re-abrir el invite URL post-accept → page retorna 404 (token ya usado, sin doxx). Verificar Neon: `invitation.accepted_at` no cambia (no se llamó accept de nuevo).
 6. **Email mismatch path**: en otra cuenta apex con email distinto, navegar al invite URL → page renderiza CU-Accept-3 (panel email mismatch + CTA logout). Click "Cerrar sesión y entrar como X" → flow logout → re-login form pre-cargado con returnTo. Sin completar login: verificar la URL del browser tiene `returnTo` correcto en query.
-7. **Signup round-trip**: crear invitación nueva para email `nuevo@test.com` (que no tiene cuenta) → abrir invite URL incognito → click "Crear cuenta" → URL `/crear?returnTo=<invite URL>` → completar signup con `nuevo@test.com` → post-signup redirect al invite URL → page renderiza CU-Accept-2 (email matchea por design) → click "Aceptar" → success → Hub.
+7. **Signup round-trip** (ADR-0045 supersede §D3): crear invitación nueva para email `nuevo@test.com` (que no tiene cuenta) → abrir invite URL incognito → click "Crear cuenta" → URL `/login?returnTo=<invite URL>&mode=signup` → page apex `/login` aterriza con tab signup pre-seleccionado (no login default) → completar signup con `nuevo@test.com` → post-signup redirect al invite URL → page renderiza CU-Accept-2 (email matchea por design) → click "Aceptar" → success → Hub. Verificar también que `/crear` queda intacto: visitar `/crear` directamente (sin mode/returnTo params) → wizard 3 pasos arranca normal, sin regresión del flow place-first canónico.
 8. **Cross-place tampering check**: modificar URL del browser para apuntar a un placeSlug distinto con el mismo token (`https://otro-place.place.community/invite/{token}`) → page retorna 404 (tampering check RSC mata el render).
 9. **i18n smoke**: cambiar `place.default_locale` del place a `en` via `/settings` → reload page de invite → verificar todos los labels traducidos al inglés (no aparece nada en español).
 10. **Place full P0009 path** (opcional — requiere setup): crear 150 memberships en un place de test → emitir invitación 151 → invitee llega a page → click "Aceptar" → action retorna `place_full` → panel "Cupo alcanzado, hablá con quien te invitó". V1.1 OK skipear este si no hay branch de test con 150 users.

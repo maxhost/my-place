@@ -55,6 +55,9 @@ function setup(opts: {
   /** ADR-0033 §"Wire-up AccessFlow": override post-auth opcional (ya
    *  validado server-side por `validateLoginReturnTo` en la page apex). */
   returnTo?: string;
+  /** ADR-0045 §D3: override del tab inicial. Default `undefined` → tab
+   *  login activo (mismo comportamiento que pre-V1.1-S5). */
+  initialMode?: "login" | "signup";
 } = {}) {
   const auth = opts.auth ?? makeAuth();
   const navigate = opts.navigate ?? vi.fn();
@@ -64,6 +67,7 @@ function setup(opts: {
       auth={auth}
       locale="es"
       returnTo={opts.returnTo}
+      initialMode={opts.initialMode}
       termsHref="/es/terminos"
       privacyHref="/es/privacidad"
       homeHref="/es"
@@ -209,6 +213,34 @@ describe("AccessFlow — form account-first (S9, S5c)", () => {
       expect(navigate).toHaveBeenCalledWith("https://app.place.community/es/"),
     );
     expect(navigate).toHaveBeenCalledTimes(1);
+  });
+
+  // ADR-0045 §D3 — invite signup CTA: el page apex `/login` parsea
+  // `searchParams.mode` (whitelist `"login"|"signup"`, fallback `"login"`) y
+  // lo propaga como `initialMode`. Sin el param, el comportamiento es
+  // idéntico al pre-V1.1-S5 (tab login default, covered en regression del
+  // primer test del suite). Con `initialMode="signup"` el form arranca con
+  // el tab signup activo (CTA "Crear cuenta" del invite no requiere click
+  // extra). Post-mount el user sigue pudiendo switchear via los botones —
+  // este test valida sólo el initial state.
+  it("ADR-0045: initialMode=\"signup\" arranca con tab signup activo (form de signup pre-seleccionado)", () => {
+    setup({ initialMode: "signup" });
+
+    // Form de signup renderizado al mount (sin click intermedio): campo
+    // "Tu nombre" + texto de términos + botón "Crear mi cuenta" visibles.
+    expect(screen.getByLabelText("Tu nombre")).toBeInTheDocument();
+    expect(screen.getByText(/Acepto los/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Crear mi cuenta" }),
+    ).toBeInTheDocument();
+
+    // El botón del tab "Crear cuenta" tiene aria-pressed=true (activo); el
+    // de "Iniciar sesión" tiene aria-pressed=false. Asegura que el state
+    // del hook está alineado con lo que el user ve.
+    const signupTab = screen.getByRole("button", { name: "Crear cuenta" });
+    const loginTab = screen.getByRole("button", { name: "Iniciar sesión" });
+    expect(signupTab.getAttribute("aria-pressed")).toBe("true");
+    expect(loginTab.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("idempotencia: doble click no dispara dos autenticaciones", async () => {

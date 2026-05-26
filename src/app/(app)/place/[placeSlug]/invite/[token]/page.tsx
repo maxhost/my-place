@@ -122,10 +122,14 @@ export default async function InviteAcceptPage({ params }: Props) {
   const baseLoginUrl = buildApexLoginUrl({ defaultLocale: locale });
   const loginUrl = `${baseLoginUrl}?returnTo=${returnToParam}`;
 
-  // `/crear` apex con returnTo prefilled — V1.1 S5 extiende `/crear` para
-  // honrar el param (pre-S5 lo ignora silenciosamente, fallback a Hub
-  // canónico; tras S5 el round-trip cierra al invite URL).
-  const signupUrl = `https://${rootDomain()}/${locale}/crear?returnTo=${returnToParam}`;
+  // Signup CTA apunta al mismo apex `/login` con `?mode=signup` (ADR-0045
+  // §D1, supersede ADR-0044 §D3). Razón: `/login` ya tiene tab signup +
+  // honra returnTo (ADR-0033, allowlist V1.1 S2). El param `mode` pre-
+  // selecciona el tab signup al primer render (ADR-0045 §D2/D3) para que
+  // el CTA "Crear cuenta" sea coherente con lo que el user ve al aterrizar.
+  // `/crear` (PlaceWizard 3-pasos) queda intacto — el invitee no quiere
+  // crear un place propio, sólo una cuenta para aceptar la invitación.
+  const signupUrl = `${baseLoginUrl}?returnTo=${returnToParam}&mode=signup`;
 
   const hubUrl = `https://app.${rootDomain()}/${locale}/`;
   const placeHomeUrl = buildSubdomainCanonicalUrl({

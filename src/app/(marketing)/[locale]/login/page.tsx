@@ -32,10 +32,18 @@ import { validateLoginReturnTo } from "@/shared/lib/sso";
 // propaga el destino sanitizado al AccessFlow (que lo honra en `onSuccess`).
 // Backwards-compat: sin returnTo (ausente o inválido) → Hub canónico hardcoded
 // idéntico al comportamiento pre-S11.3 (signup desde landing, login directo).
+//
+// ADR-0045 (V1.1 S5, 2026-05-26) — invite signup CTA via `/login?mode=signup`:
+// param opcional `?mode=login|signup` con whitelist strict + fallback `login`.
+// Pre-selecciona el tab activo al primer render del AccessFlow (initialMode).
+// El CTA "Crear cuenta" del invite page (`/invite/{token}`) lo usa para que el
+// invitee aterrice directo en el form de signup. Cualquier valor distinto de
+// `"signup"` cae al default `"login"` (typo del developer, URL maliciosa,
+// browser history corruption — todos colapsan a login tab sin error visible).
 
 type Props = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ returnTo?: string }>;
+  searchParams: Promise<{ returnTo?: string; mode?: string }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -46,8 +54,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function LoginPage({ params, searchParams }: Props) {
   const { locale } = await params;
-  const { returnTo: rawReturnTo } = await searchParams;
+  const { returnTo: rawReturnTo, mode: rawMode } = await searchParams;
   setRequestLocale(locale);
+
+  // ADR-0045 §D2 — whitelist strict del param `mode`. Sólo `"signup"` switchea
+  // al tab signup pre-seleccionado; cualquier otro valor (incluido `undefined`,
+  // `"login"` literal, typos, injection attempts) cae al default. Sin throw,
+  // sin validation error visible al user — un param inválido se ignora
+  // silenciosamente y el page renderiza el default login tab.
+  const initialMode: "login" | "signup" =
+    rawMode === "signup" ? "signup" : "login";
 
   // Validación server-side single point del returnTo (ADR-0033 §"Contrato del
   // helper PURE validateLoginReturnTo"): rejects open-redirect, paths fuera
@@ -113,6 +129,7 @@ export default async function LoginPage({ params, searchParams }: Props) {
         auth={auth}
         locale={locale}
         returnTo={safeReturnTo ?? undefined}
+        initialMode={initialMode}
         termsHref={`/${locale}/terminos`}
         privacyHref={`/${locale}/privacidad`}
         homeHref={`/${locale}`}

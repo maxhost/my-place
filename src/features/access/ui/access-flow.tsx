@@ -32,6 +32,7 @@ export function AccessFlow({
   auth,
   locale,
   returnTo,
+  initialMode,
   termsHref,
   privacyHref,
   homeHref,
@@ -50,6 +51,13 @@ export function AccessFlow({
    *  Sin returnTo (ausente o inválido en la page) → Hub canónico
    *  default (backwards-compat con signup/login pre-Feature-C). */
   returnTo?: string;
+  /** ADR-0045 §D3 — tab activo al primer render. La page apex parsea
+   *  `searchParams.mode` con whitelist `"login"|"signup"` y propaga.
+   *  Default `"login"` mantiene backwards-compat con todos los entry
+   *  points pre-V1.1-S5 (signup desde landing, login directo, cold-start
+   *  SSO M1). Post-mount el user switchea tab via el botón visible
+   *  (`switchMode()` del hook); el prop sólo decide initial state. */
+  initialMode?: "login" | "signup";
   termsHref: string;
   privacyHref: string;
   homeHref: string;
@@ -59,6 +67,7 @@ export function AccessFlow({
   const a = useAccessForm({
     labels,
     auth,
+    initialMode,
     // Closure sobre `returnTo`: la decisión vive aquí (no en el hook), que
     // se mantiene agnóstico del destino post-auth. Decisión documentada en
     // ADR-0033 §"Wire-up useAccessForm" — superficie del hook intacta.

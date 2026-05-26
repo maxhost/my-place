@@ -44,7 +44,7 @@ const baseProps = {
   loginUrl:
     "https://place.community/es/login?returnTo=https%3A%2F%2Fmi-place.place.community%2Finvite%2Fabc",
   signupUrl:
-    "https://place.community/es/crear?returnTo=https%3A%2F%2Fmi-place.place.community%2Finvite%2Fabc",
+    "https://place.community/es/login?returnTo=https%3A%2F%2Fmi-place.place.community%2Finvite%2Fabc&mode=signup",
   hubUrl: "https://app.place.community/es/",
   placeHomeUrl: "https://mi-place.place.community/",
   labels,
