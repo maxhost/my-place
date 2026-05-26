@@ -533,5 +533,20 @@
     "body": "Vielleicht ist der Link veraltet oder die Seite wurde verschoben.",
     "ctaHome": "Zurück zur Startseite",
     "ctaApex": "Zu Place"
+  },
+  "placeInvitation": {
+    "header": "Einladung zu {placeName}",
+    "previewEmail": "Diese Einladung ist für {email}",
+    "acceptButton": "Einladung zu {placeName} annehmen",
+    "declineLink": "Nein, danke",
+    "ctaLogin": "Anmelden",
+    "ctaSignup": "Konto erstellen",
+    "emailMismatchTitle": "Die E-Mail stimmt nicht überein",
+    "emailMismatchBody": "Diese Einladung ist für {invEmail}. Du bist als {currentEmail} angemeldet.",
+    "emailMismatchLogoutCta": "Abmelden und als {invEmail} anmelden",
+    "errorExpired": "Diese Einladung ist abgelaufen. Bitte die Person, die dich eingeladen hat, um eine neue.",
+    "errorAlreadyUsed": "Diese Einladung wurde bereits verwendet.",
+    "errorPlaceFull": "Dieser Ort hat seine maximale Mitgliederzahl erreicht (150 Mitglieder). Sprich mit der Person, die dich eingeladen hat.",
+    "errorUnknown": "Etwas ist schiefgelaufen. Versuch es erneut oder bitte um eine neue Einladung."
   }
 }

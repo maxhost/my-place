@@ -533,5 +533,20 @@
     "body": "Puede que el enlace esté viejo o que la página se haya movido.",
     "ctaHome": "Volver al inicio",
     "ctaApex": "Ir a Place"
+  },
+  "placeInvitation": {
+    "header": "Invitación a {placeName}",
+    "previewEmail": "Esta invitación es para {email}",
+    "acceptButton": "Aceptar invitación a {placeName}",
+    "declineLink": "No, gracias",
+    "ctaLogin": "Iniciar sesión",
+    "ctaSignup": "Crear cuenta",
+    "emailMismatchTitle": "El email no coincide",
+    "emailMismatchBody": "Esta invitación es para {invEmail}. Estás logueado como {currentEmail}.",
+    "emailMismatchLogoutCta": "Cerrar sesión y entrar como {invEmail}",
+    "errorExpired": "Esta invitación venció. Pedí una nueva a quien te invitó.",
+    "errorAlreadyUsed": "Esta invitación ya se usó.",
+    "errorPlaceFull": "Este lugar alcanzó su cupo máximo (150 miembros). Hablá con quien te invitó.",
+    "errorUnknown": "Algo salió mal. Intentá de nuevo o pedí una nueva invitación."
   }
 }

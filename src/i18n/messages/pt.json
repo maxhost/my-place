@@ -533,5 +533,20 @@
     "body": "Pode ser que o link esteja antigo ou que a página tenha sido movida.",
     "ctaHome": "Voltar ao início",
     "ctaApex": "Ir para o Place"
+  },
+  "placeInvitation": {
+    "header": "Convite para {placeName}",
+    "previewEmail": "Este convite é para {email}",
+    "acceptButton": "Aceitar convite para {placeName}",
+    "declineLink": "Não, obrigado",
+    "ctaLogin": "Entrar",
+    "ctaSignup": "Criar conta",
+    "emailMismatchTitle": "O email não bate",
+    "emailMismatchBody": "Este convite é para {invEmail}. Você está conectado como {currentEmail}.",
+    "emailMismatchLogoutCta": "Sair e entrar como {invEmail}",
+    "errorExpired": "Este convite venceu. Peça um novo a quem te convidou.",
+    "errorAlreadyUsed": "Este convite já foi usado.",
+    "errorPlaceFull": "Este lugar chegou ao limite (150 membros). Fale com quem te convidou.",
+    "errorUnknown": "Algo deu errado. Tente de novo ou peça um novo convite."
   }
 }

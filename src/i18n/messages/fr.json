@@ -533,5 +533,20 @@
     "body": "Le lien est peut-être ancien ou la page a peut-être été déplacée.",
     "ctaHome": "Retour à l'accueil",
     "ctaApex": "Aller à Place"
+  },
+  "placeInvitation": {
+    "header": "Invitation à {placeName}",
+    "previewEmail": "Cette invitation est pour {email}",
+    "acceptButton": "Accepter l'invitation à {placeName}",
+    "declineLink": "Non merci",
+    "ctaLogin": "Se connecter",
+    "ctaSignup": "Créer un compte",
+    "emailMismatchTitle": "L'e-mail ne correspond pas",
+    "emailMismatchBody": "Cette invitation est pour {invEmail}. Tu es connecté en tant que {currentEmail}.",
+    "emailMismatchLogoutCta": "Se déconnecter et entrer en tant que {invEmail}",
+    "errorExpired": "Cette invitation a expiré. Demande-en une nouvelle à la personne qui t'a invité.",
+    "errorAlreadyUsed": "Cette invitation a déjà été utilisée.",
+    "errorPlaceFull": "Ce lieu a atteint sa capacité maximale (150 membres). Parle-en à la personne qui t'a invité.",
+    "errorUnknown": "Quelque chose s'est mal passé. Réessaie ou demande une nouvelle invitation."
   }
 }

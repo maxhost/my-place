@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { acceptInvitationAction } from "@/features/invitations/public";
@@ -46,12 +47,14 @@ import { getInvitationMetaByToken } from "./_lib/get-invitation-meta-by-token";
 //    `acceptInvitationAction` server inyectado + `logoutAction.bind(null,
 //    locale)` para el mismatch CTA.
 //
-// ## i18n placeholder strings (S4 reemplaza)
+// ## i18n
 //
-// V1.1 S3 hardcodea labels en español (placeholders pre-S4 — S4 wires up
-// `getTranslations({namespace: "placeInvitation"})` + paridad ×6 locales,
-// plan-sesiones.md §S4). Las strings inyectadas como `labels` prop son
-// API-compatible con S4: el panel sigue recibiendo el mismo shape.
+// V1.1 S4 — namespace `placeInvitation` (13 keys × 6 locales) consumido via
+// `getTranslations({locale, namespace: "placeInvitation"})`. El locale viene
+// del lookup anónimo `getPlaceLocaleFallback(placeSlug)` (no del cookie del
+// visitor): los labels respetan el `default_locale` del place, no la
+// preferencia del visitor anónimo. Coherente con el resto del shell zona-
+// place (ADR-0024 §"locale de un place es del place").
 //
 // ## Dynamic + region
 //
@@ -130,27 +133,27 @@ export default async function InviteAcceptPage({ params }: Props) {
     path: "/",
   });
 
-  // (6) i18n labels placeholder ES — V1.1 S4 reemplaza por
-  // `getTranslations({locale, namespace: "placeInvitation"})`. Mantener
-  // strings en español neutro hasta entonces (defaultLocale del proyecto).
+  // (6) i18n labels desde el namespace `placeInvitation`, scoped al locale
+  // resuelto en (4). El panel mantiene su API: recibe el shape
+  // `InviteAcceptancePanelLabels` ya hidratado, con placeholders `{var}` que
+  // resuelve internamente via su helper `interpolate`. Mapeo inline aquí
+  // porque las 13 keys son planas (no nested) — sin necesidad de extraer un
+  // builder helper como `build-shell-labels.ts` del Members slice.
+  const t = await getTranslations({ locale, namespace: "placeInvitation" });
   const labels: InviteAcceptancePanelLabels = {
-    header: "Invitación a {placeName}",
-    previewEmail: "Esta invitación es para {email}",
-    acceptButton: "Aceptar invitación a {placeName}",
-    declineLink: "No, gracias",
-    ctaLogin: "Iniciar sesión",
-    ctaSignup: "Crear cuenta",
-    emailMismatchTitle: "El email no coincide",
-    emailMismatchBody:
-      "Esta invitación es para {invEmail}. Estás logueado como {currentEmail}.",
-    emailMismatchLogoutCta: "Cerrar sesión y entrar como {invEmail}",
-    errorExpired:
-      "Esta invitación venció. Pedí una nueva a quien te invitó.",
-    errorAlreadyUsed: "Esta invitación ya se usó.",
-    errorPlaceFull:
-      "Este lugar alcanzó su cupo máximo (150 miembros). Hablá con quien te invitó.",
-    errorUnknown:
-      "Algo salió mal. Intentá de nuevo o pedí una nueva invitación.",
+    header: t("header"),
+    previewEmail: t("previewEmail"),
+    acceptButton: t("acceptButton"),
+    declineLink: t("declineLink"),
+    ctaLogin: t("ctaLogin"),
+    ctaSignup: t("ctaSignup"),
+    emailMismatchTitle: t("emailMismatchTitle"),
+    emailMismatchBody: t("emailMismatchBody"),
+    emailMismatchLogoutCta: t("emailMismatchLogoutCta"),
+    errorExpired: t("errorExpired"),
+    errorAlreadyUsed: t("errorAlreadyUsed"),
+    errorPlaceFull: t("errorPlaceFull"),
+    errorUnknown: t("errorUnknown"),
   };
 
   // `onLogout`: Server Action bind sobre `logoutAction(locale)` — invoca

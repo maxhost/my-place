@@ -533,5 +533,20 @@
     "body": "Pot ser que l'enllaç sigui antic o que la pàgina s'hagi mogut.",
     "ctaHome": "Tornar a l'inici",
     "ctaApex": "Anar a Place"
+  },
+  "placeInvitation": {
+    "header": "Invitació a {placeName}",
+    "previewEmail": "Aquesta invitació és per a {email}",
+    "acceptButton": "Acceptar invitació a {placeName}",
+    "declineLink": "No, gràcies",
+    "ctaLogin": "Iniciar sessió",
+    "ctaSignup": "Crear compte",
+    "emailMismatchTitle": "L'email no coincideix",
+    "emailMismatchBody": "Aquesta invitació és per a {invEmail}. Has iniciat sessió com a {currentEmail}.",
+    "emailMismatchLogoutCta": "Tancar sessió i entrar com a {invEmail}",
+    "errorExpired": "Aquesta invitació ha caducat. Demana'n una de nova a qui et va convidar.",
+    "errorAlreadyUsed": "Aquesta invitació ja s'ha fet servir.",
+    "errorPlaceFull": "Aquest lloc ha arribat al seu màxim (150 membres). Parla amb qui et va convidar.",
+    "errorUnknown": "Alguna cosa ha anat malament. Torna-ho a provar o demana una invitació nova."
   }
 }
