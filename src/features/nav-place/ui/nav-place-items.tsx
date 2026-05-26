@@ -34,10 +34,10 @@ import type { NavPlaceLabels } from "./nav-place-labels";
 // comporta" → "relación owner↔producto" → "administración interna"
 // (rationale completo en ADR-0025 §1).
 //
-// V1: "language" y "domain" son navegables; los 7 restantes son
+// V1: "language", "domain" y "members" son navegables; los 6 restantes son
 // `disabled: true` con tooltip "Próximamente" (label vive en
 // `labels.comingSoon`, el shell lo aplica). Cuando una sección diferida
-// (`zones`/`groups`/`tiers`/`appearance`/`members`/`hours`/`billing`) se
+// (`zones`/`groups`/`tiers`/`appearance`/`hours`/`billing`) se
 // cablee, basta con (a) quitar `disabled: true`, (b) agregar
 // `href: "/settings/<key>"`, (c) cablear `activeSection` desde la page —
 // el slice ya está estructuralmente listo, paralelo al patrón pre-V1.1.
@@ -52,6 +52,9 @@ import type { NavPlaceLabels } from "./nav-place-labels";
 // URL del item "domain": `/settings/domain` — activado por la feature
 // custom-domain V1 (ADR-0026). Mismo patrón de subdomain que "language":
 // el slug no va en el path.
+//
+// URL del item "members": `/settings/members` — activado por la feature
+// `members` V1 (Feature E S11). Mismo patrón de subdomain.
 //
 // Los íconos son componentes Iconoir (`iconoir-react`, ADR-0025 §2) vía los
 // wrappers semánticos de `./icons`. Viajan como `ReactNode` dentro del item;
@@ -119,8 +122,8 @@ export function buildNavPlaceSidebarGroups(
         {
           key: "members",
           label: labels.sidebarMembers,
+          href: "/settings/members",
           icon: <MembersIcon />,
-          disabled: true,
         },
         {
           key: "groups",

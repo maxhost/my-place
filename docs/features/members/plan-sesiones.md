@@ -8,7 +8,9 @@
 |---|---|---|---|
 | S-1 | ✅ closed | `baseline/feature-e-setup-done` (`54c865a`) | Save point + scaffold `docs/features/members/` |
 | S0 | 🟡 in flight | `baseline/feature-e-s0-done` (esperado) | ADR-0036 + ADR-0037 + spec + plan-sesiones + tests + ontologia flip + data-model write-back |
-| S1-S12 | ⏳ pending | — | DB layer + shared/ui + actions + UI + i18n + smoke |
+| S1-S10.9 | ✅ closed | `baseline/feature-e-s10-9-done` (`085c2ce`) | DB + shared/ui + actions + UI + slice diet S10.5-S10.9 (4 ADRs) |
+| S11 | ✅ closed | `baseline/feature-e-s11-done` | Page `/settings/members` + sidebar flip + i18n placeMembers.* ×6 locales (80 keys) |
+| S12 | ⏳ pending | — | Smoke E2E + write-back + push autorizado |
 
 Suite objetivo post-S12: baseline post-Feature-D 761 + Feature E tests (estimado ~70-90 tests, distribuidos S1-S12).
 

@@ -123,12 +123,14 @@ describe("NavPlaceLayout — wrapper del settings agrupado V1.1 (ADR-0025)", () 
         <p>x</p>
       </NavPlaceLayout>,
     );
-    // 2 links: "Idioma del place" (active) + "Dominio" (navegable, NO active).
+    // 3 links: "Idioma del place" (active) + "Dominio" + "Miembros"
+    // (todas navegables; sólo Idioma está activa con activeSection="language").
     const links = screen.getAllByRole("link");
-    expect(links).toHaveLength(2);
+    expect(links).toHaveLength(3);
     expect(links.map((l) => l.textContent)).toEqual([
       "Idioma del place",
       "Dominio",
+      "Miembros",
     ]);
     // Idioma: aria-current="page" (active) + href "/settings".
     expect(links[0]).toHaveAttribute("aria-current", "page");
@@ -136,13 +138,15 @@ describe("NavPlaceLayout — wrapper del settings agrupado V1.1 (ADR-0025)", () 
     // Dominio: navegable pero NO active → sin aria-current="page", href subdomain.
     expect(links[1]).not.toHaveAttribute("aria-current", "page");
     expect(links[1]).toHaveAttribute("href", "/settings/domain");
+    // Miembros (Feature E S11): navegable pero NO active → sin aria-current.
+    expect(links[2]).not.toHaveAttribute("aria-current", "page");
+    expect(links[2]).toHaveAttribute("href", "/settings/members");
 
     const disabledLabels = [
       "Apariencia",
       "Zonas",
       "Horario",
       "Billing",
-      "Miembros",
       "Grupos",
       "Tiers",
     ];

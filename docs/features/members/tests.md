@@ -435,11 +435,15 @@ Cubre cada rama de migration 0016 `app.transfer_founder_ownership` (Feature D).
 - [ ] Todas las keys `placeMembers.*` usadas en `src/features/members/ui/*.tsx` existen en `i18n/messages/es.json` (defense contra typos).
 - [ ] Bonus: parity check informativo entre `es.json` y los otros 5 locales (puede ser warning, no error — ADR-0024 deep-merge runtime cubre missing keys con fallback).
 
-### `src/app/[placeSlug]/(place)/settings/members/__tests__/page.test.ts` (nuevo)
+### `src/app/(app)/place/[placeSlug]/settings/members/_components/__tests__/members-page-shell.test.tsx` (nuevo — pivot S11)
 
-**Casos cubiertos (1):**
+> **Pivot S11 (2026-05-25)**: el plan original (`page.test.ts` con queries mockeadas RSC) habría inaugurado anti-pattern explícitamente rechazado en re-baseline S7/S8 ("lo testeable con vitest es la lógica pura extraída + RTL sobre Client Components; pages cruzan `next/headers` + Neon Auth + queries y se verifican por typecheck + smoke en producción"). En su lugar: el state client-side del page (tabs + modal open + render-prop wiring al menú page-level) se extrae al `<MembersPageShell />` Client Component co-located (`_components/`, convención ADR-0043), RTL-testable como el resto del slice. El page RSC se verifica por typecheck (S11) + smoke manual (S12). Mismo conteo (1 vitest + manual), distinto target.
 
-- [ ] Page renderiza con `<AppShell>` + tabs + lista de miembros + tab pendientes (smoke test RSC — render server-side con queries mockeadas).
+**Casos cubiertos (3):**
+
+- [ ] Render inicial: tab Activos seleccionada + MembersList con `renderRowActions` inyectando `<MemberRowActionsMenu />` por fila non-self.
+- [ ] Click tab "Pendientes" → switch al `<PendingInvitationsTab />`.
+- [ ] Click "Invitar miembro" → modal abre; click Cerrar → modal cierra.
 
 **Verificación manual:**
 
