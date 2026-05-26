@@ -27,18 +27,21 @@
 //   DB y NO se exponen al cliente (canon ADR-0010 §"errores discriminables",
 //   anti-info-leak).
 //
-// Slice diet S10.5-S10.7: este file quedó con `Member` + `MemberRole` +
-// `getMemberRole` + `RemoveMemberError` + `HeadlineError`. Los tipos
-// extraídos viven en slices hermanos capability-named:
+// Slice diet S10.5-S10.8: este file quedó con `Member` + `MemberRole` +
+// `getMemberRole` + `RemoveMemberError`. Los tipos extraídos viven en
+// slices hermanos capability-named:
 //   - `place-ownership-actions/types.ts` (S10.5 Plan B, renombrado en
 //     S10.6 ADR-0040): `ElevateError`, `RevokeError`, `TransferError` +
 //     Input types — los 3 wrappers Feature D reutilizadas.
 //   - `invitations/types.ts` (S10.7 ADR-0041): `PendingInvitation`,
 //     `InviteError`, `RevokeInviteError` — el slot `invitation`
 //     (migrations 0018-0019). 2 errors V1 + 1 shape de query.
+//   - `member-profile/types.ts` (S10.8 ADR-0042): `HeadlineError` —
+//     capability perfil contextual del miembro (V1 = headline; reserva
+//     avatar contextual V1.1+).
 //
-// 2 errors V1 en este slice (`RemoveMemberError`, `HeadlineError`) +
-// 1 helper puro de derivación de rol.
+// 1 error V1 en este slice (`RemoveMemberError`) + 1 helper puro de
+// derivación de rol.
 
 /**
  * Miembro activo del place (fila en `membership` con `left_at IS NULL`).
@@ -130,21 +133,6 @@ export type RemoveMemberError =
   | "target_not_active_member"
   | "generic";
 
-/**
- * Errores de `updateMyHeadlineAction` (S7, wrap sobre
- * `app.update_my_headline` migration 0017).
- *
- * - `not_member`: DEFINER P0001 'caller is not an active member of this
- *   place'. UI ⇒ "no formás parte de este place".
- * - `too_long`: zod rechaza `length > 280` (defense-in-depth con CHECK
- *   constraint DB-side, ADR-0036). No toca DB.
- */
-export type HeadlineError =
-  | "unauthorized"
-  | "not_member"
-  | "too_long"
-  | "generic";
-
 // Los 3 errors del slot ownership (`ElevateError`, `RevokeError`, `TransferError`)
 // se movieron a `src/features/place-ownership-actions/types.ts` (extracción Plan B
 // S10.5, renombrado S10.6 ADR-0040 — ver header).
@@ -152,6 +140,9 @@ export type HeadlineError =
 // Los tipos del slot invitations (`PendingInvitation`, `InviteError`,
 // `RevokeInviteError`) se movieron a `src/features/invitations/types.ts`
 // (extracción S10.7 ADR-0041).
+//
+// `HeadlineError` se movió a `src/features/member-profile/types.ts`
+// (extracción S10.8 ADR-0042).
 //
 // Consumidores cross-slice los importan desde los `public.ts` respectivos
 // (regla ESLint ADR-0039 — sin deep-imports cross-slice).
