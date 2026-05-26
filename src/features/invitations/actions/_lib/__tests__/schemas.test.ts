@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  acceptInvitationSchema,
   createInvitationSchema,
   revokeInvitationSchema,
 } from "../schemas";
@@ -59,5 +60,36 @@ describe("revokeInvitationSchema (wrap app.revoke_invitation)", () => {
       invitationId: "inv_xyz789",
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("acceptInvitationSchema (wrap app.accept_invitation)", () => {
+  it("happy: { token: 64-hex-char, placeSlug } → success", () => {
+    const result = acceptInvitationSchema.safeParse({
+      token: "a".repeat(64),
+      placeSlug: "mi-place",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("happy sin placeSlug (optional): { token: 64-hex-char } → success", () => {
+    const result = acceptInvitationSchema.safeParse({
+      token: "a".repeat(64),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("min length: { token: 3-char } → fail (token < 32)", () => {
+    const result = acceptInvitationSchema.safeParse({
+      token: "abc",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("max length: { token: 257-char } → fail (token > 256)", () => {
+    const result = acceptInvitationSchema.safeParse({
+      token: "a".repeat(257),
+    });
+    expect(result.success).toBe(false);
   });
 });

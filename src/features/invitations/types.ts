@@ -75,3 +75,36 @@ export type RevokeInviteError =
   | "not_found"
   | "already_accepted"
   | "generic";
+
+/**
+ * Errores discriminables de `acceptInvitationAction` (wrap sobre
+ * `app.accept_invitation` migration 0003 prod). Cada SQLSTATE de la
+ * DEFINER mapea 1:1 a un `kind`. Discriminated union (vs string union de
+ * V1 `InviteError`/`RevokeInviteError`) porque V2+ algunos kinds podrían
+ * cargar payload extra (ej.: `place_full` con cupo actual) y porque la UI
+ * de aceptación renderiza panels distintos por kind — el shape `{kind:…}`
+ * mapea limpio al switch del panel.
+ *
+ * - `unauthenticated`: 28000 — caller sin sesión (no logueado).
+ * - `app_user_missing`: P0002 — sesión Auth válida pero NO hay row en
+ *   `app_user` (claim race / RLS gap). UI ⇒ "tu cuenta no terminó de
+ *   crearse, intentá de nuevo".
+ * - `not_found`: P0005 — token inexistente (no se generó / revocada / typo
+ *   en URL). UI ⇒ "esta invitación no existe o fue revocada".
+ * - `expired`: P0006 — invitación pasó su `expires_at`.
+ * - `already_used`: P0007 — ya consumida (test-and-set perdedor o
+ *   re-visit del mismo link).
+ * - `email_mismatch`: P0008 — email del caller ≠ email del invitee
+ *   (case/whitespace-insensitive vía DEFINER).
+ * - `place_full`: P0009 — place alcanzó 150 miembros activos.
+ * - `unknown`: cualquier otro SQLSTATE (drift, red, 5xx) — anti-info-leak.
+ */
+export type AcceptInvitationError =
+  | { kind: "unauthenticated" }
+  | { kind: "app_user_missing" }
+  | { kind: "not_found" }
+  | { kind: "expired" }
+  | { kind: "already_used" }
+  | { kind: "email_mismatch" }
+  | { kind: "place_full" }
+  | { kind: "unknown" };

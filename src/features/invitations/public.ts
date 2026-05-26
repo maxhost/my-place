@@ -18,12 +18,18 @@ export {
   revokeInvitationAction,
   type RevokeInvitationResult,
 } from "./actions/revoke-invitation";
+export {
+  acceptInvitationAction,
+  type AcceptInvitationResult,
+} from "./actions/accept-invitation";
 export type {
+  AcceptInvitationInput,
   CreateInvitationInput,
   RevokeInvitationInput,
 } from "./actions/_lib/schemas";
 
 export type {
+  AcceptInvitationError,
   InviteError,
   PendingInvitation,
   RevokeInviteError,

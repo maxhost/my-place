@@ -30,3 +30,19 @@ export const revokeInvitationSchema = z.object({
 });
 
 export type RevokeInvitationInput = z.infer<typeof revokeInvitationSchema>;
+
+// Para `acceptInvitationAction` (V1.1, wrap `app.accept_invitation` 0003).
+// `token` ∈ [32, 256] chars: el runtime actual genera 64-hex (32 bytes
+// crypto.randomBytes), pero el slot original aceptaba longitudes
+// flexibles → min 32 (entropía mínima razonable), max 256 (defense
+// contra payload abuse). Format NO se valida (ADR-0010 §2: el token es
+// capability opaca, el formato no agrega seguridad — la DEFINER decide).
+// `placeSlug` optional: el panel lo manda para que la action revalide
+// `/invite/[token]` post-success, pero la DEFINER NO lo usa (el RSC ya
+// hizo cross-place tampering check pre-call vía `get-invitation-meta-by-token`).
+export const acceptInvitationSchema = z.object({
+  token: z.string().min(32).max(256),
+  placeSlug: z.string().min(1).optional(),
+});
+
+export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;
