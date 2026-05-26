@@ -50,6 +50,19 @@ const ABSOLUTE_PATH_ALLOWLIST = new Set<string>([
 ]);
 
 /**
+ * Pattern V1.1 S2 (Feature E invite accept flow) — path `/invite/[token]`
+ * con token = 32-256 lowercase hex chars. Aplica a relative paths y a
+ * absolute URLs same-registrable-domain. Sin query/hash permitido (`$` cierra
+ * el regex) — la page no los consume y rechazarlos cierra vectores de scheme
+ * injection extra. Lowercase-only: `crypto.randomBytes(32).toString('hex')` y
+ * la DEFINER `app.accept_invitation` emiten/aceptan lowercase, ser estricto
+ * cierra ambigüedad por normalización. Ampliar requiere ADR (canon ADR-0033
+ * §"allowlist explícito"). Co-definido con `acceptInvitationSchema`
+ * (`_lib/schemas.ts`) — si cambia uno, revisar el otro.
+ */
+const INVITE_PATH_PATTERN = /^\/invite\/[a-f0-9]{32,256}$/;
+
+/**
  * Same-registrable-domain check naive (last-two-labels), mismo principio que
  * `sso-jwks-fetcher.ts`. Suficiente para gTLDs (`place.community` two-label).
  * NO maneja ccTLDs multi-label (ej. `*.co.uk`): los trataría como single
@@ -100,6 +113,14 @@ export function validateLoginReturnTo(
     // Scheme injection embedded en path (`/redirect?to=https://...` o similar):
     // bloqueamos defensivamente cualquier `://` en el path relativo.
     if (raw.includes("://")) return null;
+    // V1.1 S2: paths que empiezan con `/invite/` se filtran al pattern
+    // estricto (32-256 hex chars, sin query/hash). El handler base V1 acepta
+    // cualquier relative path sin filtro de shape, pero `/invite/` es un
+    // namespace gobernado por capability tokens — un path malformado es señal
+    // de tampering o input erróneo, no de un path legítimo arbitrario.
+    if (raw.startsWith("/invite/")) {
+      return INVITE_PATH_PATTERN.test(raw) ? raw : null;
+    }
     return raw;
   }
 
@@ -120,8 +141,14 @@ export function validateLoginReturnTo(
   if (!isSameRegistrableDomain(apexHost, parsed.host)) return null;
 
   // 2c. Path debe matchear EXACTAMENTE un entry del allowlist (no substring,
-  // no startsWith con `/foo` que también pasaría como prefix de `/foo/bar`).
-  if (!ABSOLUTE_PATH_ALLOWLIST.has(parsed.pathname)) return null;
+  // no startsWith con `/foo` que también pasaría como prefix de `/foo/bar`)
+  // O matchear el pattern V1.1 `/invite/[token]`. Ampliar requiere ADR.
+  if (
+    !ABSOLUTE_PATH_ALLOWLIST.has(parsed.pathname) &&
+    !INVITE_PATH_PATTERN.test(parsed.pathname)
+  ) {
+    return null;
+  }
 
   // Match: preservar la URL completa tal cual llegó (incluye search + hash).
   return raw;

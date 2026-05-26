@@ -116,3 +116,96 @@ describe("S11.3.B validateLoginReturnTo — absolute URLs same-registrable-domai
     ).toBe(null);
   });
 });
+
+// V1.1 S2 (Feature E invite accept flow) — extensión del allowlist canónico
+// ADR-0033 para aceptar `/invite/[token]` (relative + absolute same-registrable).
+//
+// Pattern: `^/invite/[a-f0-9]{32,256}$` (32 chars mínimo = entropía razonable,
+// 256 max = defense vs payload abuse, hex-only = mismatch con tokens reales
+// generados por `crypto.randomBytes(32).toString('hex')` = 64 hex). Sin
+// query/hash permitido en el path: la page no las consume y rechazarlas cierra
+// vectores de scheme injection extra (`/invite/{valid}?next=https://evil`).
+//
+// El handler V1 ya acepta CUALQUIER relative path con `/` (no `//` no `://`),
+// así que para los `/invite/...` malformados tenemos que hacer la regla MÁS
+// ESTRICTA (rechazar lo que V1 aceptaba sin filtro). Tests #2-#4 son RED
+// genuinos en V1 (passes hoy, deben fallar post-S2 sin pasar el regex). Test
+// #5 también RED (URLs absolutas same-registrable hoy sólo aceptan paths del
+// allowlist `/api/auth/sso-issue|sso-init` — `/invite/{token}` se rechaza
+// pre-S2). Tests #1 y #6 son regression-positive (mismo comportamiento V1+S2).
+
+const VALID_TOKEN_64 = "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd";
+const VALID_TOKEN_32 = "a1b2c3d4e5f6789012345678901234ab";
+
+describe("S2 validateLoginReturnTo — relative `/invite/[token]` pattern", () => {
+  it("13. relative `/invite/{64-hex}` (token real prod) → accepted", () => {
+    const path = `/invite/${VALID_TOKEN_64}`;
+    expect(validateLoginReturnTo(path, APEX_HOST)).toBe(path);
+  });
+
+  it("13b. relative `/invite/{32-hex}` (token min entropy) → accepted", () => {
+    const path = `/invite/${VALID_TOKEN_32}`;
+    expect(validateLoginReturnTo(path, APEX_HOST)).toBe(path);
+  });
+
+  it("14. relative `/invite/{non-hex}` (caracteres inválidos) → null", () => {
+    // 64 chars que parecen hex pero contienen `z` (out of [a-f0-9]).
+    const badPath = `/invite/zzz0123456789012345678901234567890123456789012345678901234567`;
+    expect(validateLoginReturnTo(badPath, APEX_HOST)).toBe(null);
+    // Uppercase hex también rechazado (DEFINER + crypto.randomBytes emiten
+    // lowercase; ser estricto cierra ambigüedad por normalización).
+    const upperPath = `/invite/A1B2C3D4E5F6789012345678901234567890123456789012345678901234ABCD`;
+    expect(validateLoginReturnTo(upperPath, APEX_HOST)).toBe(null);
+  });
+
+  it("15. relative `/invite/{token < 32 chars}` → null", () => {
+    expect(validateLoginReturnTo("/invite/abc", APEX_HOST)).toBe(null);
+    // 31 chars (1 below floor).
+    const short = `/invite/${"a".repeat(31)}`;
+    expect(validateLoginReturnTo(short, APEX_HOST)).toBe(null);
+  });
+
+  it("16. relative `/invite/{token > 256 chars}` → null", () => {
+    // 257 chars (1 above ceiling).
+    const long = `/invite/${"a".repeat(257)}`;
+    expect(validateLoginReturnTo(long, APEX_HOST)).toBe(null);
+  });
+});
+
+describe("S2 validateLoginReturnTo — absolute `/invite/[token]` URLs", () => {
+  it("17. absolute same-registrable-domain con `/invite/{valid hex}` → accepted", () => {
+    // Subdomain del apex (subdomain del place, ej. `mi-place.place.community`)
+    // emite la URL absoluta — same-registrable-domain check pasa.
+    const url = `https://mi-place.place.community/invite/${VALID_TOKEN_64}`;
+    expect(validateLoginReturnTo(url, APEX_HOST)).toBe(url);
+  });
+
+  it("17b. absolute apex bare con `/invite/{valid hex}` → accepted", () => {
+    // Defense edge: si la URL viene con `place.community` plain (sin sub).
+    const url = `https://place.community/invite/${VALID_TOKEN_64}`;
+    expect(validateLoginReturnTo(url, APEX_HOST)).toBe(url);
+  });
+
+  it("18. absolute cross-registrable-domain con `/invite/{valid}` → null", () => {
+    // Open-redirect vector clásico — attacker.com tiene path válido `/invite/{hex}`
+    // pero domain no matchea → rechazar (same-registrable check vigente).
+    const url = `https://attacker.com/invite/${VALID_TOKEN_64}`;
+    expect(validateLoginReturnTo(url, APEX_HOST)).toBe(null);
+    // Lookalike: domain con apex como sub-label (defense vs registrable substring).
+    const lookalike = `https://place.community.evil.com/invite/${VALID_TOKEN_64}`;
+    expect(validateLoginReturnTo(lookalike, APEX_HOST)).toBe(null);
+  });
+
+  it("18b. absolute same-registrable con `/invite/{invalid token}` → null", () => {
+    // Path `/invite/...` malformado bloqueado incluso si la URL es absoluta
+    // same-registrable (no se "salva" por estar absolute).
+    const url = `https://mi-place.place.community/invite/abc`;
+    expect(validateLoginReturnTo(url, APEX_HOST)).toBe(null);
+  });
+
+  it("18c. absolute same-registrable con `/invite/{valid}` HTTP → null", () => {
+    // Cleartext downgrade vector vigente — incluso con path válido.
+    const url = `http://mi-place.place.community/invite/${VALID_TOKEN_64}`;
+    expect(validateLoginReturnTo(url, APEX_HOST)).toBe(null);
+  });
+});
