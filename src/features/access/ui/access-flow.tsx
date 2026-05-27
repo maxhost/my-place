@@ -1,5 +1,6 @@
 "use client";
 
+import { resolvePostCredentialDestination } from "@/shared/lib/post-credential-destination";
 import type { AccessLabels, AccessSubmit } from "./access-labels";
 import { useAccessForm } from "./use-access-form";
 
@@ -81,13 +82,19 @@ export function AccessFlow({
     labels,
     auth,
     initialMode,
-    // Prioridad post-auth: `inviteContext.postCredentialUrl` > `returnTo` >
-    // Hub canónico (ADR-0046 §D2 + ADR-0033 §"Wire-up useAccessForm").
+    // Prioridad post-auth via helper PURE compartido con `/login/page.tsx`
+    // guard (ADR-0046 §"Addendum operacional — Sesión D"): single source of
+    // truth del orden `inviteContext.postCredentialUrl` > `returnTo` > Hub
+    // canónico. Wire-up shared elimina el riesgo de divergencia que disparó
+    // el bug E2E V1.2 (guard server-side ignoraba inviteContext y override
+    // esta nav post-revalidate de Server Actions).
     onSuccess: () =>
       navigate(
-        inviteContext?.postCredentialUrl ??
-          returnTo ??
-          `https://app.place.community/${locale}/`,
+        resolvePostCredentialDestination({
+          inviteContext,
+          returnTo,
+          hubFallback: `https://app.place.community/${locale}/`,
+        }),
       ),
   });
   const l = labels;

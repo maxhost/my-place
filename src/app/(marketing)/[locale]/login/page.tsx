@@ -10,6 +10,7 @@ import {
 } from "@/features/access/public";
 import { buildSsoInitUrlForInvite } from "@/shared/lib/auth-redirect";
 import { lookupInvitationPreview } from "@/shared/lib/invitation-preview-lookup";
+import { resolvePostCredentialDestination } from "@/shared/lib/post-credential-destination";
 import { rootDomain } from "@/shared/lib/root-domain";
 import { getSessionJwt } from "@/shared/lib/session";
 import { validateLoginReturnTo } from "@/shared/lib/sso";
@@ -127,15 +128,28 @@ export default async function LoginPage({ params, searchParams }: Props) {
 
   // Guard: el user ya logueado se manda al Hub (S5b del Hub V1,
   // `docs/features/inbox/spec.md` §"Auth + redirects"). El /login del apex es
-  // SÓLO para anónimos; con sesión vigente la vía natural es el Hub. Sin esto
-  // un user logueado caería en el form de login y crearía la sesión otra vez.
+  // SÓLO para anónimos; con sesión vigente la vía natural es el Hub.
   // ADR-0033: si vino `returnTo` válido (e.g. user con sesión apex activa que
-  // vuelve manual a `/login?returnTo=...sso-issue...`), honrarlo igual — el
-  // intent de reanudar el flow SSO supera el default Hub. Sin returnTo válido
-  // → Hub canónico idéntico al comportamiento pre-S11.3.
+  // vuelve manual a `/login?returnTo=...sso-issue...`), honrarlo — el intent
+  // de reanudar el flow SSO supera el default Hub.
+  // ADR-0046 §"Addendum operacional — Sesión D" (V1.2): si vino `?invite=
+  // {token}` con preview válido, el `inviteContext.postCredentialUrl` gana
+  // sobre returnTo. Wire al helper PURE compartido con `AccessFlow.onSuccess`
+  // (single source of truth del orden). Sin esto, el guard server-side se
+  // disparaba durante post-revalidate de Server Actions (Next.js auto-
+  // revalidate header `x-action-revalidated: 1`) y override la nav client-
+  // side al Hub default ignorando inviteContext — bug E2E disparado en V1.2
+  // smoke matriz 2x2. Gotcha: `docs/gotchas/server-action-revalidation-
+  // overrides-client-navigation.md`.
   const token = await getSessionJwt();
   if (token !== null) {
-    redirect(safeReturnTo ?? `https://app.place.community/${locale}/`);
+    redirect(
+      resolvePostCredentialDestination({
+        inviteContext,
+        returnTo: safeReturnTo,
+        hubFallback: `https://app.place.community/${locale}/`,
+      }),
+    );
   }
 
   const t = await getTranslations({ locale, namespace: "access" });
