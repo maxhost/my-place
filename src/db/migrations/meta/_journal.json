@@ -155,6 +155,13 @@
       "when": 1779748935357,
       "tag": "0021_rls_app_user_peer_member_read",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1779749035357,
+      "tag": "0022_lookup_custom_domain_by_slug",
+      "breakpoints": true
     }
   ]
 }

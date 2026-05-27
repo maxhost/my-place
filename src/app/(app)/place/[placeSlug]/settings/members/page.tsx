@@ -24,6 +24,7 @@ import {
 import { removeMemberAction } from "@/features/members/public";
 import {
   buildApexLoginUrl,
+  buildPlaceCanonicalUrl,
   buildSubdomainCanonicalUrl,
 } from "@/shared/lib/auth-redirect";
 import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
@@ -201,10 +202,15 @@ export default async function PlaceSettingsMembersPage({
 
   const onLogout = logoutAction.bind(null, place.defaultLocale);
 
-  const inviteBaseUrl = buildSubdomainCanonicalUrl({
-    slug: place.slug,
-    path: "",
-  }).replace(/\/$/, "");
+  // V1.2 Sesión A (ADR-0046 §D1): emisión zone-aware del invite link. Si el
+  // place tiene custom domain verified, el invite emitido apunta al custom
+  // domain (`https://nocodecompany.co/invite/{token}`) en vez del subdomain
+  // canon — cierra el gap UX V1.1 donde el owner publicitaba un dominio pero
+  // los invites llegaban con otro. Para places sin custom domain, el helper
+  // cae al subdomain canon (zero regresión).
+  const inviteBaseUrl = (
+    await buildPlaceCanonicalUrl({ slug: place.slug, path: "/" })
+  ).replace(/\/$/, "");
 
   return (
     <NavPlaceLayout

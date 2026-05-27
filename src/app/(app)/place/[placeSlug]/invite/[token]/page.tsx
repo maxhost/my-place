@@ -7,7 +7,7 @@ import { routing } from "@/i18n/routing";
 import { getAuth } from "@/shared/lib/auth";
 import {
   buildApexLoginUrl,
-  buildSubdomainCanonicalUrl,
+  buildPlaceCanonicalUrl,
 } from "@/shared/lib/auth-redirect";
 import { isServiceableSlug } from "@/shared/lib/host-routing";
 import { rootDomain } from "@/shared/lib/root-domain";
@@ -110,13 +110,16 @@ export default async function InviteAcceptPage({ params }: Props) {
     ? localeFallback
     : routing.defaultLocale;
 
-  // (5) URL composition. Invite URL absoluto al subdomain canon del place
-  // (consumer base del returnTo cross-subdomain). El URL incluye token sin
-  // encoding extra (es lowercase hex, URL-safe).
-  const inviteUrl = `${buildSubdomainCanonicalUrl({
-    slug: placeSlug,
-    path: "/",
-  }).replace(/\/$/, "")}/invite/${token}`;
+  // (5) URL composition. V1.2 Sesión A (ADR-0046 §D1): el invite URL y el
+  // place home son zone-aware — si el place tiene custom domain verified,
+  // ambos apuntan al custom domain (`https://nocodecompany.co/...`); si no,
+  // caen al subdomain canon (zero regresión). La lookup interna está
+  // memoizada con React.cache, así que las 2 invocaciones acá comparten
+  // una sola query Neon iad1 dentro del render.
+  const placeBaseUrl = (
+    await buildPlaceCanonicalUrl({ slug: placeSlug, path: "/" })
+  ).replace(/\/$/, "");
+  const inviteUrl = `${placeBaseUrl}/invite/${token}`;
   const returnToParam = encodeURIComponent(inviteUrl);
 
   const baseLoginUrl = buildApexLoginUrl({ defaultLocale: locale });
@@ -132,7 +135,7 @@ export default async function InviteAcceptPage({ params }: Props) {
   const signupUrl = `${baseLoginUrl}?returnTo=${returnToParam}&mode=signup`;
 
   const hubUrl = `https://app.${rootDomain()}/${locale}/`;
-  const placeHomeUrl = buildSubdomainCanonicalUrl({
+  const placeHomeUrl = await buildPlaceCanonicalUrl({
     slug: placeSlug,
     path: "/",
   });

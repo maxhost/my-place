@@ -1,3 +1,4 @@
+import { lookupCustomDomainBySlug } from "@/shared/lib/custom-domain-by-slug-lookup";
 import { rootDomain } from "@/shared/lib/root-domain";
 
 // Feature B — custom-domain-routing V1 · S4c (ADR-0031 §"Bug pre-existente"
@@ -120,4 +121,53 @@ export function buildSubdomainCanonicalUrl(opts: {
   const rawPath = opts.path ?? "/";
   const path = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
   return `${apexScheme()}://${slug}.${rootDomain()}${path}`;
+}
+
+/**
+ * URL absoluta canónica de un place — zone-aware. Resuelve a:
+ *   - `https://{customDomain}{path}` si el place tiene un `place_domain`
+ *     verificado y activo (vía `lookupCustomDomainBySlug` — migration 0022
+ *     SECURITY DEFINER).
+ *   - `https://{slug}.{rootDomain}{path}` (fallback al subdomain canon) si
+ *     el place NO tiene custom domain configurado / verificado / activo, o
+ *     si el lookup falla (timeout, drift, etc.).
+ *
+ * Feature E — Invite Accept Flow V1.2 · Sesión A (ADR-0046 §D1, 2026-05-26).
+ * Cierra el gap UX detectado post-V1.1 close: el invite link emitido desde un
+ * place con custom domain ahora coincide con el dominio que el owner publicita
+ * públicamente (`nocodecompany.co/invite/{token}` vs el viejo
+ * `mi-place.place.community/invite/{token}`). Para places sin custom domain,
+ * el comportamiento es idéntico a `buildSubdomainCanonicalUrl` (zero regresión).
+ *
+ * **Memoización per-render**: la lookup interna (`lookupCustomDomainBySlug`)
+ * está envuelta en `React.cache`. Múltiples invocaciones con el mismo slug
+ * normalizado dentro del mismo render comparten una sola query Neon iad1.
+ * El helper en sí NO está cacheado porque acepta argumentos object (object
+ * identity defeats React.cache); la dedup real ocurre en el lookup primitivo.
+ *
+ * **Fail-safe**: errores del lookup (timeout, drift, RLS bypass roto) caen
+ * a subdomain canon — el invite flow NUNCA emite URLs corruptas y NUNCA
+ * crashea por error de DB. El subdomain canon es siempre válido si el slug
+ * existe (gate de `isServiceableSlug` ya filtró antes de llegar acá).
+ *
+ * Caller pattern canónico (e.g. `invite/[token]/page.tsx`):
+ * ```ts
+ * const placeBaseUrl = (await buildPlaceCanonicalUrl({
+ *   slug: placeSlug,
+ *   path: "/",
+ * })).replace(/\/$/, "");
+ * const inviteUrl = `${placeBaseUrl}/invite/${token}`;
+ * ```
+ */
+export async function buildPlaceCanonicalUrl(opts: {
+  slug: string;
+  path?: string;
+}): Promise<string> {
+  const customDomain = await lookupCustomDomainBySlug(opts.slug);
+  if (customDomain !== null) {
+    const rawPath = opts.path ?? "/";
+    const path = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
+    return `${apexScheme()}://${customDomain}${path}`;
+  }
+  return buildSubdomainCanonicalUrl(opts);
 }

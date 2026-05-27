@@ -354,3 +354,42 @@ Considerado incluir colores del place en branding apex (no solo nombre, también
   - ADR-0034 (zone-aware DB helper — `acceptInvitationAction` cubre via coordinator).
   - ADR-0044 (V1.1 — §D3 refinada por V1.2, resto intacto).
   - ADR-0045 (V1.1 S5 signup CTA via `/login?mode=signup` — V1.2 extiende con `?invite=` adicional, mismo pattern).
+
+## Addendum operacional — Sesión A (2026-05-26)
+
+Las ADR son registro histórico; las decisiones canónicas D1-D7 + las alternativas rechazadas + los gaps no se editan. Esta sección registra una **corrección del plan operacional** descubierta al implementar Sesión A, sin cambiar el contrato ni las decisiones del ADR.
+
+### Lo detectado pre-implementación (TDD diagnostic-first)
+
+§"Alcance" del ADR prometía "**NO migration nueva** (consume `place_domain.verified_at` + `app.invitation_preview` ya existentes)". §D1 describía la lookup como un query directo: `SELECT domain FROM place JOIN place_domain ... WHERE place.slug = $1 AND verified_at IS NOT NULL`.
+
+Lectura empírica del código antes de tocar nada (canon `feedback_diagnose_before_fix`):
+
+1. **`place_domain` tiene RLS ENABLE + policy owner-only** `place_domain_all` (migration 0000) — solo el owner del place puede leer sus rows vía `place_ownership`.
+2. **El pool runtime corre como rol `app_system`** (`src/db/client.ts:15`, canon ADR-0011) que NO tiene `BYPASSRLS`.
+3. **Conclusión**: el query directo del ADR retornaría 0 rows para todo caller que NO sea owner del place inviting — exactamente el caso del invitee anónimo en el invite flow.
+
+### Lo corregido (sin desviar el contrato D1)
+
+La decisión D1 (helper `buildPlaceCanonicalUrl` zone-aware + wrapper `lookupCustomDomainBySlug`) queda intacta. Solo cambia el **how**:
+
+- **Migration nueva `0022_lookup_custom_domain_by_slug.sql`** — espejo estructural exacto de `0009_lookup_place_by_domain.sql` invertido (slug input → domain text output). Misma estructura: SECURITY DEFINER + search_path fijo + STABLE + filtros `verified_at IS NOT NULL` y ambos `archived_at IS NULL` + LIMIT 1 + REVOKE FROM PUBLIC + GRANT TO app_system. ~95 LOC SQL.
+- **Wrapper TS en `src/shared/lib/custom-domain-by-slug-lookup.ts`** — paralelo a `custom-domain-lookup.ts` y `place-locale-lookup.ts` (el precedente canon: lookups DEFINER transversales viven en `shared/lib/*-lookup.ts`, no en slices feature). El ADR §D1 ubicaba erróneamente en `src/features/custom-domain/server/lookup.ts`; la ubicación correcta respeta el invariante CLAUDE.md "`shared/` nunca importa de `features/`" porque el helper `buildPlaceCanonicalUrl` vive en `shared/lib/auth-redirect.ts`. ~80 LOC.
+- **Helper `buildPlaceCanonicalUrl`** en `src/shared/lib/auth-redirect.ts` — implementación según D1 (sin cambio): consume el wrapper memoizado (React.cache) y cae a `buildSubdomainCanonicalUrl` cuando no hay custom domain. ~35 LOC.
+- **2 callsites wire** según D1 (sin cambio): `settings/members/page.tsx:204` (invite link emission) + `invite/[token]/page.tsx:116-138` (placeBaseUrl + placeHomeUrl). El `loginUrl`/`signupUrl` siguen apuntando al apex login (S1 NO toca ese path; el `?invite=` extension viene en Sesión B).
+
+### Por qué esta corrección NO supersede el ADR
+
+Una corrección al §"Alcance" (operacional) no es lo mismo que cambiar una decisión (D1 sigue siendo la misma). Las alternativas rechazadas (α-θ) siguen siendo las mismas — el descubrimiento de RLS NO abre una alternativa nueva ni cierra una existente. Las consecuencias (positivas/neutras/negativas) siguen aplicando — solo se modifica el inventario operacional (ahora hay una migration en lugar de "ninguna").
+
+Si en sesiones futuras el `lookupCustomDomainBySlug` necesitara semantics distintas (e.g. retornar también `verified_at` para validación adicional), eso SÍ requeriría una nueva ADR refinando D1 (mismo pattern que ADR-0045 superseding ADR-0044 §D3).
+
+### Resultado operacional Sesión A
+
+- Migration 0022 aplicada a test branch + verified via 12 tests integration (`src/db/__tests__/lookup-custom-domain-by-slug.test.ts` — happy + pending + archived domain + archived place + slug inexistente + case-insensitive + DEFINER bypass + RLS regression + LIMIT 1 + payload shape + ACL).
+- Wrapper TS verified via 11 tests unit con mocks (`src/shared/lib/__tests__/custom-domain-by-slug-lookup.test.ts` — happy + null + zero rows + DB error + timeout + uppercase + trim + empty/whitespace + type drift + empty string drift + multi-domain realistic).
+- Helper `buildPlaceCanonicalUrl` verified via 10 tests unit (`src/shared/lib/__tests__/auth-redirect.test.ts` — happy custom domain + fallback subdomain + path undefined + path no-slash + path con slash + query string + dev localhost + dev custom domain + lookup error propagation + mixed-case domain).
+- Typecheck verde + suite completa verde + 2 callsites wire-eados.
+- **NO migration nueva más allá de 0022**: invariante "NO migration de schema" del ADR queda relajado a "NO migration de schema; sólo 1 DEFINER function nueva (paralela a 0009/0010)". Cero ALTER TABLE.
+
+**Save point pre-S1**: `baseline/feature-e-invite-v1.2-s0-done` = `670de5d`. Tag de cierre S1: `baseline/feature-e-invite-v1.2-s-a-done` (este commit).
