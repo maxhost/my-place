@@ -171,3 +171,60 @@ export async function buildPlaceCanonicalUrl(opts: {
   }
   return buildSubdomainCanonicalUrl(opts);
 }
+
+/**
+ * URL post-credential del flow invite — zone-aware con silent SSO embebido.
+ * Espejo estructural de `buildPlaceCanonicalUrl` con la diferencia operativa
+ * de emitir `sso-init` en el branch custom domain (Feature C, ADR-0032 §8):
+ *
+ *   - **Place CON custom domain verificado**: retorna
+ *     `${scheme}://{customDomain}/api/auth/sso-init?returnTo=/invite/{token}`.
+ *     El `sso-init` (S8) setea state cookie host-only en el custom domain,
+ *     redirige a `sso-issue` apex (que consume la cookie Neon Auth fresca
+ *     post-credential), redirige a `sso-redeem` custom domain, que mintea
+ *     cookie local + aterriza al invitee en `/invite/{token}` con sesión.
+ *
+ *   - **Place SIN custom domain**: retorna
+ *     `${scheme}://{slug}.{rootDomain}/invite/{token}` (subdomain canon).
+ *     La cookie apex Neon Auth `.place.community` propaga al subdomain sin
+ *     SSO necesario — la invite page detecta sesión inmediatamente.
+ *
+ * Feature E — Invite Accept Flow V1.2 · Sesión C (ADR-0046 §D4, 2026-05-26).
+ * Cierra el gap UX del flow custom domain detectado en Sesión B: post-
+ * credential el invitee aterrizaba en custom domain SIN sesión (cookie apex
+ * NO propaga a custom domain por RFC 6265 §5.4) → veía el flow de "anónimo"
+ * en lugar de poder aceptar directo. Con `sso-init` la sesión local se
+ * mintea automático (~sub-segundo, 4 redirects HTTP).
+ *
+ * **Normalizaciones (defense-in-depth)**: `token.trim().toLowerCase()` —
+ * paridad con `TOKEN_PATTERN` canon en `acceptInvitationSchema` +
+ * `lookupInvitationPreview` + `INVITE_PATH_PATTERN`. El caller en
+ * `/login/page.tsx` ya normaliza; re-aplicar acá cierra el risk de un
+ * futuro caller que no lo haga.
+ *
+ * **Encoding**: el `returnTo` se serializa via `URLSearchParams` (slashes
+ * `%2F`-encoded). El handler `sso-init` decodifica via `url.searchParams.get`
+ * y pasa por `validateReturnTo` (que acepta cualquier path same-origin sin
+ * `://`).
+ *
+ * **Fail-safe**: errores del lookup se propagan al caller (mismo contrato
+ * que `buildPlaceCanonicalUrl`). El wrapper interno
+ * `lookupCustomDomainBySlug` ya tiene su propio catch → null para errores
+ * recoverables; un throw acá indica bug real en mock setup o infra crítica.
+ */
+export async function buildSsoInitUrlForInvite(opts: {
+  slug: string;
+  token: string;
+}): Promise<string> {
+  const token = opts.token.trim().toLowerCase();
+  const customDomain = await lookupCustomDomainBySlug(opts.slug);
+  if (customDomain !== null) {
+    const url = new URL(`${apexScheme()}://${customDomain}/api/auth/sso-init`);
+    url.searchParams.set("returnTo", `/invite/${token}`);
+    return url.toString();
+  }
+  return buildSubdomainCanonicalUrl({
+    slug: opts.slug,
+    path: `/invite/${token}`,
+  });
+}

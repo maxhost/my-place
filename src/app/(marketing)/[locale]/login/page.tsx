@@ -8,7 +8,7 @@ import {
   loginAction,
   signUpAccountAction,
 } from "@/features/access/public";
-import { buildPlaceCanonicalUrl } from "@/shared/lib/auth-redirect";
+import { buildSsoInitUrlForInvite } from "@/shared/lib/auth-redirect";
 import { lookupInvitationPreview } from "@/shared/lib/invitation-preview-lookup";
 import { rootDomain } from "@/shared/lib/root-domain";
 import { getSessionJwt } from "@/shared/lib/session";
@@ -43,19 +43,20 @@ import { validateLoginReturnTo } from "@/shared/lib/sso";
 // `"signup"` cae al default `"login"` (typo del developer, URL maliciosa,
 // browser history corruption — todos colapsan a login tab sin error visible).
 //
-// ADR-0046 (V1.2 Sesión B, 2026-05-26) — invite branding apex: param opcional
-// `?invite={token}`. Cuando presente Y `lookupInvitationPreview(token)` retorna
-// no-null (token válido), la page deriva `placeSlug` + `placeName` +
-// `postCredentialUrl` server-side y pasa `inviteContext` al `<AccessFlow>`.
-// El componente reemplaza el header por branding del place inviting + esconde
-// el toggle login/signup + redirige post-success al `postCredentialUrl`. Si
-// el token es inválido / vencido / usado / drift, la page degrada al flow
-// login default sin branding (anti-info-leak: NO leak "este token no existe").
-// El `postCredentialUrl` se construye via `buildPlaceCanonicalUrl({slug,
-// path: '/invite/' + token})` — zone-aware (Sesión A). Para places SIN custom
-// domain, post-credential la cookie apex propaga al subdomain canon → flow
-// complete. Para places CON custom domain, V1.2 Sesión C extenderá con
-// `buildSsoInitUrlForInvite` para cerrar via silent SSO.
+// ADR-0046 (V1.2 Sesiones B+C, 2026-05-26) — invite branding apex + silent
+// SSO post-credential: param opcional `?invite={token}`. Cuando presente Y
+// `lookupInvitationPreview(token)` retorna no-null (token válido), la page
+// deriva `placeSlug` + `placeName` + `postCredentialUrl` server-side y pasa
+// `inviteContext` al `<AccessFlow>`. El componente reemplaza el header por
+// branding del place inviting + esconde el toggle login/signup + redirige
+// post-success al `postCredentialUrl`. Si el token es inválido / vencido /
+// usado / drift, la page degrada al flow login default sin branding (anti-
+// info-leak: NO leak "este token no existe"). El `postCredentialUrl` se
+// construye via `buildSsoInitUrlForInvite({slug, token})` — zone-aware con
+// silent SSO embebido (Sesión C): places con custom domain reciben URL al
+// `sso-init` del custom domain (Feature C cadena init→issue→redeem mintea
+// cookie local), places sin custom domain reciben subdomain canon directo
+// (cookie apex .place.community propaga al subdomain sin SSO necesario).
 
 type Props = {
   params: Promise<{ locale: string }>;
@@ -104,19 +105,15 @@ export default async function LoginPage({ params, searchParams }: Props) {
     ? {
         placeSlug: invitePreview.placeSlug,
         placeName: invitePreview.placeName,
-        // Zone-aware (Sesión A): si el place tiene custom domain verified,
-        // postCredentialUrl apunta al custom domain; sino al subdomain canon.
-        // Para custom domain, la cookie apex NO propaga al subdomain del
-        // custom domain → invitee aterrizaría sin sesión (Sesión C cierra
-        // esto con silent SSO via `sso-init`). Para subdomain canon, la
-        // cookie .place.community se propaga automáticamente → accept page
-        // detecta sesión inmediatamente.
-        postCredentialUrl: (
-          await buildPlaceCanonicalUrl({
-            slug: invitePreview.placeSlug,
-            path: `/invite/${rawInvite!.trim().toLowerCase()}`,
-          })
-        ),
+        // Zone-aware (Sesión A) + silent SSO embebido (Sesión C, ADR-0046 §D4):
+        // si el place tiene custom domain verified, `postCredentialUrl` apunta
+        // al `sso-init` del custom domain (que dispara la cadena init→issue→
+        // redeem para mintear cookie local). Si no, apunta directo al subdomain
+        // canon (la cookie apex .place.community propaga sin SSO necesario).
+        postCredentialUrl: await buildSsoInitUrlForInvite({
+          slug: invitePreview.placeSlug,
+          token: rawInvite!.trim().toLowerCase(),
+        }),
       }
     : undefined;
 

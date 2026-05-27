@@ -5,6 +5,7 @@ import { lookupCustomDomainBySlug } from "../custom-domain-by-slug-lookup";
 import {
   buildApexLoginUrl,
   buildPlaceCanonicalUrl,
+  buildSsoInitUrlForInvite,
   buildSubdomainCanonicalUrl,
 } from "../auth-redirect";
 
@@ -283,5 +284,150 @@ describe("buildPlaceCanonicalUrl — URL zone-aware (custom domain o subdomain c
     const url = await buildPlaceCanonicalUrl({ slug: "x", path: "/" });
 
     expect(url).toBe("https://NoCodeCompany.CO/");
+  });
+});
+
+describe("buildSsoInitUrlForInvite — URL post-credential zone-aware (silent SSO si custom domain)", () => {
+  // ADR-0046 §D4 (V1.2 Sesión C, 2026-05-26). El helper resuelve el destino
+  // post-credential del flow invite:
+  //   - Place CON custom domain → `https://{customDomain}/api/auth/sso-init?
+  //     returnTo=/invite/{token}` (dispara silent SSO Feature C que mintea
+  //     cookie local en el custom domain, redirige a invite page con sesión).
+  //   - Place SIN custom domain → `https://{slug}.place.community/invite/
+  //     {token}` (cookie apex `.place.community` propaga al subdomain canon
+  //     directamente; sin SSO necesario).
+  //
+  // Espejo estructural de `buildPlaceCanonicalUrl` (mismo lookup, mismo fail-
+  // safe, mismo dev/prod scheme handling), con la diferencia operativa de
+  // emitir SSO init en el branch custom domain.
+
+  const TOKEN = "a".repeat(64);
+
+  it("place CON custom domain → URL al sso-init del custom domain con returnTo=/invite/{token}", async () => {
+    mockLookup.mockResolvedValueOnce("nocodecompany.co");
+
+    const url = await buildSsoInitUrlForInvite({
+      slug: "mi-place",
+      token: TOKEN,
+    });
+
+    expect(url).toBe(
+      `https://nocodecompany.co/api/auth/sso-init?returnTo=%2Finvite%2F${TOKEN}`,
+    );
+    expect(mockLookup).toHaveBeenCalledWith("mi-place");
+  });
+
+  it("place SIN custom domain (lookup null) → fallback al subdomain canon directo (sin SSO)", async () => {
+    mockLookup.mockResolvedValueOnce(null);
+
+    const url = await buildSsoInitUrlForInvite({
+      slug: "sin-domain",
+      token: TOKEN,
+    });
+
+    expect(url).toBe(`https://sin-domain.place.community/invite/${TOKEN}`);
+  });
+
+  it("token uppercase → normalizado a lowercase (defense-in-depth, paridad con TOKEN_PATTERN canon)", async () => {
+    mockLookup.mockResolvedValueOnce("nocodecompany.co");
+    const upper = "A".repeat(64);
+
+    const url = await buildSsoInitUrlForInvite({
+      slug: "x",
+      token: upper,
+    });
+
+    // El token debe llegar lowercase al sso-init para que la redeem (S8) lo
+    // case-match contra la DEFINER `accept_invitation` (que normaliza a
+    // lower). Re-aplicar acá cierra el risk de un caller que no normalice.
+    expect(url).toBe(
+      `https://nocodecompany.co/api/auth/sso-init?returnTo=%2Finvite%2F${"a".repeat(64)}`,
+    );
+  });
+
+  it("token con whitespace alrededor: trim aplicado", async () => {
+    mockLookup.mockResolvedValueOnce(null);
+
+    const url = await buildSsoInitUrlForInvite({
+      slug: "x",
+      token: `  ${TOKEN}  `,
+    });
+
+    expect(url).toBe(`https://x.place.community/invite/${TOKEN}`);
+  });
+
+  it("slug uppercase normalizado (mismo invariante que buildSubdomainCanonicalUrl)", async () => {
+    mockLookup.mockResolvedValueOnce(null);
+
+    const url = await buildSsoInitUrlForInvite({
+      slug: "Mi-Place",
+      token: TOKEN,
+    });
+
+    expect(url).toBe(`https://mi-place.place.community/invite/${TOKEN}`);
+    // El lookup también recibe el slug normalizado (consistente con
+    // `buildPlaceCanonicalUrl`).
+    expect(mockLookup).toHaveBeenCalledWith("Mi-Place");
+  });
+
+  it("dev local (NEXT_PUBLIC_APP_URL=http://localhost:3000) + place sin custom → subdomain `*.localhost:3000`", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000");
+    mockLookup.mockResolvedValueOnce(null);
+
+    const url = await buildSsoInitUrlForInvite({
+      slug: "mi-place",
+      token: TOKEN,
+    });
+
+    expect(url).toBe(`http://mi-place.localhost:3000/invite/${TOKEN}`);
+  });
+
+  it("dev local + place CON custom domain → scheme http preserva en el sso-init URL", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000");
+    mockLookup.mockResolvedValueOnce("nocodecompany.co");
+
+    const url = await buildSsoInitUrlForInvite({
+      slug: "mi-place",
+      token: TOKEN,
+    });
+
+    expect(url).toBe(
+      `http://nocodecompany.co/api/auth/sso-init?returnTo=%2Finvite%2F${TOKEN}`,
+    );
+  });
+
+  it("fail-safe: lookup rechaza → propaga excepción (mismo contrato que buildPlaceCanonicalUrl)", async () => {
+    mockLookup.mockRejectedValueOnce(new Error("synthetic"));
+
+    await expect(
+      buildSsoInitUrlForInvite({ slug: "x", token: TOKEN }),
+    ).rejects.toThrow("synthetic");
+  });
+
+  it("returnTo encoding: el path `/invite/{token}` se serializa via URLSearchParams (escape de slashes)", async () => {
+    mockLookup.mockResolvedValueOnce("nocodecompany.co");
+
+    const url = await buildSsoInitUrlForInvite({
+      slug: "x",
+      token: TOKEN,
+    });
+
+    // Los slashes del path interno DEBEN venir percent-encoded en el query
+    // (URLSearchParams default). El handler sso-init decodifica via
+    // `url.searchParams.get('returnTo')` que retorna el path decodificado.
+    expect(url).toContain("returnTo=%2Finvite%2F");
+    expect(url).not.toContain("returnTo=/invite/");
+  });
+
+  it("subdomain canon NO incluye sso-init (cookie .place.community propaga, sin SSO necesario)", async () => {
+    mockLookup.mockResolvedValueOnce(null);
+
+    const url = await buildSsoInitUrlForInvite({
+      slug: "x",
+      token: TOKEN,
+    });
+
+    expect(url).not.toContain("sso-init");
+    expect(url).not.toContain("returnTo=");
   });
 });

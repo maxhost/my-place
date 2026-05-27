@@ -443,3 +443,41 @@ La decisión D2 (branding apex via `inviteContext`) queda intacta. Solo cambia e
 - LOC delta totales: ~98 LOC code (helper + AccessFlow + AccessLabels + /login + invite page) vs ~70 estimado en plan-sesiones; ~140 LOC tests (helper + AccessFlow tests nuevos) vs ~50 estimado. Overshoot documentado.
 
 **Save point pre-S2**: `baseline/feature-e-invite-v1.2-s-a-done` = `8cc916b`. Tag de cierre S2: `baseline/feature-e-invite-v1.2-s-b-done` (este commit).
+
+## Addendum operacional — Sesión C (2026-05-26)
+
+Las ADR son registro histórico; las decisiones D1-D7 + alternativas rechazadas + gaps no se editan. Esta sección registra el **resultado operacional** de la implementación de Sesión C. A diferencia de las Sesiones A y B, NO hay corrección al plan — la decisión D4 (silent SSO post-credential via `sso-init` del custom domain) se materializa exactamente como fue descrita.
+
+### Implementación efectiva Sesión C
+
+- **Helper TS nuevo `buildSsoInitUrlForInvite`** en `src/shared/lib/auth-redirect.ts` (~57 LOC, total 230 ≤ cap 300). Espejo estructural de `buildPlaceCanonicalUrl` con la diferencia operativa de emitir `sso-init` URL en el branch custom domain:
+  - **Custom domain**: `${scheme}://{customDomain}/api/auth/sso-init?returnTo=%2Finvite%2F{token}` — el `sso-init` (Feature C S8) setea state cookie host-only en custom domain, redirige a `sso-issue` apex (que consume cookie Neon Auth fresca post-credential), redirige a `sso-redeem` custom domain que mintea cookie local + aterriza al invitee en `/invite/{token}` con sesión.
+  - **Subdomain canon**: `${scheme}://{slug}.{rootDomain}/invite/{token}` — cookie apex `.place.community` propaga al subdomain sin SSO necesario (mismo comportamiento que pre-Sesión C).
+  - Normalizaciones defense-in-depth: `token.trim().toLowerCase()` (paridad con TOKEN_PATTERN canon en `acceptInvitationSchema` + `lookupInvitationPreview` + `INVITE_PATH_PATTERN`). El `returnTo` se serializa via `URLSearchParams` (slashes `%2F`-encoded; `sso-init` decodifica via `url.searchParams.get` y pasa por `validateReturnTo` que acepta cualquier path same-origin).
+  - Fail-safe: errores del lookup se propagan al caller (mismo contrato que `buildPlaceCanonicalUrl`).
+
+- **`/login` page wire-up** (`src/app/(marketing)/[locale]/login/page.tsx`, ~12 LOC delta net): swap del callsite `buildPlaceCanonicalUrl({slug, path: '/invite/' + token})` por `buildSsoInitUrlForInvite({slug, token})`. El comportamiento para places SIN custom domain es bit-exact idéntico (mismo URL final). El comportamiento para places CON custom domain pasa de "direct nav al custom domain SIN sesión" (gap UX detectado en Sesión B) a "silent SSO chain → custom domain CON sesión local minted" (cierre del flow per ADR-0046 §D4).
+
+- **JSDoc del componente actualizado**: el comentario inline que documentaba "V1.2 Sesión C extenderá con `buildSsoInitUrlForInvite`" reemplazado por la descripción canónica del comportamiento post-Sesión C (ahora vigente).
+
+### Tests
+
+- **`buildSsoInitUrlForInvite` unit tests** (`src/shared/lib/__tests__/auth-redirect.test.ts`, +~150 LOC, 10 tests nuevos): custom domain happy + subdomain canon fallback + token uppercase normalization + token whitespace trim + slug uppercase normalization + dev local subdomain + dev local custom domain + lookup error propagation + returnTo encoding (`%2F` escapes) + subdomain canon no-SSO assertion.
+- **Suite full**: 38/38 tests en `auth-redirect.test.ts` verde (28 baseline + 10 nuevos). Suite total verde (post-Sesión C: medir en commit). Typecheck verde. Lint verde.
+
+### Resultado operacional Sesión C
+
+- LOC delta: ~57 LOC code (helper en `auth-redirect.ts`) + ~12 LOC delta net en `/login` page (incluye JSDoc rewrite) + ~150 LOC tests. **Bajo el rango estimado** del plan-sesiones (150-200 LOC code + 100 LOC tests) — la implementación pudo apalancar la simetría con `buildPlaceCanonicalUrl` para minimizar LOC nuevos.
+- Cap LOC: `auth-redirect.ts` 230 ≤ 300 ✓.
+- Sub-cap SSO (`src/shared/lib/sso/` 1400 LOC, ADR-0032 §5 addenda): **sin cambio** ✓. Ni un byte del módulo SSO se modifica (D5 honrado).
+- Sub-cap custom-domain slice: **sin cambio** ✓.
+- Cero migration nueva ✓.
+- Cero cambio al contrato `sso-issue` ✓.
+- `validateLoginReturnTo` ya acepta `/invite/{token}` desde V1.1 S2 — sin cambio ✓.
+- `validateReturnTo` del `sso-init` route ya acepta cualquier path same-origin (sin `://`/`//`) — `/invite/{token}` pasa sin cambio ✓.
+
+**Save point pre-S3**: `baseline/feature-e-invite-v1.2-s-b-done` = `f7b8087`. Tag de cierre S3: `baseline/feature-e-invite-v1.2-s-c-done` (este commit).
+
+### Próximo: Sesión D — Smoke E2E matriz 2x2
+
+Sesión D ejecuta el smoke matriz 2x2 canon (place con/sin custom domain × visitor logged/unlogged) + re-validación de los 4 steps V1.1 deferidos (3/6/9/10 según `docs/features/invitations/spec.md` §Followups V1.2) + write-back evidence en spec + push autorizado por turno + tag `baseline/feature-e-invite-v1.2-done`. Sin nueva implementación; valida empíricamente que las 3 sesiones de implementación (A+B+C) cierran el gap UX que motivó V1.2.
