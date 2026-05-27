@@ -62,4 +62,13 @@ export interface AccessLabels {
   loginFailedNotice: string;
   signupFailedNotice: string;
   back: string;
+  // ADR-0046 §D2 (V1.2 Sesión B) — branding apex del invite flow. Opcionales
+  // a nivel de tipo porque las pages que NO consumen `inviteContext` (signup
+  // desde landing, login directo, cold-start SSO M1, etc.) no necesitan
+  // hidratar estas keys. La page `/login` apex SÍ las pasa cuando hay
+  // `?invite={token}` válido + cae con safety net si están ausentes.
+  /** Plantilla con `{placeName}` interpolado client-side por `<AccessFlow>`. */
+  inviteTitle?: string;
+  inviteSubtitle?: string;
+  inviteAcceptHint?: string;
 }

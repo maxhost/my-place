@@ -249,7 +249,10 @@
     "submitting": "Un moment…",
     "loginFailedNotice": "No hem pogut iniciar la sessió. Revisa el correu i la contrasenya.",
     "signupFailedNotice": "No hem pogut crear el compte. Potser ja en tens un? Prova d'iniciar sessió.",
-    "back": "Tornar a l'inici"
+    "back": "Tornar a l'inici",
+    "inviteTitle": "T'inviten a unir-te a {placeName}",
+    "inviteSubtitle": "Entra al teu compte o crea'n un de nou per acceptar la invitació.",
+    "inviteAcceptHint": "Després t'acompanyem a acceptar la invitació."
   },
   "wizard": {
     "title": "Crea el teu lloc",

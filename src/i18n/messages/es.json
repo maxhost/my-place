@@ -249,7 +249,10 @@
     "submitting": "Un momento…",
     "loginFailedNotice": "No pudimos iniciar sesión. Revisá tu email y contraseña.",
     "signupFailedNotice": "No pudimos crear la cuenta. ¿Quizás ya tenés una? Probá iniciar sesión.",
-    "back": "Volver al inicio"
+    "back": "Volver al inicio",
+    "inviteTitle": "Te invitan a unirte a {placeName}",
+    "inviteSubtitle": "Entrá a tu cuenta o creá una nueva para aceptar la invitación.",
+    "inviteAcceptHint": "Después te llevamos a aceptar la invitación."
   },
   "wizard": {
     "title": "Creá tu lugar",

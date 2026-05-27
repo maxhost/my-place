@@ -122,8 +122,17 @@ export default async function InviteAcceptPage({ params }: Props) {
   const inviteUrl = `${placeBaseUrl}/invite/${token}`;
   const returnToParam = encodeURIComponent(inviteUrl);
 
+  // V1.2 Sesión B (ADR-0046 §D2): `&invite={token}` dispara el branding
+  // apex del `<AccessFlow>` ("Te invitan a unirte a {placeName}" + esconde
+  // toggle + redirige post-success al `postCredentialUrl`). El `/login` lo
+  // resuelve server-side via `lookupInvitationPreview`. El returnTo sigue
+  // viajando (para entry points pre-V1.2 / fallback de orden de prioridad
+  // del `<AccessFlow>`), pero el `inviteContext.postCredentialUrl` gana
+  // cuando ambos están presentes.
+  const inviteParam = `&invite=${encodeURIComponent(token)}`;
+
   const baseLoginUrl = buildApexLoginUrl({ defaultLocale: locale });
-  const loginUrl = `${baseLoginUrl}?returnTo=${returnToParam}`;
+  const loginUrl = `${baseLoginUrl}?returnTo=${returnToParam}${inviteParam}`;
 
   // Signup CTA apunta al mismo apex `/login` con `?mode=signup` (ADR-0045
   // §D1, supersede ADR-0044 §D3). Razón: `/login` ya tiene tab signup +
@@ -132,7 +141,7 @@ export default async function InviteAcceptPage({ params }: Props) {
   // el CTA "Crear cuenta" sea coherente con lo que el user ve al aterrizar.
   // `/crear` (PlaceWizard 3-pasos) queda intacto — el invitee no quiere
   // crear un place propio, sólo una cuenta para aceptar la invitación.
-  const signupUrl = `${baseLoginUrl}?returnTo=${returnToParam}&mode=signup`;
+  const signupUrl = `${baseLoginUrl}?returnTo=${returnToParam}&mode=signup${inviteParam}`;
 
   const hubUrl = `https://app.${rootDomain()}/${locale}/`;
   const placeHomeUrl = await buildPlaceCanonicalUrl({

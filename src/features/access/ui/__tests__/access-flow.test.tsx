@@ -39,6 +39,10 @@ const LABELS: AccessLabels = {
   signupFailedNotice:
     "No pudimos crear la cuenta. ¿Quizás ya tenés una? Probá iniciar sesión.",
   back: "Volver al inicio",
+  inviteTitle: "Te invitan a unirte a {placeName}",
+  inviteSubtitle:
+    "Entrá a tu cuenta o creá una nueva para aceptar la invitación.",
+  inviteAcceptHint: "Después te llevamos a aceptar la invitación.",
 };
 
 function makeAuth(over: Partial<AccessSubmit> = {}): AccessSubmit {
@@ -58,6 +62,12 @@ function setup(opts: {
   /** ADR-0045 §D3: override del tab inicial. Default `undefined` → tab
    *  login activo (mismo comportamiento que pre-V1.1-S5). */
   initialMode?: "login" | "signup";
+  /** ADR-0046 §D2 + §D3 (V1.2 Sesión B): branding apex del invite flow. */
+  inviteContext?: {
+    placeSlug: string;
+    placeName: string;
+    postCredentialUrl: string;
+  };
 } = {}) {
   const auth = opts.auth ?? makeAuth();
   const navigate = opts.navigate ?? vi.fn();
@@ -68,6 +78,7 @@ function setup(opts: {
       locale="es"
       returnTo={opts.returnTo}
       initialMode={opts.initialMode}
+      inviteContext={opts.inviteContext}
       termsHref="/es/terminos"
       privacyHref="/es/privacidad"
       homeHref="/es"
@@ -241,6 +252,123 @@ describe("AccessFlow — form account-first (S9, S5c)", () => {
     const loginTab = screen.getByRole("button", { name: "Iniciar sesión" });
     expect(signupTab.getAttribute("aria-pressed")).toBe("true");
     expect(loginTab.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  // ADR-0046 §D2 + §D3 (V1.2 Sesión B): cuando `/login` apex recibe
+  // `?invite={token}` válido, la page resuelve `placeSlug` + `placeName`
+  // + `postCredentialUrl` server-side (vía `lookupInvitationPreview`) y
+  // pasa `inviteContext` al `<AccessFlow>`. El componente reemplaza el
+  // header por branding del place inviting + esconde el toggle login/
+  // signup (el invitee llegó vía CTA específica, no necesita switchear)
+  // + redirige post-success al `postCredentialUrl` en vez del Hub default
+  // o el `returnTo` de allowlist. Sin `inviteContext` → V1 path intacto
+  // (covered en regression tests arriba).
+  describe("ADR-0046 V1.2 Sesión B — inviteContext branding + toggle hide", () => {
+    const INVITE_CTX = {
+      placeSlug: "nocode-company",
+      placeName: "Nocode Company",
+      postCredentialUrl:
+        "https://nocode-company.place.community/invite/abc123",
+    };
+
+    it("renderiza header branding 'Te invitan a unirte a {placeName}' interpolando placeName (no el title default)", () => {
+      setup({ inviteContext: INVITE_CTX });
+      expect(
+        screen.getByRole("heading", {
+          level: 1,
+          name: "Te invitan a unirte a Nocode Company",
+        }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Acceso" })).not.toBeInTheDocument();
+    });
+
+    it("renderiza subtitle invite-specific (no el subtitle default)", () => {
+      setup({ inviteContext: INVITE_CTX });
+      expect(
+        screen.getByText(
+          "Entrá a tu cuenta o creá una nueva para aceptar la invitación.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Entrá o creá tu cuenta")).not.toBeInTheDocument();
+    });
+
+    it("esconde el toggle login/signup (group ausente) — el invitee no decide tab post-mount", () => {
+      setup({ inviteContext: INVITE_CTX });
+      expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    });
+
+    it("renderiza inviteAcceptHint cerca del submit — explica el siguiente paso del flow", () => {
+      setup({ inviteContext: INVITE_CTX });
+      expect(
+        screen.getByText("Después te llevamos a aceptar la invitación."),
+      ).toBeInTheDocument();
+    });
+
+    it("login exitoso con inviteContext → navega al postCredentialUrl (NO al Hub ni al returnTo)", async () => {
+      const user = userEvent.setup();
+      const { navigate } = setup({
+        inviteContext: INVITE_CTX,
+        // returnTo igual no debe ganar: postCredentialUrl tiene prioridad
+        // cuando inviteContext está presente.
+        returnTo:
+          "https://place.community/api/auth/sso-issue?aud=otro.co&state=x&nonce=y",
+      });
+      await login(user);
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith(
+          "https://nocode-company.place.community/invite/abc123",
+        ),
+      );
+      expect(navigate).not.toHaveBeenCalledWith(
+        "https://app.place.community/es/",
+      );
+      expect(navigate).not.toHaveBeenCalledWith(
+        expect.stringContaining("sso-issue"),
+      );
+      expect(navigate).toHaveBeenCalledTimes(1);
+    });
+
+    it("signup exitoso con inviteContext → navega al postCredentialUrl", async () => {
+      const user = userEvent.setup();
+      // initialMode='signup' simula el CTA "Crear cuenta" del invite (la
+      // page apex propaga ?mode=signup + ?invite= juntos).
+      const { navigate } = setup({
+        inviteContext: INVITE_CTX,
+        initialMode: "signup",
+      });
+      await user.type(screen.getByLabelText("Tu nombre"), "Ana");
+      await user.type(screen.getByLabelText("Email"), "ana@ejemplo.com");
+      await user.type(screen.getByLabelText("Contraseña"), "supersegura");
+      await user.click(screen.getByLabelText(/Acepto los/));
+      await user.click(screen.getByRole("button", { name: "Crear mi cuenta" }));
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith(
+          "https://nocode-company.place.community/invite/abc123",
+        ),
+      );
+    });
+
+    it("regression: sin inviteContext → V1 path intacto (header default, toggle visible, navega al Hub/returnTo)", async () => {
+      const user = userEvent.setup();
+      const { navigate } = setup();
+      // Header default visible.
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Acceso" }),
+      ).toBeInTheDocument();
+      // Toggle visible.
+      expect(screen.getByRole("group")).toBeInTheDocument();
+      // inviteAcceptHint NO renderizado.
+      expect(
+        screen.queryByText("Después te llevamos a aceptar la invitación."),
+      ).not.toBeInTheDocument();
+      // Post-auth: Hub default.
+      await login(user);
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith("https://app.place.community/es/"),
+      );
+    });
   });
 
   it("idempotencia: doble click no dispara dos autenticaciones", async () => {

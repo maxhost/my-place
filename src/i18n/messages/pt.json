@@ -249,7 +249,10 @@
     "submitting": "Um momento…",
     "loginFailedNotice": "Não conseguimos iniciar a sessão. Confira o e-mail e a senha.",
     "signupFailedNotice": "Não conseguimos criar a conta. Talvez já tenha uma? Tente iniciar sessão.",
-    "back": "Voltar ao início"
+    "back": "Voltar ao início",
+    "inviteTitle": "Você foi convidado a se juntar a {placeName}",
+    "inviteSubtitle": "Entre na sua conta ou crie uma nova para aceitar o convite.",
+    "inviteAcceptHint": "Depois te levamos para aceitar o convite."
   },
   "wizard": {
     "title": "Crie o seu lugar",

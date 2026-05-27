@@ -249,7 +249,10 @@
     "submitting": "Un instant…",
     "loginFailedNotice": "Nous n'avons pas pu te connecter. Vérifie ton e-mail et ton mot de passe.",
     "signupFailedNotice": "Nous n'avons pas pu créer le compte. Peut-être en as-tu déjà un ? Essaie de te connecter.",
-    "back": "Retour à l'accueil"
+    "back": "Retour à l'accueil",
+    "inviteTitle": "Tu es invité·e à rejoindre {placeName}",
+    "inviteSubtitle": "Connecte-toi à ton compte ou crées-en un nouveau pour accepter l'invitation.",
+    "inviteAcceptHint": "Ensuite, on t'emmène accepter l'invitation."
   },
   "wizard": {
     "title": "Crée ton lieu",

@@ -249,7 +249,10 @@
     "submitting": "One moment…",
     "loginFailedNotice": "We couldn't sign you in. Check your email and password.",
     "signupFailedNotice": "We couldn't create the account. Maybe you already have one? Try signing in.",
-    "back": "Back to home"
+    "back": "Back to home",
+    "inviteTitle": "You're invited to join {placeName}",
+    "inviteSubtitle": "Sign in to your account or create a new one to accept the invitation.",
+    "inviteAcceptHint": "We'll take you to accept the invitation next."
   },
   "wizard": {
     "title": "Create your place",

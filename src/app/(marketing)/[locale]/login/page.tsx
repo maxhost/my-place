@@ -8,6 +8,8 @@ import {
   loginAction,
   signUpAccountAction,
 } from "@/features/access/public";
+import { buildPlaceCanonicalUrl } from "@/shared/lib/auth-redirect";
+import { lookupInvitationPreview } from "@/shared/lib/invitation-preview-lookup";
 import { rootDomain } from "@/shared/lib/root-domain";
 import { getSessionJwt } from "@/shared/lib/session";
 import { validateLoginReturnTo } from "@/shared/lib/sso";
@@ -40,10 +42,28 @@ import { validateLoginReturnTo } from "@/shared/lib/sso";
 // invitee aterrice directo en el form de signup. Cualquier valor distinto de
 // `"signup"` cae al default `"login"` (typo del developer, URL maliciosa,
 // browser history corruption — todos colapsan a login tab sin error visible).
+//
+// ADR-0046 (V1.2 Sesión B, 2026-05-26) — invite branding apex: param opcional
+// `?invite={token}`. Cuando presente Y `lookupInvitationPreview(token)` retorna
+// no-null (token válido), la page deriva `placeSlug` + `placeName` +
+// `postCredentialUrl` server-side y pasa `inviteContext` al `<AccessFlow>`.
+// El componente reemplaza el header por branding del place inviting + esconde
+// el toggle login/signup + redirige post-success al `postCredentialUrl`. Si
+// el token es inválido / vencido / usado / drift, la page degrada al flow
+// login default sin branding (anti-info-leak: NO leak "este token no existe").
+// El `postCredentialUrl` se construye via `buildPlaceCanonicalUrl({slug,
+// path: '/invite/' + token})` — zone-aware (Sesión A). Para places SIN custom
+// domain, post-credential la cookie apex propaga al subdomain canon → flow
+// complete. Para places CON custom domain, V1.2 Sesión C extenderá con
+// `buildSsoInitUrlForInvite` para cerrar via silent SSO.
 
 type Props = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ returnTo?: string; mode?: string }>;
+  searchParams: Promise<{
+    returnTo?: string;
+    mode?: string;
+    invite?: string;
+  }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -54,7 +74,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function LoginPage({ params, searchParams }: Props) {
   const { locale } = await params;
-  const { returnTo: rawReturnTo, mode: rawMode } = await searchParams;
+  const {
+    returnTo: rawReturnTo,
+    mode: rawMode,
+    invite: rawInvite,
+  } = await searchParams;
   setRequestLocale(locale);
 
   // ADR-0045 §D2 — whitelist strict del param `mode`. Sólo `"signup"` switchea
@@ -64,6 +88,37 @@ export default async function LoginPage({ params, searchParams }: Props) {
   // silenciosamente y el page renderiza el default login tab.
   const initialMode: "login" | "signup" =
     rawMode === "signup" ? "signup" : "login";
+
+  // ADR-0046 §D2 (V1.2 Sesión B) — `?invite={token}` lookup server-side. Si el
+  // token está presente Y es válido (pasa shape gate + DEFINER retorna row),
+  // derivamos `inviteContext` para pasar al `<AccessFlow>`. Cualquier fallo
+  // (token ausente, shape inválido, vencido, usado, drift, DB error) colapsa a
+  // null SIN diferenciar la causa (anti-info-leak per `lookupInvitationPreview`).
+  // En ese caso el page renderiza el login default sin branding — el invitee
+  // que aterriza con token inválido ve flow normal sin pistas de qué falló.
+  const invitePreview =
+    typeof rawInvite === "string"
+      ? await lookupInvitationPreview(rawInvite)
+      : null;
+  const inviteContext = invitePreview
+    ? {
+        placeSlug: invitePreview.placeSlug,
+        placeName: invitePreview.placeName,
+        // Zone-aware (Sesión A): si el place tiene custom domain verified,
+        // postCredentialUrl apunta al custom domain; sino al subdomain canon.
+        // Para custom domain, la cookie apex NO propaga al subdomain del
+        // custom domain → invitee aterrizaría sin sesión (Sesión C cierra
+        // esto con silent SSO via `sso-init`). Para subdomain canon, la
+        // cookie .place.community se propaga automáticamente → accept page
+        // detecta sesión inmediatamente.
+        postCredentialUrl: (
+          await buildPlaceCanonicalUrl({
+            slug: invitePreview.placeSlug,
+            path: `/invite/${rawInvite!.trim().toLowerCase()}`,
+          })
+        ),
+      }
+    : undefined;
 
   // Validación server-side single point del returnTo (ADR-0033 §"Contrato del
   // helper PURE validateLoginReturnTo"): rejects open-redirect, paths fuera
@@ -115,6 +170,12 @@ export default async function LoginPage({ params, searchParams }: Props) {
     loginFailedNotice: t("loginFailedNotice"),
     signupFailedNotice: t("signupFailedNotice"),
     back: t("back"),
+    // ADR-0046 §D2 — branding apex del invite flow. `t.raw` para inviteTitle
+    // porque tiene `{placeName}` placeholder que AccessFlow interpola client-
+    // side (mismo patrón que `terms`). Las otras 2 keys son strings planos.
+    inviteTitle: t.raw("inviteTitle"),
+    inviteSubtitle: t("inviteSubtitle"),
+    inviteAcceptHint: t("inviteAcceptHint"),
   };
 
   const auth: AccessSubmit = {
@@ -130,6 +191,7 @@ export default async function LoginPage({ params, searchParams }: Props) {
         locale={locale}
         returnTo={safeReturnTo ?? undefined}
         initialMode={initialMode}
+        inviteContext={inviteContext}
         termsHref={`/${locale}/terminos`}
         privacyHref={`/${locale}/privacidad`}
         homeHref={`/${locale}`}

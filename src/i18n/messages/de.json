@@ -249,7 +249,10 @@
     "submitting": "Einen Moment…",
     "loginFailedNotice": "Wir konnten dich nicht anmelden. Überprüfe E-Mail und Passwort.",
     "signupFailedNotice": "Wir konnten das Konto nicht erstellen. Hast du vielleicht schon eines? Versuche, dich anzumelden.",
-    "back": "Zurück zur Startseite"
+    "back": "Zurück zur Startseite",
+    "inviteTitle": "Du bist eingeladen, {placeName} beizutreten",
+    "inviteSubtitle": "Melde dich an oder erstelle ein neues Konto, um die Einladung anzunehmen.",
+    "inviteAcceptHint": "Danach bringen wir dich zur Annahme der Einladung."
   },
   "wizard": {
     "title": "Erstelle deinen Ort",

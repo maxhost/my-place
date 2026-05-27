@@ -108,7 +108,9 @@ inviteContext?: {
 
 **`onSuccess` override**: cuando `inviteContext !== undefined`, en lugar de `navigate(returnTo ?? hubDefault)`, navega a `inviteContext.postCredentialUrl`. La decisión de zone-aware ya se tomó server-side (en la page que renderiza `<AccessFlow>`); el Client NO toma decisiones DB-aware — solo navega lo que recibe.
 
-**Lookup server-side en `(marketing)/[locale]/login/page.tsx` + `(marketing)/[locale]/crear/page.tsx`**: cuando `searchParams.invite` está presente, la page server-side:
+**Lookup server-side en `(marketing)/[locale]/login/page.tsx` + `(marketing)/[locale]/crear/page.tsx`**[^crear-skip]: cuando `searchParams.invite` está presente, la page server-side:
+
+[^crear-skip]: **Corrección operacional Sesión B (2026-05-26, ver §"Addendum operacional — Sesión B")**: la mención a `/crear` en este párrafo era imprecisa. `/crear` renderiza `<PlaceWizard>` (3-step wizard para crear un place NUEVO), NO `<AccessFlow>`, y por ADR-0045 §D5 el invite signup CTA va a `/login?mode=signup` (nunca a `/crear`). Sesión B implementa SÓLO `/login?invite=`; `/crear` queda intacto.
 1. Llama `app.invitation_preview(token)` para obtener `placeSlug` + `placeName` + `invitee_email`.
 2. Si retorna null (token inválido/expirado/usado) → render normal sin branding (defense-in-depth: NO leak "este token no existe").
 3. Si retorna válido → construye `postCredentialUrl` via `buildPlaceCanonicalUrl({slug: placeSlug, path: '/invite/' + token})` para places sin custom domain, o via `sso-issue` builder helper nuevo para places con custom domain.
@@ -333,7 +335,7 @@ Considerado incluir colores del place en branding apex (no solo nombre, también
   - `src/shared/lib/auth-redirect.ts` — helper nuevo `buildPlaceCanonicalUrl` (Sesión A).
 - **Pages tocadas**:
   - `src/app/(marketing)/[locale]/login/page.tsx` — extension `?invite=` lookup + `inviteContext` prop al `<AccessFlow>` (Sesión B).
-  - `src/app/(marketing)/[locale]/crear/page.tsx` — extension `?invite=` lookup + `inviteContext` prop al `<AccessFlow>` (Sesión B).
+  - ~~`src/app/(marketing)/[locale]/crear/page.tsx` — extension `?invite=` lookup + `inviteContext` prop al `<AccessFlow>` (Sesión B).~~ **Corregido en Sesión B**: `/crear` renderiza `<PlaceWizard>` (no `<AccessFlow>`); por ADR-0045 §D5 el invite signup CTA va a `/login?mode=signup` (nunca a `/crear`). Ver §"Addendum operacional — Sesión B" abajo.
   - `src/app/(app)/place/[placeSlug]/settings/members/page.tsx` — wire al `buildPlaceCanonicalUrl` (Sesión A).
   - `src/app/(app)/place/[placeSlug]/invite/[token]/page.tsx` — wire al `buildPlaceCanonicalUrl` (Sesión A).
 - **Smoke matriz V1.2 (Sesión D)**: 2x2 escenarios canónicos:
@@ -393,3 +395,51 @@ Si en sesiones futuras el `lookupCustomDomainBySlug` necesitara semantics distin
 - **NO migration nueva más allá de 0022**: invariante "NO migration de schema" del ADR queda relajado a "NO migration de schema; sólo 1 DEFINER function nueva (paralela a 0009/0010)". Cero ALTER TABLE.
 
 **Save point pre-S1**: `baseline/feature-e-invite-v1.2-s0-done` = `670de5d`. Tag de cierre S1: `baseline/feature-e-invite-v1.2-s-a-done` (este commit).
+
+## Addendum operacional — Sesión B (2026-05-26)
+
+Las ADR son registro histórico; las decisiones D1-D7 + alternativas rechazadas + gaps no se editan. Esta sección registra una **corrección del plan operacional** descubierta al implementar Sesión B, sin cambiar el contrato ni las decisiones del ADR. Mismo pattern que el addendum de Sesión A.
+
+### El error documental detectado
+
+§D2 + §"Plan de implementación" Sesión B describían:
+
+> *"Lookup server-side en `(marketing)/[locale]/login/page.tsx` + `(marketing)/[locale]/crear/page.tsx` cuando `searchParams.invite` está presente […] Pasa `inviteContext` al `<AccessFlow>`"*
+
+Lectura empírica del código pre-implementación (canon `feedback_diagnose_before_fix`) reveló tres conflictos con esta línea:
+
+1. **`/crear` NO renderiza `<AccessFlow>`** — renderiza `<PlaceWizard>` (3-step wizard para crear un place nuevo: identidad → estilo → cuenta). La prop `inviteContext` no existe ahí; agregarla requeriría refactor non-trivial de `<PlaceWizard>` fuera de scope V1.2.
+
+2. **ADR-0045 §D5 (2026-05-26, mismo día que ADR-0046)** explícitamente: *"`src/app/(marketing)/[locale]/crear/page.tsx` — PlaceWizard intacto"*. El invite signup CTA fue repivoteado a `/login?mode=signup` precisamente para NO duplicar el PlaceWizard.
+
+3. **Verificación de callsites en código**: el invite page (`invite/[token]/page.tsx`) construye ambos CTAs (login + signup) apuntando a `buildApexLoginUrl()` (que es `/login`). Cero referencias a `/crear?invite=` en el codebase. Implementar handling en `/crear` sería código muerto.
+
+### Lo corregido
+
+La decisión D2 (branding apex via `inviteContext`) queda intacta. Solo cambia el **inventario de pages tocadas**:
+
+- **`/login?invite=` implementado** según D2 — lookup server-side via `lookupInvitationPreview` + `inviteContext` al `<AccessFlow>`. ~30 LOC.
+- **`/crear?invite=` SKIPPED** con justificación arriba. PlaceWizard queda 100% intacto.
+- **Inline corrección documental** agregada en §D2 (footnote `[^crear-skip]`) + en §"Pages tocadas" (strikethrough + pointer a este addendum). Pattern: preservar el texto histórico, marcar el error, apuntar a la corrección. Las ADR no se reescriben.
+
+### Implementación efectiva Sesión B
+
+- **Helper TS nuevo `src/shared/lib/invitation-preview-lookup.ts`** — wrapper memoizado con React.cache sobre `app.invitation_preview` (DEFINER existente migration 0003). Anti-info-leak: colapsa todos los failure paths a `null` sin discriminator (a diferencia de `getInvitationMetaByToken` del invite page que distingue `not-found | cross-place-tampering | ok`). Token shape gate co-definido con los 3 puntos canon (`INVITE_PATH_PATTERN`, `TOKEN_PATTERN`, `acceptInvitationSchema`). ~95 LOC + 14 tests unit con mocks.
+
+- **`<AccessFlow>` extendido** (`src/features/access/ui/access-flow.tsx`) con prop `inviteContext?: { placeSlug; placeName; postCredentialUrl }`. Cuando presente: (a) reemplaza header `title` por `inviteTitle` con `{placeName}` interpolado client-side, (b) reemplaza subtitle por `inviteSubtitle`, (c) esconde el toggle login/signup (`<div role="group">`), (d) renderiza `inviteAcceptHint` debajo del submit button, (e) override `onSuccess` para navegar al `postCredentialUrl` (prioridad sobre `returnTo`/Hub default). Backwards-compat 100% sin `inviteContext` — V1 path intacto. ~40 LOC componente + 3 keys opcionales en `AccessLabels` + 7 tests RTL nuevos.
+
+- **`/login` page extendida** (`src/app/(marketing)/[locale]/login/page.tsx`) con parseo de `?invite=` + invocación de `lookupInvitationPreview` server-side + construcción del `postCredentialUrl` zone-aware via `buildPlaceCanonicalUrl({slug, path: '/invite/' + token})` (consume Sesión A) + hidratación de 3 nuevas labels i18n + pass-through del `inviteContext` al `<AccessFlow>`. ~30 LOC. Para places SIN custom domain, el flow cierra ya en Sesión B (cookie apex propaga al subdomain canon). Para places CON custom domain, el `postCredentialUrl` apuntará a custom domain pero la cookie NO propaga — Sesión C (silent SSO via `sso-init`) cierra ese gap.
+
+- **Invite page (`invite/[token]/page.tsx`) wire-up del param `&invite=<token>`** en `loginUrl` + `signupUrl` para que el apex login pueda detectar el branding context. ~3 LOC.
+
+- **i18n × 6 locales** — 3 nuevas keys en namespace `access`: `inviteTitle`, `inviteSubtitle`, `inviteAcceptHint`. Total 18 entries × 6 locales (es+en+fr+pt+de+ca). `pnpm check-translations` verde post-cambio.
+
+### Resultado operacional Sesión B
+
+- Helper verified via 14 tests unit (happy + token shape variants + DB error + drift + anti-info-leak + ...).
+- `<AccessFlow>` verified via 7 tests RTL nuevos (branding render + subtitle + toggle hidden + acceptHint + post-success navigate + signup variant + regression sin inviteContext).
+- `/login?invite=` wire-up verified via typecheck + smoke (Sesión D ejecuta E2E end-to-end).
+- Typecheck verde + suite full verde + i18n parity verde.
+- LOC delta totales: ~98 LOC code (helper + AccessFlow + AccessLabels + /login + invite page) vs ~70 estimado en plan-sesiones; ~140 LOC tests (helper + AccessFlow tests nuevos) vs ~50 estimado. Overshoot documentado.
+
+**Save point pre-S2**: `baseline/feature-e-invite-v1.2-s-a-done` = `8cc916b`. Tag de cierre S2: `baseline/feature-e-invite-v1.2-s-b-done` (este commit).

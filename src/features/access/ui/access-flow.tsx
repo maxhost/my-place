@@ -33,6 +33,7 @@ export function AccessFlow({
   locale,
   returnTo,
   initialMode,
+  inviteContext,
   termsHref,
   privacyHref,
   homeHref,
@@ -58,6 +59,18 @@ export function AccessFlow({
    *  SSO M1). Post-mount el user switchea tab via el botón visible
    *  (`switchMode()` del hook); el prop sólo decide initial state. */
   initialMode?: "login" | "signup";
+  /** ADR-0046 §D2 + §D3 (V1.2 Sesión B) — branding apex del invite flow.
+   *  La page `/login` resuelve server-side via `lookupInvitationPreview` y
+   *  pasa el shape ya derivado. El componente: (a) reemplaza header por
+   *  branding, (b) esconde toggle login/signup, (c) override `onSuccess`
+   *  al `postCredentialUrl` (prioridad sobre `returnTo`/Hub default).
+   *  **NUNCA confiar en `postCredentialUrl` sin validación server-side**
+   *  (mismo principio que `returnTo`). */
+  inviteContext?: {
+    placeSlug: string;
+    placeName: string;
+    postCredentialUrl: string;
+  };
   termsHref: string;
   privacyHref: string;
   homeHref: string;
@@ -68,44 +81,63 @@ export function AccessFlow({
     labels,
     auth,
     initialMode,
-    // Closure sobre `returnTo`: la decisión vive aquí (no en el hook), que
-    // se mantiene agnóstico del destino post-auth. Decisión documentada en
-    // ADR-0033 §"Wire-up useAccessForm" — superficie del hook intacta.
+    // Prioridad post-auth: `inviteContext.postCredentialUrl` > `returnTo` >
+    // Hub canónico (ADR-0046 §D2 + ADR-0033 §"Wire-up useAccessForm").
     onSuccess: () =>
-      navigate(returnTo ?? `https://app.place.community/${locale}/`),
+      navigate(
+        inviteContext?.postCredentialUrl ??
+          returnTo ??
+          `https://app.place.community/${locale}/`,
+      ),
   });
   const l = labels;
+
+  // ADR-0046 §D2 — branding apex. Safety net: si las keys i18n de branding
+  // no están hidratadas (drift de mensajes), cae al header default.
+  const showInviteBranding =
+    inviteContext !== undefined && typeof l.inviteTitle === "string";
+  const headerTitle = showInviteBranding
+    ? l.inviteTitle!.replace("{placeName}", inviteContext.placeName)
+    : l.title;
+  const headerSubtitle =
+    showInviteBranding && typeof l.inviteSubtitle === "string"
+      ? l.inviteSubtitle
+      : l.subtitle;
 
   const termsParts = l.terms.split(/(\{terms\}|\{privacy\})/);
 
   return (
     <section className="mx-auto flex w-full max-w-[28rem] flex-col gap-6 px-6 py-12">
       <header className="flex flex-col gap-1">
-        <h1 className="text-3xl text-ink">{l.title}</h1>
-        <p className="text-sm text-muted">{l.subtitle}</p>
+        <h1 className="text-3xl text-ink">{headerTitle}</h1>
+        <p className="text-sm text-muted">{headerSubtitle}</p>
       </header>
 
-      <div
-        className="flex gap-2"
-        role="group"
-        aria-label={l.title}
-      >
-        {(["login", "signup"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            aria-pressed={a.mode === m}
-            onClick={() => a.switchMode(m)}
-            className={`min-h-[2.75rem] flex-1 rounded-lg border px-4 text-sm ${
-              a.mode === m
-                ? "border-accent-strong text-ink"
-                : "border-border text-muted"
-            }`}
-          >
-            {m === "login" ? l.loginTab : l.signupTab}
-          </button>
-        ))}
-      </div>
+      {/* ADR-0046 §D3: toggle escondido en invite path (el invitee llegó vía
+       *  CTA específico; `initialMode` decide qué form renderiza). */}
+      {!showInviteBranding && (
+        <div
+          className="flex gap-2"
+          role="group"
+          aria-label={l.title}
+        >
+          {(["login", "signup"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              aria-pressed={a.mode === m}
+              onClick={() => a.switchMode(m)}
+              className={`min-h-[2.75rem] flex-1 rounded-lg border px-4 text-sm ${
+                a.mode === m
+                  ? "border-accent-strong text-ink"
+                  : "border-border text-muted"
+              }`}
+            >
+              {m === "login" ? l.loginTab : l.signupTab}
+            </button>
+          ))}
+        </div>
+      )}
 
       <form
         className="flex flex-col gap-4"
@@ -236,6 +268,12 @@ export function AccessFlow({
               ? l.signupSubmit
               : l.loginSubmit}
         </button>
+
+        {/* ADR-0046 §D2 — hint post-submit del invite flow (safety net si
+         *  la key i18n no está hidratada: se omite sin romper). */}
+        {showInviteBranding && typeof l.inviteAcceptHint === "string" && (
+          <p className="text-center text-sm text-muted">{l.inviteAcceptHint}</p>
+        )}
       </form>
 
       <a
