@@ -169,6 +169,13 @@
       "when": 1779749135357,
       "tag": "0023_lookup_user_email_by_id",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1779749235357,
+      "tag": "0024_lookup_user_identity_by_id",
+      "breakpoints": true
     }
   ]
 }
