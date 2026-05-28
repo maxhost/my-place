@@ -8,7 +8,7 @@ import {
   buildApexLoginUrl,
   buildPlaceCanonicalUrl,
 } from "@/shared/lib/auth-redirect";
-import { getCurrentUserEmailForRequest } from "@/shared/lib/current-user-email";
+import { getCurrentUserIdentityForRequest } from "@/shared/lib/current-user-identity";
 import { isServiceableSlug } from "@/shared/lib/host-routing";
 import { rootDomain } from "@/shared/lib/root-domain";
 
@@ -32,13 +32,15 @@ import { getInvitationMetaByToken } from "./_lib/get-invitation-meta-by-token";
 // 2. `getInvitationMetaByToken(token, placeSlug)` — wraps
 //    `app.invitation_preview` + tampering check + token shape gate. Cualquier
 //    `kind !== 'ok'` → `notFound()` (404 sin doxx, anti-info-leak).
-// 3. Session detect via `getCurrentUserEmailForRequest()` — RSC zone-aware
-//    (ADR-0046 §"Addendum operacional — Sesión D.fix", 2026-05-27). Lee la
-//    cookie correcta según la zona (Neon Auth en apex/subdomain/inbox; SSO
-//    local en custom domain) via el coordinator `getAuthenticatedDbForRequest`
-//    (ADR-0034). El invitee típicamente NO es owner del place, así que
-//    `getPlaceForZone` retornaría null sin agregar info. Sólo necesitamos el
-//    email para que el panel decida match / mismatch pre-action.
+// 3. Session detect via `getCurrentUserIdentityForRequest()` — RSC zone-aware
+//    unificado (ADR-0046 §"Addendum operacional — Sesión D.fix.3", 2026-05-27,
+//    supersede al `getCurrentUserEmailForRequest` de D.fix.1). Lee la cookie
+//    correcta según la zona (Neon Auth en apex/subdomain/inbox; SSO local en
+//    custom domain) via el coordinator `getAuthenticatedDbForRequest` (ADR-
+//    0034). El invitee típicamente NO es owner del place, así que `getPlace
+//    ForZone` retornaría null sin agregar info. Acá usamos sólo `.email` para
+//    decidir match/mismatch — el integrator también expone `authUserId` y
+//    `displayName` que el Server Action consume.
 // 4. Locale resolution: `place.default_locale` no es lecturable owner-only
 //    sin sesión apex válida, así que para el invitee anónimo usamos el
 //    lookup anónimo `getPlaceLocaleFallback(placeSlug)` (memoizado por
@@ -87,13 +89,16 @@ export default async function InviteAcceptPage({ params }: Props) {
   const meta = await getInvitationMetaByToken(token, placeSlug);
   if (meta.kind !== "ok") notFound();
 
-  // (3) Session detect zone-aware (ADR-0046 §"Addendum operacional — Sesión
-  // D.fix"). Custom domain monta cookie local SSO host-only (no apex JWT),
-  // así que el coordinator detecta la zona y lee la cookie correcta. El
-  // invitee típicamente NO es owner del place, así que no usamos
-  // `getPlaceForZone` (RLS retornaría null sin info útil). Sólo necesitamos
-  // el email para decidir match/mismatch en el panel.
-  const currentUserEmail = await getCurrentUserEmailForRequest();
+  // (3) Session detect zone-aware unificado (ADR-0046 §"Addendum operacional
+  // — Sesión D.fix.3"). Custom domain monta cookie local SSO host-only (no
+  // apex JWT), así que el coordinator detecta la zona y lee la cookie
+  // correcta. El invitee típicamente NO es owner del place, así que no usamos
+  // `getPlaceForZone` (RLS retornaría null sin info útil). Acá descartamos
+  // `authUserId` + `displayName`; sólo el email decide match/mismatch en el
+  // panel — el integrator es el mismo que el Server Action consume completo,
+  // single source of truth zone-aware (cierra Bug B del smoke V1.2 2x2).
+  const currentUserEmail =
+    (await getCurrentUserIdentityForRequest())?.email ?? null;
 
   // (4) Locale resolution. Visitor anónimo / non-owner: `place.default_
   // locale` no es lecturable sin sesión owner. `getPlaceLocaleFallback`

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getAuth } from "@/shared/lib/auth";
+import { getCurrentUserIdentityForRequest } from "@/shared/lib/current-user-identity";
 import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
 import { ensureAppUser } from "@/shared/lib/ensure-app-user";
 
@@ -31,11 +31,24 @@ import {
 // 0006, ON CONFLICT DO NOTHING) → no-op si ya existía (caso login normal de
 // un user existente).
 //
-// Identidad de la sesión: `getAuth().getSession()` espejo de
-// `place-creation/actions.ts:33-45`. `claims.sub` viene del JWT verificado
-// dentro de `getAuthenticatedDbForRequest` (el helper inyecta claims al
-// callback) → identidad = la misma que RLS lee. Sin sesión → short-circuit
-// `unauthenticated` (la DEFINER tiraría 28000 igual, pero ahorramos round-trip).
+// ## Identidad zone-aware (V1.2 Sesión D.fix.3, ADR-0046 §Addendum Sesión D.fix.3)
+//
+// Pre-D.fix.3 leíamos identity con `getAuth().getSession()` (Neon Auth SDK).
+// Bug B del smoke 2x2 V1.2: en custom domain, el SDK SOLO lee la cookie
+// `Domain=.place.community` — NO la cookie local SSO `__Host-place_sso_
+// session`. Resultado: action retornaba `unauthenticated` aunque el invitee
+// tuviera sesión activa post SSO-chain en `nocodecompany.co`. Mismo gap
+// arquitectónico que D.fix.1/D.fix.2 cerraron para readers RSC, ahora aplicado
+// al Server Action.
+//
+// `getCurrentUserIdentityForRequest()` (`shared/lib/current-user-identity.ts`)
+// usa el coordinator zone-aware (ADR-0034) y devuelve `{authUserId, email,
+// displayName}` atómico: los 3 campos derivan del MISMO `claims.sub` dentro
+// de una sola TX. Esto strictly mejora vs pre-D.fix.3: en el pattern viejo,
+// email/displayName venían del SDK y `authUserId` de la TX del coordinator —
+// teóricamente desincronizables si la sesión cambiara entre lookups (cerrado
+// ahora con un único lookup atómico). Null → short-circuit `unauthenticated`
+// (la DEFINER tiraría 28000 igual, pero ahorramos 2 round-trips).
 //
 // ## TX 2 — `app.accept_invitation`
 //
@@ -63,15 +76,14 @@ export async function acceptInvitationAction(
   const { token, placeSlug } = parsed.data;
 
   try {
-    const session = await getAuth().getSession();
-    if (!session.data?.session) {
+    const identity = await getCurrentUserIdentityForRequest();
+    if (identity === null) {
       return { status: "error", error: { kind: "unauthenticated" } };
     }
-    const email = session.data.user.email ?? "";
-    const displayName = session.data.user.name ?? "";
+    const { authUserId, email, displayName } = identity;
 
-    await getAuthenticatedDbForRequest((sql, claims) =>
-      ensureAppUser(sql, { authUserId: claims.sub, email, displayName }),
+    await getAuthenticatedDbForRequest((sql) =>
+      ensureAppUser(sql, { authUserId, email, displayName }),
     );
 
     const rows = (await getAuthenticatedDbForRequest((sql) =>
