@@ -2,6 +2,7 @@
 
 import { generateObject } from "ai";
 import { z } from "zod";
+import { getCurrentUserIdentityForRequest } from "@/shared/lib/current-user-identity";
 import { type StyleSuggestionResult, suggestStyle } from "./suggest-style";
 
 // Wiring VIVO del Vercel AI Gateway (S10a, ADR-0005 §5 / ADR-0007). Seam-split
@@ -10,6 +11,17 @@ import { type StyleSuggestionResult, suggestStyle } from "./suggest-style";
 // guardrail + degradación elegante) está testeada en `suggest-style.test.ts`
 // con el puerto inyectado. NUNCA persiste: propose-only (el owner confirma
 // cada parte en S10b, ADR-0005 §6).
+//
+// ## Auth gate (Phase 0.A tech-debt closure, 2026-05-28)
+//
+// El endpoint LLM debe estar gated por sesión para evitar cost-amplification
+// por visitor anónimo invocando el AI Gateway sin pagar el costo de signup.
+// Identidad mínima vía integrator zone-aware (ADR-0046 §D.fix.3) — el wizard
+// que consume esta action vive en `/crear` apex, así que el visitor SIEMPRE
+// tiene sesión Neon Auth si llegó al paso de style-assist. Si no la tiene
+// (e.g. cookie expirada mid-wizard, o caller no-canónico), degrada a
+// `unavailable` per contrato del slice — la asistencia LLM es opcional, su
+// caída jamás rompe el wizard (ADR-0005 §5).
 
 // Modelo: punto ÚNICO de cambio. String `"provider/model"` plano → Vercel AI
 // Gateway (default Vercel; `AI_GATEWAY_API_KEY` en env, no se ata a un paquete
@@ -48,6 +60,11 @@ const SYSTEM = [
 export async function suggestStyleAction(
   description: string,
 ): Promise<StyleSuggestionResult> {
+  // Auth gate: visitor anónimo → `unavailable` (anti-cost-amplification LLM).
+  // Ver JSDoc §"Auth gate" arriba.
+  const identity = await getCurrentUserIdentityForRequest();
+  if (identity === null) return { status: "unavailable" };
+
   return suggestStyle(description, {
     suggest: async (text) => {
       const { object } = await generateObject({

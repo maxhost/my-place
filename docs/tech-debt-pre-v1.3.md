@@ -23,13 +23,13 @@
 
 | Phase | Sesiones | Completadas | Tag pre-phase | Tag post-phase |
 |-------|----------|-------------|---------------|----------------|
-| **0 — Bloqueantes** | 5 | 0/5 | `baseline/pre-phase-0-tech-debt` ✅ | _pending_ |
+| **0 — Bloqueantes** | 5 | 1/5 | `baseline/pre-phase-0-tech-debt` ✅ | _pending_ |
 | **1 — Hardening** | 7 | 0/7 | _pending_ | _pending_ |
 | **2 — Tests + docs** | 8 | 0/8 | _pending_ | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 0/26 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 1/26 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -39,15 +39,15 @@
 
 Sin estos items V1.3 introduce regresiones invisibles o bloquea onboarding.
 
-### Sesión 0.A — Quick wins UI + dep fix [~45min]
+### Sesión 0.A — Quick wins UI + dep fix [~45min] ✅
 
-- [ ] Fix `bg-primary`/`text-primary-foreground` muertos en `src/features/custom-domain-routing/ui/sso-fallback-panel.tsx:131` + `auth-gate.tsx:122` → reemplazar por `.cta` (semántica) o `bg-[--accent-strong] text-accent-ink`
-- [ ] Gate auth en `src/features/style-assist/suggest-style-action.ts:48` → llamar `getCurrentUserIdentityForRequest()` + early return error si null (anti-cost-amplification LLM)
-- [ ] Reclasificar `ws` de `devDependencies` → `dependencies` en `package.json` (es runtime via `src/db/client.ts`, Vercel prune podría romper prod)
+- [x] Fix `bg-primary`/`text-primary-foreground` muertos en `src/features/custom-domain-routing/ui/sso-fallback-panel.tsx:131` + `auth-gate.tsx:122` → reemplazados por `cta inline-flex w-fit items-center justify-center rounded-md px-5 py-2.5 text-sm font-medium`. La clase `.cta` (globals.css:67-75) cubre background+color+hover; `:focus-visible` global cubre outline. Removidos: `bg-primary`, `text-primary-foreground`, `transition-colors`, `hover:bg-primary/90`, 3× `focus-visible:outline-*`
+- [x] Gate auth en `src/features/style-assist/suggest-style-action.ts:48` → agregado import `getCurrentUserIdentityForRequest` + early return `{status: "unavailable"}` si `identity === null`. Degrada al mismo branch que falla LLM (consistente con contrato del slice ADR-0005 §5: "asistencia opcional, su caída jamás rompe el wizard"). JSDoc actualizado con sección "Auth gate (Phase 0.A)" explicando rationale anti-cost-amplification
+- [x] Reclasificar `ws` (`^8.20.1`) de `devDependencies` → `dependencies` en `package.json`. Lockfile regenerado con `pnpm install` (sin cambios estructurales, solo reclassification)
 
-**Acceptance**: typecheck + lint verdes · UI dev local muestra CTAs estilados en sso-fallback + auth-gate · `pnpm install --prod` incluye `ws`.
+**Acceptance**: typecheck ✅ · lint ✅ · `ws` ahora en deps → `pnpm install --prod` lo incluirá (verificado con grep en package.json post-edit)
 
-**Commit**: _pending_ · **Tag**: _opcional_
+**Commit**: _ver siguiente commit_ · **Tag**: _no aplica (no load-bearing)_
 
 ---
 
