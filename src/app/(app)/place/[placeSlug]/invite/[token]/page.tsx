@@ -184,7 +184,6 @@ export default async function InviteAcceptPage({ params }: Props) {
     <main id="contenido" className="flex min-h-screen flex-col">
       <InviteAcceptancePanel
         token={token}
-        placeSlug={placeSlug}
         placeName={meta.placeName}
         inviteeEmail={meta.inviteeEmail}
         currentUserEmail={currentUserEmail}

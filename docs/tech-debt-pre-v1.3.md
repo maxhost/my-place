@@ -24,12 +24,12 @@
 | Phase | Sesiones | Completadas | Tag pre-phase | Tag post-phase |
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
-| **1 — Hardening** | 7 | 2/7 | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending_ |
+| **1 — Hardening** | 7 | 3/7 | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending_ |
 | **2 — Tests + docs** | 9 | 0/9 | _pending_ | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 7/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 8/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -255,20 +255,28 @@ Cleanup directo del cluster auth + DB + invite. Evita acumulación durante V1.3.
 
 ---
 
-### Sesión 1.C — Tests infra + cleanup schema [~2.5h]
+### Sesión 1.C — Tests infra + cleanup schema [~2.5h] ✅
 
-- [ ] Crear `src/db/__tests__/_factories/` con helpers reutilizables:
-  - `makeUser(overrides?)` → seed en `neon_auth.user` + `app_user`
-  - `makePlace(opts: {ownerUserId, slug?, ...})` → place + ownership
-  - `makeInvitation(opts: {placeId, email, ...})` → invitation row + token
-  - `makeMembership(opts: {userId, placeId, headline?})` → membership
-- [ ] Refactor 3-4 tests integration que duplican setup más obvio para usar factories (no migrar todos en una sesión, solo proof-of-pattern)
-- [ ] Drop campo `placeSlug` del Zod schema en `src/features/invitations/actions/_lib/schemas.ts`:
-  - Schema: remove field
-  - Tipo `AcceptInvitationInput`: remove field
-  - Caller `invite-acceptance-panel.tsx`: stop sending `placeSlug` en payload del POST
+- [x] Crear `src/db/__tests__/_factories/index.ts` (single file, ~180 LOC) con helpers reutilizables:
+  - `makeUser(tx, overrides?)` → seed `app_user` (counter monotónico para defaults únicos)
+  - `makePlace(tx, {founderUserId, slug?, ...})` → place + `place_ownership` del founder (opt-out con `ownerSeed: false`)
+  - `makeOwnership(tx, {userId, placeId})` → row extra de `place_ownership` (co-owners)
+  - `makeMembership(tx, {userId, placeId, leftAt?})` → membership active (NULL) o ex-miembro (leftAt date)
+  - `makeInvitation(tx, {placeId, email, invitedByUserId, expiresInDays?, acceptedAt?})` → invitation row + token único 64-char
+  - `captureError(tx, sql, params?)` → SAVEPOINT-based error capture {code, message} (extraído de 7 tests duplicados)
+  - **Decisión 1.C**: `makeUser` siembra SÓLO `app_user` (NO `neon_auth.user`) — el harness inyecta claim `sub` por `set_config`, no por JWKS round-trip. Matched a la realidad actual de los tests; factory de `neon_auth.user` se agrega cuando V1.1+ un test la necesite (anti-premature-abstraction)
+- [x] Refactor 3 tests integration proof-of-pattern: `create-invitation.test.ts`, `revoke-invitation.test.ts`, `remove-member.test.ts` (todos comparten `seedScenario` casi idéntico con 4-5 users + 2 places + memberships variadas). Cada uno -30 a -45 LOC del setup. NO migrados los otros 4 con `captureError` (proof suficiente; el resto se migra a demanda)
+- [x] Drop campo `placeSlug` del `acceptInvitationSchema`:
+  - Schema: removido `placeSlug: z.string().min(1).optional()` (con nota explicativa: el campo era para `revalidatePath` ya dropeado en V1.2 D.fix.4)
+  - Tipo `AcceptInvitationInput`: heredado del schema (`z.infer`), automáticamente sin field
+  - Action `accept-invitation.ts`: removido comment huérfano que decía "placeSlug ignorado post-D.fix.4"
+  - Panel `invite-acceptance-panel.tsx`: removido prop + campo del POST (`acceptInvitationAction({ token })`)
+  - Page `[token]/page.tsx`: removido `placeSlug={placeSlug}` del render del panel
+  - Tests: `schemas.test.ts` (fusionado los 2 happy paths a uno solo, -1 test del count) + `invite-acceptance-panel.test.tsx` (removido `placeSlug` del `baseProps` + del `expect(action).toHaveBeenCalledWith`)
 
-**Acceptance**: factories tests pasan · tests refactoreados se ven más limpios (~30 LOC menos cada uno) · accept-invitation action recibe payload sin `placeSlug` · tests del action siguen verdes.
+**Acceptance** (verificado 2026-05-28): typecheck ✅ · vitest node 948/948 ✅ (baseline 949, -1 esperado por test merge en schemas) · vitest ui 211/211 ✅. Tests refactoreados pasan con factories. Action recibe payload sin `placeSlug`.
+
+**Decisión**: factories como `_factories/index.ts` single-file (vs un archivo por factory) — ~180 LOC totales, manejable; split a 1-archivo-por-factory cuando crezca a >300 LOC. Counter monotónico shared entre factories para evitar colisiones cross-factory en UNIQUE constraints.
 
 **Commit**: _pending_
 

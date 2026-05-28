@@ -1,5 +1,13 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { endRlsAdminPool, inRlsTx, type RlsTx } from "./db-test-pool";
+import {
+  captureError,
+  makeInvitation,
+  makeMembership,
+  makeOwnership,
+  makePlace,
+  makeUser,
+} from "./_factories";
 
 // Feature E · S3 (ADR-0010 §2 + spec §CU3, 2026-05-24) — 2do mutador DEFINER
 // del flow invitations. Cancela una invitation pending: DELETE físico (la
@@ -41,14 +49,10 @@ import { endRlsAdminPool, inRlsTx, type RlsTx } from "./db-test-pool";
 //   `current_user_owns_place` que internamente lee el claim.
 //
 // Patrón seed-as-owner / assert-as-`app_system` heredado de
-// `create-invitation.test.ts` (precedent S2). ROLLBACK siempre.
+// `create-invitation.test.ts` (precedent S2). Factories de `_factories/`
+// (Phase 1.C). ROLLBACK siempre.
 
 afterAll(() => endRlsAdminPool());
-
-const APP_USER = `INSERT INTO app_user (auth_user_id,email,display_name,handle)
-                  VALUES ($1,$2,'X',$3) RETURNING id`;
-const PLACE = `INSERT INTO place (slug,name,billing_mode,founder_user_id)
-               VALUES ($1,$2,'OWNER_PAYS',$3) RETURNING id`;
 
 // Escenario canónico S3:
 //   - place-a: alice founder+owner, bob co-owner, carol miembro no-owner.
@@ -59,66 +63,50 @@ const PLACE = `INSERT INTO place (slug,name,billing_mode,founder_user_id)
 //       invExpiredA: place-a, expires_at < now() AND accepted_at NULL.
 //       invPendingB: place-b, pending (para cross-place test).
 async function seedScenario(tx: RlsTx) {
-  const [{ id: uA }] = (await tx.seed(APP_USER, ["authA", "a@x.com", "h_a"])) as Array<{ id: string }>;
-  const [{ id: uB }] = (await tx.seed(APP_USER, ["authB", "b@x.com", "h_b"])) as Array<{ id: string }>;
-  const [{ id: uC }] = (await tx.seed(APP_USER, ["authC", "c@x.com", "h_c"])) as Array<{ id: string }>;
-  const [{ id: pidA }] = (await tx.seed(PLACE, ["place-a", "Place A", uA])) as Array<{ id: string }>;
-  const [{ id: pidB }] = (await tx.seed(PLACE, ["place-b", "Place B", uC])) as Array<{ id: string }>;
-  // place-a: alice founder+owner, bob co-owner. place-b: carol founder+owner.
-  await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [uA, pidA]);
-  await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [uB, pidA]);
-  await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [uC, pidB]);
+  const alice = await makeUser(tx, { authUserId: "authA" });
+  const bob = await makeUser(tx, { authUserId: "authB" });
+  const carol = await makeUser(tx, { authUserId: "authC" });
+  const placeA = await makePlace(tx, { slug: "place-a", name: "Place A", founderUserId: alice.userId });
+  const placeB = await makePlace(tx, { slug: "place-b", name: "Place B", founderUserId: carol.userId });
+  await makeOwnership(tx, { userId: bob.userId, placeId: placeA.placeId });
   // Memberships en place-a: alice/bob/carol activos (carol no-owner).
-  await tx.seed(
-    `INSERT INTO membership (user_id,place_id) VALUES ($1,$2),($3,$2),($4,$2)`,
-    [uA, pidA, uB, uC],
-  );
-  // 4 invitations: token único por sufijo determinístico para no colisionar
-  // con el UNIQUE constraint. Las inserciones bypass el gate DEFINER porque
-  // tx.seed corre como rol admin (no app_system) sin RLS aplicada.
-  const [{ id: invPendingA }] = (await tx.seed(
-    `INSERT INTO invitation (place_id,email,invited_by,expires_at,token)
-     VALUES ($1, $2, $3, now() + interval '7 days', $4) RETURNING id`,
-    [pidA, "pending@test.com", uA, "tok_pendA_" + "0".repeat(54)],
-  )) as Array<{ id: string }>;
-  const [{ id: invAcceptedA }] = (await tx.seed(
-    `INSERT INTO invitation (place_id,email,invited_by,expires_at,token,accepted_at)
-     VALUES ($1, $2, $3, now() + interval '7 days', $4, now()) RETURNING id`,
-    [pidA, "accepted@test.com", uA, "tok_acceptA_" + "0".repeat(52)],
-  )) as Array<{ id: string }>;
-  const [{ id: invExpiredA }] = (await tx.seed(
-    `INSERT INTO invitation (place_id,email,invited_by,expires_at,token)
-     VALUES ($1, $2, $3, now() - interval '1 day', $4) RETURNING id`,
-    [pidA, "expired@test.com", uA, "tok_expirA_" + "0".repeat(53)],
-  )) as Array<{ id: string }>;
-  const [{ id: invPendingB }] = (await tx.seed(
-    `INSERT INTO invitation (place_id,email,invited_by,expires_at,token)
-     VALUES ($1, $2, $3, now() + interval '7 days', $4) RETURNING id`,
-    [pidB, "pendingB@test.com", uC, "tok_pendB_" + "0".repeat(54)],
-  )) as Array<{ id: string }>;
-  return { uA, uB, uC, pidA, pidB, invPendingA, invAcceptedA, invExpiredA, invPendingB };
-}
-
-// SAVEPOINT-based error capture (mismo helper que create-invitation.test.ts).
-async function captureError(
-  tx: RlsTx,
-  sql: string,
-  params?: unknown[],
-): Promise<{ code: string | null; message: string | null }> {
-  await tx.q("SAVEPOINT sp_err");
-  let result: { code: string | null; message: string | null } = {
-    code: null,
-    message: null,
+  await makeMembership(tx, { userId: alice.userId, placeId: placeA.placeId });
+  await makeMembership(tx, { userId: bob.userId, placeId: placeA.placeId });
+  await makeMembership(tx, { userId: carol.userId, placeId: placeA.placeId });
+  // 4 invitations: tokens distintos por counter interno de la factory.
+  const invPendingA = await makeInvitation(tx, {
+    placeId: placeA.placeId,
+    email: "pending@test.com",
+    invitedByUserId: alice.userId,
+  });
+  const invAcceptedA = await makeInvitation(tx, {
+    placeId: placeA.placeId,
+    email: "accepted@test.com",
+    invitedByUserId: alice.userId,
+    acceptedAt: new Date(),
+  });
+  const invExpiredA = await makeInvitation(tx, {
+    placeId: placeA.placeId,
+    email: "expired@test.com",
+    invitedByUserId: alice.userId,
+    expiresInDays: -1,
+  });
+  const invPendingB = await makeInvitation(tx, {
+    placeId: placeB.placeId,
+    email: "pendingB@test.com",
+    invitedByUserId: carol.userId,
+  });
+  return {
+    uA: alice.userId,
+    uB: bob.userId,
+    uC: carol.userId,
+    pidA: placeA.placeId,
+    pidB: placeB.placeId,
+    invPendingA: invPendingA.invitationId,
+    invAcceptedA: invAcceptedA.invitationId,
+    invExpiredA: invExpiredA.invitationId,
+    invPendingB: invPendingB.invitationId,
   };
-  try {
-    await tx.q(sql, params);
-  } catch (e) {
-    const err = e as { code?: string; message?: string };
-    result = { code: err.code ?? null, message: err.message ?? null };
-  }
-  await tx.q("ROLLBACK TO SAVEPOINT sp_err");
-  await tx.q("RELEASE SAVEPOINT sp_err");
-  return result;
 }
 
 describe("S3 app.revoke_invitation — DEFINER invitation revoker (ADR-0010 §2 + spec §CU3)", () => {

@@ -39,7 +39,6 @@ const labels: InviteAcceptancePanelLabels = {
 
 const baseProps = {
   token: "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd",
-  placeSlug: "mi-place",
   placeName: "Mi Place",
   inviteeEmail: "invitee@example.com",
   loginUrl:
@@ -183,7 +182,7 @@ describe("InviteAcceptancePanel — render auth email mismatch (CU-Accept-3)", (
 });
 
 describe("InviteAcceptancePanel — submit accept (CU-Accept-4)", () => {
-  it("4. click Accept → action invoked con { token, placeSlug }", async () => {
+  it("4. click Accept → action invoked con { token }", async () => {
     const action = buildAction({ status: "success", placeSlug: "mi-place" });
     const onLogout = vi.fn();
     const navigate = vi.fn();
@@ -204,7 +203,6 @@ describe("InviteAcceptancePanel — submit accept (CU-Accept-4)", () => {
     await waitFor(() => expect(action).toHaveBeenCalledTimes(1));
     expect(action).toHaveBeenCalledWith({
       token: baseProps.token,
-      placeSlug: baseProps.placeSlug,
     });
   });
 

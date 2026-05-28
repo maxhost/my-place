@@ -154,7 +154,6 @@ const errorPanelCls =
 
 export function InviteAcceptancePanel({
   token,
-  placeSlug,
   placeName,
   inviteeEmail,
   currentUserEmail,
@@ -168,7 +167,6 @@ export function InviteAcceptancePanel({
   labels,
 }: {
   token: string;
-  placeSlug: string;
   placeName: string;
   inviteeEmail: string;
   currentUserEmail: string | null;
@@ -208,7 +206,7 @@ export function InviteAcceptancePanel({
   async function handleAccept() {
     if (state.status === "accepting" || state.status === "success") return;
     setState({ status: "accepting" });
-    const result = await acceptInvitationAction({ token, placeSlug });
+    const result = await acceptInvitationAction({ token });
     if (result.status === "success") {
       setState({ status: "success" });
       navigate(placeHomeUrl);

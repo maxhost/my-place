@@ -1,5 +1,12 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { endRlsAdminPool, inRlsTx, type RlsTx } from "./db-test-pool";
+import {
+  captureError,
+  makeMembership,
+  makeOwnership,
+  makePlace,
+  makeUser,
+} from "./_factories";
 
 // Feature E · S4 (spec §CU4, 2026-05-24) — 3er mutador DEFINER del slice
 // members. Soft-remove de miembro vía UPDATE `membership.left_at = now()`
@@ -37,14 +44,10 @@ import { endRlsAdminPool, inRlsTx, type RlsTx } from "./db-test-pool";
 // del ex-miembro (ontologia §"Cuatro — Derecho al olvido estructurado").
 //
 // Patrón seed-as-owner / assert-as-`app_system` heredado de
-// `revoke-invitation.test.ts` (precedent S3). ROLLBACK siempre.
+// `revoke-invitation.test.ts` (precedent S3). Factories de `_factories/`
+// (Phase 1.C). ROLLBACK siempre.
 
 afterAll(() => endRlsAdminPool());
-
-const APP_USER = `INSERT INTO app_user (auth_user_id,email,display_name,handle)
-                  VALUES ($1,$2,'X',$3) RETURNING id`;
-const PLACE = `INSERT INTO place (slug,name,billing_mode,founder_user_id)
-               VALUES ($1,$2,'OWNER_PAYS',$3) RETURNING id`;
 
 // Escenario canónico S4:
 //   - place-a: alice founder+owner, bob co-owner, carol miembro activo
@@ -54,53 +57,31 @@ const PLACE = `INSERT INTO place (slug,name,billing_mode,founder_user_id)
 //     sin ser owner allí).
 //   - eve: app_user existe pero SIN membership en ningún place (T7).
 async function seedScenario(tx: RlsTx) {
-  const [{ id: uA }] = (await tx.seed(APP_USER, ["authA", "a@x.com", "h_a"])) as Array<{ id: string }>;
-  const [{ id: uB }] = (await tx.seed(APP_USER, ["authB", "b@x.com", "h_b"])) as Array<{ id: string }>;
-  const [{ id: uC }] = (await tx.seed(APP_USER, ["authC", "c@x.com", "h_c"])) as Array<{ id: string }>;
-  const [{ id: uD }] = (await tx.seed(APP_USER, ["authD", "d@x.com", "h_d"])) as Array<{ id: string }>;
-  const [{ id: uE }] = (await tx.seed(APP_USER, ["authE", "e@x.com", "h_e"])) as Array<{ id: string }>;
-  const [{ id: pidA }] = (await tx.seed(PLACE, ["place-a", "Place A", uA])) as Array<{ id: string }>;
-  const [{ id: pidB }] = (await tx.seed(PLACE, ["place-b", "Place B", uC])) as Array<{ id: string }>;
-  // place-a: alice founder+owner, bob co-owner. place-b: carol founder+owner.
-  await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [uA, pidA]);
-  await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [uB, pidA]);
-  await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [uC, pidB]);
-  // Memberships en place-a: alice/bob/carol activos (left_at NULL por DEFAULT
-  // del schema — la columna es nullable sin DEFAULT explícito, queda NULL).
-  await tx.seed(
-    `INSERT INTO membership (user_id,place_id) VALUES ($1,$2),($3,$2),($4,$2)`,
-    [uA, pidA, uB, uC],
-  );
+  const alice = await makeUser(tx, { authUserId: "authA" });
+  const bob = await makeUser(tx, { authUserId: "authB" });
+  const carol = await makeUser(tx, { authUserId: "authC" });
+  const dave = await makeUser(tx, { authUserId: "authD" });
+  const eve = await makeUser(tx, { authUserId: "authE" });
+  const placeA = await makePlace(tx, { slug: "place-a", name: "Place A", founderUserId: alice.userId });
+  const placeB = await makePlace(tx, { slug: "place-b", name: "Place B", founderUserId: carol.userId });
+  await makeOwnership(tx, { userId: bob.userId, placeId: placeA.placeId });
+  // Memberships en place-a: alice/bob/carol activos.
+  await makeMembership(tx, { userId: alice.userId, placeId: placeA.placeId });
+  await makeMembership(tx, { userId: bob.userId, placeId: placeA.placeId });
+  await makeMembership(tx, { userId: carol.userId, placeId: placeA.placeId });
   // Dave ex-miembro de place-a (left_at NOT NULL — ya removido históricamente).
-  await tx.seed(
-    `INSERT INTO membership (user_id,place_id,left_at) VALUES ($1,$2,now())`,
-    [uD, pidA],
-  );
+  await makeMembership(tx, { userId: dave.userId, placeId: placeA.placeId, leftAt: new Date() });
   // place-b: carol miembro activo + founder.
-  await tx.seed(`INSERT INTO membership (user_id,place_id) VALUES ($1,$2)`, [uC, pidB]);
-  return { uA, uB, uC, uD, uE, pidA, pidB };
-}
-
-// SAVEPOINT-based error capture (mismo helper que revoke-invitation.test.ts).
-async function captureError(
-  tx: RlsTx,
-  sql: string,
-  params?: unknown[],
-): Promise<{ code: string | null; message: string | null }> {
-  await tx.q("SAVEPOINT sp_err");
-  let result: { code: string | null; message: string | null } = {
-    code: null,
-    message: null,
+  await makeMembership(tx, { userId: carol.userId, placeId: placeB.placeId });
+  return {
+    uA: alice.userId,
+    uB: bob.userId,
+    uC: carol.userId,
+    uD: dave.userId,
+    uE: eve.userId,
+    pidA: placeA.placeId,
+    pidB: placeB.placeId,
   };
-  try {
-    await tx.q(sql, params);
-  } catch (e) {
-    const err = e as { code?: string; message?: string };
-    result = { code: err.code ?? null, message: err.message ?? null };
-  }
-  await tx.q("ROLLBACK TO SAVEPOINT sp_err");
-  await tx.q("RELEASE SAVEPOINT sp_err");
-  return result;
 }
 
 describe("S4 app.remove_member — DEFINER soft-remove (spec §CU4)", () => {

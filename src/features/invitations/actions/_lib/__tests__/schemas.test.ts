@@ -64,15 +64,7 @@ describe("revokeInvitationSchema (wrap app.revoke_invitation)", () => {
 });
 
 describe("acceptInvitationSchema (wrap app.accept_invitation)", () => {
-  it("happy: { token: 64-hex-char, placeSlug } → success", () => {
-    const result = acceptInvitationSchema.safeParse({
-      token: "a".repeat(64),
-      placeSlug: "mi-place",
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("happy sin placeSlug (optional): { token: 64-hex-char } → success", () => {
+  it("happy: { token: 64-hex-char } → success", () => {
     const result = acceptInvitationSchema.safeParse({
       token: "a".repeat(64),
     });

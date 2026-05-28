@@ -109,9 +109,6 @@ export async function acceptInvitationAction(
     };
   }
 
-  // `placeSlug` del input queda ignorado post-D.fix.4 (era usado sólo por el
-  // `revalidatePath` removido). El schema sigue aceptándolo para no romper el
-  // contrato con el panel V1.1; cleanup eventual en V1.3.
   const { token } = parsed.data;
 
   try {

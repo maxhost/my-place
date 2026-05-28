@@ -37,12 +37,16 @@ export type RevokeInvitationInput = z.infer<typeof revokeInvitationSchema>;
 // flexibles → min 32 (entropía mínima razonable), max 256 (defense
 // contra payload abuse). Format NO se valida (ADR-0010 §2: el token es
 // capability opaca, el formato no agrega seguridad — la DEFINER decide).
-// `placeSlug` optional: el panel lo manda para que la action revalide
-// `/invite/[token]` post-success, pero la DEFINER NO lo usa (el RSC ya
-// hizo cross-place tampering check pre-call vía `get-invitation-meta-by-token`).
+//
+// Pre-Phase-1.C el shape incluía `placeSlug` optional (lo enviaba el panel
+// para un `revalidatePath` post-success). El `revalidatePath` se dropeó en
+// V1.2 Sesión D.fix.4 (race-condition con la navegación post-success — ver
+// `accept-invitation.ts` §"Por qué NO revalidatePath") → el campo quedó
+// no-usado por ~1 ciclo y se elimina en 1.C (cleanup tech-debt-pre-v1.3).
+// El cross-place tampering check sigue viviendo en el RSC pre-call vía
+// `get-invitation-meta-by-token` (DEFINER no recibe `placeSlug`).
 export const acceptInvitationSchema = z.object({
   token: z.string().min(32).max(256),
-  placeSlug: z.string().min(1).optional(),
 });
 
 export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;

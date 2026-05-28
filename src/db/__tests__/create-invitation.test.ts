@@ -1,5 +1,12 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { endRlsAdminPool, inRlsTx, type RlsTx } from "./db-test-pool";
+import {
+  captureError,
+  makeMembership,
+  makeOwnership,
+  makePlace,
+  makeUser,
+} from "./_factories";
 
 // Feature E · S2 (ADR-0010 §2 + ADR-0037 §4, 2026-05-24) — primer mutador
 // DEFINER del flow invitations. Canaliza el INSERT en `invitation` con gate
@@ -22,14 +29,10 @@ import { endRlsAdminPool, inRlsTx, type RlsTx } from "./db-test-pool";
 // función NO re-valida formato del email — delega a zod app-side.
 //
 // Patrón seed-as-owner / assert-as-`app_system` heredado de
-// `elevate-to-owner.test.ts`. ROLLBACK siempre.
+// `elevate-to-owner.test.ts`. Factories de `_factories/` (Phase 1.C).
+// ROLLBACK siempre.
 
 afterAll(() => endRlsAdminPool());
-
-const APP_USER = `INSERT INTO app_user (auth_user_id,email,display_name,handle)
-                  VALUES ($1,$2,'X',$3) RETURNING id`;
-const PLACE = `INSERT INTO place (slug,name,billing_mode,founder_user_id)
-               VALUES ($1,$2,'OWNER_PAYS',$3) RETURNING id`;
 
 // Escenario canónico S2: 2 places (alice founder+owner de place-a; bob
 // elevado a co-owner de place-a en seed; carol founder+owner de place-b).
@@ -37,46 +40,25 @@ const PLACE = `INSERT INTO place (slug,name,billing_mode,founder_user_id)
 // no-owner; eve = ex-miembro left_at NOT NULL); dave SIN membership en
 // place-a.
 async function seedScenario(tx: RlsTx) {
-  const [{ id: uA }] = (await tx.seed(APP_USER, ["authA", "a@x.com", "h_a"])) as Array<{ id: string }>;
-  const [{ id: uB }] = (await tx.seed(APP_USER, ["authB", "b@x.com", "h_b"])) as Array<{ id: string }>;
-  const [{ id: uC }] = (await tx.seed(APP_USER, ["authC", "c@x.com", "h_c"])) as Array<{ id: string }>;
-  const [{ id: uD }] = (await tx.seed(APP_USER, ["authD", "d@x.com", "h_d"])) as Array<{ id: string }>;
-  const [{ id: pidA }] = (await tx.seed(PLACE, ["place-a", "Place A", uA])) as Array<{ id: string }>;
-  const [{ id: pidB }] = (await tx.seed(PLACE, ["place-b", "Place B", uC])) as Array<{ id: string }>;
-  // alice founder+owner de place-a; bob co-owner de place-a (multi-owner);
-  // carol founder+owner de place-b (place isolation cross-place + carol
-  // queda como miembro no-owner de place-a).
-  await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [uA, pidA]);
-  await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [uB, pidA]);
-  await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [uC, pidB]);
+  const alice = await makeUser(tx, { authUserId: "authA" });
+  const bob = await makeUser(tx, { authUserId: "authB" });
+  const carol = await makeUser(tx, { authUserId: "authC" });
+  const dave = await makeUser(tx, { authUserId: "authD" });
+  const placeA = await makePlace(tx, { slug: "place-a", name: "Place A", founderUserId: alice.userId });
+  const placeB = await makePlace(tx, { slug: "place-b", name: "Place B", founderUserId: carol.userId });
+  await makeOwnership(tx, { userId: bob.userId, placeId: placeA.placeId });
   // Memberships en place-a: alice/bob/carol activos. dave no es miembro.
-  await tx.seed(
-    `INSERT INTO membership (user_id,place_id) VALUES ($1,$2),($3,$2),($4,$2)`,
-    [uA, pidA, uB, uC],
-  );
-  return { uA, uB, uC, uD, pidA, pidB };
-}
-
-// SAVEPOINT-based error capture (mismo helper que elevate-to-owner.test.ts).
-async function captureError(
-  tx: RlsTx,
-  sql: string,
-  params?: unknown[],
-): Promise<{ code: string | null; message: string | null }> {
-  await tx.q("SAVEPOINT sp_err");
-  let result: { code: string | null; message: string | null } = {
-    code: null,
-    message: null,
+  await makeMembership(tx, { userId: alice.userId, placeId: placeA.placeId });
+  await makeMembership(tx, { userId: bob.userId, placeId: placeA.placeId });
+  await makeMembership(tx, { userId: carol.userId, placeId: placeA.placeId });
+  return {
+    uA: alice.userId,
+    uB: bob.userId,
+    uC: carol.userId,
+    uD: dave.userId,
+    pidA: placeA.placeId,
+    pidB: placeB.placeId,
   };
-  try {
-    await tx.q(sql, params);
-  } catch (e) {
-    const err = e as { code?: string; message?: string };
-    result = { code: err.code ?? null, message: err.message ?? null };
-  }
-  await tx.q("ROLLBACK TO SAVEPOINT sp_err");
-  await tx.q("RELEASE SAVEPOINT sp_err");
-  return result;
 }
 
 describe("S2 app.create_invitation — DEFINER invitation mutator (ADR-0010 §2 + ADR-0037 §4)", () => {
