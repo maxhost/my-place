@@ -156,3 +156,20 @@ Phase 0.E2 (siguiente sub-sesión, mismo session window):
 - `src/instrumentation.ts` + `sentry.server.config.ts` + `sentry.edge.config.ts` + `src/instrumentation-client.ts` — init Sentry.
 - `src/app/global-error.tsx` — root error boundary.
 - ADR Phase 2.I (Strict CSP nonce-based, pendiente) — deberá agregar Sentry ingest endpoint a `connect-src` directive (`https://*.ingest.sentry.io` o el host del Sentry instance específico).
+
+## Addendum — DSN env var canonical (2026-05-28)
+
+Post-provisioning del user vía Vercel Marketplace × Sentry integration, se detectó que la integración sincroniza `NEXT_PUBLIC_SENTRY_DSN` (scope "All Environments") pero NO `SENTRY_DSN` (sin prefix). El plan original en §"Implementación V1" + §"Implementación V1" item 9 asumía las dos vars separadas (convención vieja del SDK Sentry pre-v8). El SDK moderno (v8+/v10) usa `NEXT_PUBLIC_SENTRY_DSN` para client Y server porque el DSN es público por diseño (rate-limited per-project, NO secret).
+
+**Fix aplicado mismo día** (commit posterior a `204a124`):
+- `sentry.server.config.ts` y `sentry.edge.config.ts` migrados a fallback chain `const dsn = process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN`. Si el operador setea `SENTRY_DSN` explícito (caso raro: DSN distinto per-runtime para project isolation), ese gana; sino fall-back al public canon que la integración sincroniza.
+- `.env.example` actualizado: `NEXT_PUBLIC_SENTRY_DSN` canónica + comentario inline aclarando que `SENTRY_DSN` (sin prefix) está soportado como override opcional pero NO sincronizado por la integración.
+- `docs/stack.md` §Variables de entorno actualizado consistente.
+
+Vars adicionales que sincroniza la integración pero NO usadas V1 (gating features futuras):
+- `SENTRY_PUBLIC_KEY` — key extraída del DSN para OTLP setup
+- `SENTRY_OTLP_TRACES_URL` — OpenTelemetry traces endpoint (V1 tracing disabled)
+- `SENTRY_VERCEL_LOG_DRAIN_URL` — Vercel log drain → Sentry (V1.3+ si decidimos)
+- `VERCEL_GIT_COMMIT_SHA` — release tracking automático (Sentry SDK ya lo lee internamente)
+
+Sin acción para esas — quedan provisionadas para activación demanda futura.

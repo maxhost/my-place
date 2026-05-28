@@ -6,8 +6,16 @@ import * as Sentry from "@sentry/nextjs";
 //
 // ADR-0047 §"Implementación V1" — convention Sentry SDK Next.js.
 
+// DSN: la integración Vercel × Sentry sincroniza `NEXT_PUBLIC_SENTRY_DSN`
+// (scope "All Environments" — browser y server). `SENTRY_DSN` (sin prefix)
+// queda como override opcional si el operador quiere DSNs distintos por
+// runtime (caso raro). El DSN Sentry es público por diseño — rate-limited
+// per-project por Sentry, NO es secret (similar a una public API key).
+// Fallback chain documentado en ADR-0047 addendum 2026-05-28.
+const dsn = process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN;
+
 Sentry.init({
-  dsn: process.env.SENTRY_DSN,
+  dsn,
 
   // Tracing — DESHABILITADO V1. Activar V1.3+ si aparece need de APM
   // (slow Server Actions, slow DB queries). Cero spans/min en free tier
@@ -17,7 +25,7 @@ Sentry.init({
   // Captura errores en producción. En dev local Sentry init es no-op si no
   // hay DSN — los `log.*` siguen funcionando vía console.* (ADR-0047
   // §"Behavior por entorno").
-  enabled: process.env.SENTRY_DSN !== undefined && process.env.SENTRY_DSN !== "",
+  enabled: dsn !== undefined && dsn !== "",
 
   // Releases: el SDK las infiere del SHA del commit Vercel (`VERCEL_GIT_COMMIT_SHA`)
   // automáticamente cuando el integration Vercel ↔ Sentry está activo. NO
