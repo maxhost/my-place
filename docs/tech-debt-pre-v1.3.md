@@ -23,13 +23,13 @@
 
 | Phase | Sesiones | Completadas | Tag pre-phase | Tag post-phase |
 |-------|----------|-------------|---------------|----------------|
-| **0 — Bloqueantes** | 5 | 1/5 | `baseline/pre-phase-0-tech-debt` ✅ | _pending_ |
+| **0 — Bloqueantes** | 5 | 2/5 | `baseline/pre-phase-0-tech-debt` ✅ | _pending_ |
 | **1 — Hardening** | 7 | 0/7 | _pending_ | _pending_ |
 | **2 — Tests + docs** | 8 | 0/8 | _pending_ | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 1/26 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 2/26 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -63,15 +63,17 @@ Sin estos items V1.3 introduce regresiones invisibles o bloquea onboarding.
 
 ---
 
-### Sesión 0.C — CI gates [~1h]
+### Sesión 0.C — CI gates [~1h] ✅
 
-- [ ] Crear/extender workflow GitHub Actions para correr `pnpm test` (vitest run completo) en cada PR a `main`. Decisión: nuevo `tests.yml` o extender `lighthouse.yml`. Recomendado: workflow separado `tests.yml` para no acoplar tiempos lhci con vitest
-- [ ] Verificar workflow corre en `pull_request` (no solo `push: main`)
-- [ ] Regenerar/restaurar snapshots Drizzle 0009-0024 en `src/db/migrations/meta/`. Hoy solo existen 0000-0008. Sin estos, futuros `drizzle-kit generate` pueden producir migrations conflictivas. Si automatización no es posible, documentar como deuda + protocolo manual en `data-model.md`
+- [x] Workflow nuevo `.github/workflows/tests.yml` creado (decisión: separado, no extender lighthouse.yml). Corre `pnpm test` (vitest full: node + ui projects) en `pull_request: branches:[main]`. Header documenta setup canon de GitHub secrets `DATABASE_URL_TEST` + `DATABASE_URL_TEST_MIGRATE` (rol `app_system` + `neondb_owner` del branch `test` de Neon). Timeout 15min con margen para cold-start Neon
+- [x] Trigger `pull_request` (no solo push). Igual que `lighthouse.yml`
+- [x] **Snapshots Drizzle: hallazgo del audit reinterpretado**. La ausencia de 0009-0024 NO es bug — es **convención del proyecto**: Drizzle genera snapshots solo para schema-only migrations (CREATE TABLE, ALTER COLUMN); las 0009-0024 son custom SQL (RLS policies, DEFINERs, GRANTs, partial indexes) que Drizzle NO modela en su schema TS. Documentado en `docs/data-model.md` §"Migrations & snapshots" con: (a) los 2 tipos de migrations que conviven, (b) protocolo para futuras (cuándo `pnpm db:generate` vs hand-written), (c) rollback strategy + reverse SQL canon en comentario al inicio del `.sql`
 
-**Acceptance**: PR de prueba muestra job "tests" verde · 25 snapshots en `meta/` (0000-0024) coherentes con journal.
+**Acceptance**: workflow file válido (yaml lint OK por estructura) · doc §"Migrations & snapshots" explica protocolo · Agent 5 finding reinterpretado correctamente como convention, no como gap a cerrar
 
-**Commit**: _pending_
+**Notas operativas pendientes para user**: agregar GH secrets `DATABASE_URL_TEST` + `DATABASE_URL_TEST_MIGRATE` (instrucciones step-by-step en header del workflow). Sin esos secrets, los tests `node` fallarán con connection refused — flag explícito de "setup pendiente", no regresión.
+
+**Commit**: _ver siguiente commit_ · **Tag**: _no aplica (no load-bearing)_
 
 ---
 

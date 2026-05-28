@@ -1,0 +1,63 @@
+# Gate de tests vitest BLOQUEANTE en PRs a main (Phase 0.C tech-debt closure,
+# 2026-05-28). Pre-V1.2 el único CI era `lighthouse.yml` (typecheck + lint +
+# build + lhci) — la suite de 1135 tests NO protegía PRs, regresiones podían
+# mergearse silenciosamente. Este workflow cubre esa brecha.
+#
+# ## Por qué workflow separado (no extender lighthouse.yml)
+#
+# (1) Aislar tiempos: lhci toma ~3-5 min adicionales, no debe pelear con el
+# loop tight de tests. (2) Status check independiente en branch protection
+# permite distinguir "test failed" vs "perf budget excedido". (3) Si lhci
+# requiere infra distinta (build artifact, preview URL), no contamina el
+# entorno de tests.
+#
+# ## Env vars requeridos en GitHub Secrets
+#
+# Los tests integration (`src/**/*.test.ts` en project `node` per
+# `vitest.config.ts`) conectan a Neon vía:
+#   - DATABASE_URL_TEST: rol `app_system` (NO-admin, sin BYPASSRLS) del
+#     branch `test` de Neon. Lo usan los tests para ejercitar RLS realista.
+#   - DATABASE_URL_TEST_MIGRATE: rol admin (`neondb_owner`) del MISMO branch.
+#     SOLO lo usa el harness `db-test-pool.ts` para seed pre-RLS.
+#
+# Setup canónico (one-time):
+#   1. En Neon dashboard del proyecto `prod-place`: crear branch nuevo `test`
+#      desde `production` (o `main`, según naming).
+#   2. Obtener 2 connection strings: una con rol `app_system`, otra con
+#      `neondb_owner`. Vienen de Neon UI → Connection Details.
+#   3. En GitHub repo → Settings → Secrets and variables → Actions → New
+#      repository secret. Agregar ambos secrets con los nombres exactos
+#      `DATABASE_URL_TEST` y `DATABASE_URL_TEST_MIGRATE`.
+#   4. Re-run el workflow desde Actions tab.
+#
+# Si los secrets faltan, los tests `node` fallarán con "connection refused"
+# o "missing connection string" — flag explícito de "setup pendiente", no
+# regresión de código.
+
+name: tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  vitest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15  # suite full toma ~8min cold, +margen para flakes Neon
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Vitest suite full (node + ui projects)
+        run: pnpm test
+        env:
+          DATABASE_URL_TEST: ${{ secrets.DATABASE_URL_TEST }}
+          DATABASE_URL_TEST_MIGRATE: ${{ secrets.DATABASE_URL_TEST_MIGRATE }}

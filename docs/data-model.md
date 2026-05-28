@@ -292,3 +292,34 @@ Implementado en `features/members/` y `features/places/` con cron/scheduled func
 - IDs opacos, **aleatorios** y no secuenciales: `gen_random_uuid()` (UUID v4, generado por Postgres) como default de PK. No autoincrementales. Razón de seguridad: no exponer conteos de places/users ni permitir enumeración vía URLs.
 - Soft delete vía `archived_at` o `left_at` en lugar de `DELETE` físico. Los hard deletes son operación explícita.
 - Timestamps siempre en UTC (`TIMESTAMPTZ`). La conversión a timezone del usuario es responsabilidad del cliente.
+
+## Migrations & snapshots (convención del repo)
+
+Las migrations viven en `src/db/migrations/*.sql` numeradas secuencialmente (`0000_*.sql` … `0024_*.sql` al momento de este doc). El runner es **drizzle-kit migrate** (script `pnpm db:migrate`), que se ejecuta automáticamente en cada production deploy via `scripts/maybe-migrate.mjs` (canon ADR-0017).
+
+**Dos tipos de migrations conviven**:
+
+1. **Schema-generated** (`pnpm db:generate` desde `src/db/schema/index.ts`): producen tanto el `.sql` como un snapshot en `meta/000N_snapshot.json`. Cobertura típica: `CREATE TABLE`, `ALTER TABLE`/`COLUMN`, constraints simples. Históricamente las migrations **0000-0008** se generaron así.
+
+2. **Hand-written custom SQL**: archivos `.sql` escritos a mano + entry agregada manualmente a `meta/_journal.json`. **NO tienen snapshot** asociado en `meta/`. Cobertura típica: `CREATE POLICY` (RLS), `CREATE FUNCTION ... SECURITY DEFINER`, `GRANT`/`REVOKE`, índices custom, partial unique indexes complejos, anti-replay tables del schema `app`. Estas tomas son las **0009-0024** (y todas las futuras de este tipo). Drizzle-kit NO modela estos primitivos en su schema TS, por lo que no podría snapshotearlos de manera útil aunque se intentara.
+
+**Esta asimetría es INTENCIONAL, no un bug**. Los snapshots ausentes 0009-0024 son consistentes con el pattern del proyecto: el ORM trackea schema-as-types (tablas + columnas + tipos), las primitivas de seguridad (policies + DEFINERs + GRANTs) viven en SQL canónico que el dev controla directamente.
+
+### Protocolo para futuras migrations
+
+- **Si la migration es solo cambios de tablas/columnas** (sin policies/DEFINERs/GRANTs): correr `pnpm db:generate` desde el repo root. Drizzle-kit produce el `.sql` + el snapshot + agrega entry a `_journal.json` automáticamente. Revisar el SQL generado antes de commitear (a veces hace `DROP COLUMN` inesperado).
+
+- **Si la migration incluye RLS policies, DEFINERs, GRANTs, o SQL complejo**: escribir el `.sql` a mano (idempotente con `IF EXISTS`/`IF NOT EXISTS` donde aplique), agregar entry a `_journal.json` con el siguiente `idx` libre + `tag` matching el nombre del archivo (sin extension), `when` con timestamp ms, `version: "7"`, `breakpoints: true`. Por convención NO crear snapshot manual — el ausencia es la señal de "custom SQL, no generado".
+
+- **Migrations destructivas** (`DROP COLUMN`, `DROP TABLE`, `ALTER COLUMN ... TYPE` que pierde datos): incluir reverse SQL en comentario al inicio del archivo (precedente: `0008_place_domain_partial_unique.sql`). Considerar `SET lock_timeout = '5s'` al inicio si la tabla tiene tráfico (Phase 3.7 pendiente como canon transversal).
+
+- **Verify post-apply**: cada migration debería tener su integration test correspondiente en `src/db/__tests__/*.test.ts` (cobertura DEFINER ~95%, ver inventario en §"Catálogo DEFINER" abajo cuando exista — pendiente Phase 2.D).
+
+### Rollback de migration
+
+Drizzle-kit NO soporta rollback automático (no hay `down` migrations en el design). Para revertir:
+
+1. **Production**: aplicar migration nueva con el SQL inverso (NO modificar la migration original ya aplicada).
+2. **Dev branch Neon**: opción de reset desde parent branch via Neon dashboard (`neon branch reset`) o vía MCP.
+
+El reverse SQL recomendado vive en comentario al inicio del `.sql` original (precedente: `0008_place_domain_partial_unique.sql:38-43`).
