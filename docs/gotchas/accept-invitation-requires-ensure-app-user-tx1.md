@@ -40,25 +40,33 @@ export async function someInvitationAction(input) {
   }
 }
 
-// DESPUÉS (production-grade):
-import { getAuth } from '@/shared/lib/auth';
+// DESPUÉS (production-grade, post-D.fix.3 2026-05-27):
+import { getCurrentUserIdentityForRequest } from '@/shared/lib/current-user-identity';
+import { getAuthenticatedDbForRequest } from '@/shared/lib/db-for-request';
 import { ensureAppUser } from '@/shared/lib/ensure-app-user';
 
 export async function someInvitationAction(input) {
   // ... validación
   try {
-    const session = await getAuth().getSession();
-    if (!session.data?.session) {
+    // Identidad UNIFICADA zone-aware (ADR-0046 §Addendum Sesión D.fix.3).
+    // El integrator lee identity via el coordinator zone-aware (ADR-0034):
+    // detecta HostZone + lee la cookie correcta (Neon Auth `Domain=.place.
+    // community` en apex/subdomain; SSO local `__Host-place_sso_session` en
+    // custom domain) + abre tx autenticada + retorna `{authUserId, email,
+    // displayName}` ATÓMICOS (los 3 campos del MISMO claims.sub, single
+    // lookup). Reemplaza el pattern viejo `getAuth().getSession()` que SOLO
+    // leía cookie apex — failure point en custom domain (Bug B smoke V1.2).
+    const identity = await getCurrentUserIdentityForRequest();
+    if (identity === null) {
       return { status: 'error', error: { kind: 'unauthenticated' } };
     }
-    const email = session.data.user.email ?? '';
-    const displayName = session.data.user.name ?? '';
+    const { authUserId, email, displayName } = identity;
 
     // TX 1 — ensureAppUser (idempotente, ON CONFLICT DO NOTHING). Commitea
     // en su propia tx para que rollback eventual de TX 2 NO borre el
     // app_user (ADR-0005 §4, paralelo a create-place.ts:65-77).
-    await getAuthenticatedDbForRequest((sql, claims) =>
-      ensureAppUser(sql, { authUserId: claims.sub, email, displayName }),
+    await getAuthenticatedDbForRequest((sql) =>
+      ensureAppUser(sql, { authUserId, email, displayName }),
     );
 
     // TX 2 — DEFINER de dominio (en este punto app_user está garantizado).
@@ -71,6 +79,8 @@ export async function someInvitationAction(input) {
   }
 }
 ```
+
+**Nota crítica zone-aware**: el pattern viejo `getAuth().getSession()` (mostrado en commit `c13fcfd` V1.1 S6 que cerró este gotcha originalmente) tiene un gap: en places con custom domain, el Neon Auth SDK SOLO lee la cookie cross-subdomain `Domain=.place.community` — NO la cookie SSO local `__Host-place_sso_session` minteada por el redeem custom domain (RFC 6265 §5.4). Resultado: la action retorna `unauthenticated` aunque el invitee tenga sesión activa post SSO-chain en `nocodecompany.co`. **Toda Server Action que pueda invocarse desde custom domain debe usar `getCurrentUserIdentityForRequest`**, no `getAuth().getSession()`. Ver gotcha hermano `zone-aware-db-cookie-source.md` §"Identity reading (RSC + Server Actions)" para el invariante completo.
 
 **Costo runtime**: 1 query extra por accept del DEFINER (idempotente, `ON CONFLICT DO NOTHING` → no-op para users existentes). En el caller del PlaceWizard (post-Acceso login normal), el `app_user` ya existe → la TX 1 es un single SELECT `ON CONFLICT` no-op (<1ms). Sólo el primer accept post-signup hace el INSERT real.
 
@@ -99,7 +109,9 @@ Alternativa rechazada en ADR-0006: "el DEFINER siembra app_user si falta". Razon
 
 - **Canon de ensureAppUser**: `src/shared/lib/ensure-app-user.ts` (ADR-0006).
 - **Patrón canónico**: `src/features/place-creation/create-place.ts:65-77` (TX 1 + TX 2 split).
-- **Fix V1.1 S6**: commit `c13fcfd` en `src/features/invitations/actions/accept-invitation.ts`.
+- **Fix V1.1 S6** (original `getAuth().getSession()` pattern, BROKEN en custom domain): commit `c13fcfd` en `src/features/invitations/actions/accept-invitation.ts`.
+- **Refactor zone-aware D.fix.3** (`getCurrentUserIdentityForRequest`, cierra Bug B custom domain): commits `e764dcd` (helper + DEFINER 0024) + `35c6024` (wire + cleanup D.fix.1 supersedes) — ver ADR-0046 §"Addendum operacional — Sesión D.fix.3".
+- **Integrator identity zone-aware**: `src/shared/lib/current-user-identity.ts` (supersede D.fix.1 `current-user-email.ts` borrado en `35c6024`).
 - **ADR del comportamiento de signup**: ADR-0008 §2/§4 + `src/features/access/auth-actions.ts:36-44` (comment).
 - **DEFINER que falló**: migration `0003_accept_invitation_fn.sql` (P0002 si app_user missing, línea 31).
 - **Evidencia de smoke V1.1 S6**: `docs/features/invitations/spec.md` §"Smoke ejecutado (2026-05-26, S6 close)".

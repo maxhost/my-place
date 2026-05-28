@@ -481,3 +481,72 @@ Las ADR son registro histórico; las decisiones D1-D7 + alternativas rechazadas 
 ### Próximo: Sesión D — Smoke E2E matriz 2x2
 
 Sesión D ejecuta el smoke matriz 2x2 canon (place con/sin custom domain × visitor logged/unlogged) + re-validación de los 4 steps V1.1 deferidos (3/6/9/10 según `docs/features/invitations/spec.md` §Followups V1.2) + write-back evidence en spec + push autorizado por turno + tag `baseline/feature-e-invite-v1.2-done`. Sin nueva implementación; valida empíricamente que las 3 sesiones de implementación (A+B+C) cierran el gap UX que motivó V1.2.
+
+## Addendum operacional — Sesión D.fix.3 (2026-05-27)
+
+Las ADR son registro histórico; las decisiones D1-D7 + alternativas rechazadas + gaps no se editan. Esta sección registra el **bug surface descubierto en el smoke de Sesión D + las 3 sub-sesiones de fix que cerraron el gap arquitectónico** que ese smoke reveló. Las sub-sesiones D.fix.1 y D.fix.2 fueron implementaciones tácticas (helper email-only + wire RSC); D.fix.3 es la **refactor arquitectónica** que supersedea D.fix.1 con un integrator unificado RSC+Server-Action. Documentadas en conjunto acá porque la decisión load-bearing es D.fix.3 (las anteriores son su prefactor histórico).
+
+### Bug surface (smoke matriz 2x2 V1.2, 2026-05-27)
+
+Smoke ejecutado en el escenario 4 (place CON custom domain × visitor unlogged) reveló **dos fallos distintos pero mismo gap arquitectónico subyacente**:
+
+- **Bug A — RSC reader**: invite page (`/place/[placeSlug]/invite/[token]/page.tsx`) rendereado bajo custom domain leía identidad via Neon Auth SDK directo. SDK SOLO lee la cookie cross-subdomain `Domain=.place.community` (RFC 6265 §5.4) — NO la cookie SSO local `__Host-place_sso_session` minteada por el redeem custom domain. Resultado: post-SSO chain, el page renderizaba "current user: null" (variant "unauth") aunque el invitee tenía sesión activa → CTA "Aceptar" oculto.
+- **Bug B — Server Action**: `acceptInvitationAction` leía identidad con el mismo pattern `getAuth().getSession()`. Mismo síntoma: action retornaba `unauthenticated` desde custom domain aunque el invitee acabara de aceptar via login apex + chain SSO.
+
+Misma raíz arquitectónica que motivó ADR-0034 (zone-aware DB coordinator) — replicada acá para **lectura de identidad**, no de DB. El integrator zone-aware del coordinator (`getAuthenticatedDbForRequest`) ya abstraía el split apex/local para queries autenticadas; pero los callers seguían leyendo *identity* via Neon Auth SDK directo, bypasseando el coordinator. Gap simétrico: la cookie correcta se elegía por zone para DB, no para identity reading.
+
+### D.fix.1 (commit `52abb70`) — fix táctico Bug A (email-only)
+
+Cierre inicial Bug A: helper `getCurrentUserEmailForRequest` en `src/shared/lib/current-user-email.ts` + wrapper `lookupUserEmailById` + DEFINER nuevo `app.lookup_user_email_by_id(uuid) RETURNS text` (migration 0023). El helper resolvía email vía el coordinator zone-aware: `claims.sub` extraído de la zona correcta → DEFINER lookup en `neon_auth.user`. ~150 LOC code + tests integration DEFINER.
+
+### D.fix.2 (commit `d850194`) — wire RSC page
+
+Wire del helper D.fix.1 en `invite/[token]/page.tsx`, reemplazando el `getAuth().getSession()` directo. Cierre Bug A confirmado empíricamente. **Bug B sigue abierto post-D.fix.2** (Server Action no migrada).
+
+### D.fix.3 (commits `e764dcd` + `35c6024`) — refactor arquitectónico unificado
+
+Path A retroactiva: en lugar de un segundo helper táctico email-only para la action, abrir un integrator UNIFICADO `getCurrentUserIdentityForRequest` que cualquier caller (RSC o Server Action) puede usar — y supersedear el helper email-only de D.fix.1.
+
+**Decisión arquitectónica**: el shape del integrator es `{authUserId, email, displayName} | null` — superset estricto del email-only de D.fix.1. Razón: el `acceptInvitationAction` necesita los 3 campos para `ensureAppUser` + `app.accept_invitation`. Pre-fix la action obtenía `email`/`displayName` del Neon Auth SDK y `authUserId` del coordinator `claims.sub` — **dos fuentes desincronizables**. El integrator unificado retorna los 3 desde **un único lookup atómico** (mismo `claims.sub`, mismo DEFINER call, misma tx) — invariante reforzada vs pre-fix. El RSC consume `.email` solamente y descarta el resto sin overhead extra (mismo round-trip).
+
+**Implementación D.fix.3.a** (`e764dcd`):
+- DEFINER nuevo `app.lookup_user_identity_by_id(uuid) RETURNS jsonb` (migration 0024). Espejo estructural exacto de 0023 (D.fix.1) con payload jsonb `{email, name}` en lugar de text escalar.
+- Wrapper TS `src/shared/lib/user-identity-by-id-lookup.ts` con Zod parse del payload + fail-soft a `null`.
+- Integrator `src/shared/lib/current-user-identity.ts` exportando `getCurrentUserIdentityForRequest()`. Mismo pattern fail-soft que D.fix.1 (visitor anónimo → `null`; cualquier otro error → `null` también).
+- Tests: 19 unit (wrapper) + 23 integration (DEFINER).
+- Migration 0023 sigue activa: NO se borra retroactivamente (canon: migrations son append-only forward history). DEFINER `app.lookup_user_email_by_id` queda zombie en DB sin caller — supersede documentado acá. **NO hay test integration para 0023 post-D.fix.3** (sin caller que proteger). Si V1.3+ no resucita 0023, considerar migration de DROP en V2 cleanup window.
+- **Net LOC**: +705 (DEFINER + wrapper + integrator + tests del shape nuevo).
+
+**Implementación D.fix.3.b** (`35c6024`):
+- Wire de `getCurrentUserIdentityForRequest` en los 2 callsites V1.2: `accept-invitation.ts` (Bug B cierre) + `invite/[token]/page.tsx` (re-wire desde D.fix.2 al integrator unificado).
+- Cleanup del D.fix.1 superseded: eliminados `current-user-email.ts` (integrator), `user-email-by-id-lookup.ts` (wrapper), tests del wrapper, test integration del DEFINER.
+- **Net LOC**: −479 (cleanup del helper email-only + sus tests; los 2 wire son cambios mínimos).
+
+**Net total D.fix.3**: +226 LOC (capacidad nueva consolidada en helper identity + DEFINER 0024 + sus tests).
+
+### Por qué esta corrección NO supersede el ADR
+
+Las decisiones D1-D7 + las alternativas rechazadas (α-θ) siguen intactas. D.fix.3 NO cambia el contrato V1.2 (cross-domain coherence + branding apex + silent SSO post-credential) — refina el **how** del reading de identidad bajo custom domain, gap operativo descubierto al ejecutar Sesión D. Las consecuencias V1.2 (positivas/neutras/negativas) siguen aplicando.
+
+D5 (`sso-issue` contrato sin cambios) honrado: D.fix.3 NO toca el sub-módulo SSO. D6 (`acceptInvitationAction` zone-agnostic via coordinator) honrado y reforzado: la action sigue usando el coordinator para DB, ahora también lo usa transitivamente para identity (via el integrator).
+
+Si una futura sesión necesitara un helper que devuelva un shape distinto de identidad (e.g. `{authUserId, email, displayName, locale}` para personalización i18n del visitor), eso SÍ requeriría una nueva ADR refinando el integrator (mismo pattern que D.fix.3 refinó D.fix.1).
+
+### Resultado operacional Sesión D.fix.3
+
+- Migration 0024 aplicada a test branch (D.fix.3.a) + integration verde. Aplicación a dev branch + verify en prod queda para D.fix.3.d junto al smoke matriz 2x2 re-run.
+- Typecheck verde + lint verde + suite full verde post-D.fix.3.b: **113 files / 1135 tests passing** (vs 115/1152 pre-D.fix.3.b: delta −2 files / −17 tests = exactamente los tests del helper email-only borrados).
+- Sub-cap LOC `shared/lib/` sin bump.
+- Cero cambio al contrato `sso-issue` (D5 confirmado).
+- Cero cambio al coordinator `getAuthenticatedDbForRequest` (ADR-0034 confirmado).
+- Migration 0023 queda zombie sin caller — supersede documentado acá; cleanup window deferred.
+
+**Save point pre-D.fix.3.a**: `baseline/feature-e-invite-v1.2-s-d-fix-2-done` = `d850194`. **Tags D.fix.3**:
+- D.fix.3.a: `baseline/feature-e-invite-v1.2-d-fix-3a-helper-done` = `e764dcd`.
+- D.fix.3.b: `baseline/feature-e-invite-v1.2-d-fix-3b-wire-done` = `35c6024`.
+- D.fix.3.c (este commit, docs only): tag al final.
+- D.fix.3.d (futuro): apply migration 0024 a dev + push autorizado + smoke matriz re-run + tag final `baseline/feature-e-invite-v1.2-done`.
+
+### Próximo: D.fix.3.d — Apply + push + smoke matriz re-run
+
+D.fix.3.d aplica migration 0024 a dev branch + push autorizado por turno + verify migration en prod via MCP + user-driven smoke matriz 2x2 (escenarios 1-4) para validar empíricamente que Bug A y Bug B están cerrados desde custom domain + 4 steps V1.1 deferidos (3/6/9/10) + write-back evidence en `spec.md` + tag final + push final. Sin nueva implementación; valida que la cadena D.fix.1 → D.fix.2 → D.fix.3 cierra los dos bugs simétricos del smoke matriz original.
