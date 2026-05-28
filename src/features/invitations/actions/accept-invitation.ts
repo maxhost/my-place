@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { getCurrentUserIdentityForRequest } from "@/shared/lib/current-user-identity";
 import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
 import { ensureAppUser } from "@/shared/lib/ensure-app-user";
@@ -56,10 +55,31 @@ import {
 // redirect target. Tampering check (placeSlug URL ↔ invitation.place_id) vive
 // en el RSC pre-call (`get-invitation-meta-by-token`, S3) — la action confía.
 //
-// `revalidatePath` SÍ usa el path zona-place `/${placeSlug}/invite/${token}`
-// (canon revalidatePath, distinto de URLs públicas que van por subdomain) —
-// post-success invalida el cache del invite page para que un re-visit
-// renderice 404 (token ya consumido por la DEFINER, no preview).
+// ## Por qué NO `revalidatePath` (V1.2 Sesión D.fix.4, 2026-05-27)
+//
+// Smoke matriz 2x2 V1.2 (escenario 4: custom domain × unlogged → signup)
+// reveló Bug C: flash 404 visible por milisegundos entre click "Aceptar" y
+// landing al Hub. Root cause: `revalidatePath('/${placeSlug}/invite/${token}')`
+// disparaba `x-action-revalidated: 1` en el response Server Action, que hacía
+// que Next.js incluya el RSC re-rendereado del invite page en el mismo stream
+// de respuesta. El re-render llama `getInvitationMetaByToken` →
+// `app.invitation_preview` retorna null (token recién consumido por TX 2) →
+// `notFound()` → 404 page rendered en el client antes que el panel resuelva el
+// await + invoque `window.location.assign(placeHomeUrl)`. Visible flash de 1
+// frame por orden de eventos.
+//
+// El invariante que el `revalidatePath` intentaba preservar ("re-visit del
+// invite URL post-accept renderiza 404, no preview cached") YA está garantizado
+// por (a) `export const dynamic = 'force-dynamic'` en el page (re-render
+// server-side cada visita) + (b) `app.invitation_preview` retorna null para
+// tokens ya consumidos → `notFound()` natural. El `revalidatePath` era
+// redundante (sólo invalida cache del router client-side, que se invalida
+// igual al navegar a Hub) y activamente dañino por el race-condition con la
+// navegación post-success.
+//
+// Fix: drop el `revalidatePath` + import `next/cache` huérfano. Cero cambio
+// del contrato del action (sigue retornando `{status, placeSlug}`), cero
+// cambio del panel (sigue navegando con `window.location.assign`).
 
 export type AcceptInvitationResult =
   | { status: "success"; placeSlug: string }
@@ -73,7 +93,10 @@ export async function acceptInvitationAction(
     return { status: "error", error: { kind: "unknown" } };
   }
 
-  const { token, placeSlug } = parsed.data;
+  // `placeSlug` del input queda ignorado post-D.fix.4 (era usado sólo por el
+  // `revalidatePath` removido). El schema sigue aceptándolo para no romper el
+  // contrato con el panel V1.1; cleanup eventual en V1.3.
+  const { token } = parsed.data;
 
   try {
     const identity = await getCurrentUserIdentityForRequest();
@@ -95,9 +118,6 @@ export async function acceptInvitationAction(
       return { status: "error", error: { kind: "unknown" } };
     }
 
-    if (placeSlug) {
-      revalidatePath(`/${placeSlug}/invite/${token}`);
-    }
     return { status: "success", placeSlug: acceptedSlug };
   } catch (err) {
     return { status: "error", error: mapAcceptError(err) };
