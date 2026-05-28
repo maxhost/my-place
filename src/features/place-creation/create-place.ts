@@ -68,7 +68,7 @@ export async function createPlace(
   //    Identidad = `claims.sub` VERIFICADO (lo que RLS lee), NO el user.id de
   //    la respuesta de signUp → si difirieran, `au_self` rechaza y luego
   //    `app.create_place` caería en P0002.
-  await ports.runAuthedTx(ident.accessToken, (sql, claims) =>
+  await ports.runAuthedTx((sql, claims) =>
     ensureAppUser(sql, {
       authUserId: claims.sub,
       email: ident.email,
@@ -79,7 +79,7 @@ export async function createPlace(
   // 4. TX 2 — `app.create_place` en tx SEPARADA. Sus 3 inserts son atómicos
   //    DENTRO de la función (ADR-0012 §3); si falla, sólo rollbackea esta tx.
   try {
-    const placeId = await ports.runAuthedTx(ident.accessToken, async (sql) => {
+    const placeId = await ports.runAuthedTx(async (sql) => {
       // Overload 6-arg de migration 0007 (S2a.1) — el 6º param es
       // `default_locale`. La signature 5-arg de migration 0002 queda intacta
       // como compatibility surface, pero el caller nuevo SIEMPRE invoca este.

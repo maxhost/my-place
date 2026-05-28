@@ -1,24 +1,25 @@
 import { getAuth } from "./auth";
 
-// Sesión del request: helpers compartidos para obtener el JWT JWKS-verificable
-// de la sesión vigente. Extraído de `features/place-creation/actions.ts` (S5
-// del Hub) porque ahora hay dos consumers con semántica distinta:
+// Sesión del request: helper compartido para obtener el JWT JWKS-verificable
+// de la sesión vigente Neon Auth (apex/subdomain/inbox). Único consumer
+// vivo: `db-for-request.ts:getAuthenticatedDbForRequest` (rama `neon-auth-
+// needed` del coordinator zone-aware, ADR-0034). Server Actions y RSC
+// pasan por el coordinator — NO leen directamente este helper.
 //
-// - **`getSessionJwt`** (S5b: page del Hub) → `Promise<string | null>`.
-//   El page del Hub usa el resultado como guard: `null` = no logueado →
-//   redirect cross-subdomain al login del apex. NO lanza ante ausencia de
-//   sesión (es estado legítimo del flujo); SÍ propaga excepciones del SDK
-//   (transport / fallo inesperado), porque ahí algo está roto.
-//
-// - **`requireSessionJwt`** (Server Actions autenticados, e.g. el wizard
-//   create authed) → `Promise<string>`, fail-closed: lanza si no hay sesión.
-//   Equivalente exacto al patrón previo de place-creation — sin cambio de
-//   comportamiento para sus callers.
+// El page del Hub (S5b de Inbox V1) lo usa como guard de redirect: `null` =
+// no logueado → redirect cross-subdomain al login del apex. NO lanza ante
+// ausencia de sesión (estado legítimo); SÍ propaga excepciones del SDK
+// (transport / fallo inesperado), porque ahí algo está roto.
 //
 // Wrapper del SDK Neon Auth → la correctitud del wiring vivo es tipo/build +
 // preview Vercel (no vitest-testeable, arrastra `next/headers` + Neon Auth).
-// Mismo trato que el resto de wrappers del SDK en `shared/lib/auth.ts` y los
-// helpers eliminados de `place-creation/actions.ts`.
+// Mismo trato que el resto de wrappers del SDK en `shared/lib/auth.ts`.
+//
+// Phase 1.B — se dropeó `requireSessionJwt` (Promise<string>, fail-throw):
+// su único caller (`features/place-creation/actions.ts`) migró al coordinator
+// zone-aware. Si en el futuro un Server Action necesita el JWT crudo, debe
+// pasar por `getAuthenticatedDbForRequest` (consistencia ADR-0034) y no
+// reintroducir el patrón de leer token directo.
 
 // El SDK tipa `auth.token()` con `fetchOptions?: any` y devuelve `{ data, error }`
 // (`fetchOptions.throw:false` en el adapter). La forma exacta es del SDK; la
@@ -44,19 +45,6 @@ export async function getSessionJwt(): Promise<string | null> {
   const token = res.data?.token;
   if (typeof token !== "string" || token.length === 0) {
     return null;
-  }
-  return token;
-}
-
-/**
- * JWT requerido para Server Actions autenticados: retorna `string` o lanza
- * si no hay sesión. Fail-closed para que el caller NO llegue a la DB sin
- * identidad verificable.
- */
-export async function requireSessionJwt(): Promise<string> {
-  const token = await getSessionJwt();
-  if (token === null) {
-    throw new Error("Neon Auth no devolvió JWT (sin sesión vigente)");
   }
   return token;
 }

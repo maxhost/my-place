@@ -1,22 +1,41 @@
 "use server";
 
-import { getAuth } from "@/shared/lib/auth";
-import { getAuthenticatedDb } from "@/shared/lib/db";
-import { requireSessionJwt } from "@/shared/lib/session";
+import { getCurrentUserIdentityForRequest } from "@/shared/lib/current-user-identity";
+import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
 import { type CreatePlaceResult, createPlace } from "./create-place";
 import type { AcquireIdentity } from "./ports";
 
 // Server Action de creación de place — los DOS modos de ADR-0008. Es el
-// wiring VIVO del borde cross-system (Neon Auth SDK); su correctitud es de
-// tipo/build + preview Vercel, NO vitest (arrastra `next/headers` + Neon
-// vivo). La saga pura está testeada en `create-place.test.ts` con puertos.
+// wiring VIVO del borde cross-system (Neon Auth SDK + DB zone-aware); su
+// correctitud es de tipo/build + preview Vercel, NO vitest (arrastra
+// `next/headers` + Neon vivo). La saga pura está testeada en
+// `create-place.test.ts` con puertos.
 //
-// El JWT JWKS-verificable de la sesión vigente (ADR-0018) se obtiene vía
-// `requireSessionJwt()` (`shared/lib/session.ts`) — extraído del local
-// `acquireSessionJwt` en S5a del Hub para compartirlo con el guard del page
-// del Hub (semántica distinta: el Hub usa `getSessionJwt()` que retorna
-// `null` si no hay sesión). El comportamiento fail-closed acá es idéntico al
-// previo: sin JWT no se llega a la DB.
+// Phase 1.B — migración del último callsite del patrón pre-ADR-0034
+// (`getAuth().getSession()` + `requireSessionJwt()` + `getAuthenticatedDb
+// (token, fn)`). Ahora canon ADR-0034:
+//
+// 1. `getCurrentUserIdentityForRequest()` — helper UNIFICADO (RSC+Action)
+//    zone-aware que resuelve `{authUserId, email, displayName}` via DEFINER
+//    `app.lookup_user_identity_by_id` (migration 0024). Reemplaza el split
+//    Neon Auth SDK (email/name) + `requireSessionJwt` (token), que rompía
+//    en custom domains por RFC 6265 (cookie cross-subdomain `Domain=.place
+//    .community` NO viaja). En la práctica `createPlaceAction` corre desde
+//    apex (el wizard vive en `/{locale}/crear`), pero el coordinator
+//    transversal mantiene paridad estructural con todas las Server Actions
+//    del codebase y previene regresiones si el wizard se exporta a otra
+//    zona en el futuro.
+//
+// 2. `getAuthenticatedDbForRequest` — coordinator zone-aware. Detecta la
+//    zona del request internamente, abre tx autenticada con `claims.sub`
+//    tx-local, y pasa al callback. No requiere que el caller le pase un
+//    token — ese es exactamente el punto del helper.
+//
+// `acquireIdentity` lanza `NoSessionError`-equivalente si no hay sesión:
+// `createPlace` no atrapa (la saga supone identidad resuelta) → la action
+// falla con throw, que el caller (`<AccessFlow>` + `<PlaceWizard>`) atrapa
+// en su try/catch y mapea a notice cozytech. Mismo fail-mode previo, sin
+// cambio de UX.
 
 export interface PlaceFirstCredentials {
   email: string;
@@ -24,22 +43,18 @@ export interface PlaceFirstCredentials {
   displayName: string;
 }
 
-// Identidad de la sesión VIGENTE (la request ya trae la cookie: authed por
-// "Acceso", o place-first tras la request previa de `signUp`). El JWT sale
-// de `auth.token()` vía `requireSessionJwt` (NO de `getSession().session.token`,
-// que es opaco); el perfil de `getSession()` para sembrar `app_user`
-// (`ensureAppUser` es idempotente: sólo siembra si faltara — "cuenta sin
-// place" legítimo).
+// Adapter de identidad: leemos `{email, displayName}` del helper unificado.
+// Si no hay sesión (NoSessionError + cualquier otro fallo → `null`),
+// lanzamos: la saga no debe correr sin identidad — el caller decide UX.
 function sessionIdentity(): AcquireIdentity {
   return async () => {
-    const { data } = await getAuth().getSession();
-    if (!data?.session) {
-      throw new Error("Neon Auth: no hay sesión vigente (getSession)");
+    const identity = await getCurrentUserIdentityForRequest();
+    if (!identity) {
+      throw new Error("Neon Auth: no hay sesión vigente (zone-aware lookup)");
     }
     return {
-      accessToken: await requireSessionJwt(),
-      email: data.user.email ?? "",
-      displayName: data.user.name ?? "",
+      email: identity.email,
+      displayName: identity.displayName,
     };
   };
 }
@@ -54,6 +69,6 @@ export async function createPlaceAction(
 ): Promise<CreatePlaceResult> {
   return createPlace(input, {
     acquireIdentity: sessionIdentity(),
-    runAuthedTx: getAuthenticatedDb,
+    runAuthedTx: getAuthenticatedDbForRequest,
   });
 }

@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { createPlace } from "../create-place";
 import type { CreatePlacePorts } from "../ports";
 import type { SqlExecutor } from "@/shared/lib/db";
-import type { VerifiedClaims } from "@/shared/lib/jwt";
 
 // S5b: la SAGA es orquestación pura. El borde cross-system (signUp/token de
 // Neon Auth — ADR-0005 §2) y la DB se inyectan como PUERTOS (mismo seam-split
@@ -14,6 +13,12 @@ import type { VerifiedClaims } from "@/shared/lib/jwt";
 // invocaciones = dos commits separados; el rollback de la 2ª no toca la 1ª).
 // Modela `au_self` (INSERT de app_user sólo con auth_user_id === claims.sub),
 // P0002 (app_user del caller inexistente) y UNIQUE(slug) (→ '23505').
+//
+// Phase 1.B — el port `runAuthedTx` ya no recibe `accessToken` (el
+// coordinator zone-aware `getAuthenticatedDbForRequest` lo lee internamente).
+// El FakeDb expone `setSub(sub)` para que cada test configure el `claims.sub`
+// que el callback recibe — equivalente al token-as-claims-vehicle previo,
+// sin el dead field `accessToken` en `AcquiredIdentity`.
 
 interface PlaceRow {
   id: string;
@@ -30,12 +35,16 @@ class FakeDb {
   places = new Map<string, PlaceRow>(); // key slug
   txCount = 0;
   calls: string[] = [];
+  /** `claims.sub` que el coordinator inyecta al callback. Configurable por
+   *  test antes de invocar `createPlace` — análogo al `JSON.parse(accessToken)`
+   *  del fake previo, sin el bridge via port. */
+  currentSub = "auth-default";
   private seq = 0;
 
   private exec(
     appUsers: Map<string, { id: string; email: string }>,
     places: Map<string, PlaceRow>,
-    claims: VerifiedClaims,
+    claims: { sub: string },
   ): SqlExecutor {
     return async (text, params = []) => {
       if (text.includes("INSERT INTO app_user")) {
@@ -84,9 +93,9 @@ class FakeDb {
     };
   }
 
-  runAuthedTx: CreatePlacePorts["runAuthedTx"] = async (accessToken, fn) => {
+  runAuthedTx: CreatePlacePorts["runAuthedTx"] = async (fn) => {
     this.txCount += 1;
-    const claims = JSON.parse(accessToken) as VerifiedClaims; // token fake = claims
+    const claims = { sub: this.currentSub };
     const stagedUsers = new Map(this.appUsers);
     const stagedPlaces = new Map(this.places);
     const result = await fn(this.exec(stagedUsers, stagedPlaces, claims), claims);
@@ -103,13 +112,11 @@ const VALID_INPUT = {
   ownerTimezone: "America/Argentina/Buenos_Aires",
 };
 
-const token = (sub: string) => JSON.stringify({ sub });
-
 describe("createPlace — saga de orquestación (ADR-0005/0008/0012)", () => {
   it("happy path place-first: dominio → ensureAppUser → create_place, dos tx", async () => {
     const db = new FakeDb();
+    db.currentSub = "auth-1";
     const acquireIdentity = vi.fn(async () => ({
-      accessToken: token("auth-1"),
       email: "ana@example.com",
       displayName: "Ana",
     }));
@@ -130,10 +137,10 @@ describe("createPlace — saga de orquestación (ADR-0005/0008/0012)", () => {
 
   it("happy path authed (idempotente): app_user ya existe → no se duplica", async () => {
     const db = new FakeDb();
+    db.currentSub = "auth-7";
     db.appUsers.set("auth-7", { id: "user-pre", email: "leo@example.com" });
     const res = await createPlace(VALID_INPUT, {
       acquireIdentity: async () => ({
-        accessToken: token("auth-7"),
         email: "leo@example.com",
         displayName: "Leo",
       }),
@@ -147,11 +154,12 @@ describe("createPlace — saga de orquestación (ADR-0005/0008/0012)", () => {
 
   it("identidad = claim VERIFICADO (claims.sub), no el user.id de signUp", async () => {
     const db = new FakeDb();
-    // El token "miente" un user.id de signUp distinto del sub; ensureAppUser
-    // DEBE usar claims.sub o `au_self` lo rechaza (sin esto: P0002 en S3).
+    // El coordinator inyecta el sub REAL; `acquireIdentity` solo trae
+    // email/displayName (NO authUserId). Si la saga usara algo distinto a
+    // `claims.sub`, `au_self` la rechazaría con 42501.
+    db.currentSub = "auth-real";
     const res = await createPlace(VALID_INPUT, {
       acquireIdentity: async () => ({
-        accessToken: token("auth-real"),
         email: "z@example.com",
         displayName: "Z",
       }),
@@ -193,6 +201,7 @@ describe("createPlace — saga de orquestación (ADR-0005/0008/0012)", () => {
 
   it("slug ocupado → 'slug_taken'; cuenta+app_user QUEDA (cuenta sin place)", async () => {
     const db = new FakeDb();
+    db.currentSub = "auth-9";
     db.places.set("mi-comunidad", {
       id: "place-x",
       ownerAuth: "otro",
@@ -201,7 +210,6 @@ describe("createPlace — saga de orquestación (ADR-0005/0008/0012)", () => {
     });
     const res = await createPlace(VALID_INPUT, {
       acquireIdentity: async () => ({
-        accessToken: token("auth-9"),
         email: "n@example.com",
         displayName: "N",
       }),
@@ -222,9 +230,9 @@ describe("createPlace — saga de orquestación (ADR-0005/0008/0012)", () => {
 
   it("defaultLocale: zod default 'es' cuando el payload no lo especifica", async () => {
     const db = new FakeDb();
+    db.currentSub = "auth-loc-1";
     const res = await createPlace(VALID_INPUT, {
       acquireIdentity: async () => ({
-        accessToken: token("auth-loc-1"),
         email: "l@example.com",
         displayName: "L",
       }),
@@ -236,11 +244,11 @@ describe("createPlace — saga de orquestación (ADR-0005/0008/0012)", () => {
 
   it("defaultLocale: 'de' explícito en payload se propaga al SP (6º arg)", async () => {
     const db = new FakeDb();
+    db.currentSub = "auth-loc-2";
     const res = await createPlace(
       { ...VALID_INPUT, defaultLocale: "de" },
       {
         acquireIdentity: async () => ({
-          accessToken: token("auth-loc-2"),
           email: "d@example.com",
           displayName: "D",
         }),
@@ -253,15 +261,15 @@ describe("createPlace — saga de orquestación (ADR-0005/0008/0012)", () => {
 
   it("error DB inesperado en create_place → propaga; cuenta persiste igual", async () => {
     const db = new FakeDb();
-    const boom: CreatePlacePorts["runAuthedTx"] = async (t, fn) => {
-      if (db.txCount === 0) return db.runAuthedTx(t, fn); // TX 1 ok
+    db.currentSub = "auth-5";
+    const boom: CreatePlacePorts["runAuthedTx"] = async (fn) => {
+      if (db.txCount === 0) return db.runAuthedTx(fn); // TX 1 ok
       db.txCount += 1;
       throw Object.assign(new Error("conexión caída"), { code: "08006" });
     };
     await expect(
       createPlace(VALID_INPUT, {
         acquireIdentity: async () => ({
-          accessToken: token("auth-5"),
           email: "e@example.com",
           displayName: "E",
         }),

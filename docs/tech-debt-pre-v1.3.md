@@ -24,12 +24,12 @@
 | Phase | Sesiones | Completadas | Tag pre-phase | Tag post-phase |
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
-| **1 — Hardening** | 7 | 1/7 | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending_ |
+| **1 — Hardening** | 7 | 2/7 | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending_ |
 | **2 — Tests + docs** | 9 | 0/9 | _pending_ | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 6/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 7/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -216,17 +216,40 @@ Cleanup directo del cluster auth + DB + invite. Evita acumulación durante V1.3.
 
 ---
 
-### Sesión 1.B — Auth hardening [~1.5h]
+### Sesión 1.B — Auth hardening [~1h efectivo] ✅
 
-- [ ] Zod schema en `src/features/access/auth-actions.ts`:
-  - `loginAction`: email format + password min length
-  - `signUpAccountAction`: idem + displayName trim non-empty
-- [ ] Zod schema en `src/features/nav-hub/actions/logout-action.ts`:
-  - `locale: z.enum(routing.locales)` (open-redirect protection)
-- [ ] Migrar `src/features/place-creation/actions.ts` (`createPlaceAction`) de patrón pre-ADR-0034 (`getAuth().getSession()` + `requireSessionJwt()`) a `getAuthenticatedDbForRequest()` zone-aware. Es el último survivor del patrón viejo
-- [ ] Verificar tests no regresionan (`pnpm test src/features/place-creation src/features/access src/features/nav-hub`)
+**Decisiones de la sesión (gap-scan 2026-05-28)**:
+- **Scope ampliado a `ports.ts` + `create-place.ts` + test** (vs sólo `actions.ts` listado originalmente): migrar el action al coordinator zone-aware obliga a dropear el campo `accessToken` del port `AcquiredIdentity` (el coordinator lee el token internamente — pasarlo desde afuera sería dead field). CLAUDE.md §"Avoid backwards-compatibility hacks like renaming unused _vars" prohíbe dejar el field muerto. Total 5 files (sobre el límite blando de 5 de CLAUDE.md, justificado como una migración coherente irreductible).
+- **Dropeado `requireSessionJwt` de `shared/lib/session.ts`** (limpieza obligada por gap closure): post-migración el grep confirmó zero callers TS. Mantener una función exportada sin callers viola production-grade. `getSessionJwt` (Promise<string | null>) se mantiene — único consumer vivo: `db-for-request.ts` rama `neon-auth-needed` del coordinator.
+- **Zod cozytech, no doxxer**: payload inválido → mismo status del fail-mode existente (`login_failed`/`signup_failed`/`error`), NO un nuevo tipo "validation_error". UX-equivalente a credenciales rotas; el detalle del schema no se expone al caller.
+- **Open-redirect fallback explícito**: locale inválido en `logoutAction` → fallback al primer locale (`routing.locales[0]` = `es`) en vez de fallar/throw. Mantiene la garantía "logout siempre redirige al apex" y previene el ataque de inyección de segmento sin doxxear el rechazo.
 
-**Acceptance**: typecheck verde · suite verde · grep `getAuth().getSession()` en código retorna SOLO callsites apex-only justificados (login/signup/logout pueden quedar si son apex-confined).
+**Items cerrados**:
+- [x] Zod schemas en `src/features/access/auth-actions.ts`:
+  - `loginInputSchema`: `email` regex `[^\s@]+@[^\s@]+\.[^\s@]+` + `password` min 8 chars
+  - `signupInputSchema`: idem + `displayName` transform-trim + min 1 + max 80
+  - Payload inválido → `login_failed`/`signup_failed` (cozytech)
+- [x] Zod schema en `src/features/nav-hub/actions/logout-action.ts`:
+  - `localeInputSchema = z.enum(routing.locales)` (SoT i18n ADR-0024)
+  - Inválido → fallback `routing.locales[0]` (open-redirect protection)
+- [x] Migrado `src/features/place-creation/actions.ts` (`createPlaceAction`):
+  - Dropeados imports `getAuth` + `requireSessionJwt` + `getAuthenticatedDb`
+  - Adapter `sessionIdentity` ahora usa `getCurrentUserIdentityForRequest()` (zone-aware, DEFINER `app.lookup_user_identity_by_id`)
+  - `runAuthedTx: getAuthenticatedDbForRequest` (direct pass-through al coordinator)
+- [x] Reshape `src/features/place-creation/ports.ts`:
+  - `AcquiredIdentity` drop `accessToken` (queda `{email, displayName}`)
+  - `AuthedTxRunner` drop param `accessToken`; claims tipo `{sub: string}` (superset de `VerifiedClaims` Neon Auth + `LocalSessionClaims` SSO local)
+  - Dropeado import `VerifiedClaims` (no usado post-reshape)
+- [x] Saga `src/features/place-creation/create-place.ts`:
+  - Las 2 invocaciones `ports.runAuthedTx(ident.accessToken, ...)` → `ports.runAuthedTx(...)` (1 arg)
+- [x] Test `src/features/place-creation/__tests__/create-place.test.ts`:
+  - FakeDb expone `currentSub` (setter por test), reemplaza el bridge `JSON.parse(accessToken)`
+  - 8 tests adaptados: `acquireIdentity` retorna `{email, displayName}` (sin `accessToken`); `db.currentSub` se configura pre-llamada
+- [x] Dropeado `requireSessionJwt` de `src/shared/lib/session.ts` (zero callers post-migration); header reescrito documentando que `getSessionJwt` es el único helper y que el patrón canon ahora es coordinator zone-aware
+
+**Acceptance**: typecheck verde ✅ · lint verde ✅ · 59 tests focales verdes (place-creation + access + nav-hub) ✅ · **node project aislado: 949/949 verde** (baseline idéntico a Phase 1.A — cero regresión) ✅ · **UI project aislado: 211/211 verde** ✅ · grep `requireSessionJwt` retorna SOLO la definición histórica en `session.ts` (cero callsites) + menciones en comentarios históricos ✅
+
+**Nota infra (no bloqueante 1.B)**: `pnpm test` (= `vitest run` sin filtro de project, ambos en paralelo) reportó 7 files/26 tests failed con stack trace WebSocket close en `lookup-place-by-domain.test.ts` (node DB test). Aislados los 2 projects se obtiene verde total → interferencia concurrente al correr ambos en paralelo (connection pool Neon / WS disconnect), NO regresión. Pre-existente al cambio de 1.B; pendiente para Phase 2 / 3 investigar config `vitest.config.ts` (e.g. `pool.threads`, `maxConcurrency` por project). Workflow CI separa los projects (no concurrencia) → no afecta gates.
 
 **Commit**: _pending_
 
@@ -356,8 +379,13 @@ V1.3 puede arrancar **en paralelo** con esta phase si recursos lo permiten. No b
   - `src/features/access/auth-actions.ts` branches: `error → status:'signup_failed'`, `data?.token` falsy
   - Integration `app.invitation_preview` directo (no solo via wrapper)
   - Integration `app.lookup_user_email_by_id` (si decisión 1.A.iii = keep; skip si dropped)
+- [ ] **Investigar flake `pnpm test` ambos projects en paralelo** (hallazgo Phase 1.B, 2026-05-28): `vitest run` sin filtro corre node + ui projects concurrentemente y reporta 26 fails (WebSocket close en `src/db/__tests__/lookup-place-by-domain.test.ts` y otros DB tests Neon). Aislados (`--project node` y `--project ui`) ambos verde total (949/949 + 211/211). Síntoma: contención de connection pool Neon + WS disconnect cuando jsdom workers de UI corren en paralelo con node DB workers. Pre-existente al cambio de 1.B (no regresión). Pendiente investigar config `vitest.config.ts`:
+  - Probar `poolMatchGlobs` o `pool: "forks"` para isolation por project
+  - Limitar `maxConcurrency` del project node (DB-bound, sequential-friendly)
+  - O documentar como gotcha + ajustar workflow CI / `package.json` script local (separar `test:node` + `test:ui` en lugar de `test` único)
+  - Workflow CI actual no afectado (corre los projects por separado)
 
-**Acceptance**: coverage report visible en cada PR · threshold no rota tests existentes · 3-4 tests nuevos verdes.
+**Acceptance**: coverage report visible en cada PR · threshold no rota tests existentes · 3-4 tests nuevos verdes · `pnpm test` no flakea o split en scripts separados con doc clara.
 
 **Commit**: _pending_
 

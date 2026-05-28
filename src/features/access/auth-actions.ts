@@ -1,5 +1,6 @@
 "use server";
 
+import { z } from "zod";
 import { getAuth } from "@/shared/lib/auth";
 import { enforceRateLimit, getRequestIp } from "@/shared/lib/rate-limit";
 import type { AccessCredentials, AccessResult } from "./ui/access-labels";
@@ -15,6 +16,36 @@ function buildRetryAfter(resetAt: number): number {
   const seconds = Math.ceil((resetAt - Date.now()) / 1000);
   return Math.max(1, Math.min(3600, seconds));
 }
+
+// Phase 1.B — Zod sobre el input de Server Actions (CLAUDE.md §"Zod para todo
+// input externo"). Defense-in-depth: la máquina del form ya valida cliente-
+// side (`use-access-form.ts:21-55`), pero los Server Actions son endpoints
+// HTTP — payload curl/devtools/replay puede saltearse el cliente. Sin Zod, un
+// email malformado o un password vacío llega crudo al SDK de Neon Auth (NO
+// idempotente: el SDK puede crear estado parcial o lanzar errores que el
+// outer catch colapsa silenciosamente). Con Zod, payload inválido = misma UX
+// que credenciales rotas (cozytech, ADR-0009: avisos calmos y honestos, sin
+// doxxear el detalle del SDK ni del schema).
+//
+// Reglas idénticas al cliente (single source = misma UX silenciosa cliente/
+// servidor): email regex laxo (`[^\s@]+@[^\s@]+\.[^\s@]+`), password mín 8
+// chars (canon Neon Auth default), displayName 1-80 después de trim.
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const loginInputSchema = z.object({
+  email: z.string().regex(EMAIL_RE),
+  password: z.string().min(8),
+});
+
+const signupInputSchema = z.object({
+  email: z.string().regex(EMAIL_RE),
+  password: z.string().min(8),
+  displayName: z
+    .string()
+    .transform((s) => s.trim())
+    .pipe(z.string().min(1).max(80)),
+});
 
 // Borde cross-system de la vía "Acceso" (S9, ADR-0008/0009). Es el wiring
 // VIVO del SDK Neon Auth; su correctitud es de tipo/build + preview Vercel,
@@ -36,6 +67,9 @@ export async function loginAction(
   email: string,
   password: string,
 ): Promise<AccessResult> {
+  const parsed = loginInputSchema.safeParse({ email, password });
+  if (!parsed.success) return { status: "login_failed" };
+
   const ip = await getRequestIp();
   const gate = await enforceRateLimit("login", ip);
   if (!gate.success) {
@@ -46,7 +80,10 @@ export async function loginAction(
   }
 
   try {
-    const { error } = await getAuth().signIn.email({ email, password });
+    const { error } = await getAuth().signIn.email({
+      email: parsed.data.email,
+      password: parsed.data.password,
+    });
     if (error) return { status: "login_failed" };
     return { status: "ok" };
   } catch {
@@ -67,6 +104,9 @@ export async function loginAction(
 export async function signUpAccountAction(
   c: AccessCredentials,
 ): Promise<AccessResult> {
+  const parsed = signupInputSchema.safeParse(c);
+  if (!parsed.success) return { status: "signup_failed" };
+
   const ip = await getRequestIp();
   const gate = await enforceRateLimit("signup", ip);
   if (!gate.success) {
@@ -78,9 +118,9 @@ export async function signUpAccountAction(
 
   try {
     const { data, error } = await getAuth().signUp.email({
-      email: c.email,
-      password: c.password,
-      name: c.displayName,
+      email: parsed.data.email,
+      password: parsed.data.password,
+      name: parsed.data.displayName,
     });
     // `data.token` (token de sesión) presente = signUp OK + cookie seteada
     // en la respuesta; el JWT lo obtiene la request siguiente (create authed).
