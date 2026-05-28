@@ -45,53 +45,28 @@ Elecciones tecnológicas de Place y justificación de cada una. Cualquier cambio
 
 ## Variables de entorno
 
-Archivo `.env.local` (gitignored — nunca se commitea):
+**Canon de referencia operativo**: `.env.example` checked-in en el repo root. Contiene la lista completa de env vars con placeholder + comentario + scope hint per variable. Esta sección documenta el RATIONALE de cada bloque.
 
-```env
-# Database (Neon, pooled — rol NO-admin para que RLS aplique; el rol admin
-# trae BYPASSRLS, ver ADR-0004). El connection string admin, si se usa para
-# migraciones, va aparte y nunca en runtime de la app.
-DATABASE_URL=
-DATABASE_URL_UNPOOLED=          # para migraciones drizzle-kit (opcional)
+Archivo `.env.local` (gitignored — nunca se commitea) lo copiás desde `.env.example` y completás. La excepción `!.env.example` en `.gitignore` hace que el example sí se versione.
 
-# Neon Auth (Better Auth) — base/jwks del diagnóstico 2026-05-16
-NEON_AUTH_BASE_URL=
-NEON_AUTH_JWKS_URL=
-NEON_AUTH_COOKIE_SECRET=        # ≥32 chars
+**Cambios respecto a iteraciones anteriores del doc (Phase 0.B closure, 2026-05-28)**:
+- `DATABASE_URL_UNPOOLED` renombrada a `DATABASE_URL_MIGRATE` (nombre que el código realmente lee).
+- Agregadas `DATABASE_URL_TEST` + `DATABASE_URL_TEST_MIGRATE` (requeridas por workflow `.github/workflows/tests.yml` + harness `src/db/__tests__/db-test-pool.ts`).
+- Agregada `VERCEL_ENV` (mention only — Vercel la inyecta automáticamente; usada por `scripts/maybe-migrate.mjs` para gate prod-only migrations).
+- `RESEND_API_KEY` marcada **Planned for V1.3** (lifecycle email ADR-0003, HOY no consumida por código).
+- `AI_GATEWAY_API_KEY` marcada como consumida internamente por el SDK `ai` (Vercel AI Gateway, no via `process.env` explícito), gateada por slice `style-assist/` que actualmente está dormido (ADR-0020).
 
-# Email transaccional (Resend — verificación de email + avisos lifecycle)
-RESEND_API_KEY=
+### Bloques operativos
 
-# IA (Vercel AI Gateway — asistencia LLM del onboarding)
-AI_GATEWAY_API_KEY=
+- **Database (Neon)**: 4 connection strings — runtime (`DATABASE_URL`, rol `app_system` NO-admin), migrations prod (`DATABASE_URL_MIGRATE`, rol `neondb_owner` admin, PROD-only), test branch x2 (`DATABASE_URL_TEST` + `DATABASE_URL_TEST_MIGRATE` para CI integration tests). El rol admin trae BYPASSRLS — NUNCA en runtime (ADR-0004).
+- **Neon Auth (Better Auth)**: 3 vars (`NEON_AUTH_BASE_URL`, `NEON_AUTH_JWKS_URL`, `NEON_AUTH_COOKIE_SECRET`). El cookie secret se genera con `openssl rand -base64 48`, mín 32 chars.
+- **App públicas**: `NEXT_PUBLIC_APP_URL` + `NEXT_PUBLIC_APP_DOMAIN`. Las que empiezan con `NEXT_PUBLIC_` se bundlean al client — exposure intencional, NO secret.
+- **Custom domains (Vercel API)**: `VERCEL_API_TOKEN` (scope `domains:write`) + `VERCEL_PROJECT_ID`. Sin estas el slice `/settings/domain` degrada (defensivo, no crash). Consumidas por `src/shared/lib/vercel/domains.ts` (ADR-0026).
+- **Custom Domain SSO (Feature C, ADR-0032)**: `PLACE_SSO_SIGNING_KEY` (ES256 PKCS8 PEM multiline) + `PLACE_SSO_SIGNING_KEY_KID` (short id). **Vercel-only**, NUNCA en `.env.local` committed. Generación de key con `openssl ecparam` + `openssl pkcs8` (ver `.env.example` comentarios).
+- **Vercel inyectados** (no setear manualmente): `VERCEL_ENV` (production / preview / development).
+- **Planned V1.3+**: `RESEND_API_KEY` (email lifecycle), `AI_GATEWAY_API_KEY` (slice `style-assist` reactivación).
 
-# App
-NEXT_PUBLIC_APP_URL=https://place.community
-NEXT_PUBLIC_APP_DOMAIN=place.community
-
-# Custom domains (Vercel Domains API — alta/verificación programática)
-# Consumidas por `src/shared/lib/vercel/domains.ts` (ADR-0026, feature
-# custom-domain V1: `addDomain`/`getDomainStatus`/`removeDomain`). Sin estas
-# dos en Vercel env, el wrapper retorna `vercel_error` (defensivo, no crash);
-# en dev local sin tokens el slice `/settings/domain` no opera.
-VERCEL_API_TOKEN=
-VERCEL_PROJECT_ID=
-
-# Custom Domain SSO (Feature C, ADR-0032) — Vercel-only, NUNCA en .env.local
-# committed. Consumidas por src/shared/lib/sso/sso-keys.ts. Setear en Vercel
-# dashboard para environments production + preview (preview branches del PR
-# pipeline necesitan testear el flow).
-# Generación de la key:
-#   openssl ecparam -name prime256v1 -genkey -noout -out tmp.pem
-#   openssl pkcs8 -topk8 -nocrypt -in tmp.pem -out signing-pkcs8.pem
-#   (contenido de signing-pkcs8.pem → Vercel env var; rm tmp.pem signing-pkcs8.pem)
-# Rotación operacional V1: manual cada 90 días (downtime ≤60s = TTL ticket).
-# V2 multi-key rotation (zero-downtime) diferido.
-PLACE_SSO_SIGNING_KEY=           # ES256 PKCS8 PEM private key (multiline)
-PLACE_SSO_SIGNING_KEY_KID=       # short string, ej. "2026-05-23-r1"
-```
-
-Las variables de storage/realtime/pagos se agregan cuando se decida cada pieza. Los nombres exactos de Neon Auth/Resend/AI Gateway se confirman al implementar S1. **Todo lo que sea secret** (`*_SECRET`, `*_API_KEY`, `*_TOKEN`, `DATABASE_URL`) vive solo en `.env.local` / Vercel env, **nunca en git**.
+**Storage/realtime/pagos** siguen TBD — se agregan cuando se decida cada pieza (ver TBDs abajo + `docs/tech-debt-pre-v1.3.md` Phase 1.G para Storage). **Todo lo que sea secret** (`*_SECRET`, `*_API_KEY`, `*_TOKEN`, `DATABASE_URL*`) vive solo en `.env.local` / Vercel env, **nunca en git**.
 
 ## Package manager
 

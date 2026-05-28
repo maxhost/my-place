@@ -23,13 +23,13 @@
 
 | Phase | Sesiones | Completadas | Tag pre-phase | Tag post-phase |
 |-------|----------|-------------|---------------|----------------|
-| **0 — Bloqueantes** | 5 | 2/5 | `baseline/pre-phase-0-tech-debt` ✅ | _pending_ |
+| **0 — Bloqueantes** | 5 | 3/5 | `baseline/pre-phase-0-tech-debt` ✅ | _pending_ |
 | **1 — Hardening** | 7 | 0/7 | _pending_ | _pending_ |
 | **2 — Tests + docs** | 8 | 0/8 | _pending_ | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 2/26 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 3/26 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -51,15 +51,21 @@ Sin estos items V1.3 introduce regresiones invisibles o bloquea onboarding.
 
 ---
 
-### Sesión 0.B — DX docs foundation [~1.5h]
+### Sesión 0.B — DX docs foundation [~1.5h] ✅
 
-- [ ] Rewrite `README.md` root: setup local (pnpm, Node ≥22, .nvmrc), env vars donde sacar c/secret (Neon dashboard, Vercel), pnpm scripts (`db:migrate`, `test`, `typecheck`, `lint`, `build`), deploy notes, mapa `docs/` + `CLAUDE.md`
-- [ ] Crear `.env.example` checked-in: 12-15 env vars con placeholders + scope hint (`prod-only`, `all-envs`) + dónde obtener c/secret. Cross-check vs `process.env.*` usados en `src/`
-- [ ] Verificar `docs/stack.md` env drift: `RESEND_API_KEY` + `AI_GATEWAY_API_KEY` declarados sin imports → decisión drop o mark planned (anotado para Phase 2.F si requiere lookup)
+- [x] Rewrite `README.md` root: ~150 LOC con Quick start (5 comandos) + Prerequisites + Setup local detallado (5 pasos numerados) + Scripts table + Testing section + Deploy + Mapa de docs (12 entries) + Arquitectura en 30 segundos + Contribuir. Reemplaza boilerplate `create-next-app` (37 LOC). Apunta a `CLAUDE.md` como reglas operativas + `docs/` por dominio
+- [x] `.env.example` checked-in (gitignore excepción `!.env.example` agregada): 14 env vars usadas en código + 2 planned V1.3+ (`RESEND_API_KEY`, `AI_GATEWAY_API_KEY`). Organizado por bloque (Database / Neon Auth / App / Vercel Domains / SSO / Planned) con comentario inline + scope hint + dónde sacar cada secret. Cross-checked vs `grep process.env.*` exhaustivo
+- [x] `docs/stack.md` §"Variables de entorno" rewriteada para resolver drift:
+  - `DATABASE_URL_UNPOOLED` (no usada) → renombrada a `DATABASE_URL_MIGRATE` (nombre real del código)
+  - Agregadas `DATABASE_URL_TEST` + `DATABASE_URL_TEST_MIGRATE` (requeridas por workflow tests.yml + harness db-test-pool.ts)
+  - Agregada `VERCEL_ENV` (mention only, Vercel auto-inject)
+  - `RESEND_API_KEY` marcada **Planned for V1.3** (lifecycle email ADR-0003, hoy NO consumida)
+  - `AI_GATEWAY_API_KEY` marcada como consumida internamente por SDK `ai` (slice `style-assist` dormido por ADR-0020)
+  - Bloque rewriteado como prosa estructurada (bloques operativos) en lugar de duplicar el `.env.example`. El `.env.example` es ahora el canon de referencia operativo
 
-**Acceptance**: nuevo dev puede levantar entorno local solo leyendo `README.md` + `.env.example` · sin enviar secrets reales al repo.
+**Acceptance**: nuevo dev levanta entorno local con solo README + .env.example ✅ · stack.md no tiene env drift ✅ · .env.example versionado (gitignore exception) ✅
 
-**Commit**: _pending_
+**Commit**: _ver siguiente commit_ · **Tag**: _no aplica (no load-bearing)_
 
 ---
 
