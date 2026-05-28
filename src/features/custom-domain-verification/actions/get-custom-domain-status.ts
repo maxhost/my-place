@@ -1,4 +1,5 @@
 import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
+import { log } from "@/shared/lib/observability/log";
 import { getDomainConfig, getDomainStatus } from "@/shared/lib/vercel";
 import {
   type CustomDomainRecord,
@@ -102,10 +103,10 @@ async function persistVerifiedAt(id: string): Promise<Date | null> {
       return (rows[0]?.verifiedAt as Date | undefined) ?? null;
     });
   } catch (err) {
-    console.error(
-      "[get-custom-domain-status] UPDATE verified_at falló para id=",
-      id,
+    log.error(
       err,
+      { scope: "get-custom-domain-status", placeDomainId: id },
+      "UPDATE verified_at falló",
     );
     return null;
   }
@@ -131,10 +132,10 @@ async function resetVerifiedAt(id: string): Promise<boolean> {
       return rows.length > 0;
     });
   } catch (err) {
-    console.error(
-      "[get-custom-domain-status] reset verified_at=NULL falló para id=",
-      id,
+    log.error(
       err,
+      { scope: "get-custom-domain-status", placeDomainId: id },
+      "reset verified_at=NULL falló",
     );
     return false;
   }

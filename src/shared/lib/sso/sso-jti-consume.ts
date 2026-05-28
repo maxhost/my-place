@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { pool } from "@/db/client";
+import { log } from "@/shared/lib/observability/log";
 
 // Feature C · S8 · wrapper anonymous-safe sobre `app.consume_sso_jti`
 // (DEFINER, migration 0011). Único canal anti-replay del ticket SSO. ADR-0032
@@ -21,20 +22,25 @@ export async function consumeSsoJti(
     );
     const row = result.rows[0];
     if (!row) {
-      console.error("[sso-jti-consume] empty result rows");
+      log.error(
+        new Error("empty result rows"),
+        { scope: "sso-jti-consume" },
+        "empty result rows",
+      );
       return false;
     }
     const parsed = consumeResultSchema.safeParse(row);
     if (!parsed.success) {
-      console.error(
-        "[sso-jti-consume] payload schema drift",
-        parsed.error.format(),
+      log.error(
+        parsed.error,
+        { scope: "sso-jti-consume" },
+        "payload schema drift",
       );
       return false;
     }
     return parsed.data.consume_sso_jti;
   } catch (err) {
-    console.error("[sso-jti-consume] DB query failed", err);
+    log.error(err, { scope: "sso-jti-consume" }, "DB query failed");
     return false;
   }
 }

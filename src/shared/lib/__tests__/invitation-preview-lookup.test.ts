@@ -133,10 +133,12 @@ describe("lookupInvitationPreview — frontera TS sobre app.invitation_preview",
 
     expect(result).toBeNull();
     expect(console.error).toHaveBeenCalledTimes(1);
-    expect(console.error).toHaveBeenCalledWith(
-      "[invitation-preview-lookup] DB query falló",
-      expect.any(Error),
-    );
+    // Post Phase 0.E (ADR-0047): log.error emite JSON structured + err raw.
+    const args = vi.mocked(console.error).mock.calls[0]!;
+    const payload = JSON.parse(args[0] as string) as Record<string, unknown>;
+    expect(payload.scope).toBe("invitation-preview-lookup");
+    expect(payload.message).toBe("DB query falló");
+    expect(args[1]).toBeInstanceOf(Error);
   });
 
   it("timeout simulado → null + log con prefix de DB falló", async () => {
@@ -163,8 +165,13 @@ describe("lookupInvitationPreview — frontera TS sobre app.invitation_preview",
 
     expect(result).toBeNull();
     expect(console.error).toHaveBeenCalledTimes(1);
-    const firstArg = vi.mocked(console.error).mock.calls[0]![0];
-    expect(firstArg).toBe("[invitation-preview-lookup] payload inválido");
+    // Post Phase 0.E (ADR-0047): el wrapper usa log.error que emite JSON
+    // structured a console.error.
+    const firstArg = vi.mocked(console.error).mock.calls[0]![0] as string;
+    const payload = JSON.parse(firstArg) as Record<string, unknown>;
+    expect(payload.level).toBe("error");
+    expect(payload.scope).toBe("invitation-preview-lookup");
+    expect(payload.message).toBe("payload inválido");
   });
 
   it("drift: place_name vacío → null + log de payload inválido", async () => {

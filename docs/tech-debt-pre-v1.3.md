@@ -23,13 +23,13 @@
 
 | Phase | Sesiones | Completadas | Tag pre-phase | Tag post-phase |
 |-------|----------|-------------|---------------|----------------|
-| **0 — Bloqueantes** | 5 | 4/5 | `baseline/pre-phase-0-tech-debt` ✅ | _pending_ |
+| **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` _pending commit_ |
 | **1 — Hardening** | 7 | 0/7 | _pending_ | _pending_ |
 | **2 — Tests + docs** | 9 | 0/9 | _pending_ | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 4/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 5/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -130,31 +130,49 @@ Sin estos items V1.3 introduce regresiones invisibles o bloquea onboarding.
 
 ---
 
-### Sesión 0.E — Observability stack [~4-6h, posible split E1/E2]
+### Sesión 0.E — Observability stack [~2.5h efectivo · estimado original 4-6h] ✅
 
-**Sub-sesión 0.E1 — Decisión + provisioning + wrapper [~2h]**
+**Decisiones de la sesión (post-revisión con user)**:
+- **Stack elegido**: Sentry (Vercel-native integration). Análisis prosa de 4 opciones (Sentry, BetterStack, Axiom, híbrido) en ADR-0047 §"Alternativas rechazadas". User confirmó "A" sin override.
+- **NO fail-loud-prod sin SENTRY_DSN** — Sentry NO es control de seguridad (a diferencia de rate-limit Phase 0.D). Si la integración Vercel × Sentry no se completó pre-deploy, SDK init es no-op silencioso. Trade-off explícito en ADR-0047 §"Alternativas rechazadas" — δ.
+- **Diagnóstico actualiza estimado del original**: la estimación de "wire 90 console.*" en el plan resultó conservadora — realidad fue **26 callsites en 12 archivos** (todo `console.error` excepto 1 warn de rate-limit; cero `console.log` debug spam — hygiene ya estaba limpia). E2 ejecutó en ~1h vs ~2-4h estimado.
 
-- [ ] Decisión stack: Sentry (recomendado por integración Vercel) vs BetterStack vs Axiom. ADR nueva `docs/decisions/0047-observability-stack.md` con rationale + alternativas rechazadas
-- [ ] Provisioning: crear proyecto en provider elegido + obtener DSN/token + agregar env var en Vercel (prod + preview scoped)
-- [ ] Wrapper `src/shared/lib/observability/log.ts` (pino structured + provider sink):
-  - `log.info({...meta}, msg)`, `log.warn`, `log.error(err, {...meta}, msg)`
-  - Auto-enrichment: requestId, userId (si available), zone (apex/sub/custom)
-- [ ] Sentry/error tracking SDK init en `src/instrumentation.ts` (Next.js 16 instrumentation hook)
+**Items cerrados**:
+- [x] ADR-0047 (`docs/decisions/0047-observability-sentry.md`) — rationale Sentry + 6 alternativas rechazadas (BetterStack, Axiom, híbrido, fail-loud-prod, DIY logger, DataDog APM) + future-eject path low-cost vía wrapper. Indexada en `docs/decisions/README.md` (insertada antes de 0044 — orden numérico, no histórico-secuencial)
+- [x] Dependency `@sentry/nextjs@^10.55.0` instalada + approve-builds setup `@sentry/cli` (postinstall via `pnpm.onlyBuiltDependencies` field para source maps CI)
+- [x] Wrapper `src/shared/lib/observability/log.ts` + 7 unit tests (`__tests__/log.test.ts` con mock de `@sentry/nextjs`):
+  - API: `log.info(meta, msg)`, `log.warn(meta, msg)`, `log.error(err, meta, msg)`
+  - Mapping: info→solo console.info structured JSON (NO Sentry — quota burn); warn→console.warn + captureMessage(warning); error→console.error + captureException
+  - Defense-in-depth: SDK Sentry calls envueltos en try/catch (el caller path NUNCA rompe por blip de la lib)
+  - TDD: red phase verificado primero, luego green
+- [x] Archivos init Sentry (4 ubicaciones, convención Next 16):
+  - `src/instrumentation.ts` — `register()` dispatch por runtime + `onRequestError` exportado del SDK
+  - `src/instrumentation-client.ts` — Sentry init browser + `onRouterTransitionStart` hook
+  - `sentry.server.config.ts` (raíz) — runtime Node.js, tracing disabled, debug=false
+  - `sentry.edge.config.ts` (raíz) — runtime Edge (proxy.ts), mismo shape que server
+- [x] `next.config.ts` wrap con `withSentryConfig`:
+  - Composición externa al `withAnalyzer(withNextIntl(nextConfig))` chain
+  - `silent: !CI` — quieto en local, verbose en Vercel build
+  - `widenClientFileUpload: true` — más source maps client uploaded
+  - `disableLogger: true` — bota Sentry logger del bundle client (~5KB savings)
+  - `sourcemaps.deleteSourcemapsAfterUpload: true` — privacy + security (source maps NO referenciados desde bundle)
+- [x] `src/app/global-error.tsx` — root error boundary (`"use client"`) con `useEffect → captureException(error)` + UI minimal Spanish con tokens "Papel cálido" inline-styled (preserva legibilidad si CSS providers rompieron)
+- [x] `.env.example` — bloque Sentry con 5 vars (`SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`) + setup instructions step-by-step Vercel Marketplace × Sentry integration (~5min, auto-sync env vars)
+- [x] `docs/stack.md` — fila "Observability" en tabla stack + entrada §Variables de entorno con behavior por entorno (prod sin DSN → no-op silent; dev → console.* fallback)
+- [x] **E2 — Migración 26 callsites** (12 archivos): reemplazo `console.error(...)` → `log.error(err, {scope, ...meta}, msg)`. JSDoc references `console.error` actualizados a `log.error` con cita ADR-0047. Único `console.warn` (rate-limit startup) → `log.warn`. Único `console.error` ad-hoc de domains-shared.ts (no-DB warn) reclasificado a `log.warn` por semántica correcta. Archivos: place-locale-lookup, custom-domain-by-slug-lookup, custom-domain-lookup, invitation-preview-lookup, user-identity-by-id-lookup, sso-jti-consume, rate-limit/index (warn), vercel/domains-shared (warn), 2× custom-domain-verification/actions/get-custom-domain-status, archive-custom-domain, 2× register-custom-domain, get-place-for-zone (solo JSDoc ref).
 
-**Acceptance E1**: log.info de prueba aparece en dashboard del provider en <30s · errors uncaught se reportan automáticamente.
+**Acceptance**: typecheck ✅ · lint ✅ · 211 UI tests verdes · 7 tests nuevos wrapper verdes · 0 `console.*` en src/ no-test (sólo 6 references en el wrapper mismo, esperado) · ADR-0047 + README index sincronizados.
 
-**Commit E1**: _pending_
+**Notas operativas pendientes para user** (post-merge):
+1. Sign up en sentry.io (free tier 5k errors/mes)
+2. Create Project → Next.js → name "place-prod"
+3. Vercel Dashboard → tu proyecto → Integrations → Sentry → Install (~5min). Sincroniza AUTO las 5 env vars a Production + Preview scopes
+4. Verificar en Vercel Settings → Environment Variables que aparecen
+5. Sin esa integración, prod deployea pero SDK Sentry es no-op silencioso (perdés visibilidad de errors hasta que se complete). Distinto patrón vs Upstash Phase 0.D que sí fail-loud.
 
-**Sub-sesión 0.E2 — Wire 90 console.* → logger [~2-4h]**
+**Smoke deferido a deploy**: `throw new Error("sentry smoke test")` en una page protegida; verificar issue aparece en dashboard <30s; remover el throw.
 
-- [ ] Grep `console.(log|warn|error|info|debug)` en `src/**` (excluir tests)
-- [ ] Reemplazar c/u por `log.*` equivalente con metadata estructurada
-- [ ] Priorizar error paths críticos (Server Actions catch blocks, route handler errors, SSO chain)
-- [ ] Para `console.log` debug obvios sin valor en prod: deletear (no migrar)
-
-**Acceptance E2**: zero `console.*` en código no-test · errores de invite/SSO/place-creation aparecen en error tracker con stack trace + metadata.
-
-**Commit E2**: _pending_ · **Tag**: `baseline/phase-0-E-observability-done` (load-bearing)
+**Commit**: _pending_ · **Tag**: `baseline/phase-0-E-observability-done` (load-bearing)
 
 ---
 
@@ -557,9 +575,9 @@ Items que NO son cleanup tech debt sino features/optimizaciones para más adelan
 |-----|--------|-------------|
 | `baseline/feature-e-invite-v1.2-done` | `3be5eec` | V1.2 invite flow cerrado |
 | `baseline/pre-phase-0-tech-debt` | `3be5eec` | Save point pre-Phase 0 (= V1.2 done) |
-| `baseline/phase-0-D-edge-config-done` | _pending_ | Edge config load-bearing |
-| `baseline/phase-0-E-observability-done` | _pending_ | Observability load-bearing |
-| `baseline/phase-0-tech-debt-done` | _pending_ | Cierre Phase 0 |
+| `baseline/phase-0-D-edge-config-done` | _commit `414d53a`_ | Edge config load-bearing (Phase 0.D) |
+| `baseline/phase-0-E-observability-done` | _pending commit_ | Observability load-bearing (Phase 0.E) |
+| `baseline/phase-0-tech-debt-done` | _= phase-0-E-done_ | Cierre Phase 0 |
 | `baseline/pre-phase-1-tech-debt` | _= phase-0-done_ | Save point pre-Phase 1 |
 | `baseline/phase-1-G-storage-decided` | _pending_ | Storage decision load-bearing |
 | `baseline/phase-1-tech-debt-done` | _pending_ | Cierre Phase 1 |

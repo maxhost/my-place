@@ -176,7 +176,7 @@ export const getPlaceForZone = cache(
  *
  * Wrapper sobre `lookupPlaceLocaleBySlug` (`shared/lib/place-locale-
  * lookup.ts`, S4b). El wrapper subyacente ya tiene fail-safe a `null` y
- * `console.error` para errores DB; este `cache()` solo agrega la
+ * `log.error` (ADR-0047) para errores DB; este `cache()` solo agrega la
  * dedup intra-render.
  *
  * Retorna `string | null`:

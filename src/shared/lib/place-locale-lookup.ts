@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { pool } from "@/db/client";
+import { log } from "@/shared/lib/observability/log";
 
 // Feature B — custom-domain-routing V1 (ADR-0031 §"Fuente 2", migration 0010).
 //
@@ -32,7 +33,7 @@ import { pool } from "@/db/client";
 //      el invariante en DB; el Zod defense-in-depth ante drift TS↔SQL (e.g.,
 //      el día que se agregue un locale al CHECK pero no al enum del front).
 //   3. Fail-safe: TODO error de DB (timeout, network, pool exhaustion, drift
-//      de schema) colapsa a `null` + `console.error`. El layout NUNCA crashea
+//      de schema) colapsa a `null` + `log.error` (ADR-0047). El layout NUNCA crashea
 //      y NUNCA renderea con un `<html lang>` inválido — `null` cae a
 //      `routing.defaultLocale` (precedence 3).
 //   4. Skip short-circuit: slug vacío / whitespace-only → null sin query.
@@ -60,20 +61,20 @@ export async function lookupPlaceLocaleBySlug(
 
     const parsed = localeSchema.safeParse(locale);
     if (!parsed.success) {
-      console.error(
-        "[place-locale-lookup] locale inválido para slug=",
-        slug,
+      log.error(
         parsed.error,
+        { scope: "place-locale-lookup", slug },
+        "locale inválido",
       );
       return null;
     }
 
     return parsed.data;
   } catch (err) {
-    console.error(
-      "[place-locale-lookup] DB query falló para slug=",
-      slug,
+    log.error(
       err,
+      { scope: "place-locale-lookup", slug },
+      "DB query falló",
     );
     return null;
   }

@@ -81,11 +81,13 @@ describe("lookupPlaceByDomain — frontera TS sobre app.lookup_place_by_domain",
 
     expect(result).toBeNull();
     expect(console.error).toHaveBeenCalledTimes(1);
-    expect(console.error).toHaveBeenCalledWith(
-      "[custom-domain-lookup] DB query falló para host=",
-      "empresa.com",
-      expect.any(Error),
-    );
+    // Post Phase 0.E (ADR-0047): log.error emite JSON structured.
+    const args = vi.mocked(console.error).mock.calls[0]!;
+    const payload = JSON.parse(args[0] as string) as Record<string, unknown>;
+    expect(payload.scope).toBe("custom-domain-lookup");
+    expect(payload.message).toBe("DB query falló");
+    expect(payload.host).toBe("empresa.com");
+    expect(args[1]).toBeInstanceOf(Error);
   });
 
   it("timeout simulado → null + log con prefix de DB falló", async () => {
@@ -95,11 +97,13 @@ describe("lookupPlaceByDomain — frontera TS sobre app.lookup_place_by_domain",
 
     expect(result).toBeNull();
     expect(console.error).toHaveBeenCalledTimes(1);
-    expect(console.error).toHaveBeenCalledWith(
-      "[custom-domain-lookup] DB query falló para host=",
-      "lento.com",
-      expect.any(Error),
-    );
+    // Post Phase 0.E (ADR-0047): ver test anterior.
+    const args = vi.mocked(console.error).mock.calls[0]!;
+    const payload = JSON.parse(args[0] as string) as Record<string, unknown>;
+    expect(payload.scope).toBe("custom-domain-lookup");
+    expect(payload.message).toBe("DB query falló");
+    expect(payload.host).toBe("lento.com");
+    expect(args[1]).toBeInstanceOf(Error);
   });
 
   it("host uppercase: normaliza a lowercase ANTES de query (defense-in-depth)", async () => {
@@ -147,7 +151,13 @@ describe("lookupPlaceByDomain — frontera TS sobre app.lookup_place_by_domain",
 
     expect(result).toBeNull();
     expect(console.error).toHaveBeenCalledTimes(1);
-    const firstArg = vi.mocked(console.error).mock.calls[0]![0];
-    expect(firstArg).toBe("[custom-domain-lookup] payload inválido para host=");
+    // Post Phase 0.E (ADR-0047): el wrapper usa log.error que emite JSON
+    // structured a console.error.
+    const firstArg = vi.mocked(console.error).mock.calls[0]![0] as string;
+    const payload = JSON.parse(firstArg) as Record<string, unknown>;
+    expect(payload.level).toBe("error");
+    expect(payload.scope).toBe("custom-domain-lookup");
+    expect(payload.message).toBe("payload inválido");
+    expect(payload.host).toBe("driftedplace.com");
   });
 });

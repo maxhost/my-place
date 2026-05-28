@@ -88,10 +88,14 @@ describe("lookupUserIdentityById — frontera TS sobre app.lookup_user_identity_
 
     expect(result).toBeNull();
     expect(console.error).toHaveBeenCalledTimes(1);
-    const firstArg = vi.mocked(console.error).mock.calls[0]![0];
-    expect(firstArg).toBe(
-      "[user-identity-by-id-lookup] payload inválido para id=",
-    );
+    // Post Phase 0.E (ADR-0047): el wrapper usa log.error que emite JSON
+    // structured a console.error.
+    const firstArg = vi.mocked(console.error).mock.calls[0]![0] as string;
+    const payload = JSON.parse(firstArg) as Record<string, unknown>;
+    expect(payload.level).toBe("error");
+    expect(payload.scope).toBe("user-identity-by-id-lookup");
+    expect(payload.message).toBe("payload inválido");
+    expect(payload.authUserId).toBe("11111111-2222-3333-4444-555555555555");
   });
 
   it("payload con name no-string (drift extremo de schema Neon Auth) → null + log", async () => {

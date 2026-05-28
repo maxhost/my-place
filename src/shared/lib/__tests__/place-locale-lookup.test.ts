@@ -69,11 +69,14 @@ describe("lookupPlaceLocaleBySlug — frontera TS sobre app.lookup_place_locale_
 
     expect(result).toBeNull();
     expect(console.error).toHaveBeenCalledTimes(1);
-    expect(console.error).toHaveBeenCalledWith(
-      "[place-locale-lookup] DB query falló para slug=",
-      "mi-place",
-      expect.any(Error),
-    );
+    // Post Phase 0.E (ADR-0047): log.error emite JSON structured + el err raw
+    // como segundo arg.
+    const args = vi.mocked(console.error).mock.calls[0]!;
+    const payload = JSON.parse(args[0] as string) as Record<string, unknown>;
+    expect(payload.scope).toBe("place-locale-lookup");
+    expect(payload.message).toBe("DB query falló");
+    expect(payload.slug).toBe("mi-place");
+    expect(args[1]).toBeInstanceOf(Error);
   });
 
   it("timeout simulado → null + log con prefix de DB falló", async () => {
@@ -83,11 +86,13 @@ describe("lookupPlaceLocaleBySlug — frontera TS sobre app.lookup_place_locale_
 
     expect(result).toBeNull();
     expect(console.error).toHaveBeenCalledTimes(1);
-    expect(console.error).toHaveBeenCalledWith(
-      "[place-locale-lookup] DB query falló para slug=",
-      "lento",
-      expect.any(Error),
-    );
+    // Post Phase 0.E (ADR-0047): ver test anterior.
+    const args = vi.mocked(console.error).mock.calls[0]!;
+    const payload = JSON.parse(args[0] as string) as Record<string, unknown>;
+    expect(payload.scope).toBe("place-locale-lookup");
+    expect(payload.message).toBe("DB query falló");
+    expect(payload.slug).toBe("lento");
+    expect(args[1]).toBeInstanceOf(Error);
   });
 
   it("slug uppercase: normaliza a lowercase ANTES de query (defense-in-depth)", async () => {
@@ -130,8 +135,15 @@ describe("lookupPlaceLocaleBySlug — frontera TS sobre app.lookup_place_locale_
 
     expect(result).toBeNull();
     expect(console.error).toHaveBeenCalledTimes(1);
-    const firstArg = vi.mocked(console.error).mock.calls[0]![0];
-    expect(firstArg).toBe("[place-locale-lookup] locale inválido para slug=");
+    // Post Phase 0.E (ADR-0047): el wrapper usa log.error que emite JSON
+    // structured a console.error. Verificamos el shape (scope + message)
+    // sin acoplarnos al orden de keys.
+    const firstArg = vi.mocked(console.error).mock.calls[0]![0] as string;
+    const payload = JSON.parse(firstArg) as Record<string, unknown>;
+    expect(payload.level).toBe("error");
+    expect(payload.scope).toBe("place-locale-lookup");
+    expect(payload.message).toBe("locale inválido");
+    expect(payload.slug).toBe("drifted-place");
   });
 
   it("locale con tipo no-string (drift extremo) → null + log con prefix de locale inválido", async () => {

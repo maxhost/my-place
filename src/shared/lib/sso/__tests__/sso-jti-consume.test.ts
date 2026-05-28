@@ -97,14 +97,20 @@ describe("consumeSsoJti — frontera TS sobre app.consume_sso_jti", () => {
 
     expect(console.error).toHaveBeenCalledTimes(1);
     const args = vi.mocked(console.error).mock.calls[0]!;
-    // El prefix canónico identifica el módulo + tipo de fallo en logs Vercel.
-    expect(args[0]).toBe("[sso-jti-consume] DB query failed");
+    // Post Phase 0.E (ADR-0047): el wrapper usa log.error que emite JSON
+    // structured a console.error. El prefix canónico ahora vive como
+    // `scope` + `message` dentro del JSON.
+    const payload = JSON.parse(args[0] as string) as Record<string, unknown>;
+    expect(payload.level).toBe("error");
+    expect(payload.scope).toBe("sso-jti-consume");
+    expect(payload.message).toBe("DB query failed");
     // El segundo argumento debe ser el Error real para que ops vea el stack
     // trace (timeout, network, pool exhaustion).
     expect(args[1]).toBe(dbErr);
 
     // Defense-in-depth: log scraping NO debe poder reconstruir tickets que
-    // fallaron mid-flow. El jti raw NO aparece en NINGUNA posición del log.
+    // fallaron mid-flow. El jti raw NO aparece en NINGUNA posición del log
+    // (ni en el JSON structured ni en el err raw passed as second arg).
     for (const arg of args) {
       if (typeof arg === "string") {
         expect(arg.includes(jti)).toBe(false);
@@ -122,8 +128,11 @@ describe("consumeSsoJti — frontera TS sobre app.consume_sso_jti", () => {
 
     expect(result).toBe(false);
     expect(console.error).toHaveBeenCalledTimes(1);
-    const firstArg = vi.mocked(console.error).mock.calls[0]![0];
-    expect(firstArg).toBe("[sso-jti-consume] empty result rows");
+    // Post Phase 0.E (ADR-0047): JSON structured.
+    const firstArg = vi.mocked(console.error).mock.calls[0]![0] as string;
+    const payload = JSON.parse(firstArg) as Record<string, unknown>;
+    expect(payload.scope).toBe("sso-jti-consume");
+    expect(payload.message).toBe("empty result rows");
   });
 
   it("schema drift (Zod fail — boolean expected pero string llegó): wrapper retorna false + console.error con prefix payload schema drift", async () => {
@@ -141,7 +150,10 @@ describe("consumeSsoJti — frontera TS sobre app.consume_sso_jti", () => {
 
     expect(result).toBe(false);
     expect(console.error).toHaveBeenCalledTimes(1);
-    const firstArg = vi.mocked(console.error).mock.calls[0]![0];
-    expect(firstArg).toBe("[sso-jti-consume] payload schema drift");
+    // Post Phase 0.E (ADR-0047): JSON structured.
+    const firstArg = vi.mocked(console.error).mock.calls[0]![0] as string;
+    const payload = JSON.parse(firstArg) as Record<string, unknown>;
+    expect(payload.scope).toBe("sso-jti-consume");
+    expect(payload.message).toBe("payload schema drift");
   });
 });

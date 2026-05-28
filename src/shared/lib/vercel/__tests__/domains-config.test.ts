@@ -264,7 +264,10 @@ describe("getDomainConfig — GET /v6/domains/{domain}/config", () => {
   });
 
   it("env vars missing → vercel_error sin fetch", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Post Phase 0.E (ADR-0047): el wrapper usa log.warn (semánticamente
+    // correcto: missing creds es warning, no error), que internamente llama
+    // a console.warn.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.unstubAllEnvs();
     // VERCEL_PROJECT_ID no se usa en este endpoint pero el wrapper lo
     // exige por simetría con el resto (mismo helper readEnvAndHeaders).
@@ -275,6 +278,6 @@ describe("getDomainConfig — GET /v6/domains/{domain}/config", () => {
 
     expect(result).toEqual({ ok: false, reason: "vercel_error" });
     expect(global.fetch).not.toHaveBeenCalled();
-    expect(errorSpy).toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalled();
   });
 });

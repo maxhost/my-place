@@ -2,6 +2,7 @@ import { cache } from "react";
 import { z } from "zod";
 
 import { pool } from "@/db/client";
+import { log } from "@/shared/lib/observability/log";
 
 // Feature E — Invite Accept Flow V1.2 · Sesión B (ADR-0046 §D2). Wrapper TS
 // sobre `app.invitation_preview` (migration 0003, SECURITY DEFINER —
@@ -54,7 +55,7 @@ import { pool } from "@/db/client";
 //   2. Normalización: trim + lowercase. Defense + cache key uniformity.
 //   3. Zod parse del payload (3 campos non-empty string). Si CUALQUIER campo
 //      falla → null + log.
-//   4. Fail-safe: todo error de DB → null + console.error. NUNCA throw.
+//   4. Fail-safe: todo error de DB → null + log.error (ADR-0047). NUNCA throw.
 
 const TOKEN_PATTERN = /^[a-f0-9]{32,256}$/;
 
@@ -92,7 +93,11 @@ export const lookupInvitationPreview = cache(async (
 
     const parsed = previewSchema.safeParse(row);
     if (!parsed.success) {
-      console.error("[invitation-preview-lookup] payload inválido", parsed.error);
+      log.error(
+        parsed.error,
+        { scope: "invitation-preview-lookup" },
+        "payload inválido",
+      );
       return null;
     }
 
@@ -102,7 +107,11 @@ export const lookupInvitationPreview = cache(async (
       inviteeEmail: parsed.data.invitee_email,
     };
   } catch (err) {
-    console.error("[invitation-preview-lookup] DB query falló", err);
+    log.error(
+      err,
+      { scope: "invitation-preview-lookup" },
+      "DB query falló",
+    );
     return null;
   }
 });

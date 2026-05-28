@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { pool } from "@/db/client";
+import { log } from "@/shared/lib/observability/log";
 
 // Feature B — custom-domain-routing V1 (ADR-0031 §1, migration 0009).
 //
@@ -21,7 +22,7 @@ import { pool } from "@/db/client";
 //   2. Zod parse del payload `jsonb` — el contrato de schema queda explícito
 //      en TS; un drift futuro del shape no rompe silenciosamente.
 //   3. Fail-safe: TODO error de DB (timeout, network, pool exhaustion, drift
-//      de schema) colapsa a `null` + `console.error`. El proxy NUNCA crashea y
+//      de schema) colapsa a `null` + `log.error` (ADR-0047). El proxy NUNCA crashea y
 //      NUNCA sirve el place de otro por error — `null` rutea a marketing.
 //   4. Renombre snake_case (DB) → camelCase (TS) en la frontera.
 
@@ -54,10 +55,10 @@ export async function lookupPlaceByDomain(rawHost: string): Promise<{
 
     const parsed = lookupPayloadSchema.safeParse(payload);
     if (!parsed.success) {
-      console.error(
-        "[custom-domain-lookup] payload inválido para host=",
-        host,
+      log.error(
         parsed.error,
+        { scope: "custom-domain-lookup", host },
+        "payload inválido",
       );
       return null;
     }
@@ -68,10 +69,10 @@ export async function lookupPlaceByDomain(rawHost: string): Promise<{
       defaultLocale: parsed.data.default_locale,
     };
   } catch (err) {
-    console.error(
-      "[custom-domain-lookup] DB query falló para host=",
-      host,
+    log.error(
       err,
+      { scope: "custom-domain-lookup", host },
+      "DB query falló",
     );
     return null;
   }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { validateCustomDomain } from "@/shared/lib/custom-domain";
 import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
+import { log } from "@/shared/lib/observability/log";
 import { addDomain, getDomainConfig } from "@/shared/lib/vercel";
 import {
   type CustomDomainRecord,
@@ -151,10 +152,10 @@ async function rollbackInsertedRow(id: string): Promise<void> {
       await sql(`DELETE FROM place_domain WHERE id = $1`, [id]);
     });
   } catch (rollbackErr) {
-    console.error(
-      "[register-custom-domain] rollback DELETE falló para id=",
-      id,
+    log.error(
       rollbackErr,
+      { scope: "register-custom-domain", placeDomainId: id },
+      "rollback DELETE falló",
     );
   }
 }
@@ -179,10 +180,10 @@ async function persistVerifiedAtNow(id: string): Promise<Date> {
       return (rows[0]?.verifiedAt as Date | undefined) ?? new Date();
     });
   } catch (err) {
-    console.error(
-      "[register-custom-domain] UPDATE verified_at = now() falló para id=",
-      id,
+    log.error(
       err,
+      { scope: "register-custom-domain", placeDomainId: id },
+      "UPDATE verified_at = now() falló",
     );
     return new Date();
   }

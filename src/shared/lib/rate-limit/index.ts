@@ -1,6 +1,8 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
+import { log } from "@/shared/lib/observability/log";
+
 import { RATE_LIMITS } from "./config";
 import type { RateLimitKind, RateLimitResult } from "./types";
 
@@ -13,7 +15,7 @@ import type { RateLimitKind, RateLimitResult } from "./types";
 // - **Production (`NODE_ENV === "production"`) sin creds Upstash** → throw al
 //   startup. NO permitimos deploy silencioso sin rate limit (fail-loud). El
 //   crash bloquea el deploy → operador NOTA + setea creds + re-deploy.
-// - **Dev/local sin creds** → skip + console.warn 1× al startup. Local sigue
+// - **Dev/local sin creds** → skip + log.warn 1× al startup. Local sigue
 //   funcionando sin Upstash account (developer ergonomics).
 // - **Cualquier entorno con creds** → enforce normal via Upstash sliding window.
 //
@@ -64,8 +66,9 @@ function ensureLimiters(): Record<RateLimitKind, Ratelimit> | "skipped" {
           `See docs/stack.md §"Variables de entorno".`,
       );
     }
-    console.warn(
-      `[rate-limit] ${UPSTASH_URL_ENV}/${UPSTASH_TOKEN_ENV} not set — skipping rate limits in dev. ` +
+    log.warn(
+      { scope: "rate-limit" },
+      `${UPSTASH_URL_ENV}/${UPSTASH_TOKEN_ENV} not set — skipping rate limits in dev. ` +
         `Set them in .env.local to test enforcement locally.`,
     );
     limitersCache = "skipped";

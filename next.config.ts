@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import path from "node:path";
 import createNextIntlPlugin from "next-intl/plugin";
 import withBundleAnalyzer from "@next/bundle-analyzer";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
@@ -68,4 +69,37 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withAnalyzer(withNextIntl(nextConfig));
+// Composición de plugins: orden importa.
+//   1. `withNextIntl` → procesa el plugin de next-intl (request.ts wiring).
+//   2. `withAnalyzer` → wrap del bundle analyzer (opt-in via ANALYZE=true).
+//   3. `withSentryConfig` → wrap más externo, agrega source maps upload +
+//      tunneling de errores SDK + auto-instrumentación.
+//
+// `withSentryConfig` ADR-0047:
+//   - `silent: !process.env.CI` → en local no spammea con logs de build;
+//     en CI (Vercel build) sí muestra info de source maps upload.
+//   - `widenClientFileUpload: true` → más source maps cargados = stack
+//     traces client-side más completos.
+//   - `disableLogger: true` → bota el Sentry logger interno del bundle
+//     client (reduce JS bundle ~5KB).
+//   - `org`/`project`/`authToken` los provee Vercel × Sentry integration
+//     vía env vars sincronizadas (SENTRY_ORG, SENTRY_PROJECT, SENTRY_AUTH_TOKEN).
+//     En dev local sin estos vars → upload skip silencioso.
+//   - `tunnelRoute: "/monitoring"` → opt-in V1.3+ (rutea events Sentry vía
+//     este path para evadir adblockers que bloquean *.ingest.sentry.io). NO
+//     activado V1 — adblockers no son threat model.
+const nextConfigComposed = withAnalyzer(withNextIntl(nextConfig));
+
+export default withSentryConfig(nextConfigComposed, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: process.env.CI === undefined || process.env.CI === "",
+  widenClientFileUpload: true,
+  disableLogger: true,
+  // Source maps NO se exponen al cliente (Sentry los recibe vía upload
+  // CI-side, pero el bundle final NO los referencia). Privacy + security.
+  sourcemaps: {
+    deleteSourcemapsAfterUpload: true,
+  },
+});

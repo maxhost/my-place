@@ -268,7 +268,10 @@ describe("removeDomain — DELETE /v9/projects/{id}/domains/{domain}", () => {
 
 describe("env vars missing", () => {
   it("VERCEL_API_TOKEN ausente → vercel_error sin throw", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Post Phase 0.E (ADR-0047): el wrapper usa log.warn (semánticamente
+    // correcto: missing creds es warning, no error), que internamente llama
+    // a console.warn.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.unstubAllEnvs();
     // re-stubeamos PROJECT_ID solo, dejando TOKEN sin definir
     vi.stubEnv("VERCEL_PROJECT_ID", "prj_test_mock");
@@ -277,11 +280,12 @@ describe("env vars missing", () => {
 
     expect(result).toEqual({ ok: false, reason: "vercel_error" });
     expect(global.fetch).not.toHaveBeenCalled();
-    expect(errorSpy).toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalled();
   });
 
   it("VERCEL_PROJECT_ID ausente → vercel_error sin throw", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Post Phase 0.E (ADR-0047): ver test anterior.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.unstubAllEnvs();
     vi.stubEnv("VERCEL_API_TOKEN", "test-token-mock");
 
@@ -289,6 +293,6 @@ describe("env vars missing", () => {
 
     expect(result).toEqual({ ok: false, reason: "vercel_error" });
     expect(global.fetch).not.toHaveBeenCalled();
-    expect(errorSpy).toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalled();
   });
 });

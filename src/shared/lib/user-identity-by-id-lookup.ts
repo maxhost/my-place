@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { SqlExecutor } from "@/shared/lib/db";
+import { log } from "@/shared/lib/observability/log";
 
 // Feature E — Invite Accept Flow V1.2 · Sesión D.fix.3 (ADR-0046 §"Addendum
 // operacional — Sesión D.fix.3", migration 0024). Wrapper TS sobre
@@ -62,10 +63,10 @@ export async function lookupUserIdentityById(
   if (raw === null || raw === undefined) return null;
   const parsed = identitySchema.safeParse(raw);
   if (!parsed.success) {
-    console.error(
-      "[user-identity-by-id-lookup] payload inválido para id=",
-      authUserId,
+    log.error(
       parsed.error,
+      { scope: "user-identity-by-id-lookup", authUserId },
+      "payload inválido",
     );
     return null;
   }

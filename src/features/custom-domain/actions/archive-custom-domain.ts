@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
+import { log } from "@/shared/lib/observability/log";
 import { removeDomain } from "@/shared/lib/vercel";
 import { type ArchiveCustomDomainResult } from "../types/custom-domain";
 
@@ -110,12 +111,13 @@ export async function archiveCustomDomainAction(
   // recurrente sea visible en observability sin bloquear al owner.
   const vercelResult = await removeDomain(archivedDomain);
   if (!vercelResult.ok) {
-    console.error(
-      "[archive-custom-domain] Vercel removeDomain falló — reason:",
-      vercelResult.reason,
-      "domain:",
-      archivedDomain,
-      "(archive local OK; reconciliación manual via dashboard si persiste)",
+    log.warn(
+      {
+        scope: "archive-custom-domain",
+        reason: vercelResult.reason,
+        domain: archivedDomain,
+      },
+      "Vercel removeDomain falló (archive local OK; reconciliación manual via dashboard si persiste)",
     );
   }
 

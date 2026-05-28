@@ -1,3 +1,5 @@
+import { log } from "@/shared/lib/observability/log";
+
 // Helpers + tipos compartidos del wrapper de Vercel Domains REST API.
 // Privado al namespace `src/shared/lib/vercel/` — el barrel `./index.ts`
 // re-exporta solo los tipos públicos (`VercelResult`, `VercelErrorReason`)
@@ -34,7 +36,7 @@ export type VercelResult<T> =
 /**
  * Lee `VERCEL_API_TOKEN` + `VERCEL_PROJECT_ID` del entorno y construye
  * los headers Bearer. Null si falta cualquiera de las dos (defensive:
- * console.error calmo, caller retorna `{ok: false, reason: "vercel_error"}`).
+ * log.warn calmo, caller retorna `{ok: false, reason: "vercel_error"}`).
  *
  * Sin caching de módulo: facilita testing con `vi.stubEnv` y evita
  * surprise si rotan en runtime. El endpoint V6 (`getDomainConfig`) no
@@ -48,8 +50,9 @@ export function readEnvAndHeaders():
   const token = process.env.VERCEL_API_TOKEN;
   const projectId = process.env.VERCEL_PROJECT_ID;
   if (!token || !projectId) {
-    console.error(
-      "[vercel] VERCEL_API_TOKEN o VERCEL_PROJECT_ID ausente — wrapper retorna vercel_error",
+    log.warn(
+      { scope: "vercel" },
+      "VERCEL_API_TOKEN o VERCEL_PROJECT_ID ausente — wrapper retorna vercel_error",
     );
     return null;
   }

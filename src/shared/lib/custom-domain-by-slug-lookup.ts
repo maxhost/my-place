@@ -2,6 +2,7 @@ import { cache } from "react";
 import { z } from "zod";
 
 import { pool } from "@/db/client";
+import { log } from "@/shared/lib/observability/log";
 
 // Feature E — Invite Accept Flow V1.2 · Sesión A (ADR-0046 §D1, migration
 // 0022). Wrapper TS sobre `app.lookup_custom_domain_by_slug` SECURITY DEFINER.
@@ -47,7 +48,7 @@ import { pool } from "@/db/client";
 //      shape de un domain es validado por Feature A en register-action; el
 //      Zod acá no re-valida el formato DNS — sólo "es string no vacío".
 //   3. Fail-safe: TODO error de DB (timeout, network, pool exhaustion, drift
-//      de schema) colapsa a `null` + `console.error`. El helper consumer
+//      de schema) colapsa a `null` + `log.error` (ADR-0047). El helper consumer
 //      NUNCA crashea y NUNCA emite URLs corruptas — `null` cae al subdomain
 //      canon (`buildSubdomainCanonicalUrl`).
 //   4. Skip short-circuit: slug vacío / whitespace-only → null sin query.
@@ -75,20 +76,20 @@ export const lookupCustomDomainBySlug = cache(async (
 
     const parsed = domainSchema.safeParse(domain);
     if (!parsed.success) {
-      console.error(
-        "[custom-domain-by-slug-lookup] domain inválido para slug=",
-        slug,
+      log.error(
         parsed.error,
+        { scope: "custom-domain-by-slug-lookup", slug },
+        "domain inválido",
       );
       return null;
     }
 
     return parsed.data;
   } catch (err) {
-    console.error(
-      "[custom-domain-by-slug-lookup] DB query falló para slug=",
-      slug,
+    log.error(
       err,
+      { scope: "custom-domain-by-slug-lookup", slug },
+      "DB query falló",
     );
     return null;
   }
