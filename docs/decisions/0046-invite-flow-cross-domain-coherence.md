@@ -550,3 +550,95 @@ Si una futura sesión necesitara un helper que devuelva un shape distinto de ide
 ### Próximo: D.fix.3.d — Apply + push + smoke matriz re-run
 
 D.fix.3.d aplica migration 0024 a dev branch + push autorizado por turno + verify migration en prod via MCP + user-driven smoke matriz 2x2 (escenarios 1-4) para validar empíricamente que Bug A y Bug B están cerrados desde custom domain + 4 steps V1.1 deferidos (3/6/9/10) + write-back evidence en `spec.md` + tag final + push final. Sin nueva implementación; valida que la cadena D.fix.1 → D.fix.2 → D.fix.3 cierra los dos bugs simétricos del smoke matriz original.
+
+## Addendum operacional — Sesión D.fix.4 (2026-05-27)
+
+Las ADR son registro histórico; las decisiones D1-D7 + alternativas rechazadas + gaps no se editan. Esta sección registra el **3er bug del smoke matriz V1.2 (Bug C — flash 404)** descubierto durante D.fix.3.d (ya con Bug A + B cerrados por D.fix.3), su fix surgical, y la validación empírica final del smoke matriz completo que cierra V1.2.
+
+### Bug C — flash 404 entre accept y Hub (descubierto smoke matriz 2x2 V1.2 D.fix.3.d, 2026-05-27)
+
+Smoke escenario 4 (place CON custom domain × visitor unlogged → signup → SSO chain → accept → Hub) con deploy `dpl_HiG6B3bD8TQc2okEZ4MTgtkq7ku2` (commit `6201574` = D.fix.3.c) reveló: tras click "Aceptar invitación" en `nocodecompany.co`, ~1 frame de 404 page visible antes del redirect al Hub. User reportó: *"esta página no existe (por milisegundos)"*.
+
+HAR trace confirma root cause:
+- POST `acceptInvitationAction` response: status 200, **`x-action-revalidated: 1`** header, content-encoding br, **7071 bytes** payload (`text/x-component`).
+- `_error: "net::ERR_ABORTED"`: browser abortó el receive del stream porque el panel ya había navegado vía `window.location.assign(placeHomeUrl)`.
+- 7071 bytes = el RSC re-rendereado del invite page que Next.js incluye automáticamente en el response stream cuando hay `revalidatePath` invocado dentro del action. El re-render llama `getInvitationMetaByToken(token)` → `app.invitation_preview` retorna null (token recién consumido por TX 2 del DEFINER) → `notFound()` → 404 page rendered en el client antes que el `await` del panel resuelva y dispare `window.location.assign`.
+
+### Decisión arquitectónica: surgical drop revalidatePath
+
+3 opciones consideradas:
+
+- **(A) Drop `revalidatePath`** del action. El invariante "re-visit del invite URL post-accept renderiza 404, no preview cached" YA está garantizado por (1) `export const dynamic = 'force-dynamic'` en el page → re-render server-side per request, y (2) `app.invitation_preview` retorna null para tokens consumidos → `notFound()` natural. El `revalidatePath` era **redundante** (sólo invalida cache del router client-side, que se invalida al navegar a Hub) y **activamente dañino** por el race con la navegación post-success.
+- **(B) `redirect()` server-side desde el action**: más invasivo, requeriría que el action invoque `buildPlaceCanonicalUrl(slug)` internamente (duplicación con el page), throw NEXT_REDIRECT requiere cuidado con el try/catch existente, tests cambian. Mismo resultado UX que (A).
+- **(C) Ship con flash + filed como V1.3 followup**: viola `feedback_production_minded`. User reportó la fricción explícitamente.
+
+**Opción A elegida** — production-grade: cierra el bug definitivamente, cero complejidad nueva, cero cambio del contrato del action (mismo return type), cero cambio del panel (sigue navegando con `window.location.assign`), cero cambio del schema. Cumple invariante via primitives existentes en lugar de defenderlo con un side-effect que pelea con la navegación.
+
+### Implementación D.fix.4 (commit `dc178fd`)
+
+- `src/features/invitations/actions/accept-invitation.ts`: drop el block `revalidatePath(...)` + import `next/cache` huérfano. `placeSlug` del input queda ignorado (era usado sólo por el revalidate); schema sigue aceptándolo para no romper contrato con el panel V1.1, cleanup eventual en V1.3.
+- JSDoc reemplaza la antigua sección "`revalidatePath` SÍ usa…" por sección "Por qué NO `revalidatePath`" con la diagnosis completa de Bug C como paper trail para futuros readers.
+- **Net delta**: +26 (paper trail JSDoc Bug C) / −7 = **+19 LOC**.
+- **Gates**: typecheck verde + lint verde + suite full 113/1135 idéntica a D.fix.3.b (cero regresión; action es seam-split sin tests vitest). Cambio quirúrgico de una línea ejecutable más comentarios load-bearing.
+
+### Smoke matriz V1.2 completo (2026-05-27, post-D.fix.4)
+
+Deploy `dpl_2fonS3vhDUszYAKK6nsFNUgLsHFY` (commit `dc178fd`) — ~2 min build (cache warm vs ~5min cold de D.fix.3.c).
+
+4 escenarios + 5 deferreds relevantes ejecutados, todos verde. Ver `docs/features/invitations/spec.md` §"Smoke V1.2 ejecutado (2026-05-27, D.fix.4 close)" para tabla completa + tokens consumidos + tiempos por path.
+
+**Confirmación empírica Bug C cerrado**: 4 HARs post-D.fix.4 muestran POST accept response 112-119 bytes envelope, **sin** `x-action-revalidated` header, sin `_error: net::ERR_ABORTED`. Flash 404 no visible (user-confirmed escenario 4 re-ejecutado post-fix).
+
+### Bug D — SSO chain latency cold-start (V1.3 followup, NO blocker)
+
+Smoke reveló diferencia 3.3x entre cold y warm en el SSO chain post-credential (escenario 4 con sesión nueva):
+
+| Hop | Cold (1er request post-deploy) | Warm (~3 min después) |
+|-----|------|------|
+| `sso-init` (custom domain) | 1128ms | ~340ms |
+| `sso-issue` apex 307 redirect | 102ms | ~100ms (estable) |
+| `sso-issue` apex 302 con ticket | 399ms | ~135ms |
+| `sso-redeem` custom domain | 410ms | ~120ms |
+| Invite page RSC | 608ms | ~170ms |
+| **Total chain** | **~2.7s** | **~830ms** |
+
+Todos los hits cold tuvieron `x-vercel-cache: MISS`. Es esperado per ADR-0032 §"Cost budget post-C" — sub-segundo p95 es el target con warm; el first-request post-deploy ve cold start en cada hop del 4-redirect chain.
+
+**No es regresión arquitectónica** — es el costo del custom domain isolation (RFC 6265 §5.4) que diseñamos en ADR-0032 + ADR-0046. La promesa V1.2 de coherencia cross-domain incluye estos 4 hops por diseño.
+
+**Sin embargo, el cold-start ~2.7s sí es UX-notorio en deploys nuevos o tras periodos de inactividad**. Optimización válida para V1.3:
+
+- **Warm-up cron**: ping periódico a los 3 handlers `sso-*` (custom domain init/redeem + apex issue) para mantener funciones tibias.
+- **Edge runtime para `sso-init`**: el handler sólo setea state cookie + redirect — apto para edge. Reduciría cold ~1100ms → ~50-100ms.
+- **Batching de hops**: rediseño que combine init+redeem en custom domain con un solo round-trip al apex (requiere ADR refinando contrato).
+
+**No bloquea V1.2** (la diferencia warm vs cold no es funcional, es UX). Registrado acá como evidencia empírica + path de fixes posibles para V1.3.
+
+### Por qué este addendum NO supersede el ADR
+
+Bug C fue un side-effect descubierto del `revalidatePath` que existía desde V1.1 S6 (commit `c13fcfd`); el fix de D.fix.4 lo remueve. No cambia ninguna decisión del ADR (D1-D7 intactas), no abre nueva alternativa rechazada, no toca el contrato V1.2 (cross-domain coherence + branding apex + silent SSO). Refina el **how** del cleanup post-accept para que no pelee con la navegación post-success.
+
+Bug D es performance observación con baseline empírico — no requiere ADR nueva; el path arquitectónico está intacto. Si V1.3 decide optimizar SSO chain latency, esa SÍ requeriría ADR refinando ADR-0032 §"Cost budget post-C" con el warm-up strategy elegido.
+
+### Resultado operacional D.fix.4 + cierre V1.2
+
+- **Net delta D.fix.4**: +26 / −7 = +19 LOC (paper trail JSDoc Bug C).
+- **Sub-cap LOC**: invitations/ sub-cap intacto.
+- **Cero migration nueva** en D.fix.4 ✓.
+- **Cero cambio al contrato `sso-issue`** (D5 confirmado) ✓.
+- **Cero cambio al coordinator** `getAuthenticatedDbForRequest` (ADR-0034 confirmado) ✓.
+- **Cero regresión** suite vitest (113/1135 idéntica a pre-fix).
+- **Smoke matriz 2x2 + V1.1 deferreds**: 4/4 escenarios + 3 HAR-validated + 2 user-confirmed + 1 skipeado canónicamente. Bug C cerrado empíricamente en 4 paths con POST observable. Bug D registrado con baseline para V1.3.
+
+**Save point D.fix.4**: `baseline/feature-e-invite-v1.2-d-fix-4-flash-fix-done` = `dc178fd`. **Tag final V1.2**: `baseline/feature-e-invite-v1.2-done` (este commit, D.fix.5 docs cierre).
+
+### Cierre V1.2
+
+V1.2 cumple su misión de coherencia UX cross-domain del invite accept flow:
+
+- Places **con custom domain**: el invitee ABRE en custom domain → ve preview en custom domain → cuando es necesario va a apex con branding del place → post-credential vuelve al custom domain via silent SSO chain → acepta en custom domain → aterriza en Hub del custom domain. Los 4 momentos visibles (preview + branding-apex + accept + Hub) son del place; sólo el credential entry tiene apex visible (~5s) con branding apex del place inviting. (HAR escenarios 4 + step 3 lo demuestran end-to-end.)
+- Places **sin custom domain**: subdomain canon flow funciona sin regresión, con la mejora del branding apex aplicando también. Cookie Neon Auth `.place.community` propaga al subdomain sin SSO chain necesario. (HAR escenarios 1 + 2 lo demuestran.)
+- **Bug C (flash 404)** descubierto y cerrado mid-V1.2 sin necesidad de rediseñar el flow ni el contrato del action.
+- **Bug D (SSO chain cold-start)** documentado con baseline empírico — V1.3 followup, no afecta el contrato V1.2.
+
+**ADR-0046 + ADR-0044 + ADR-0045** quedan estables como canon del slot V1.2. Si V2 redefine algo del flow (e.g. autofill del email post-credential, logo del place en branding apex, magic-link recovery), esa V2 ADR superseder lo que corresponda — no estas.
