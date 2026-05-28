@@ -1,0 +1,69 @@
+-- Phase 1 tech-debt closure · Sesión 1.A (docs/tech-debt-pre-v1.3.md,
+-- 2026-05-28). Hand-written custom SQL (sin snapshot Drizzle por convención
+-- proyecto — ver data-model.md §"Migrations & snapshots").
+--
+-- Cross-ref: ADR-0046 §"Addendum operacional — Sesión 1.A (2026-05-28)" —
+-- write-back de la decisión Phase 1.A item iii.
+--
+-- ## Por qué este migration existe
+--
+-- DROP de la función DEFINER `app.lookup_user_email_by_id(uuid)` (migration
+-- 0023, 2026-05-27) — ZOMBIE en DB sin caller post-D.fix.3.b. Supersedida
+-- por 0024 (`app.lookup_user_identity_by_id` que retorna jsonb `{email,
+-- name}`) cuando el integrator `getCurrentUserEmailForRequest` migró a
+-- `getCurrentUserIdentityForRequest`.
+--
+-- El wrapper TS `lookupUserEmailById` + integrator `current-user-email.ts`
+-- + tests integration ya fueron borrados de `src/` en D.fix.3.b (Sesión D
+-- V1.2, 2026-05-27). Sólo quedaba viva la función DEFINER en DB sin caller
+-- — esta migration completa la limpieza.
+--
+-- ## Por qué DROP ahora (vs deferir a V2)
+--
+-- ADR-0046 §"Addendum Sesión D.fix.3" anticipaba el drop "en V2 cleanup
+-- window". Phase 1.A del tech-debt closure pre-V1.3 ES el cleanup window
+-- anticipado: cerrar deuda antes de iniciar V1.3 evita acumulación + alinea
+-- con `feedback_production_minded` (no shippeamos features con código
+-- zombie conocido en el path crítico de identidad). Decisión A del tracker
+-- §1.A item iii.
+--
+-- ## Append-only forward history
+--
+-- Migration 0023 sigue en el repo (NO se borra el archivo `.sql` ni el
+-- entry de `_journal.json`). El DROP vive en esta migration 0026 → cualquier
+-- dev con DB en estado <0026 sigue teniendo la función; al aplicar 0026
+-- desaparece. Consistente con canon "migrations are append-only forward
+-- history" (ADR-0046 §D.fix.3 addendum + `data-model.md` §"Rollback de
+-- migration").
+--
+-- ## Verificación pre-DROP (zero callers)
+--
+-- Grep exhaustivo 2026-05-28 confirmó:
+--   - 0 callers SQL en migrations posteriores a 0023.
+--   - 0 callers TS en `src/` (el wrapper + integrator fueron borrados en
+--     D.fix.3.b commit `c13fcfd...` + posteriores).
+--   - 0 referencias en `src/db/__tests__/` (sólo existe `lookup-user-
+--     identity-by-id.test.ts` para 0024).
+--   - Únicas references son JSDoc histórico apuntando a la supersesión
+--     (esperado: documentan la migración a 0024, no usan la función).
+--
+-- ## Reverse SQL (rollback puntual)
+--
+-- Si V2+ resucita la función `app.lookup_user_email_by_id`, re-aplicar
+-- desde el SQL intacto en 0023:
+--
+--   CREATE OR REPLACE FUNCTION app.lookup_user_email_by_id(p_id uuid)
+--   RETURNS text
+--   LANGUAGE sql STABLE SECURITY DEFINER
+--   SET search_path = neon_auth, pg_temp
+--   AS $$
+--     SELECT email FROM "user" WHERE id = p_id LIMIT 1;
+--   $$;
+--   REVOKE EXECUTE ON FUNCTION app.lookup_user_email_by_id(uuid) FROM PUBLIC;
+--   GRANT EXECUTE ON FUNCTION app.lookup_user_email_by_id(uuid) TO "app_system";
+--
+-- Sin caveats: la función es read-only sin state — drop no pierde data ni
+-- deja efecto residual. Si volviera a ser necesaria, considerar antes si
+-- 0024 (`lookup_user_identity_by_id`) cubre el use case (en general sí —
+-- retorna `email` + más).
+DROP FUNCTION IF EXISTS app.lookup_user_email_by_id(uuid);

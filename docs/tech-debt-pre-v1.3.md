@@ -23,13 +23,13 @@
 
 | Phase | Sesiones | Completadas | Tag pre-phase | Tag post-phase |
 |-------|----------|-------------|---------------|----------------|
-| **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` _pending commit_ |
-| **1 — Hardening** | 7 | 0/7 | _pending_ | _pending_ |
+| **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
+| **1 — Hardening** | 7 | 1/7 | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending_ |
 | **2 — Tests + docs** | 9 | 0/9 | _pending_ | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 5/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 6/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -190,19 +190,27 @@ Sin estos items V1.3 introduce regresiones invisibles o bloquea onboarding.
 
 Cleanup directo del cluster auth + DB + invite. Evita acumulación durante V1.3.
 
-### Sesión 1.A — DB hardening [~2h]
+### Sesión 1.A — DB hardening [~2h efectivo] ✅
 
-- [ ] Migration 0025: `CREATE INDEX` para FKs sin índice
+**Decisiones de la sesión (gap-scan 2026-05-28 + diagnostic empírico pre-apply)**:
+- **Scope ampliado a 4 índices** (vs 3 listados originalmente): incluido `idx_membership_place_id` porque `membership(place_id)` también carecía de índice y 12+ usos en RLS policies + DEFINERs lo filtran. Cost marginal mínimo, mismo lock_timeout window.
+- **Scope NO ampliado a `idx_membership_user_id`**: diagnóstico empírico pre-apply detectó `idx_membership_user_active(user_id, left_at, place_id)` ya existente desde migration 0004. Postgres leftmost-prefix rule garantiza cobertura del filtro `WHERE user_id = X` sin necesidad de single-column duplicado (sería write amplification gratis sin beneficio query). Audit original había listado el gap, verificación empírica lo corrigió.
+- **Migration 0023 zombie → Opción A (DROP)**: zero callers TS verificado por grep exhaustivo + ADR-0046 §D.fix.3 addendum anticipaba "considerar drop en V2 cleanup window" — Phase 1.A ES ese cleanup window anticipado. Append-only forward history respetado (0023 SQL file intacto + journal entry intacto; DROP vive en 0026).
+
+**Items cerrados**:
+- [x] Migration 0025 (`0025_fk_indexes_lock_timeout_canon.sql`) — 4 índices FK + canon `SET lock_timeout = '5s'`:
   - `idx_invitation_place_id ON invitation(place_id)`
   - `idx_place_domain_place_id ON place_domain(place_id)`
   - `idx_place_ownership_place_id ON place_ownership(place_id)` (crítico: cada policy/DEFINER lo filtra)
-- [ ] Pattern `SET lock_timeout = '5s'` al inicio de migration 0025 + documentar como canon en `data-model.md`
-- [ ] Migration 0023 zombie decisión binaria:
-  - Opción A: migration 0026 con `DROP FUNCTION app.lookup_user_email_by_id` + write-back ADR-0046 §"Sesión D.fix.3" addendum
-  - Opción B: agregar integration test `src/db/__tests__/lookup-user-email-by-id.test.ts` (espejo de identity test) + documentar caller futuro
-  - **Recomendación**: A (zombie real, supersedido por 0024). Apply migration 0025 + 0026 vía Neon MCP
+  - `idx_membership_place_id ON membership(place_id)` (RLS membership_sel/upd/del + 12+ DEFINERs)
+- [x] Canon `SET lock_timeout = '5s'` documentado en `data-model.md` §"Protocolo para futuras migrations" (promovido de "Phase 3.7 pendiente" a canon transversal activo)
+- [x] Migration 0026 (`0026_drop_zombie_lookup_user_email_by_id.sql`) — `DROP FUNCTION app.lookup_user_email_by_id(uuid)` con reverse SQL completo en header
+- [x] ADR-0046 §"Addendum operacional — Phase 1.A tech-debt closure (2026-05-28)" — write-back de la decisión drop + rationale "cleanup window anticipado" + verificación empírica
+- [x] `_journal.json` entries 25 + 26 agregadas
+- [x] `data-model.md` header "Última actualización" + §"Migrations & snapshots" rango actualizado a `0000_*.sql … 0026_*.sql`
+- [x] Apply via Neon MCP en test branch (`br-withered-darkness-apz87zyz`): 4 indexes verified via `pg_indexes` + `indisvalid=true` + EXPLAIN forzado (seqscan off) muestra Index Scan correcto en los 4 paths. Zombie DEFINER confirmed dropped via `pg_proc`. Production apply deferido al próximo deploy Vercel (canon ADR-0017 maybe-migrate.mjs auto-runs).
 
-**Acceptance**: query planner usa index nuevo en EXPLAIN sobre JOIN typical (`SELECT * FROM invitation WHERE place_id = X`) · DEFINER 0023 droppeada o testeada · ADR-0046 actualizada con decisión.
+**Acceptance**: query planner usa index nuevo en EXPLAIN (verde, 4/4 índices) · DEFINER 0023 droppeada (verde) · ADR-0046 actualizada con decisión (verde) · typecheck verde · suite full verde (sin regresión esperada — wrapper TS ya borrado en D.fix.3.b).
 
 **Commit**: _pending_
 

@@ -642,3 +642,46 @@ V1.2 cumple su misión de coherencia UX cross-domain del invite accept flow:
 - **Bug D (SSO chain cold-start)** documentado con baseline empírico — V1.3 followup, no afecta el contrato V1.2.
 
 **ADR-0046 + ADR-0044 + ADR-0045** quedan estables como canon del slot V1.2. Si V2 redefine algo del flow (e.g. autofill del email post-credential, logo del place en branding apex, magic-link recovery), esa V2 ADR superseder lo que corresponda — no estas.
+
+## Addendum operacional — Phase 1.A tech-debt closure (2026-05-28)
+
+Las ADR son registro histórico; las decisiones D1-D7 + alternativas rechazadas + gaps no se editan. Esta sección registra el **cierre del cleanup window anticipado** del zombie DEFINER `app.lookup_user_email_by_id` (migration 0023, D.fix.1) que el addendum §"Sesión D.fix.3" había deferido a "V2 cleanup window".
+
+### Decisión: DROP via migration 0026 ahora (vs deferir a V2)
+
+El addendum D.fix.3 escribió: *"Si V1.3+ no resucita 0023, considerar migration de DROP en V2 cleanup window"*. La realidad operativa post-V1.2:
+
+- Phase 1.A del tech-debt closure pre-V1.3 (`docs/tech-debt-pre-v1.3.md`) ES el cleanup window anticipado — cerrar deuda antes de iniciar V1.3 evita acumulación.
+- Cero callers TS de `lookupUserEmailById` confirmado por grep exhaustivo 2026-05-28 (el wrapper + integrator + tests integration ya fueron borrados en D.fix.3.b, commit `35c6024`). Sólo queda viva la función DEFINER en DB sin caller.
+- V1.3 NO planea resucitar `lookup_user_email_by_id` (no aparece en `docs/tech-debt-pre-v1.3.md` Phase 4 backlog). Si una feature futura necesitara email-only lookup, `app.lookup_user_identity_by_id(uuid) RETURNS jsonb` (migration 0024) cubre el use case retornando `{email, name}`.
+
+**Decisión**: ejecutar DROP en Phase 1.A en lugar de deferir. Alineado con `feedback_production_minded` — no shippear V1.3 con código zombie conocido en el path crítico de identidad.
+
+### Append-only forward history respetado
+
+Migration 0023 SIGUE en el repo (`src/db/migrations/0023_lookup_user_email_by_id.sql` intacto + entry de `meta/_journal.json` intacto). El DROP vive en migration 0026 (`0026_drop_zombie_lookup_user_email_by_id.sql`):
+
+```sql
+DROP FUNCTION IF EXISTS app.lookup_user_email_by_id(uuid);
+```
+
+Cualquier dev con DB en estado <0026 sigue teniendo la función; al aplicar 0026 desaparece. Consistente con canon "migrations are append-only forward history" — NO se edita 0023, se agrega 0026 que la revierte explícitamente. Reverse SQL completo del DROP documentado en el header de 0026 (re-aplica el CREATE FUNCTION + GRANTs de 0023 desde el archivo intacto).
+
+### Verificación empírica
+
+Aplicación a test branch (`br-withered-darkness-apz87zyz`) via Neon MCP 2026-05-28:
+
+- Pre-apply: `SELECT proname FROM pg_proc WHERE nspname='app' AND proname LIKE 'lookup_user_%'` → `lookup_user_email_by_id` + `lookup_user_identity_by_id` (ambas presentes).
+- Post-apply: misma query → SOLO `lookup_user_identity_by_id` (0023 DROPed).
+- Typecheck verde post-apply (cero regresión esperada — el wrapper TS ya estaba borrado desde D.fix.3.b).
+
+### Por qué este addendum NO supersede el ADR
+
+No cambia ninguna decisión del ADR (D1-D7 intactas). No abre nueva alternativa rechazada. No toca el contrato V1.2 (cross-domain coherence + branding apex + silent SSO). Sólo cierra explícitamente la deuda diferida que D.fix.3 §"Implementación D.fix.3.a" había anotado como "considerar drop en V2 cleanup window". Phase 1.A ES ese cleanup window — confirmado.
+
+Si V2+ necesitara una función email-only nueva (caso improbable post-D.fix.3 dado que `lookup_user_identity_by_id` cubre todo), una nueva migration la crearía con shape ajustado a su caller — no resucitando 0023 sino diseñada de cero per el use case nuevo.
+
+### Save point + tags
+
+- Save point pre-Phase-1: `baseline/pre-phase-1-tech-debt` = `f577908` (= cierre Phase 0).
+- Tag Phase 1.A done: pendiente al commit de cierre 1.A (DB hardening completo).

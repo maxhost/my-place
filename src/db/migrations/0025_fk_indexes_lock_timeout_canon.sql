@@ -1,0 +1,103 @@
+-- Phase 1 tech-debt closure · Sesión 1.A (docs/tech-debt-pre-v1.3.md,
+-- 2026-05-28). Hand-written custom SQL (sin snapshot Drizzle por convención
+-- proyecto — ver data-model.md §"Migrations & snapshots").
+--
+-- ## Por qué este migration existe
+--
+-- Audit pre-V1.3 (2 rondas 5 agents read-only post-V1.2 close 2026-05-28)
+-- identificó que las 5 FK columns referenciando `place(id)` y `app_user(id)`
+-- NO tienen índice. Postgres NO crea índice automáticamente para FOREIGN KEY
+-- (sí para PRIMARY KEY y UNIQUE). Las RLS policies del core filtran TODAS
+-- por `place_id` (12+ usos en migrations 0001/0004/0005/0012/0014/0016/0017/
+-- 0020), y `place_ownership` es referenciada por cada predicado owner-only
+-- via helper `app.current_user_owns_place`.
+--
+-- Sin estos índices, cada lookup ejecuta SEQ SCAN — viable hoy (tablas
+-- pequeñas pre-launch) pero degrada non-linearly al primer scale-up. Canon
+-- production-minded (CLAUDE.md `feedback_production_minded`) requiere cerrar
+-- pre-launch, no post-incident.
+--
+-- ## Índices agregados (4)
+--
+-- 1. `idx_invitation_place_id`      — lista pending invites del owner.
+-- 2. `idx_place_domain_place_id`    — lookup domains del place desde
+--                                     /settings/domain.
+-- 3. `idx_place_ownership_place_id` — CRÍTICO: cada RLS policy owner-only +
+--                                     helper `app.current_user_owns_place`
+--                                     SECURITY DEFINER filtran por place_id.
+-- 4. `idx_membership_place_id`      — RLS policies `membership_sel/upd/del` +
+--                                     DEFINERs (`app.create_invitation`,
+--                                     `app.remove_member`, `app.update_my_
+--                                     headline`, etc.) filtran por place_id.
+--
+-- ## Por qué incluir los 2 índices extras de membership (vs sólo los 3 sobre place(id))
+--
+-- El plan original del tracker (Phase 1.A) listaba sólo los 3 sobre `place_
+-- id` de `invitation/place_domain/place_ownership`. El audit empírico
+-- (gap-scan 2026-05-28) detectó que `membership` tampoco tiene índice sobre
+-- `place_id` pese a 12+ usos en RLS policies + DEFINERs — agregado como #4.
+--
+-- ## Por qué NO se agrega `idx_membership_user_id`
+--
+-- Diagnóstico empírico pre-apply 2026-05-28: `pg_indexes` muestra que
+-- migration 0004 ya creó `idx_membership_user_active (user_id, left_at,
+-- place_id)` (compound). Postgres leftmost-prefix rule garantiza que este
+-- índice compound sirve queries con `WHERE user_id = X` (sin la primera
+-- columna del compound no aplica, pero con sólo la primera sí). Crear
+-- `idx_membership_user_id` single-column sería 100% redundante — write
+-- amplification gratis, sin beneficio de query. Audit del tracker listaba
+-- `membership(user_id)` como gap; la verificación empírica corrige.
+--
+-- Razonamiento idéntico aplica a las UNIQUE constraints existentes que
+-- generan compound implícitos: `membership_user_id_place_id_unique
+-- (user_id, place_id)` ya cubre filtros `WHERE user_id = X` (leftmost)
+-- pero NO `WHERE place_id = X` (no es leftmost) → de ahí que
+-- `idx_membership_place_id` siga siendo necesario.
+--
+-- ## Canon nuevo: `SET lock_timeout = '5s'` al inicio de migrations DDL
+--
+-- Esta migration ESTABLECE el canon transversal `SET lock_timeout = '5s'`
+-- al inicio de toda migration DDL que tome AccessExclusiveLock sobre tablas
+-- con tráfico potencial (`CREATE INDEX`, `ALTER TABLE ADD COLUMN`, `ALTER
+-- TABLE ALTER COLUMN`, etc.). Documentado en `docs/data-model.md` §"Protocolo
+-- para futuras migrations".
+--
+-- Rationale: 5s es el budget máximo aceptable por AccessExclusiveLock antes
+-- de fail-fast. Evita stalls indefinidos por lock contention silenciosa
+-- (long-running query bloqueando deploy). Si la migration excede el budget,
+-- falla con SQLSTATE `55P03` (lock_not_available) → operator corre off-hours
+-- o reformula con `CREATE INDEX CONCURRENTLY`.
+--
+-- ## Por qué NO `CREATE INDEX CONCURRENTLY`
+--
+-- `CONCURRENTLY` requiere correr fuera de transacción; drizzle-kit migrate
+-- corre migrations en transacción por default (canon ADR-0017 +
+-- `scripts/maybe-migrate.mjs`). Para tablas pre-launch (cero tráfico, ≤100
+-- rows) el blocking `CREATE INDEX` con `lock_timeout 5s` es estrictamente
+-- más simple y rápido. Si una futura migration DDL requiere CONCURRENTLY
+-- (e.g. índice sobre tabla en producción con tráfico real), documentar el
+-- sub-canon en `data-model.md` §Protocolo + ejecutar la migration fuera
+-- del runner drizzle (manual via Neon MCP o `psql` directo).
+--
+-- ## Idempotencia
+--
+-- `CREATE INDEX IF NOT EXISTS` (defense-in-depth ante re-runs manuales o
+-- aplicaciones tras drop accidental). Pattern canónico del proyecto
+-- (precedente 0006_place_default_locale.sql + 0008_place_domain_partial_
+-- unique.sql).
+--
+-- ## Reverse SQL (rollback puntual)
+--
+--   DROP INDEX IF EXISTS idx_membership_place_id;
+--   DROP INDEX IF EXISTS idx_place_ownership_place_id;
+--   DROP INDEX IF EXISTS idx_place_domain_place_id;
+--   DROP INDEX IF EXISTS idx_invitation_place_id;
+--   -- (lock_timeout es session-local, no requiere reverse)
+--
+-- Sin caveats: los índices no afectan corrección — sólo performance. Drop
+-- revierte a SEQ SCAN sin pérdida de data ni cambio de invariantes.
+SET lock_timeout = '5s';--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_invitation_place_id" ON "invitation" USING btree ("place_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_place_domain_place_id" ON "place_domain" USING btree ("place_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_place_ownership_place_id" ON "place_ownership" USING btree ("place_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_membership_place_id" ON "membership" USING btree ("place_id");

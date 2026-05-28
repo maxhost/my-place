@@ -2,7 +2,7 @@
 
 Schema del core del producto, expresado en **SQL (Postgres) ORM-agnóstico**. El método de acceso (ORM/query builder/SQL plano) está TBD; el modelo no depende de esa decisión. Cada feature agrega sus propias tablas respetando este core.
 
-> _Última actualización: 2026-05-24 (Feature E S0 docs canónicas — ADR-0036 `membership.headline` opcional ≤280 chars per place + ADR-0037 `place.member_invite_quota` schema-only V1 default 0)._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
+> _Última actualización: 2026-05-28 (Phase 1.A tech-debt closure — migrations 0025 FK indexes + canon `SET lock_timeout = '5s'` en migrations DDL, 0026 DROP zombie `app.lookup_user_email_by_id` superseded por 0024)._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
 
 ## Schema base
 
@@ -295,7 +295,7 @@ Implementado en `features/members/` y `features/places/` con cron/scheduled func
 
 ## Migrations & snapshots (convención del repo)
 
-Las migrations viven en `src/db/migrations/*.sql` numeradas secuencialmente (`0000_*.sql` … `0024_*.sql` al momento de este doc). El runner es **drizzle-kit migrate** (script `pnpm db:migrate`), que se ejecuta automáticamente en cada production deploy via `scripts/maybe-migrate.mjs` (canon ADR-0017).
+Las migrations viven en `src/db/migrations/*.sql` numeradas secuencialmente (`0000_*.sql` … `0026_*.sql` al momento de este doc). El runner es **drizzle-kit migrate** (script `pnpm db:migrate`), que se ejecuta automáticamente en cada production deploy via `scripts/maybe-migrate.mjs` (canon ADR-0017).
 
 **Dos tipos de migrations conviven**:
 
@@ -311,7 +311,9 @@ Las migrations viven en `src/db/migrations/*.sql` numeradas secuencialmente (`00
 
 - **Si la migration incluye RLS policies, DEFINERs, GRANTs, o SQL complejo**: escribir el `.sql` a mano (idempotente con `IF EXISTS`/`IF NOT EXISTS` donde aplique), agregar entry a `_journal.json` con el siguiente `idx` libre + `tag` matching el nombre del archivo (sin extension), `when` con timestamp ms, `version: "7"`, `breakpoints: true`. Por convención NO crear snapshot manual — el ausencia es la señal de "custom SQL, no generado".
 
-- **Migrations destructivas** (`DROP COLUMN`, `DROP TABLE`, `ALTER COLUMN ... TYPE` que pierde datos): incluir reverse SQL en comentario al inicio del archivo (precedente: `0008_place_domain_partial_unique.sql`). Considerar `SET lock_timeout = '5s'` al inicio si la tabla tiene tráfico (Phase 3.7 pendiente como canon transversal).
+- **Migrations destructivas** (`DROP COLUMN`, `DROP TABLE`, `ALTER COLUMN ... TYPE` que pierde datos): incluir reverse SQL en comentario al inicio del archivo (precedente: `0008_place_domain_partial_unique.sql`).
+
+- **Canon `SET lock_timeout = '5s'` en migrations DDL**: toda migration que tome AccessExclusiveLock sobre tablas con tráfico potencial (`CREATE INDEX`, `ALTER TABLE ADD COLUMN`, `ALTER TABLE ALTER COLUMN`, `ALTER TABLE ADD CONSTRAINT` validando filas existentes, etc.) DEBE prefijarse con `SET lock_timeout = '5s';--> statement-breakpoint`. Establecido como canon transversal en migration 0025 (Phase 1.A tech-debt closure 2026-05-28). Rationale: 5s es el budget máximo aceptable por AccessExclusiveLock antes de fail-fast → evita stalls indefinidos por lock contention silenciosa (long-running query bloqueando deploy). Si la migration excede el budget, falla con SQLSTATE `55P03` (lock_not_available) → operator corre off-hours o reformula con `CREATE INDEX CONCURRENTLY`. El timeout es session-local (no requiere reverse SQL). DEFINER-only migrations (`CREATE FUNCTION`, sin DDL en tablas) no requieren el SET — el lock que toman es trivial.
 
 - **Verify post-apply**: cada migration debería tener su integration test correspondiente en `src/db/__tests__/*.test.ts` (cobertura DEFINER ~95%, ver inventario en §"Catálogo DEFINER" abajo cuando exista — pendiente Phase 2.D).
 

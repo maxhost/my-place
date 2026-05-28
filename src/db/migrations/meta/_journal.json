@@ -176,6 +176,20 @@
       "when": 1779749235357,
       "tag": "0024_lookup_user_identity_by_id",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1779749335357,
+      "tag": "0025_fk_indexes_lock_timeout_canon",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1779749435357,
+      "tag": "0026_drop_zombie_lookup_user_email_by_id",
+      "breakpoints": true
     }
   ]
 }
