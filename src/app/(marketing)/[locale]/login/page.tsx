@@ -180,6 +180,9 @@ export default async function LoginPage({ params, searchParams }: Props) {
     submitting: t("submitting"),
     loginFailedNotice: t("loginFailedNotice"),
     signupFailedNotice: t("signupFailedNotice"),
+    // Phase 0.D — placeholder `{seconds}` interpolado client-side; t.raw
+    // para no triggear el ICU parse de next-intl sin var explicit.
+    rateLimitedNotice: t.raw("rateLimitedNotice"),
     back: t("back"),
     // ADR-0046 §D2 — branding apex del invite flow. `t.raw` para inviteTitle
     // porque tiene `{placeName}` placeholder que AccessFlow interpola client-

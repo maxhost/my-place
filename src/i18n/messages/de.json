@@ -249,6 +249,7 @@
     "submitting": "Einen Moment…",
     "loginFailedNotice": "Wir konnten dich nicht anmelden. Überprüfe E-Mail und Passwort.",
     "signupFailedNotice": "Wir konnten das Konto nicht erstellen. Hast du vielleicht schon eines? Versuche, dich anzumelden.",
+    "rateLimitedNotice": "Zu viele Versuche. Warte {seconds} Sekunden und versuche es erneut.",
     "back": "Zurück zur Startseite",
     "inviteTitle": "Du bist eingeladen, {placeName} beizutreten",
     "inviteSubtitle": "Melde dich an oder erstelle ein neues Konto, um die Einladung anzunehmen.",
@@ -483,6 +484,7 @@
       "errorUnauthorized": "Du musst dich anmelden.",
       "errorNotOwner": "Nur Owners können einladen.",
       "errorExpiresInPast": "Der Ablauf liegt bereits in der Vergangenheit.",
+      "errorRateLimited": "Zu viele Einladungen in kurzer Zeit. Warte einen Moment und versuche es erneut.",
       "errorGeneric": "Wir konnten den Link nicht erzeugen. Versuche es erneut."
     },
     "pending": {
@@ -550,6 +552,7 @@
     "errorExpired": "Diese Einladung ist abgelaufen. Bitte die Person, die dich eingeladen hat, um eine neue.",
     "errorAlreadyUsed": "Diese Einladung wurde bereits verwendet.",
     "errorPlaceFull": "Dieser Ort hat seine maximale Mitgliederzahl erreicht (150 Mitglieder). Sprich mit der Person, die dich eingeladen hat.",
+    "errorRateLimited": "Zu viele Versuche. Warte {seconds} Sekunden und versuche es erneut.",
     "errorUnknown": "Etwas ist schiefgelaufen. Versuch es erneut oder bitte um eine neue Einladung."
   }
 }

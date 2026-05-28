@@ -122,6 +122,7 @@ const LABELS: MembersPageShellLabels = {
     errorUnauthorized: "Sesión",
     errorNotOwner: "Solo owners pueden invitar",
     errorExpiresInPast: "Pasado",
+    errorRateLimited: "Demasiadas invitaciones",
     errorGeneric: "Error",
   },
   pending: {

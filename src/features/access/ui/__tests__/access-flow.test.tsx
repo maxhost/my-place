@@ -38,6 +38,8 @@ const LABELS: AccessLabels = {
   loginFailedNotice: "No pudimos iniciar sesión. Revisá tus datos.",
   signupFailedNotice:
     "No pudimos crear la cuenta. ¿Quizás ya tenés una? Probá iniciar sesión.",
+  rateLimitedNotice:
+    "Demasiados intentos. Esperá {seconds} segundos y volvé a intentar.",
   back: "Volver al inicio",
   inviteTitle: "Te invitan a unirte a {placeName}",
   inviteSubtitle:

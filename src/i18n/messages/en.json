@@ -249,6 +249,7 @@
     "submitting": "One moment…",
     "loginFailedNotice": "We couldn't sign you in. Check your email and password.",
     "signupFailedNotice": "We couldn't create the account. Maybe you already have one? Try signing in.",
+    "rateLimitedNotice": "Too many attempts. Wait {seconds} seconds and try again.",
     "back": "Back to home",
     "inviteTitle": "You're invited to join {placeName}",
     "inviteSubtitle": "Sign in to your account or create a new one to accept the invitation.",
@@ -483,6 +484,7 @@
       "errorUnauthorized": "You need to sign in.",
       "errorNotOwner": "Only owners can invite.",
       "errorExpiresInPast": "Expiration is already in the past.",
+      "errorRateLimited": "Too many invitations recently. Wait a bit and try again.",
       "errorGeneric": "We couldn't generate the link. Try again."
     },
     "pending": {
@@ -550,6 +552,7 @@
     "errorExpired": "This invitation expired. Ask whoever invited you for a new one.",
     "errorAlreadyUsed": "This invitation has already been used.",
     "errorPlaceFull": "This place hit its cap (150 members). Talk to whoever invited you.",
+    "errorRateLimited": "Too many attempts. Wait {seconds} seconds and try again.",
     "errorUnknown": "Something went wrong. Try again or ask for a new invitation."
   }
 }

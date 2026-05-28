@@ -6,6 +6,7 @@ import { z } from "zod";
 import { buildApexLoginUrl } from "@/shared/lib/auth-redirect";
 import { lookupPlaceByDomain } from "@/shared/lib/custom-domain-lookup";
 import { verifyAccessToken } from "@/shared/lib/jwt";
+import { enforceRateLimit, parseForwardedIp } from "@/shared/lib/rate-limit";
 import { getSessionJwt } from "@/shared/lib/session";
 import {
   buildTicketClaims,
@@ -198,6 +199,21 @@ function buildRedeemUrl(args: {
 }
 
 export async function GET(req: Request): Promise<Response> {
+  // Phase 0.D — rate limit por IP (10/min). Pre-zod para no consumir parse
+  // en intentos bloqueados. 429 con `Retry-After` header (RFC 9110).
+  const ip = parseForwardedIp(req.headers.get("x-forwarded-for"));
+  const gate = await enforceRateLimit("sso_issue", ip);
+  if (!gate.success) {
+    const retryAfter = Math.max(
+      1,
+      Math.ceil((gate.resetAt - Date.now()) / 1000),
+    );
+    return new Response("rate_limited", {
+      status: 429,
+      headers: { "Retry-After": String(retryAfter) },
+    });
+  }
+
   const url = new URL(req.url);
   const query = parseQuery(url);
   if (!query) {

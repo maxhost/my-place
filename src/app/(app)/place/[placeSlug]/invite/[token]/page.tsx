@@ -169,6 +169,9 @@ export default async function InviteAcceptPage({ params }: Props) {
     errorExpired: t("errorExpired"),
     errorAlreadyUsed: t("errorAlreadyUsed"),
     errorPlaceFull: t("errorPlaceFull"),
+    // Phase 0.D — placeholder `{seconds}` interpolado client-side; t.raw
+    // para no triggear el ICU parse de next-intl sin var explicit.
+    errorRateLimited: t.raw("errorRateLimited"),
     errorUnknown: t("errorUnknown"),
   };
 

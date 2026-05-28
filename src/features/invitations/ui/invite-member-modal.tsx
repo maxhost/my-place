@@ -54,6 +54,8 @@ export interface InviteMemberModalLabels {
   errorUnauthorized: string;
   errorNotOwner: string;
   errorExpiresInPast: string;
+  /** Phase 0.D — rate limit excedido (30/h por place). */
+  errorRateLimited: string;
   errorGeneric: string;
 }
 
@@ -78,6 +80,7 @@ function inviteErrorToLabel(e: InviteError, l: InviteMemberModalLabels) {
     invalid_email: l.errorInvalidEmail,
     invalid_expires: l.errorInvalidExpires,
     expires_in_past: l.errorExpiresInPast,
+    rate_limited: l.errorRateLimited,
     generic: l.errorGeneric,
   };
   return map[e] ?? l.errorGeneric;

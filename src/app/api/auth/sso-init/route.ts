@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { lookupPlaceByDomain } from "@/shared/lib/custom-domain-lookup";
+import { enforceRateLimit, parseForwardedIp } from "@/shared/lib/rate-limit";
 import {
   STATE_COOKIE_MAX_AGE_SECONDS,
   STATE_COOKIE_NAME,
@@ -141,6 +142,22 @@ async function resolveCurrentHost(): Promise<string> {
 }
 
 export async function GET(req: Request): Promise<Response> {
+  // Phase 0.D — rate limit por IP (10/min). Pre-DB lookup para no consumir
+  // `lookupPlaceByDomain` en intentos bloqueados. 429 con `Retry-After`
+  // header (segundos, per RFC 9110 §10.2.3 — clientes well-behaved respetan).
+  const ip = parseForwardedIp(req.headers.get("x-forwarded-for"));
+  const gate = await enforceRateLimit("sso_init", ip);
+  if (!gate.success) {
+    const retryAfter = Math.max(
+      1,
+      Math.ceil((gate.resetAt - Date.now()) / 1000),
+    );
+    return new Response("rate_limited", {
+      status: 429,
+      headers: { "Retry-After": String(retryAfter) },
+    });
+  }
+
   const url = new URL(req.url);
   const parsed = querySchema.safeParse({
     returnTo: url.searchParams.get("returnTo") ?? undefined,

@@ -90,6 +90,8 @@ export interface InviteAcceptancePanelLabels {
   errorExpired: string;
   errorAlreadyUsed: string;
   errorPlaceFull: string;
+  /** Phase 0.D — rate limit. `{seconds}` interpolado client-side. */
+  errorRateLimited: string;
   errorUnknown: string;
 }
 
@@ -121,6 +123,11 @@ function errorCopy(
       return labels.errorAlreadyUsed;
     case "place_full":
       return labels.errorPlaceFull;
+    case "rate_limited":
+      return labels.errorRateLimited.replaceAll(
+        "{seconds}",
+        String(error.retryAfterSeconds),
+      );
     default:
       // unauthenticated / app_user_missing / not_found / email_mismatch /
       // unknown — copy genérico anti-info-leak. Los casos esperados los

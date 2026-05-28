@@ -19,11 +19,15 @@ export type AccessCredentials = PlaceFirstCredentials;
  * o transporte; `signup_failed` cubre email ya registrado o transporte (el
  * aviso sugiere iniciar sesión, la causa más probable, sin afirmar un código
  * de error del SDK no verificado — TBD verificado en preview, no asumido).
+ *
+ * `rate_limited` (Phase 0.D) — el rate limit por IP bloqueó este intento.
+ * `retryAfterSeconds` indica cuánto esperar (derivado de `resetAt` Upstash).
  */
 export type AccessResult =
   | { status: "ok" }
   | { status: "login_failed" }
-  | { status: "signup_failed" };
+  | { status: "signup_failed" }
+  | { status: "rate_limited"; retryAfterSeconds: number };
 
 /**
  * Puerto cross-system de la vía Acceso (mismo patrón que `WizardSubmit`): la
@@ -61,6 +65,8 @@ export interface AccessLabels {
   submitting: string;
   loginFailedNotice: string;
   signupFailedNotice: string;
+  /** Phase 0.D — rate limit excedido. `{seconds}` interpolado client-side. */
+  rateLimitedNotice: string;
   back: string;
   // ADR-0046 §D2 (V1.2 Sesión B) — branding apex del invite flow. Opcionales
   // a nivel de tipo porque las pages que NO consumen `inviteContext` (signup

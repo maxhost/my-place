@@ -3,6 +3,7 @@
 import { getCurrentUserIdentityForRequest } from "@/shared/lib/current-user-identity";
 import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
 import { ensureAppUser } from "@/shared/lib/ensure-app-user";
+import { enforceRateLimit, getRequestIp } from "@/shared/lib/rate-limit";
 
 import type { AcceptInvitationError } from "../types";
 import { mapAcceptError } from "./_lib/map-accept-error";
@@ -91,6 +92,21 @@ export async function acceptInvitationAction(
   const parsed = acceptInvitationSchema.safeParse(input);
   if (!parsed.success) {
     return { status: "error", error: { kind: "unknown" } };
+  }
+
+  // Phase 0.D — rate limit por IP (5/min). Identifier IP (anti-abuse anon).
+  // Pre-DB para no consumir TX1 (`ensureAppUser`) en intentos bloqueados.
+  const ip = await getRequestIp();
+  const gate = await enforceRateLimit("accept_invitation", ip);
+  if (!gate.success) {
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.min(3600, Math.ceil((gate.resetAt - Date.now()) / 1000)),
+    );
+    return {
+      status: "error",
+      error: { kind: "rate_limited", retryAfterSeconds },
+    };
   }
 
   // `placeSlug` del input queda ignorado post-D.fix.4 (era usado sólo por el

@@ -249,6 +249,7 @@
     "submitting": "Um momento…",
     "loginFailedNotice": "Não conseguimos iniciar a sessão. Confira o e-mail e a senha.",
     "signupFailedNotice": "Não conseguimos criar a conta. Talvez já tenha uma? Tente iniciar sessão.",
+    "rateLimitedNotice": "Muitas tentativas. Aguarde {seconds} segundos e tente de novo.",
     "back": "Voltar ao início",
     "inviteTitle": "Você foi convidado a se juntar a {placeName}",
     "inviteSubtitle": "Entre na sua conta ou crie uma nova para aceitar o convite.",
@@ -483,6 +484,7 @@
       "errorUnauthorized": "Você precisa entrar.",
       "errorNotOwner": "Só os owners podem convidar.",
       "errorExpiresInPast": "O vencimento já passou.",
+      "errorRateLimited": "Muitos convites recentemente. Aguarde um pouco e tente de novo.",
       "errorGeneric": "Não conseguimos gerar o link. Tente de novo."
     },
     "pending": {
@@ -550,6 +552,7 @@
     "errorExpired": "Este convite venceu. Peça um novo a quem te convidou.",
     "errorAlreadyUsed": "Este convite já foi usado.",
     "errorPlaceFull": "Este lugar chegou ao limite (150 membros). Fale com quem te convidou.",
+    "errorRateLimited": "Muitas tentativas. Aguarde {seconds} segundos e tente de novo.",
     "errorUnknown": "Algo deu errado. Tente de novo ou peça um novo convite."
   }
 }

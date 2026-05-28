@@ -26,6 +26,7 @@ Elecciones tecnológicas de Place y justificación de cada una. Cualquier cambio
 | i18n           | **next-intl**                                   | Multi-idioma del producto. `localePrefix:'always'` en marketing y Hub (modo path-based); zona place usa **modo DB-based** (`place.default_locale`, ADR-0022). Default `es`, **6 locales operativos**: `es/en/fr/pt/de/ca` (post-ADR-0022, 2026-05-20 — añadidos `de/ca`). Fallback runtime deep-merge `defaultLocale` ← `{locale}` (ADR-0024) — UX nunca rendea key cruda. Script `scripts/check-translations.mjs` reporta drift, **informativo no fail-closed**. Detalle de los dos modos: `docs/architecture.md` § "i18n: dos modos de resolución de locale". |
 | Testing        | Vitest + Playwright                             | Unit/integration con Vitest (jsdom); E2E con Playwright                                            |
 | Hosting        | Vercel                                          | Wildcard subdomains nativos, edge middleware, deploy automático                                    |
+| Rate limiting  | **Upstash Redis** + `@upstash/ratelimit` (Phase 0.D) | Serverless Redis para enforcement por IP en 6 endpoints (login/signup/invite accept+create/SSO init+issue). Free tier 10k commands/día cubre V1-V2. Behavior: prod sin creds → fail-loud (deploy bloqueado), dev sin creds → skip + warn (dev ergonomics). |
 
 ## Región e infraestructura
 
@@ -64,6 +65,7 @@ Archivo `.env.local` (gitignored — nunca se commitea) lo copiás desde `.env.e
 - **Custom domains (Vercel API)**: `VERCEL_API_TOKEN` (scope `domains:write`) + `VERCEL_PROJECT_ID`. Sin estas el slice `/settings/domain` degrada (defensivo, no crash). Consumidas por `src/shared/lib/vercel/domains.ts` (ADR-0026).
 - **Custom Domain SSO (Feature C, ADR-0032)**: `PLACE_SSO_SIGNING_KEY` (ES256 PKCS8 PEM multiline) + `PLACE_SSO_SIGNING_KEY_KID` (short id). **Vercel-only**, NUNCA en `.env.local` committed. Generación de key con `openssl ecparam` + `openssl pkcs8` (ver `.env.example` comentarios).
 - **Vercel inyectados** (no setear manualmente): `VERCEL_ENV` (production / preview / development).
+- **Upstash Redis (rate limiting, Phase 0.D)**: `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`. Setear en Vercel (Prod + Preview). **Prod sin estas vars → app crashea al primer rate-limit check** (fail-loud, deploy bloqueado hasta setear). Dev local sin las vars → skip + warn (no rompe local). Setup: ~3min en upstash.com (free tier).
 - **Planned V1.3+**: `RESEND_API_KEY` (email lifecycle), `AI_GATEWAY_API_KEY` (slice `style-assist` reactivación).
 
 **Storage/realtime/pagos** siguen TBD — se agregan cuando se decida cada pieza (ver TBDs abajo + `docs/tech-debt-pre-v1.3.md` Phase 1.G para Storage). **Todo lo que sea secret** (`*_SECRET`, `*_API_KEY`, `*_TOKEN`, `DATABASE_URL*`) vive solo en `.env.local` / Vercel env, **nunca en git**.

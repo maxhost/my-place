@@ -33,6 +33,7 @@ const labels: InviteAcceptancePanelLabels = {
   errorExpired: "This invitation has expired. Ask whoever invited you for a new one.",
   errorAlreadyUsed: "This invitation has already been used.",
   errorPlaceFull: "This place has reached its 150-member cap. Contact the owner.",
+  errorRateLimited: "Too many attempts. Wait {seconds} seconds and try again.",
   errorUnknown: "Something went wrong. Try again or request a new invitation.",
 };
 

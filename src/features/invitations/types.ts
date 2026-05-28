@@ -57,6 +57,7 @@ export type InviteError =
   | "invalid_email"
   | "invalid_expires"
   | "expires_in_past"
+  | "rate_limited"
   | "generic";
 
 /**
@@ -97,6 +98,8 @@ export type RevokeInviteError =
  * - `email_mismatch`: P0008 — email del caller ≠ email del invitee
  *   (case/whitespace-insensitive vía DEFINER).
  * - `place_full`: P0009 — place alcanzó 150 miembros activos.
+ * - `rate_limited`: Phase 0.D — rate limit por IP. `retryAfterSeconds` desde
+ *   Upstash `resetAt`. UI ⇒ "esperá X segundos y volvé a intentar".
  * - `unknown`: cualquier otro SQLSTATE (drift, red, 5xx) — anti-info-leak.
  */
 export type AcceptInvitationError =
@@ -107,4 +110,5 @@ export type AcceptInvitationError =
   | { kind: "already_used" }
   | { kind: "email_mismatch" }
   | { kind: "place_full" }
+  | { kind: "rate_limited"; retryAfterSeconds: number }
   | { kind: "unknown" };

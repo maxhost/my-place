@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
+import { enforceRateLimit, getRequestIp } from "@/shared/lib/rate-limit";
 
 import type { InviteError } from "../types";
 import { mapInviteError } from "./_lib/map-invite-error";
@@ -41,6 +42,16 @@ export async function createInvitationAction(
   const expiresAt = new Date(
     Date.now() + expiresInDays * 24 * 60 * 60 * 1000,
   ).toISOString();
+
+  // Phase 0.D — rate limit por IP+placeId (30/h). Identifier compuesto:
+  // owner legítimo en batch sigue OK (30 invites/h); owner comprometido con
+  // script no escala más allá del límite por place. Si V1.3 expone multi-
+  // place admin, considerar derivar identifier de session/user en vez de IP.
+  const ip = await getRequestIp();
+  const gate = await enforceRateLimit("create_invitation", `${ip}:${placeId}`);
+  if (!gate.success) {
+    return { ok: false, error: "rate_limited" };
+  }
 
   try {
     const rows = (await getAuthenticatedDbForRequest((sql) =>

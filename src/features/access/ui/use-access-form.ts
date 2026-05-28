@@ -12,7 +12,11 @@ import type { AccessLabels, AccessSubmit } from "./access-labels";
 // wizard authed). Idempotencia por ref (mismo patrón que el wizard, S8b).
 
 type Mode = "login" | "signup";
-type Notice = "login_failed" | "signup_failed" | null;
+type Notice =
+  | "login_failed"
+  | "signup_failed"
+  | { kind: "rate_limited"; retryAfterSeconds: number }
+  | null;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -77,7 +81,14 @@ export function useAccessForm(opts: {
           })
         : await opts.auth.login(email.trim(), password);
       if (res.status === "ok") opts.onSuccess();
-      else setNotice(res.status);
+      else if (res.status === "rate_limited") {
+        setNotice({
+          kind: "rate_limited",
+          retryAfterSeconds: res.retryAfterSeconds,
+        });
+      } else {
+        setNotice(res.status);
+      }
     } catch {
       setNotice(isSignup ? "signup_failed" : "login_failed");
     } finally {
@@ -86,12 +97,16 @@ export function useAccessForm(opts: {
     }
   }
 
-  const noticeText =
-    notice === "login_failed"
-      ? labels.loginFailedNotice
-      : notice === "signup_failed"
-        ? labels.signupFailedNotice
-        : null;
+  const noticeText = (() => {
+    if (notice === null) return null;
+    if (notice === "login_failed") return labels.loginFailedNotice;
+    if (notice === "signup_failed") return labels.signupFailedNotice;
+    // rate_limited — interpolación `{seconds}` client-side.
+    return labels.rateLimitedNotice.replaceAll(
+      "{seconds}",
+      String(notice.retryAfterSeconds),
+    );
+  })();
 
   return {
     ids,

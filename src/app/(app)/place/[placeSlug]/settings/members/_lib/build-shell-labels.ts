@@ -81,6 +81,7 @@ export function buildMembersPageShellLabels(
       errorUnauthorized: t("inviteModal.errorUnauthorized"),
       errorNotOwner: t("inviteModal.errorNotOwner"),
       errorExpiresInPast: t("inviteModal.errorExpiresInPast"),
+      errorRateLimited: t("inviteModal.errorRateLimited"),
       errorGeneric: t("inviteModal.errorGeneric"),
     },
     pending: {

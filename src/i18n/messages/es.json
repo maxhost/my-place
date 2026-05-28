@@ -249,6 +249,7 @@
     "submitting": "Un momento…",
     "loginFailedNotice": "No pudimos iniciar sesión. Revisá tu email y contraseña.",
     "signupFailedNotice": "No pudimos crear la cuenta. ¿Quizás ya tenés una? Probá iniciar sesión.",
+    "rateLimitedNotice": "Demasiados intentos. Esperá {seconds} segundos y volvé a intentar.",
     "back": "Volver al inicio",
     "inviteTitle": "Te invitan a unirte a {placeName}",
     "inviteSubtitle": "Entrá a tu cuenta o creá una nueva para aceptar la invitación.",
@@ -483,6 +484,7 @@
       "errorUnauthorized": "Necesitás iniciar sesión.",
       "errorNotOwner": "Sólo los owners pueden invitar.",
       "errorExpiresInPast": "El vencimiento ya pasó.",
+      "errorRateLimited": "Demasiadas invitaciones en poco tiempo. Esperá un rato y volvé a intentar.",
       "errorGeneric": "No pudimos generar el link. Probá de nuevo."
     },
     "pending": {
@@ -550,6 +552,7 @@
     "errorExpired": "Esta invitación venció. Pedí una nueva a quien te invitó.",
     "errorAlreadyUsed": "Esta invitación ya se usó.",
     "errorPlaceFull": "Este lugar alcanzó su cupo máximo (150 miembros). Hablá con quien te invitó.",
+    "errorRateLimited": "Demasiados intentos. Esperá {seconds} segundos y volvé a intentar.",
     "errorUnknown": "Algo salió mal. Intentá de nuevo o pedí una nueva invitación."
   }
 }

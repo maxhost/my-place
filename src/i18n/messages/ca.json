@@ -249,6 +249,7 @@
     "submitting": "Un moment…",
     "loginFailedNotice": "No hem pogut iniciar la sessió. Revisa el correu i la contrasenya.",
     "signupFailedNotice": "No hem pogut crear el compte. Potser ja en tens un? Prova d'iniciar sessió.",
+    "rateLimitedNotice": "Massa intents. Espera {seconds} segons i torna-ho a provar.",
     "back": "Tornar a l'inici",
     "inviteTitle": "T'inviten a unir-te a {placeName}",
     "inviteSubtitle": "Entra al teu compte o crea'n un de nou per acceptar la invitació.",
@@ -483,6 +484,7 @@
       "errorUnauthorized": "Has d'iniciar sessió.",
       "errorNotOwner": "Només els owners poden convidar.",
       "errorExpiresInPast": "La caducitat ja ha passat.",
+      "errorRateLimited": "Massa invitacions recentment. Espera una estona i torna-ho a provar.",
       "errorGeneric": "No hem pogut generar l'enllaç. Torna-ho a provar."
     },
     "pending": {
@@ -550,6 +552,7 @@
     "errorExpired": "Aquesta invitació ha caducat. Demana'n una de nova a qui et va convidar.",
     "errorAlreadyUsed": "Aquesta invitació ja s'ha fet servir.",
     "errorPlaceFull": "Aquest lloc ha arribat al seu màxim (150 membres). Parla amb qui et va convidar.",
+    "errorRateLimited": "Massa intents. Espera {seconds} segons i torna-ho a provar.",
     "errorUnknown": "Alguna cosa ha anat malament. Torna-ho a provar o demana una invitació nova."
   }
 }

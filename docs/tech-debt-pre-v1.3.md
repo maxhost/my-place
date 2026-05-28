@@ -23,13 +23,13 @@
 
 | Phase | Sesiones | Completadas | Tag pre-phase | Tag post-phase |
 |-------|----------|-------------|---------------|----------------|
-| **0 — Bloqueantes** | 5 | 3/5 | `baseline/pre-phase-0-tech-debt` ✅ | _pending_ |
+| **0 — Bloqueantes** | 5 | 4/5 | `baseline/pre-phase-0-tech-debt` ✅ | _pending_ |
 | **1 — Hardening** | 7 | 0/7 | _pending_ | _pending_ |
-| **2 — Tests + docs** | 8 | 0/8 | _pending_ | _pending_ |
+| **2 — Tests + docs** | 9 | 0/9 | _pending_ | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 3/26 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 4/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -83,25 +83,48 @@ Sin estos items V1.3 introduce regresiones invisibles o bloquea onboarding.
 
 ---
 
-### Sesión 0.D — Edge config: security headers + rate limit + vercel.json [~3-4h]
+### Sesión 0.D — Edge config: security headers + rate limit (Upstash) [~3-4h] ✅
 
-- [ ] Crear `vercel.json` (o `vercel.ts`) mínimo: `regions: ["iad1"]`, framework, build command explícito, headers globales
-- [ ] Security headers en `next.config.ts` `headers()` O `vercel.json`:
-  - HSTS app-level (además del edge Vercel automático): `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`
-  - CSP base (start permissive, lock down luego): `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; ...`
-  - X-Frame-Options: `DENY` (excepto si custom domains necesitan embed — verificar)
-  - Referrer-Policy: `strict-origin-when-cross-origin`
-  - Permissions-Policy: mínima (sin geolocation/camera/microphone)
-  - X-Content-Type-Options: `nosniff`
-- [ ] Rate limiting en endpoints críticos: investigar stack (Upstash Ratelimit recomendado), threshold conservador (e.g. 10 req/min por IP). Aplicar a:
-  - `src/app/api/auth/sso-issue/route.ts`
-  - `src/app/api/auth/sso-init/route.ts`
-  - `src/features/access/auth-actions.ts` (`loginAction`, `signUpAccountAction`)
-  - `src/features/invitations/actions/accept-invitation.ts` (`acceptInvitationAction`)
-  - `src/features/invitations/actions/create-invitation.ts` (`createInvitationAction`)
-- [ ] Verificar custom domains no rompen con CSP nuevo (test smoke en `nocodecompany.co`)
+**Decisiones de la sesión (post-revisión con user)**:
+- **NO `vercel.json` ahora** — Opción B. `preferredRegion` ya canónico per-page (ADR-0006), framework + build auto-detect Vercel + package.json. `vercel.json` se crea el día del primer cron concreto (registro intermedio si emerge).
+- **NO CSP en esta sesión** — Permissive sería throwaway (Phase 2.I lo va a rehacer strict con nonces). Skipear evita 15min de work descartable + ahorra "¿bug en CSP o en código?" durante el resto de Phase 0.
 
-**Acceptance**: curl + HARs muestran headers correctos · 11vo request en 1min en endpoint protegido retorna 429 · custom domain sigue funcionando con CSP.
+**Items cerrados**:
+- [x] Security headers en `next.config.ts` `headers()` (constante `SECURITY_HEADERS` + `source: "/(.*)"`):
+  - `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` (2 años, preload-ready)
+  - `X-Frame-Options: DENY` (anti-clickjacking, no embedding V1)
+  - `Referrer-Policy: strict-origin-when-cross-origin` (privacy + analytics balance)
+  - `Permissions-Policy: geolocation=(), camera=(), microphone=()` (todo bloqueado V1)
+  - `X-Content-Type-Options: nosniff` (anti-MIME-sniffing)
+- [x] Wrapper rate-limit en `src/shared/lib/rate-limit/`:
+  - `types.ts` — `RateLimitKind` + discriminated `RateLimitResult`
+  - `config.ts` — `RATE_LIMITS: Record<Kind, {tokens, window}>` (canon de thresholds)
+  - `get-request-ip.ts` — `getRequestIp()` async + `parseForwardedIp()` sync (route handlers)
+  - `index.ts` — `enforceRateLimit(kind, identifier)` con singleton lazy + fail-loud-prod / skip-dev
+  - `__tests__/` — 18 unit tests (mocks `@upstash/ratelimit` + `@upstash/redis`), 100% paths cubiertos
+- [x] Wire 6 endpoints:
+  - `loginAction` (5/min/IP — anti-brute-force) → `{status: "rate_limited", retryAfterSeconds}`
+  - `signUpAccountAction` (3/h/IP — anti-spam signup) → idem
+  - `acceptInvitationAction` (5/min/IP) → `{kind: "rate_limited", retryAfterSeconds}` en error union
+  - `createInvitationAction` (30/h/IP+placeId — owner batches OK) → `error: "rate_limited"`
+  - `sso-init` route (10/min/IP) → `429` con `Retry-After` header (RFC 9110)
+  - `sso-issue` route (10/min/IP) → idem
+- [x] UI consumers + i18n strings en 6 locales (es/en/fr/pt/de/ca):
+  - `AccessLabels.rateLimitedNotice` (con `{seconds}` interpolado client-side)
+  - `InviteMemberModalLabels.errorRateLimited` (sin interpolación — 30/h alcanza)
+  - `InviteAcceptancePanelLabels.errorRateLimited` (con `{seconds}`)
+  - Wiring en `login/page.tsx`, `build-shell-labels.ts`, `invite/[token]/page.tsx` (`t.raw` donde hay placeholders)
+- [x] `.env.example` agregadas `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` con setup instructions (~3min upstash.com free tier)
+- [x] `docs/stack.md` — fila "Rate limiting" en tabla + entrada §Variables de entorno con behavior por entorno
+
+**Acceptance**: typecheck ✅ · lint ✅ · 211 UI tests + 125 node tests (pure) verdes · 18 tests nuevos del wrapper verdes · headers definidos en `next.config.ts` (apply en build) · setup `.env.example` documenta provisioning user-side.
+
+**Notas operativas pendientes para user** (post-merge):
+1. Sign up upstash.com + create Redis DB free tier (~3min)
+2. Setear `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` en Vercel env vars (Production + Preview scopes)
+3. Sin esos vars en prod, app crashea al primer rate-limit check (fail-loud, deploy bloqueado) — DELIBERADO, evita deploy silencioso sin protección
+
+**Smoke deferido a deploy**: curl `-I` apex valida headers; 11vo request en endpoint protegido valida 429. NO testeable en `pnpm dev` sin Upstash creds locales (skip + warn path).
 
 **Commit**: _pending_ · **Tag**: `baseline/phase-0-D-edge-config-done` (load-bearing)
 
@@ -266,7 +289,7 @@ Cleanup directo del cluster auth + DB + invite. Evita acumulación durante V1.3.
 
 ---
 
-## Phase 2 — Tests + docs completeness (8 sesiones, ~12-14h)
+## Phase 2 — Tests + docs completeness (9 sesiones, ~14-16h)
 
 **Save point**: `baseline/pre-phase-2-tech-debt` (= tag post-phase-1)
 
@@ -382,11 +405,43 @@ V1.3 puede arrancar **en paralelo** con esta phase si recursos lo permiten. No b
 
 ---
 
+### Sesión 2.I — Strict CSP (nonce-based) + audit headers [~2-4h]
+
+**Origen**: deferred desde Sesión 0.D (2026-05-28). Phase 0.D agregó 5 security headers en `next.config.ts headers()` pero NO incluyó Content-Security-Policy porque permissive CSP (con `'unsafe-inline'`) tiene valor marginal vs el costo de re-implementación cuando se vaya a strict.
+
+**Por qué strict CSP**:
+- Defense-in-depth principal contra XSS (vector más común en apps con user-generated content: nombre place, email invitee, displayName).
+- Permissive (`'unsafe-inline'`) NO protege contra `<script>alert(1)</script>` inyectado en un sink.
+- Strict con nonce per request bloquea TODOS los scripts no-firmados → atacante con XSS sink stuck.
+
+**Items**:
+- [ ] Generar nonce per request en `src/proxy.ts` (`crypto.randomUUID()` base64url) + setear header `Content-Security-Policy` con `'nonce-<nonce>'` + `'strict-dynamic'`.
+- [ ] Propagar nonce a Next.js scripts via `next/headers` (`headers().get('x-nonce')`) en root layout(s); cada `<Script>` component lee el nonce de context.
+- [ ] CSP directives finales:
+  - `default-src 'self'`
+  - `script-src 'self' 'nonce-<>' 'strict-dynamic'`
+  - `style-src 'self' 'unsafe-inline'` (Tailwind v4 injecta inline; styled-jsx similar)
+  - `img-src 'self' data: blob: https:` (avatares + logos place + Storage Phase 1.G)
+  - `font-src 'self' data:`
+  - `connect-src 'self' https://*.neon.tech wss://*.neon.tech https://*.upstash.io`
+  - `frame-ancestors 'none'` (redundante con X-Frame-Options DENY pero CSP es authoritative)
+  - `form-action 'self'`
+  - `base-uri 'self'`
+  - `upgrade-insecure-requests` (browser auto-upgradea http→https)
+- [ ] Smoke verify: custom domain (`nocodecompany.co`), Hub, place page, login form, invite acceptance — confirmar 0 console errors CSP.
+- [ ] Audit headers existentes Phase 0.D — ¿se puede tightener `Permissions-Policy` con más features (clipboard-write, etc.)?
+
+**Acceptance**: page-load en prod retorna CSP con nonce dinámico · DevTools console muestra 0 errores CSP en flujos críticos · CSP report-uri opcional (Sentry Phase 0.E si vivo) loggea violaciones · permissive CSP eliminada de tracker.
+
+**Commit**: _pending_ · **Tag**: `baseline/phase-2-I-csp-strict-done` (load-bearing)
+
+---
+
 ### 🏁 Cierre Phase 2
 
 **Tag post-phase**: `baseline/phase-2-tech-debt-done`
 
-**Acceptance phase**: 3 E2E verdes en CI · coverage threshold enforced · data-model.md 100% coverage · 3 ontologías con stubs · backup strategy doc · zero i18n strings hardcoded · Suspense streaming en pages settings.
+**Acceptance phase**: 3 E2E verdes en CI · coverage threshold enforced · data-model.md 100% coverage · 3 ontologías con stubs · backup strategy doc · zero i18n strings hardcoded · Suspense streaming en pages settings · strict CSP shippeado.
 
 ---
 
@@ -509,8 +564,10 @@ Items que NO son cleanup tech debt sino features/optimizaciones para más adelan
 | `baseline/phase-1-G-storage-decided` | _pending_ | Storage decision load-bearing |
 | `baseline/phase-1-tech-debt-done` | _pending_ | Cierre Phase 1 |
 | `baseline/pre-phase-2-tech-debt` | _= phase-1-done_ | Save point pre-Phase 2 |
+| `baseline/phase-0-D-edge-config-done` | _pending_ | Headers + rate limit (Upstash) load-bearing |
 | `baseline/phase-2-B-e2e-done` | _pending_ | E2E suite load-bearing |
 | `baseline/phase-2-H-suspense-done` | _pending_ | Suspense streaming load-bearing |
+| `baseline/phase-2-I-csp-strict-done` | _pending_ | CSP strict (nonce-based) load-bearing |
 | `baseline/phase-2-tech-debt-done` | _pending_ | Cierre Phase 2 |
 | `baseline/pre-phase-3-tech-debt` | _= phase-2-done_ | Save point pre-Phase 3 |
 | `baseline/phase-3-tech-debt-done` | _pending_ | Cierre Phase 3 + tech debt closure |

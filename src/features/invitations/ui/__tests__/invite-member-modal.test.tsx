@@ -31,6 +31,8 @@ const LABELS: InviteMemberModalLabels = {
   errorUnauthorized: "Necesitás iniciar sesión.",
   errorNotOwner: "Solo el owner del place puede invitar.",
   errorExpiresInPast: "La fecha de expiración quedó en el pasado.",
+  errorRateLimited:
+    "Demasiadas invitaciones en poco tiempo. Esperá un rato y volvé a intentar.",
   errorGeneric: "Algo salió mal. Probá de nuevo.",
 };
 

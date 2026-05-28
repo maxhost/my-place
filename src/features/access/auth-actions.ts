@@ -1,7 +1,20 @@
 "use server";
 
 import { getAuth } from "@/shared/lib/auth";
+import { enforceRateLimit, getRequestIp } from "@/shared/lib/rate-limit";
 import type { AccessCredentials, AccessResult } from "./ui/access-labels";
+
+// Phase 0.D — rate limit por IP. `loginAction` 5/min (anti-brute-force);
+// `signUpAccountAction` 3/h (anti-spam signup). El identifier es la IP del
+// `x-forwarded-for` (Vercel siempre lo setea); fallback `"unknown"` colapsa
+// a 1 bucket compartido (defense-in-depth si el header falta).
+//
+// `retryAfterSeconds` = ceil((resetAt - now) / 1000) → la UI muestra "esperá
+// X seg". Cap a 3600s (1h) para no mostrar números absurdos por edge cases.
+function buildRetryAfter(resetAt: number): number {
+  const seconds = Math.ceil((resetAt - Date.now()) / 1000);
+  return Math.max(1, Math.min(3600, seconds));
+}
 
 // Borde cross-system de la vía "Acceso" (S9, ADR-0008/0009). Es el wiring
 // VIVO del SDK Neon Auth; su correctitud es de tipo/build + preview Vercel,
@@ -23,6 +36,15 @@ export async function loginAction(
   email: string,
   password: string,
 ): Promise<AccessResult> {
+  const ip = await getRequestIp();
+  const gate = await enforceRateLimit("login", ip);
+  if (!gate.success) {
+    return {
+      status: "rate_limited",
+      retryAfterSeconds: buildRetryAfter(gate.resetAt),
+    };
+  }
+
   try {
     const { error } = await getAuth().signIn.email({ email, password });
     if (error) return { status: "login_failed" };
@@ -45,6 +67,15 @@ export async function loginAction(
 export async function signUpAccountAction(
   c: AccessCredentials,
 ): Promise<AccessResult> {
+  const ip = await getRequestIp();
+  const gate = await enforceRateLimit("signup", ip);
+  if (!gate.success) {
+    return {
+      status: "rate_limited",
+      retryAfterSeconds: buildRetryAfter(gate.resetAt),
+    };
+  }
+
   try {
     const { data, error } = await getAuth().signUp.email({
       email: c.email,
