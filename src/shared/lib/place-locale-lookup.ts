@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { z } from "zod";
 
 import { pool } from "@/db/client";
@@ -24,6 +25,15 @@ import { log } from "@/shared/lib/observability/log";
 // payload mínimo (escalar `text` validado por CHECK constraint), ejecutable
 // sólo por `app_system` (REVOKE FROM PUBLIC, EXECUTE granted a `app_system`).
 //
+// MEMOIZACIÓN PER-REQUEST (React `cache`): envuelto con `cache()` para
+// deduplicar dentro de un mismo render RSC. El layout `(app)/place/
+// [placeSlug]/layout.tsx` lo invoca vía `getPlaceLocaleFallback`
+// (`_lib/get-place-for-zone.ts`), pero el mismo slug puede resolver el
+// `<html lang>` y otros lookups dependientes en nested layouts/pages;
+// sin memo cada llamada con el mismo `rawSlug` normalizado dispara su
+// propia query DB. Fuera de contexto RSC (e.g., tests Vitest sin
+// renderToString) `cache()` actúa como pass-through transparente.
+//
 // Invariantes:
 //   1. Normalización del slug: trim + lowercase. Defense-in-depth: la
 //      función SQL ya hace `lower(slug) = lower(p_slug)`, pero la frontera
@@ -44,38 +54,38 @@ interface LookupRow {
   locale: unknown;
 }
 
-export async function lookupPlaceLocaleBySlug(
-  rawSlug: string,
-): Promise<string | null> {
-  const slug = rawSlug.trim().toLowerCase();
-  if (!slug) return null;
+export const lookupPlaceLocaleBySlug = cache(
+  async (rawSlug: string): Promise<string | null> => {
+    const slug = rawSlug.trim().toLowerCase();
+    if (!slug) return null;
 
-  try {
-    const result = await pool.query<LookupRow>(
-      "SELECT app.lookup_place_locale_by_slug($1) AS locale",
-      [slug],
-    );
+    try {
+      const result = await pool.query<LookupRow>(
+        "SELECT app.lookup_place_locale_by_slug($1) AS locale",
+        [slug],
+      );
 
-    const locale = result.rows[0]?.locale;
-    if (locale === null || locale === undefined) return null;
+      const locale = result.rows[0]?.locale;
+      if (locale === null || locale === undefined) return null;
 
-    const parsed = localeSchema.safeParse(locale);
-    if (!parsed.success) {
+      const parsed = localeSchema.safeParse(locale);
+      if (!parsed.success) {
+        log.error(
+          parsed.error,
+          { scope: "place-locale-lookup", slug },
+          "locale inválido",
+        );
+        return null;
+      }
+
+      return parsed.data;
+    } catch (err) {
       log.error(
-        parsed.error,
+        err,
         { scope: "place-locale-lookup", slug },
-        "locale inválido",
+        "DB query falló",
       );
       return null;
     }
-
-    return parsed.data;
-  } catch (err) {
-    log.error(
-      err,
-      { scope: "place-locale-lookup", slug },
-      "DB query falló",
-    );
-    return null;
-  }
-}
+  },
+);

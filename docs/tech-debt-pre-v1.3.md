@@ -24,12 +24,12 @@
 | Phase | Sesiones | Completadas | Tag pre-phase | Tag post-phase |
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
-| **1 — Hardening** | 7 | 4/7 | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending_ |
+| **1 — Hardening** | 7 | 5/7 | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending_ |
 | **2 — Tests + docs** | 9 | 0/9 | _pending_ | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 9/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 10/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -317,13 +317,19 @@ Cleanup directo del cluster auth + DB + invite. Evita acumulación durante V1.3.
 
 ---
 
-### Sesión 1.E — Performance: React.cache wrap [~30min]
+### Sesión 1.E — Performance: React.cache wrap [~30min] ✅
 
-- [ ] Wrap `src/shared/lib/custom-domain-lookup.ts` `lookupPlaceByDomain` con `cache()` (23 callsites potenciales por render: proxy + page tree + SSO routes)
-- [ ] Wrap `src/shared/lib/place-locale-lookup.ts` `lookupPlaceLocaleBySlug` con `cache()` (callsites en `getPlaceLocaleFallback` indirecto)
-- [ ] Verificar JSDoc indica memoización per-request
+- [x] Wrap `src/shared/lib/custom-domain-lookup.ts` `lookupPlaceByDomain` con `cache()` (callsites: proxy middleware + RSC tree `get-place-for-zone` + `db-for-request` + 3 route handlers SSO)
+- [x] Wrap `src/shared/lib/place-locale-lookup.ts` `lookupPlaceLocaleBySlug` con `cache()` (callsite RSC: `getPlaceLocaleFallback` desde layout `(app)/place/[placeSlug]/`)
+- [x] JSDoc actualizado en ambos archivos con sección "MEMOIZACIÓN PER-REQUEST" explicando: scope del memo (mismo render RSC, mismo arg normalizado), comportamiento pass-through fuera de contexto RSC (middleware/route handlers/Vitest), por qué es safe en cualquier callsite server-only.
 
-**Acceptance**: typecheck verde · suite verde · grep `from "react"` muestra `cache` import en ambos archivos.
+**Decisiones**:
+- **Convert `export async function` → `export const = cache(async ...)`**: signature pública idéntica para callers; TS infiere el return type sin cambios. Tests vitest (`vi.mock` con `vi.fn()`) siguen interceptando el export por igual — verificado 46/46 tests de consumers verdes.
+- **Memoización key = todos los args normalizados ANTES de la query**: las funciones normalizan internamente (`host.split(":")[0].trim().toLowerCase()`, `rawSlug.trim().toLowerCase()`). `cache()` de React usa identidad referencial sobre los args originales — `lookupPlaceByDomain("Foo.COM")` y `lookupPlaceByDomain("foo.com")` son cache miss separados, pero ambos resuelven la misma query DB. Aceptable: el cost dominante es la query (no la normalización TS); en práctica un render usa el mismo host string en todas sus llamadas.
+- **No tocar middleware/route handlers**: `cache()` actúa como pass-through fuera de RSC (sin warning, sin crash). Esos callsites NO ganan memo pero ya invocan 1x por request — no es regresión.
+- **No agregar tests de memoización per-render**: testear el behavior memo requiere setup RSC complejo (renderToStaticMarkup + cache scope) que excede el ROI de una optimización transparente. Los tests existentes cubren contract de la función (input → output, normalización, fail-safe); el wrap `cache()` no afecta esos contratos.
+
+**Acceptance**: ✅ typecheck verde · ✅ suite verde · ✅ grep `from "react"` muestra `cache` import en ambos archivos.
 
 **Commit**: _pending_
 
