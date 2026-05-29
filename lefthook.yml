@@ -1,0 +1,49 @@
+# Hooks de git gestionados por lefthook.
+# Activación: `pnpm install` corre `lefthook install` vía script `prepare`.
+# Bypass de emergencia: `git commit --no-verify` (NO usar en commits normales;
+# CI corre el mismo tooling y va a fallar igual).
+
+pre-commit:
+  parallel: true
+  commands:
+    typecheck:
+      tags: [check]
+      glob: "*.{ts,tsx}"
+      run: pnpm typecheck
+
+    lint:
+      tags: [check]
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
+      run: pnpm lint --max-warnings 0 {staged_files}
+
+    secret-scan:
+      tags: [check]
+      run: |
+        set -eu
+        # lefthook expande {staged_files} como tokens quoted ("f1" "f2" "f3"),
+        # diseñado para pasarse como args a un comando. Lo metemos en "$@" con
+        # `set --` para iterar/forward seguro (soporta paths con espacios).
+        set -- {staged_files}
+        [ $# -eq 0 ] && exit 0
+
+        # 1. Filename guard — bloquea staging de archivos cuyo path matchea
+        # patrones de credenciales. Defense-in-depth sobre .gitignore (que
+        # podría haber sido ignorado con `git add -f`).
+        deny_name='(^|/)\.env([.][^/]+)?$|(-backup)|credentials|secret|\.pem$|\.key$|_token([.]|$)|id_rsa|id_ed25519'
+        bad_name=$(printf '%s\n' "$@" | grep -iE "$deny_name" | grep -vE '\.env\.example$' || true)
+        if [ -n "$bad_name" ]; then
+          printf '\nArchivos con nombre sospechoso de credencial en staging:\n%s\n\n' "$bad_name" >&2
+          printf 'Si es intencional, --no-verify + revisar antes de pushear.\n' >&2
+          exit 1
+        fi
+
+        # 2. Content guard — escanea el diff staged por prefijos de token
+        # conocidos (GitHub PAT, OpenAI/Anthropic, AWS, Slack). Falsos
+        # positivos muy bajos por la especificidad de los prefijos.
+        deny_content='ghp_[A-Za-z0-9]{30,}|gho_[A-Za-z0-9]{30,}|ghs_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{50,}|sk-[A-Za-z0-9]{30,}|sk-ant-[A-Za-z0-9_-]{30,}|AKIA[0-9A-Z]{16}|xox[baprs]-[0-9A-Za-z-]{10,}'
+        bad_content=$(git diff --cached -U0 -- "$@" | grep -E "$deny_content" || true)
+        if [ -n "$bad_content" ]; then
+          printf '\nPosible credencial detectada en el diff staged:\n%s\n\n' "$bad_content" | head -20 >&2
+          printf 'Rotar el secret YA en el dashboard del provider y removerlo del commit.\n' >&2
+          exit 1
+        fi

@@ -41,7 +41,7 @@ pnpm dev                # http://localhost:3000
 1. **Clonar + dependencias**:
    ```bash
    git clone <repo> && cd place
-   pnpm install
+   pnpm install                # también activa lefthook pre-commit hooks (typecheck + lint + secret-scan)
    ```
 
 2. **Variables de entorno**: copiá `.env.example` a `.env.local` (gitignored). Cada variable tiene comentario inline con dónde sacarla. Mínimo viable para `pnpm dev`:
@@ -156,7 +156,7 @@ Si tocás esto, leé `CLAUDE.md` §"Paradigma arquitectónico" + `docs/architect
 - **Issues + PRs en español** (idioma del proyecto). Código en inglés (variables, funciones, types).
 - **TDD obligatorio**: tests primero, verificar que fallan, implementar, verificar que pasan.
 - **Una PR = una responsabilidad**. Si toca >5 archivos o cruza backend ↔ frontend, dividir en PRs.
-- **Pre-commit**: lefthook está armado para correr typecheck + lint sobre archivos staged (pendiente Phase 1.D, hasta entonces correr manual antes de commit).
+- **Pre-commit hooks** (lefthook): cada `git commit` corre typecheck + lint `--max-warnings 0` sobre archivos staged + secret-scan (filename + content guard sobre prefijos de tokens GitHub/OpenAI/Anthropic/AWS/Slack). Config en `lefthook.yml`. Se activan en `pnpm install` vía script `prepare`. Bypass de emergencia: `git commit --no-verify` (CI corre el mismo tooling).
 - **NUNCA `git add -A` ni `git add .`** — siempre por path explícito (anti-leak de secrets).
 
 ---

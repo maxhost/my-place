@@ -24,12 +24,12 @@
 | Phase | Sesiones | Completadas | Tag pre-phase | Tag post-phase |
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
-| **1 — Hardening** | 7 | 3/7 | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending_ |
+| **1 — Hardening** | 7 | 4/7 | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending_ |
 | **2 — Tests + docs** | 9 | 0/9 | _pending_ | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 8/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 9/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -282,16 +282,36 @@ Cleanup directo del cluster auth + DB + invite. Evita acumulación durante V1.3.
 
 ---
 
-### Sesión 1.D — Pre-commit hook [~30min]
+### Sesión 1.D — Pre-commit hook [~30min] ✅
 
-- [ ] Instalar lefthook (preferido sobre husky por simplicidad + perf): `pnpm add -D lefthook`
-- [ ] Config `lefthook.yml` con pre-commit hook:
-  - `pnpm typecheck --noEmit` (fast)
-  - `pnpm lint --max-warnings 0` sobre staged files
-  - Secret scan básico (grep custom de patterns `.env`, tokens, etc.)
-- [ ] Documentar en `README.md` §Setup que `pnpm install` activa los hooks automáticamente
+- [x] Instalado lefthook 2.1.8 como devDep (preferido sobre husky por simplicidad + perf): `pnpm add -D lefthook`
+- [x] `lefthook.yml` creado en root con pre-commit hook (3 commands en paralelo):
+  - `typecheck` — `pnpm typecheck` full project (gated por `glob: "*.{ts,tsx}"` → solo corre si hay TS staged)
+  - `lint` — `pnpm lint --max-warnings 0 {staged_files}` (glob: ts/tsx/js/jsx/mjs/cjs)
+  - `secret-scan` — inline shell con 2 layers: (a) **filename guard** sobre `.env*` / `*backup*` / `credentials` / `secret` / `.pem` / `.key` / `*_token` / `id_rsa` / `id_ed25519` (whitelist `.env.example`) · (b) **content guard** sobre prefijos canónicos de tokens (`ghp_` / `gho_` / `ghs_` / `github_pat_` / `sk-` / `sk-ant-` / `AKIA` / `xox[baprs]-`) escaneando `git diff --cached -U0`
+- [x] Script `prepare: "lefthook install || true"` agregado a `package.json` — `pnpm install` activa hooks automáticamente en clonado fresco (`|| true` para que no falle en envs sin git como Docker/Vercel)
+- [x] README actualizado: §Setup paso 1 anota que `pnpm install` activa lefthook · §Contribuir reemplaza el "pendiente Phase 1.D" por la descripción de los 3 guards activos + bypass `--no-verify`
 
-**Acceptance**: commit con error de typescript falla pre-commit · commit con archivo `.env*` en staging falla · commit clean pasa instantáneamente.
+**Acceptance verificada** (vía `lefthook run pre-commit --file <X> --command <Y> --force`):
+- ✅ `.env.production` staged → secret-scan exit 1 con mensaje `Archivos con nombre sospechoso de credencial en staging:`
+- ✅ archivo `.ts` con type error → typecheck exit 2 con `TS2322: Type 'string' is not assignable to type 'number'`
+- ✅ clean run sobre lefthook.yml → todos los commands exit 0 en ~5.3s (`typecheck 2.4s`, `lint 5.3s`, `secret-scan 0.02s`)
+- ✅ `rm .git/hooks/pre-commit && pnpm install` → hook re-creado automáticamente (prepare script funcional)
+- ✅ **multi-file clean (regresión)** — N=5 files staged → secret-scan exit 0 (caught + fixed bug: ver Bug capturado abajo)
+
+**Bug capturado mid-sesión** (`set -- {staged_files}` fix):
+- **Síntoma**: primer commit real (5 files staged) → `sh: line 1: docs/tech-debt-pre-v1.3.md: Permission denied · exit status 1`.
+- **Causa**: `{staged_files}` de lefthook expande como tokens quoted (`"f1" "f2" "f3"`), diseñado para inyectarse como args a un comando externo (`eslint {staged_files}` ✓). Mi script lo asignaba con `files="{staged_files}"` → expansión literal `files="f1" "f2" "f3"` → shell interpreta `"f2"` como comando a ejecutar.
+- **Por qué no lo capturó el acceptance original**: los tests usaban `--file <único>`, N=1 staged. Con un solo file `files="f1"` es válido y no se rompe. El bug solo aparece con N≥2.
+- **Fix**: reemplazar `files="{staged_files}"` por `set -- {staged_files}` — los positional args `"$@"` manejan N≥0 con quoting correcto (soporta paths con espacios).
+- **Gap method**: agregado **TEST 4 multi-file clean** al set de acceptance + commit real del cierre de 1.D pasa por su propio hook end-to-end (5 files, 0 problemas).
+
+**Decisiones 1.D**:
+- **lefthook over husky**: lefthook es Go binary self-contained, sin runtime Node overhead pre-commit; husky requiere `.husky/` directory + shell wrappers más verbose. lefthook también soporta `parallel: true` nativo.
+- **`|| true` en prepare**: lefthook detecta ausencia de `.git/` y exit 0, PERO defensive — en Docker/Vercel builds sin git, el `|| true` evita que `pnpm install` rompa.
+- **Filename guard antes que content**: bloquea ANTES del scan más caro (regex sobre diff). Filename matches son O(1) sobre lista de paths.
+- **Content scan sólo prefijos canónicos**: false positives muy bajos (`ghp_`/`sk-`/`AKIA`/`xox*` son extremadamente específicos). No incluí entropy-based detection — overkill para una primera iteración + alto riesgo de FPs.
+- **Bypass documentado**: `--no-verify` está expuesto en README como escape hatch. CI corre lo mismo (typecheck + lint via `.github/workflows/tests.yml`), entonces bypass local no esquiva la red de seguridad full.
 
 **Commit**: _pending_
 

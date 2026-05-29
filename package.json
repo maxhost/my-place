@@ -15,7 +15,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "analyze": "cross-env ANALYZE=true NODE_ENV=production next build",
-    "lhci": "lhci autorun"
+    "lhci": "lhci autorun",
+    "prepare": "lefthook install || true"
   },
   "dependencies": {
     "@neondatabase/auth": "0.4.1-beta",
@@ -52,6 +53,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "jsdom": "^29.1.1",
+    "lefthook": "^2.1.8",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.6"
