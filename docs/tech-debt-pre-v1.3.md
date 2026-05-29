@@ -359,7 +359,7 @@ Cleanup directo del cluster auth + DB + invite. Evita acumulación durante V1.3.
 
 **Acceptance**: ✅ `grep -rEn "\.(ts|tsx|sql):[0-9]+(-[0-9]+)?" docs/gotchas/` retorna 1 línea (el stack trace documentado como excepción) · ✅ features/README marca i18n Core + Acceso a datos Plataforma (Drizzle ADR-0004) · ✅ onboarding/README abre con bloque DEPRECATED explícito (3 slices sucesores enumerados).
 
-**Commit**: _pending_
+**Commit**: `8cf9341 docs: Phase 1.F — gotchas refs file:symbol + features/README + onboarding deprecation`
 
 ---
 
