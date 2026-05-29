@@ -8,7 +8,7 @@ Logs server-side muestran que la query SQL corrió bajo el JWT del miembro y no 
 
 ## Causa
 
-`place_domain` tiene una **única policy RLS** llamada `place_domain_all`, definida en `src/db/migrations/0001_round_forge.sql:39-45`:
+`place_domain` tiene una **única policy RLS** llamada `place_domain_all`, definida en `src/db/migrations/0001_round_forge.sql` (§ `CREATE POLICY "place_domain_all"`):
 
 ```sql
 CREATE POLICY "place_domain_all" ON "place_domain"
@@ -60,6 +60,6 @@ Corren bajo el rol real `app_system` (NO BYPASSRLS) con claims inyectados — nu
 - **ADR partial unique post-archive**: `docs/decisions/0026-custom-domain-v1-lazy-verification.md` (origen de los 3 tests S1).
 - **ADR member-read pattern (NO aplica a place_domain)**: `docs/decisions/0021-rls-member-read-pattern.md`.
 - **SECURITY DEFINER lookup público**: `src/db/migrations/0009_lookup_place_by_domain.sql` + `docs/decisions/0031-custom-domain-routing-v1.md`.
-- **Schema Drizzle del predicado**: `src/db/schema/index.ts:41-45` (helper `ownerOnly`) + `:142-168` (tabla + policy).
-- **Migration SQL canónica**: `src/db/migrations/0001_round_forge.sql:39-45`.
+- **Schema Drizzle del predicado**: `src/db/schema/index.ts` § helper `ownerOnly` + tabla `placeDomain` (policy `place_domain_all` con `USING == WITH CHECK = ownerOnly(t.placeId)`).
+- **Migration SQL canónica**: `src/db/migrations/0001_round_forge.sql` § `CREATE POLICY "place_domain_all"`.
 - **Helpers de test**: `src/db/__tests__/db-test-pool.ts` (`inRlsTx`, `tx.as`, `tx.q`, `tx.denied`).

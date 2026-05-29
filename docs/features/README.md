@@ -33,6 +33,7 @@ Inventario de todo lo que Place incluye o quiere incluir. Es el **backlog y mapa
 | Custom domains | Dominio propio del place vía Vercel API + Signed Ticket SSO desde apex (Features A+B+C V1 deployed) | Plataforma | `multi-tenancy.md`, ADR-0001 (refinada por ADR-0026/0031/0032/0033) |
 | Gate de horario | Place accesible solo en horario; owner exceptuado | Plataforma | `architecture.md` § Gate |
 | Settings del owner | Activar/desactivar zonas, horario, theming, ownership | Plataforma | `data-model.md` |
+| Acceso a datos (ORM/driver) | Drizzle ORM + Neon serverless driver; RLS por-operación con rol `app_system` (NO BYPASSRLS) | Plataforma | ADR-0004, `stack.md` |
 
 ## Auth e identidad
 
@@ -56,7 +57,7 @@ Inventario de todo lo que Place incluye o quiere incluir. Es el **backlog y mapa
 
 | Feature | Qué es | Estado | Canónico |
 |---|---|---|---|
-| i18n | Estático multi-idioma; ES day-one, EN/FR/PT roadmap | Core (ES) / Roadmap (resto) | `producto.md`, `stack.md` |
+| i18n | Estático multi-idioma; 6 locales operativos (es, en, fr, pt, de, ca) — enforced por `place_default_locale_check` + enum Zod en lookups | Core | `producto.md`, `stack.md`, ADR-0024 |
 | Reconocimiento de pertenencia | Antigüedad, hitos, insignias cualitativas; sin vanidad/FOMO | Core | ADR-0002, `producto.md` |
 | Moderación | Centralizada en owner | Core | `ontologia/conversaciones.md` |
 | @menciones | A usuarios, recursos de biblioteca, eventos (permission-gated) | Core | `ontologia/conversaciones.md` |
@@ -79,7 +80,6 @@ Inventario de todo lo que Place incluye o quiere incluir. Es el **backlog y mapa
 | Push notifications | Requiere decisión de producto | Parked | `producto.md` |
 | Realtime | Si aparece el caso de uso | TBD | `stack.md` |
 | Storage | Avatares/assets del place | TBD | `stack.md` |
-| Acceso a datos (ORM/driver) | Método de acceso a Neon | TBD | `stack.md` |
 
 ---
 

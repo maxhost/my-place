@@ -116,7 +116,7 @@ Considerado: extender el coordinator DB para retornar también identity en el ca
 ## Tests pertinentes
 
 - `src/shared/lib/__tests__/db-for-request.test.ts` (8 tests PURE) — cubre todos los branches del dispatch + propagation de `expectedHost` + cookie name exacto.
-- El integrador `getAuthenticatedDbForRequest` NO se vitest'ea (canon seam-split `update-default-locale.ts:13`): cruza `next/headers` + Neon Auth SDK + DB real → correctitud por tipo/build + smoke owner-driven.
+- El integrador `getAuthenticatedDbForRequest` NO se vitest'ea (canon seam-split — ver `src/features/place-settings/actions/update-default-locale.ts` § JSDoc header "canon de seam-split"): cruza `next/headers` + Neon Auth SDK + DB real → correctitud por tipo/build + smoke owner-driven.
 - **Identity reading (D.fix.3)**:
   - `src/shared/lib/__tests__/user-identity-by-id-lookup.test.ts` (10 tests PURE) — cubre wrapper TS sobre el DEFINER `app.lookup_user_identity_by_id` + Zod parse + fail modes.
   - `src/db/__tests__/lookup-user-identity-by-id.test.ts` (9 tests integration) — cubre el DEFINER directo: happy + payload shape jsonb + ACL + SECURITY DEFINER bypass + drift de `neon_auth.user` schema + caller anónimo + uuid inválido.

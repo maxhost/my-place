@@ -1,15 +1,19 @@
-# Onboarding / registro · spec de feature
+# Onboarding / registro · spec de feature (DEPRECATED)
+
+> ⚠️ **SLICE DEPRECATED** — esta carpeta describe la spec original del onboarding monolítico (S1 ADR-0005, owner-first place + cuenta + saga unificada). **Ya no es fuente de verdad.**
+>
+> El slice fue **dividido post-ADR-0014** (`docs/decisions/0014-split-onboarding-place-creation-access.md`) en 3 features verticales independientes:
+> - **`docs/features/place-wizard/`** — wizard 3 pasos client-side (UI pura, sin saga; extraído por ADR-0016 `0016-extraer-slice-place-wizard.md`).
+> - **`docs/features/place-creation/`** — orquestación de creación: identidad → `ensureAppUser` TX 1 → `app.create_place` DEFINER TX 2 (`src/features/place-creation/create-place.ts`).
+> - **`docs/features/access/`** — login + signup account-first + invite-signup CTA via `?mode=signup` (ADR-0045); vía "Acceso" del menú.
+>
+> Esta carpeta se preserva como **referencia histórica del modelo S1 originalmente planeado** (incluyendo §5 RLS y §6 invitación token-link que sí están sincronizados al modelo final ADR-0010/0012). El contenido del §2 (flujo) y §3 (saga unificada monolítica) NUNCA se implementó en su forma original — fue reemplazado por los 3 slices arriba antes de S1 completarse. Los ADRs canónicos relevantes están enlazados desde la spec de cada slice; no consultar este README como guía de implementación.
+>
+> _Última actualización: 2026-05-29 (marca de deprecation; contenido congelado en versión 2026-05-17)._
+
+---
 
 Spec de **comportamiento esperado** de la feature de onboarding (alta owner-first: crear place + cuenta). No es implementación ni código. Consolida lo ya decidido en ADR-0001…0007, `architecture.md`, `data-model.md`, `multi-tenancy.md`, `stack.md`, `producto.md` y las ontologías. Donde dos docs canónicos podrían leerse distinto, **no se resuelve acá**: se anota en § "Contradicciones / zonas a confirmar" para que lo decida el humano.
-
-> _Última actualización: 2026-05-17._ Esta carpeta es la spec; los docs canónicos siguen siendo la fuente de verdad. Si un canónico cambia, esta spec se ajusta — nunca al revés. **No** edita ADRs ni canónicos.
-
-> ⚠️ **Pendiente de re-sync con ADR-0008 + ADR-0010 (estado final del modelo).** Esta spec aún describe el flujo place-first de los CTA (ADR-0005 §1). El modelo final, fuente de verdad hasta el re-sync:
-> - **Dos vías de entrada (ADR-0008):** CTAs → place-first (cuenta al final, single-submit). Item **"Acceso"** → form login → signup **account-first** → "Crear mi place" (reusa pasos de place SIN el de cuenta; saga **modo authed**) o "Unirme".
-> - **RLS por-operación (ADR-0010, refinado por ADR-0012):** INSERT de place/membership/ownership **denegado por RLS** (`REVOKE INSERT` + sin policy); creación **solo** vía `app.create_place` `SECURITY DEFINER`. SELECT/UPDATE/DELETE owner-only (`place_ownership` fraseado vía `app_user`, recursion-safe); `app_user` propia fila; `invitation`/`place_domain` owner-only `FOR ALL`.
-> - **Invitación SOLO por token-link (ADR-0010, supersede ADR-0009 §1):** `invitation` 100% owner-only; se acepta únicamente entrando por el link con token vía función de confianza `SECURITY DEFINER` (validate → ensureAppUser → membership → test-and-set `accepted_at`). **Sin** lookup por email, **sin** verified-email. "Unirme" en Acceso = solo **directorio** (futuro) → deshabilitado/"próximamente"; las invitaciones no se acceden desde el menú "Acceso".
-> - **Creación vía función `SECURITY DEFINER` (ADR-0012, supersede ADR-0010 §1):** INSERT directo de place/ownership/membership denegado; `app.create_place` es la única vía (cierra escalación de ownership y recursión RLS, verificado empíricamente 2026-05-17). §5 ya re-sincronizado a este modelo.
-> El §2 (flujo), §3 (saga: dos modos) y `plan-sesiones.md` se re-sincronizan con ADR-0008/0010/0012 antes de implementar; §5 (RLS) y §6 (invitación token-link) ya están al modelo final. Hasta el re-sync total, **ADR-0008 + ADR-0010 + ADR-0012** son la fuente.
 
 ## Índice de esta carpeta
 

@@ -12,9 +12,9 @@ Sólo aparece al diagnosticar Neon directo: la `app_user` row del invitee **no e
 
 ## Causa
 
-**ADR-0008 §2/§4** (canon): `signUpAccountAction` (`features/access/auth-actions.ts:45-61`) crea SÓLO la identidad Neon Auth — **NO siembra `app_user`**. Razón canónica: "cuenta sin place" es estado legítimo (un user puede signup-ear sin crear/aceptar nada). El siembrado de `app_user` está delegado a `ensureAppUser` (`shared/lib/ensure-app-user.ts`, ADR-0006, idempotente por `auth_user_id UNIQUE`).
+**ADR-0008 §2/§4** (canon): `signUpAccountAction` (`features/access/auth-actions.ts` § `signUpAccountAction`) crea SÓLO la identidad Neon Auth — **NO siembra `app_user`**. Razón canónica: "cuenta sin place" es estado legítimo (un user puede signup-ear sin crear/aceptar nada). El siembrado de `app_user` está delegado a `ensureAppUser` (`shared/lib/ensure-app-user.ts`, ADR-0006, idempotente por `auth_user_id UNIQUE`).
 
-El UNICO caller histórico de `ensureAppUser` era `place-creation/actions.ts:33-45` (`sessionIdentity()` + `create-place.ts:71-77`): TX 1 separada antes de la TX 2 de `app.create_place` DEFINER. Razón del split tx (ADR-0005 §4): rollback de la TX 2 (e.g. slug-dup) NO debe borrar el `app_user` recién sembrado.
+El UNICO caller histórico de `ensureAppUser` era `place-creation/actions.ts` § `sessionIdentity` invocado desde `createPlaceAction` → `create-place.ts` § bloque `TX 1 — ensureAppUser`: TX 1 separada antes de la TX 2 de `app.create_place` DEFINER. Razón del split tx (ADR-0005 §4): rollback de la TX 2 (e.g. slug-dup) NO debe borrar el `app_user` recién sembrado.
 
 Pre-Feature-E-V1.1 (S6 fix, 2026-05-26), ese era el único path post-signup que sembraba `app_user`. Cualquier OTRO path post-signup hacia un DEFINER dependiente de `app_user` rompía. Feature E V1.1 Accept Invitation fue el primer caso descubierto: el invitee signup-ea via `/login?mode=signup` (ADR-0045) → redirect al invite URL → click "Aceptar" → `app.accept_invitation` DEFINER → `SELECT id FROM app_user WHERE auth_user_id = v_auth` → 0 rows → `RAISE EXCEPTION 'app_user inexistente' USING errcode = 'P0002'`.
 
@@ -24,7 +24,7 @@ Pre-Feature-E-V1.1 (S6 fix, 2026-05-26), ese era el único path post-signup que 
 
 ## Fix canónico
 
-Wire `ensureAppUser` en **TX 1 separada** antes de cualquier DEFINER que dependa de `app_user`. Patrón paralelo exacto a `create-place.ts:65-77`:
+Wire `ensureAppUser` en **TX 1 separada** antes de cualquier DEFINER que dependa de `app_user`. Patrón paralelo exacto a `create-place.ts` § bloques `TX 1 — ensureAppUser` + `TX 2 — app.create_place`:
 
 ```typescript
 // ANTES (broken-post-signup):
@@ -64,7 +64,7 @@ export async function someInvitationAction(input) {
 
     // TX 1 — ensureAppUser (idempotente, ON CONFLICT DO NOTHING). Commitea
     // en su propia tx para que rollback eventual de TX 2 NO borre el
-    // app_user (ADR-0005 §4, paralelo a create-place.ts:65-77).
+    // app_user (ADR-0005 §4, paralelo a create-place.ts § bloque TX 1).
     await getAuthenticatedDbForRequest((sql) =>
       ensureAppUser(sql, { authUserId, email, displayName }),
     );
@@ -108,10 +108,10 @@ Alternativa rechazada en ADR-0006: "el DEFINER siembra app_user si falta". Razon
 ## Pointers
 
 - **Canon de ensureAppUser**: `src/shared/lib/ensure-app-user.ts` (ADR-0006).
-- **Patrón canónico**: `src/features/place-creation/create-place.ts:65-77` (TX 1 + TX 2 split).
+- **Patrón canónico**: `src/features/place-creation/create-place.ts` § bloques `TX 1 — ensureAppUser` + `TX 2 — app.create_place` split.
 - **Fix V1.1 S6** (original `getAuth().getSession()` pattern, BROKEN en custom domain): commit `c13fcfd` en `src/features/invitations/actions/accept-invitation.ts`.
 - **Refactor zone-aware D.fix.3** (`getCurrentUserIdentityForRequest`, cierra Bug B custom domain): commits `e764dcd` (helper + DEFINER 0024) + `35c6024` (wire + cleanup D.fix.1 supersedes) — ver ADR-0046 §"Addendum operacional — Sesión D.fix.3".
 - **Integrator identity zone-aware**: `src/shared/lib/current-user-identity.ts` (supersede D.fix.1 `current-user-email.ts` borrado en `35c6024`).
-- **ADR del comportamiento de signup**: ADR-0008 §2/§4 + `src/features/access/auth-actions.ts:36-44` (comment).
-- **DEFINER que falló**: migration `0003_accept_invitation_fn.sql` (P0002 si app_user missing, línea 31).
+- **ADR del comportamiento de signup**: ADR-0008 §2/§4 + `src/features/access/auth-actions.ts` § JSDoc header de `signUpAccountAction`.
+- **DEFINER que falló**: migration `0003_accept_invitation_fn.sql` § `RAISE EXCEPTION 'app_user inexistente para el caller' USING errcode = 'P0002'`.
 - **Evidencia de smoke V1.1 S6**: `docs/features/invitations/spec.md` §"Smoke ejecutado (2026-05-26, S6 close)".

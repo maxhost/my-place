@@ -1,5 +1,7 @@
 # Apex login `/[locale]/login` debe honrar `?returnTo` para que el cold-start SSO desde custom domain aterrice en el path correcto
 
+> **Fix shippeado** (S11.3, ADR-0033, 2026-05-23). Este gotcha se preserva como **referencia diagnóstica** del modelo pre-S11.3: el flujo "user aterriza en Hub en vez de continuar SSO" ocurriría hoy sólo si un PR futuro debilita el helper `validateLoginReturnTo` (`src/shared/lib/sso/validate-login-return-to.ts`) o desconecta el pipeline `page.tsx searchParams.returnTo → AccessFlow returnTo prop → onSuccess navigate(returnTo ?? hubCanonical)`. Las referencias a archivos abajo describen el ESTADO PRE-S11.3 — el código actual refleja el fix; los símbolos siguen siendo útiles para diff/blame histórico.
+
 ## Síntoma
 
 El user no autenticado abre incógnito + navega a `https://nocodecompany.co/settings` (custom domain). El silent SSO dispara correctamente: page → `/api/auth/sso-init` → setea state cookie → redirect a apex `/api/auth/sso-issue` → detecta sin sesión Neon Auth → redirect a `https://www.place.community/{locale}/login?returnTo=<URL completa del sso-issue con query>`.
@@ -10,7 +12,7 @@ Síntoma colateral confuso: si vuelve a navegar manual a `nocodecompany.co/setti
 
 ## Por qué ocurre
 
-El emisor del `?returnTo` (`/api/auth/sso-issue` cuando no hay sesión apex, `src/app/api/auth/sso-issue/route.ts:145-153`) construye correctamente la URL completa:
+El emisor del `?returnTo` (`/api/auth/sso-issue` cuando no hay sesión apex, `src/app/api/auth/sso-issue/route.ts` § función `redirectToApexLogin`) construye correctamente la URL completa:
 
 ```typescript
 function redirectToApexLogin(requestUrl: URL, defaultLocale: string): NextResponse {
@@ -23,11 +25,11 @@ function redirectToApexLogin(requestUrl: URL, defaultLocale: string): NextRespon
 
 El `returnTo` viaja en URL del browser, encoded correctamente. Hasta acá todo OK.
 
-**El consumer del `?returnTo` NO existe en la página de login** (pre-S11.3):
+**El consumer del `?returnTo` NO existía en la página de login** (pre-S11.3 — el código actual refleja el fix; los símbolos abajo apuntan a las definiciones hoy corregidas):
 
-1. `src/app/(marketing)/[locale]/login/page.tsx:22` — `type Props = { params: Promise<{ locale: string }> };` — no incluye `searchParams`. Next.js App Router NO expone search params a un Server Component si el tipo no los declara. El `?returnTo` es invisible a la page.
-2. `src/app/(marketing)/[locale]/login/page.tsx:38-41` — guard "ya logueado" redirige a `https://app.place.community/${locale}/` hardcoded (Hub canónico).
-3. `src/features/access/ui/access-flow.tsx:52` — `onSuccess: () => navigate(\`https://app.place.community/${locale}/\`)` hardcoded en el callback de submit exitoso.
+1. `src/app/(marketing)/[locale]/login/page.tsx` § type `Props` — pre-S11.3 era `{ params: Promise<{ locale: string }> }`, sin `searchParams`. Next.js App Router NO expone search params a un Server Component si el tipo no los declara. El `?returnTo` era invisible a la page. Post-fix `Props` incluye `searchParams: Promise<{ returnTo?: string; ... }>`.
+2. `src/app/(marketing)/[locale]/login/page.tsx` § guard "ya logueado" en `LoginPage` — pre-S11.3 redirigía a `https://app.place.community/${locale}/` hardcoded (Hub canónico) sin honrar `returnTo`. Post-fix wire al helper PURE `validateLoginReturnTo` antes del redirect.
+3. `src/features/access/ui/access-flow.tsx` § `onSuccess` callback en `AccessFlow` — pre-S11.3 era `() => navigate(\`https://app.place.community/${locale}/\`)` hardcoded. Post-fix recibe `returnTo?: string` prop y resuelve `inviteContext.postCredentialUrl ?? returnTo ?? hubCanonical`.
 
 Los 3 puntos forman una cadena coherente: la page NUNCA lee `returnTo`, el guard NO lo respeta, el callback navega hardcoded al Hub.
 

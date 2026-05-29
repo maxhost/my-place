@@ -24,12 +24,12 @@
 | Phase | Sesiones | Completadas | Tag pre-phase | Tag post-phase |
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
-| **1 — Hardening** | 7 | 5/7 | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending_ |
+| **1 — Hardening** | 7 | 6/7 | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending_ |
 | **2 — Tests + docs** | 9 | 0/9 | _pending_ | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 10/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 11/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -335,16 +335,29 @@ Cleanup directo del cluster auth + DB + invite. Evita acumulación durante V1.3.
 
 ---
 
-### Sesión 1.F — Docs cleanup quick [~1.5h]
+### Sesión 1.F — Docs cleanup quick [~1.5h] ✅
 
-- [ ] 3 gotchas con pointers drift → reemplazar `file:line` por `file:symbol` (robusto al drift):
-  - `docs/gotchas/rls-place-domain-owner-only.md`
-  - `docs/gotchas/accept-invitation-requires-ensure-app-user-tx1.md`
-  - `docs/gotchas/apex-login-returnto-honored.md` (+ nota explícita "Fix shippeado, este gotcha existe como referencia diagnóstica" porque describe estado pre-S11.3)
-- [ ] `docs/features/README.md` líneas 58 + 82: marcar i18n como Core (6 locales op), mover "Acceso a datos" de TBD a Plataforma (Drizzle resuelto ADR-0004)
-- [ ] `docs/features/onboarding/`: renombrar `README.md` → `spec.md` cerrando, O eliminar bloque ⚠️ "Pendiente de re-sync" + agregar nota deprecation explícita (slice deprecado post-ADR-0014, split en `place-wizard`/`place-creation`/`access`)
+- [x] 3 gotchas con pointers drift → reemplazar `file:line` por `file:symbol` (robusto al drift):
+  - `docs/gotchas/rls-place-domain-owner-only.md` (3 refs: policy SQL + helper Drizzle + tabla placeDomain)
+  - `docs/gotchas/accept-invitation-requires-ensure-app-user-tx1.md` (5 refs: signUpAccountAction, sessionIdentity, TX1+TX2 split bloque, JSDoc header, RAISE P0002 en migration 0003)
+  - `docs/gotchas/apex-login-returnto-honored.md` (4 refs: redirectToApexLogin, type Props, guard "ya logueado", onSuccess callback) + nota explícita en top "**Fix shippeado** (S11.3, ADR-0033), este gotcha se preserva como referencia diagnóstica"
+- [x] **Scope creep necesario**: 2 refs colaterales fuera de los 3 gotchas listados pero adentro del grep acceptance:
+  - `docs/gotchas/README.md` línea 17 (índice — entrada de accept-invitation mencionaba `create-place.ts:71-77`)
+  - `docs/gotchas/zone-aware-db-cookie-source.md` línea 119 (mencionaba `update-default-locale.ts:13` como canon seam-split)
+- [x] **Excepción documentada**: `docs/gotchas/next-intl-icu-template-raw.md` línea 12 mantiene `crear/page.tsx:48:15` por ser **stack trace literal del runtime Next/next-intl** (evidencia reproducible, no pointer drift). Nota agregada in-file para que un PR futuro no lo "limpie" por error.
+- [x] `docs/features/README.md`:
+  - Línea 59 → i18n marcado `Core` (6 locales operativos: es/en/fr/pt/de/ca; enforced por CHECK constraint + enum Zod; ref ADR-0024)
+  - "Acceso a datos" movido de sección Roadmap/parked a Plataforma con `Drizzle ORM + Neon serverless driver; RLS por-operación con rol app_system NO BYPASSRLS` + ref ADR-0004
+- [x] `docs/features/onboarding/README.md`:
+  - Eliminado bloque ⚠️ "Pendiente de re-sync con ADR-0008+0010" (ya carecía de sentido — el slice nunca se re-syncó porque fue dividido)
+  - Agregado bloque DEPRECATED al top: explicita división post-ADR-0014 en 3 slices (`place-wizard/` por ADR-0016 + `place-creation/` + `access/`); aclara que §5 RLS y §6 invitación token-link sí están sincronizados al modelo final pero §2 flujo y §3 saga monolítica NUNCA se implementaron; congelado como referencia histórica del modelo S1 original
 
-**Acceptance**: grep `line \d+` en `docs/gotchas/` retorna 0 (sin pointers numéricos frágiles) · features/README correcto · onboarding deprecation clara.
+**Decisiones**:
+- **No renombrar `README.md` → `spec.md`**: elegida opción (b) del tracker (eliminar ⚠️ + deprecation note). Razones: (1) renombrar rompe links externos sin ganancia funcional (la carpeta ya está deprecated); (2) la convención de la carpeta es que el README ES la spec índice — el slice deprecated lo conserva igual; (3) la nota de deprecation al top es self-explanatory y más loud que un nombre de archivo distinto.
+- **Reemplazo simbólico estilo `file § symbol/block`**: usado consistentemente. Patrón: `archivo.ts § función X` para functions/types nombrados · `archivo.ts § bloque "TX 1 — ensureAppUser"` para bloques referenciados por comentario · `archivo.ts § JSDoc header "X"` para referencias a prosa del header. Drift-robust: un line shift no rompe la referencia; un rename del símbolo SÍ exige update (pero el grep encuentra al símbolo en lugar del line número).
+- **Stack trace literal preservado**: el `:48:15` del next-intl gotcha es runtime evidence, no codebase pointer. Excepción explícita in-file + en este tracker.
+
+**Acceptance**: ✅ `grep -rEn "\.(ts|tsx|sql):[0-9]+(-[0-9]+)?" docs/gotchas/` retorna 1 línea (el stack trace documentado como excepción) · ✅ features/README marca i18n Core + Acceso a datos Plataforma (Drizzle ADR-0004) · ✅ onboarding/README abre con bloque DEPRECATED explícito (3 slices sucesores enumerados).
 
 **Commit**: _pending_
 

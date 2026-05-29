@@ -12,6 +12,8 @@ to the string "Paso {n} de {total}"
     at CrearPage (src/app/(marketing)/[locale]/crear/page.tsx:48:15)
 ```
 
+> El `file:line:col` arriba es **stack trace literal del runtime Next/next-intl** (evidencia reproducible del error en consola), NO un pointer al codebase como guía. No reemplazar por símbolo en cleanup de "drift-robust refs" (1.F, 2026-05-29) — el ":48:15" es lo que el lector verá en consola si reproduce el bug y debe matchear textualmente.
+
 Uno por cada label que es una plantilla (`progress`, `slugHint`, `terms`, `successBody`). El código "se ve bien" (`t("progress")` es idéntico a `t("title")`, que no falla), por eso desorienta: el problema no es la llamada sino el **contenido** del mensaje.
 
 ## Causa
