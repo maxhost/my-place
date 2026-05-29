@@ -329,9 +329,9 @@ Cleanup directo del cluster auth + DB + invite. Evita acumulación durante V1.3.
 - **No tocar middleware/route handlers**: `cache()` actúa como pass-through fuera de RSC (sin warning, sin crash). Esos callsites NO ganan memo pero ya invocan 1x por request — no es regresión.
 - **No agregar tests de memoización per-render**: testear el behavior memo requiere setup RSC complejo (renderToStaticMarkup + cache scope) que excede el ROI de una optimización transparente. Los tests existentes cubren contract de la función (input → output, normalización, fail-safe); el wrap `cache()` no afecta esos contratos.
 
-**Acceptance**: ✅ typecheck verde · ✅ suite verde · ✅ grep `from "react"` muestra `cache` import en ambos archivos.
+**Acceptance**: ✅ typecheck verde · ✅ suite verde (1159/1159) · ✅ grep `from "react"` muestra `cache` import en ambos archivos · ✅ tests consumers (proxy + get-place-for-zone + 3 SSO routes) 46/46 sin regresión.
 
-**Commit**: _pending_
+**Commit**: `173f72e perf(lookups): Phase 1.E — React cache() wrap en lookups anonymous (memo per-render RSC)`
 
 ---
 
