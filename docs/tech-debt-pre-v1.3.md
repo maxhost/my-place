@@ -422,7 +422,7 @@ Cleanup directo del cluster auth + DB + invite. Evita acumulación durante V1.3.
 
 **Smoke deferido a V1.3** (cuando se monte primer consumer, e.g. logo place): Server Action test que uploadea → genera publicUrl → fetch ese URL desde browser → verificar Content-Type + status 200 + cache headers. Verificable solo post-provisioning.
 
-**Commit**: _pending_ · **Tag**: `baseline/phase-1-G-storage-decided` (load-bearing)
+**Commit**: `9e6f28e feat(storage): Phase 1.G — Cloudflare R2 + wrapper blob.ts + 2 buckets (ADR-0048)` · **Tag**: `baseline/phase-1-G-storage-decided` (load-bearing)
 
 ---
 
