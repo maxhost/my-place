@@ -24,12 +24,12 @@
 | Phase | Sesiones | Completadas | Tag pre-phase | Tag post-phase |
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
-| **1 — Hardening** | 7 | 6/7 | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending_ |
+| **1 — Hardening** | 7 | 7/7 ✅ | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending tag_ |
 | **2 — Tests + docs** | 9 | 0/9 | _pending_ | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 11/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 12/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -363,15 +363,64 @@ Cleanup directo del cluster auth + DB + invite. Evita acumulación durante V1.3.
 
 ---
 
-### Sesión 1.G — Storage TBD: decisión + provisioning [~2h]
+### Sesión 1.G — Storage TBD: decisión + provisioning [~2h] ✅
 
-- [ ] Decisión Storage stack: Vercel Blob (recomendado por integración nativa) vs S3 (R2/AWS). Considerar: cost, lock-in, file types necesitados (logos place, avatares, library docs futuro), API ergonomics
-- [ ] ADR nueva `docs/decisions/0048-storage-vercel-blob.md` (o nombre similar) con rationale + alternativas
-- [ ] Provisioning Vercel Blob (o equivalente) + env var en Vercel (prod + preview)
-- [ ] Wrapper `src/shared/lib/storage/blob.ts` mínimo: `uploadBlob(key, file, opts)` + `getBlobUrl(key)` + `deleteBlob(key)`. NO consume en código aún (solo provisioning para desbloquear V1.3 §ε logo_url + library/)
-- [ ] Update `docs/stack.md` §Variables de entorno + §Storage marcando como RESUELTO
+**Decisiones de la sesión (post-análisis user 2026-05-30)**:
+- **Provider: Cloudflare R2** (NO Vercel Blob — el tracker original lo recomendaba "por integración nativa"). El re-análisis cost-first con lente unit-economics del owner ("cobro per GB extra a partir de 2GB free per community") confirmó que R2 es decisión estratégica del modelo de negocio, no preferencia operativa. Drivers: egress zero (~$600/mo savings V1.5, ~$7.5K/mo V2), storage 35% menor ($0.015 vs $0.023 GB-month), free tier 10× (10GB vs 1GB), S3-compatible API → lock-in bajo.
+- **2 buckets desde día 1** (NO 1 bucket con prefix): `place-media-public` (logos+avatares, CDN cached) + `place-media-private` (library+event photos, presigned URLs). Lifecycle/CORS/audit policies separables sin migración retroactiva. +20 LOC complexity wrapper (discriminated `BlobBucket` type) justificadas.
+- **Custom domain `media.place.community`** (NO URL R2 default `pub-{hash}.r2.dev`): URLs limpias + CDN Cloudflare nativo + migrable a otro CDN futuro sin DB migration. Setup ~15min (CNAME + R2 verify).
+- **SDK `@aws-sdk/client-s3` v3** (NO `aws4fetch` ~5KB): battle-tested + tree-shake ~30KB server bundle + portable a AWS S3/Backblaze B2/MinIO drop-in. Ahorro 25KB no justifica risk de edge cases en producción.
+- **Fail-loud-prod sin creds** (mismo patrón rate-limit Phase 0.D, distinto de Sentry no-op-prod): storage SÍ es operacionalmente crítico — upload silencioso sin éxito = user pierde su contribución.
 
-**Acceptance**: ADR creada + indexada · env var declarada · wrapper TS minimal con tests unit · sin consumers en código (solo platform ready).
+**Items cerrados**:
+- [x] **ADR-0048** (`docs/decisions/0048-storage-cloudflare-r2.md`) — rationale + 9 alternativas rechazadas (α Vercel Blob, β AWS S3, γ Backblaze B2, δ self-hosted MinIO, ε DIY-on-Postgres-bytea, ζ posponer, η 1 bucket único, θ URL R2 default, ι aws4fetch SDK) + consecuencias positivas/negativas/operacionales + implementación V1 + pointers. Indexada en `docs/decisions/README.md` (line nueva post ADR-0047 — orden cronológico-numérico).
+- [x] Deps instaladas: `@aws-sdk/client-s3@^3.1057.0` + `@aws-sdk/s3-request-presigner@^3.1057.0` agregadas a `dependencies` en `package.json`. Lockfile regenerado con `pnpm add`.
+- [x] **Wrapper** `src/shared/lib/storage/blob.ts` (~165 LOC) + `types.ts` (~50 LOC):
+  - API minimal 3 funciones: `uploadBlob({bucket, key, body, contentType})` + `getBlobUrl({bucket, key, ttlSeconds?})` + `deleteBlob({bucket, key})`
+  - Singleton lazy `S3Client` con `region:"auto"` + `endpoint: https://{accountId}.r2.cloudflarestorage.com` + `forcePathStyle:true` (compat MinIO/B2)
+  - `ensureConfig` lazy con cache + tri-state (`StorageConfig | "skipped" | null`)
+  - Fail-loud-prod sin creds (throws con mensaje listando vars missing); dev sin creds = log.warn 1× + throws con mensaje claro al intentar storage op
+  - `_resetConfigCacheForTests` exportado (test isolation)
+- [x] **15 tests unit** en `src/shared/lib/storage/__tests__/blob.test.ts` con mocks de `@aws-sdk/client-s3` (S3Client + 3 Commands) + `@aws-sdk/s3-request-presigner` (getSignedUrl). Cobertura completa:
+  - Skip dev sin creds (warn loggeado, NO S3Client construction)
+  - Singleton del warn (1× aunque múltiples calls)
+  - 3 funcs throws con su nombre en el msg cuando dev sin creds
+  - Fail-loud prod sin creds (lista todas las missing vars + lista UNA cuando solo falta una)
+  - uploadBlob public/private con PutObjectCommand correcto + publicUrl solo cuando public
+  - Normalización trailing slash en publicBaseUrl
+  - S3Client singleton (1 construction across calls + multi-bucket)
+  - getBlobUrl public (URL directa SIN presigner) + private (presigned con TTL default 3600s y custom propagado)
+  - deleteBlob ambos buckets + bubble error del SDK (no swallow)
+- [x] `.env.example` — bloque nuevo "Cloudflare R2 (storage — Phase 1.G, ADR-0048)" con 6 env vars + setup step-by-step de ~30min (CF account + R2 enable + 2 buckets + API token + CNAME + 6 vars Vercel) + behavior por entorno + free tier specs + key naming convention recomendada
+- [x] `docs/stack.md`:
+  - Header line 5 §Estado: `Storage TBD` → `Storage = Cloudflare R2 (ADR-0048)`
+  - Tabla §Piezas: fila Storage de "TBD" a "Cloudflare R2 (S3-compatible, ADR-0048) + 2 buckets + custom domain + wrapper canónico"
+  - §Variables de entorno: bloque nuevo "Cloudflare R2 (storage, Phase 1.G, ADR-0048)" con 6 vars + behavior fail-loud-prod + free tier + setup pointer
+  - Cierre §Variables actualizado: "Realtime/pagos siguen TBD; Storage RESUELTO Phase 1.G"
+- [x] `docs/features/README.md`:
+  - Fila "Place branding" (Plataforma): "Plataforma (depende de Storage TBD)" → "Plataforma (logo desbloqueado V1.3 post-ADR-0048; tema ya activo)"
+  - Fila nueva en Plataforma: "Storage (blob assets)" — Cloudflare R2 + 2 buckets + wrapper + habilita V1.3+ logos/avatares/library/event photos
+  - Fila "Storage" en Roadmap/parked: ELIMINADA (movida a Plataforma)
+
+**Acceptance** (verificado 2026-05-30):
+- ✅ `pnpm typecheck` verde
+- ✅ `pnpm exec vitest run --project node src/shared/lib/storage/` → 15/15 verde (storage tests)
+- ✅ ADR-0048 creada + indexada en `docs/decisions/README.md`
+- ✅ env vars declaradas + provisioning step-by-step doc en `.env.example`
+- ✅ Wrapper TS minimal con tests unit
+- ✅ Sin consumers en código (solo platform-ready; V1.3 §ε logo place + futuras consume on-demand)
+- ✅ stack.md + features/README sincronizados (TBD → RESUELTO)
+
+**Notas operativas pendientes para user** (post-merge):
+1. Sign up cloudflare.com (~5min, free)
+2. Activar R2 en Dashboard CF (requiere payment method on file — NO se cobra en free tier)
+3. Crear 2 buckets: `place-media-public` + `place-media-private`
+4. Crear API token scope `Object Read & Write` aplicado a esos 2 buckets
+5. Configurar custom domain `media.place.community` en R2 → public bucket → Custom Domains (agregar CNAME en DNS provider)
+6. Setear 6 env vars en Vercel (Production + Preview scopes): `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_BUCKET`, `R2_PRIVATE_BUCKET`, `R2_PUBLIC_BASE_URL`
+7. Sin esas vars en prod, primer call de upload/get/delete crashea fail-loud (deploy permite arrancar pero la feature dependiente no opera — distinto patrón que rate-limit que crashea al startup; el storage solo se ejerce cuando un consumer V1.3+ lo invoca)
+
+**Smoke deferido a V1.3** (cuando se monte primer consumer, e.g. logo place): Server Action test que uploadea → genera publicUrl → fetch ese URL desde browser → verificar Content-Type + status 200 + cache headers. Verificable solo post-provisioning.
 
 **Commit**: _pending_ · **Tag**: `baseline/phase-1-G-storage-decided` (load-bearing)
 

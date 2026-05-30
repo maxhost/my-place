@@ -26,7 +26,7 @@ Inventario de todo lo que Place incluye o quiere incluir. Es el **backlog y mapa
 | Feature | Qué es | Estado | Canónico |
 |---|---|---|---|
 | Places | Crear/configurar place, slug inmutable, máx 150 | Plataforma | `data-model.md`, `multi-tenancy.md` |
-| Place branding | Logo/icono del place + colores propios (theming) | Plataforma (depende de Storage TBD) | `producto.md` § identidad visual |
+| Place branding | Logo/icono del place + colores propios (theming) | Plataforma (logo desbloqueado V1.3 post-ADR-0048; tema ya activo) | `producto.md` § identidad visual |
 | Elegir zonas | El owner activa las que necesita: discusiones (siempre), eventos, biblioteca | Plataforma | `data-model.md`, `ontologia/*` |
 | Multi-tenancy subdomain | `{slug}.place.community` + routing por hostname | Plataforma | `multi-tenancy.md` |
 | Hub post-login | Navegador del usuario en `app.place.community/{locale}` (topbar + sidebar mobile-first). V1 entrega la vista "Tus lugares" (owner + miembro). V2 sumará DMs y Actividad como vistas en el mismo hub | Plataforma | [`features/inbox/`](inbox/spec.md) |
@@ -34,6 +34,7 @@ Inventario de todo lo que Place incluye o quiere incluir. Es el **backlog y mapa
 | Gate de horario | Place accesible solo en horario; owner exceptuado | Plataforma | `architecture.md` § Gate |
 | Settings del owner | Activar/desactivar zonas, horario, theming, ownership | Plataforma | `data-model.md` |
 | Acceso a datos (ORM/driver) | Drizzle ORM + Neon serverless driver; RLS por-operación con rol `app_system` (NO BYPASSRLS) | Plataforma | ADR-0004, `stack.md` |
+| Storage (blob assets) | Cloudflare R2 S3-compatible, 2 buckets (`place-media-public` CDN-cached via `media.place.community` + `place-media-private` presigned URLs). Wrapper `src/shared/lib/storage/blob.ts` (`uploadBlob`/`getBlobUrl`/`deleteBlob`). Habilita V1.3+ logos/avatares/library/event photos | Plataforma | ADR-0048, `stack.md` |
 
 ## Auth e identidad
 
@@ -79,7 +80,6 @@ Inventario de todo lo que Place incluye o quiere incluir. Es el **backlog y mapa
 | Audio efímero en discusiones | Audios 24h + transcripción (sacado del core) | Parked | — |
 | Push notifications | Requiere decisión de producto | Parked | `producto.md` |
 | Realtime | Si aparece el caso de uso | TBD | `stack.md` |
-| Storage | Avatares/assets del place | TBD | `stack.md` |
 
 ---
 
