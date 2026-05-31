@@ -24,7 +24,7 @@
 | Phase | Sesiones | Completadas | Tag pre-phase | Tag post-phase |
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
-| **1 — Hardening** | 7 | 7/7 ✅ | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | _pending tag_ |
+| **1 — Hardening** | 7 | 7/7 ✅ | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | `baseline/phase-1-tech-debt-done` = `3fa0cc3` ✅ |
 | **2 — Tests + docs** | 9 | 0/9 | _pending_ | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
@@ -124,7 +124,7 @@ Sin estos items V1.3 introduce regresiones invisibles o bloquea onboarding.
 2. Setear `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` en Vercel env vars (Production + Preview scopes)
 3. Sin esos vars en prod, app crashea al primer rate-limit check (fail-loud, deploy bloqueado) — DELIBERADO, evita deploy silencioso sin protección
 
-**Smoke deferido a deploy**: curl `-I` apex valida headers; 11vo request en endpoint protegido valida 429. NO testeable en `pnpm dev` sin Upstash creds locales (skip + warn path).
+**Smoke VERIFICADO en prod (2026-05-30)** ✅: `curl -I https://nocodecompany.co` retorna los 5 security headers (HSTS + X-Frame-Options DENY + Referrer-Policy + Permissions-Policy + X-Content-Type-Options). 12 GETs a `/api/auth/sso-init` → requests 1-10 `302`, requests 11-12 `429` con `Retry-After: 2s` → **rate limit Upstash operativo end-to-end + creds presentes en Vercel** (sin creds sería fail-loud 500, no 302). Threshold 10/min/IP exacto. NO testeable en `pnpm dev` sin Upstash creds locales (skip + warn path).
 
 **Commit**: _pending_ · **Tag**: `baseline/phase-0-D-edge-config-done` (load-bearing)
 
@@ -170,7 +170,7 @@ Sin estos items V1.3 introduce regresiones invisibles o bloquea onboarding.
 4. Verificar en Vercel Settings → Environment Variables que aparecen
 5. Sin esa integración, prod deployea pero SDK Sentry es no-op silencioso (perdés visibilidad de errors hasta que se complete). Distinto patrón vs Upstash Phase 0.D que sí fail-loud.
 
-**Smoke deferido a deploy**: `throw new Error("sentry smoke test")` en una page protegida; verificar issue aparece en dashboard <30s; remover el throw.
+**Smoke PARCIALMENTE verificado en prod (2026-05-30)** ✅⚠️: el HTML de `https://nocodecompany.co` inyecta meta tags `sentry-trace` + `sentry-release` + `sentry-org` + `sentry-public` + `sentry-environment` → **SDK server-side inicializado con DSN + build plugin corrió (release inyectado) + integración Vercel×Sentry completada** (las 5 env vars presentes en build). PENDIENTE confirmar el último hop (error real → ingest → issue en dashboard sentry.io): requiere acceso al dashboard del owner. Opción documentada: route temporal `/api/_sentry-smoke` con `throw` → deploy → golpear → verificar issue <30s → remover el throw.
 
 **Commit**: _pending_ · **Tag**: `baseline/phase-0-E-observability-done` (load-bearing)
 
@@ -708,12 +708,12 @@ Items que NO son cleanup tech debt sino features/optimizaciones para más adelan
 | `baseline/feature-e-invite-v1.2-done` | `3be5eec` | V1.2 invite flow cerrado |
 | `baseline/pre-phase-0-tech-debt` | `3be5eec` | Save point pre-Phase 0 (= V1.2 done) |
 | `baseline/phase-0-D-edge-config-done` | _commit `414d53a`_ | Edge config load-bearing (Phase 0.D) |
-| `baseline/phase-0-E-observability-done` | _pending commit_ | Observability load-bearing (Phase 0.E) |
-| `baseline/phase-0-tech-debt-done` | _= phase-0-E-done_ | Cierre Phase 0 |
-| `baseline/pre-phase-1-tech-debt` | _= phase-0-done_ | Save point pre-Phase 1 |
-| `baseline/phase-1-G-storage-decided` | _pending_ | Storage decision load-bearing |
-| `baseline/phase-1-tech-debt-done` | _pending_ | Cierre Phase 1 |
-| `baseline/pre-phase-2-tech-debt` | _= phase-1-done_ | Save point pre-Phase 2 |
+| `baseline/phase-0-E-observability-done` | `204a124` | Observability load-bearing (Phase 0.E) |
+| `baseline/phase-0-tech-debt-done` | `204a124` | Cierre Phase 0 |
+| `baseline/pre-phase-1-tech-debt` | `f577908` | Save point pre-Phase 1 |
+| `baseline/phase-1-G-storage-decided` | `9e6f28e` | Storage decision load-bearing |
+| `baseline/phase-1-tech-debt-done` | `3fa0cc3` | Cierre Phase 1 |
+| `baseline/pre-phase-2-tech-debt` | _= phase-1-done (`3fa0cc3`)_ | Save point pre-Phase 2 |
 | `baseline/phase-0-D-edge-config-done` | _pending_ | Headers + rate limit (Upstash) load-bearing |
 | `baseline/phase-2-B-e2e-done` | _pending_ | E2E suite load-bearing |
 | `baseline/phase-2-H-suspense-done` | _pending_ | Suspense streaming load-bearing |
