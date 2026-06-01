@@ -46,3 +46,16 @@ NO se vuelve a Prisma.
 - Stack y estado del TBD cerrado: `docs/stack.md` § Piezas.
 - Schema del core: `docs/data-model.md` (ORM-agnóstico; Drizzle es su expresión).
 - RLS y aislamiento entre places: `docs/multi-tenancy.md` + guías Neon (`neon.com/docs/guides/rls-drizzle`, `/rls-query-execution`).
+
+## Addendum operacional — Phase 2.F tech-debt closure (2026-06-01)
+
+Write-back del uso real de Drizzle a junio 2026, para alinear el registro con el código (el cuerpo de la decisión arriba no se edita — es histórico). El audit pre-V1.3 marcó esto como "drift": la ADR describe Drizzle como query builder, pero el código no lo usa como tal.
+
+**Cómo se usa Drizzle hoy** (verificado por grep exhaustivo, 2026-06-01):
+
+- **Schema-as-types + migraciones.** `drizzle-orm/pg-core` define el schema del core en `src/db/schema/index.ts` (tablas, columnas, enums, policies RLS vía `pgPolicy`, CHECKs, índices). `drizzle-kit` genera las migraciones desde ese schema. El tag `sql` de `drizzle-orm` se usa solo para fragmentos raw embebidos en el schema (default `gen_random_uuid()`, predicados RLS, CHECKs).
+- **Las queries de dominio NO usan el query builder de Drizzle.** En runtime corren como **SQL raw parametrizado** a través del `Pool` de `@neondatabase/serverless` (`src/db/client.ts`) y, en su mayoría, a través de **funciones DEFINER** (ADR-0011/0012). Grep confirmó **cero** usos de `.select()/.insert()/.update()/.delete()/db.query` de Drizzle en `src/`.
+
+**Por qué no es una reversión de ADR-0004:** el valor que motivó elegir Drizzle —schema en TS idiomático + migraciones generadas + RLS declarativo en el schema, todo sin engine/binario— se está usando íntegro. Lo único que aún no se adoptó es la capa de **query builder** (el comentario en `src/db/client.ts` la deja explícitamente "para reintroducir con la primera feature"). En la práctica las features hasta V1.2 resolvieron con SQL raw + DEFINERs, que encajan mejor con el modelo RLS-por-operación. `drizzle-orm` sigue siendo **dependencia de runtime** porque el tag `sql` y los tipos del schema se importan desde `src/db/schema`.
+
+**Decisión 2.F (status quo — opción a del tracker tech-debt):** se mantiene el patrón actual (SQL raw + DEFINERs); **NO** se migran queries al query builder de Drizzle. Si una feature futura justifica el query builder, se adopta incrementalmente sin ADR nueva (está dentro del alcance original de ADR-0004). `docs/stack.md` §Piezas "Acceso a datos" refleja este uso real.

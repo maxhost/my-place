@@ -25,11 +25,11 @@
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
 | **1 — Hardening** | 7 | 7/7 ✅ | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | `baseline/phase-1-tech-debt-done` = `3fa0cc3` ✅ |
-| **2 — Tests + docs** | 9 | 3/9 (2.A, 2.G, 2.E ✅) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | _pending_ |
+| **2 — Tests + docs** | 9 | 4/9 (2.A, 2.G, 2.E, 2.F ✅) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 14/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 15/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -442,12 +442,12 @@ V1.3 puede arrancar **en paralelo** con esta phase si recursos lo permiten. No b
 
 ### Orden de ejecución acordado (2026-05-31)
 
-Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`aace521`) · **2.E cerrada** (`c5602b2`). Próxima = **2.F**. Las restantes en este orden:
+Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`aace521`) · **2.E cerrada** (`c5602b2`) · **2.F cerrada** (commit pending). Próxima = **2.D**. Las restantes en este orden:
 
 1. **2.G** — i18n strings → translations (~1h) ✅
 2. **2.E** — doc polish + cookie audit (~1.5h) ✅
-3. **2.F** — backup/PITR + drifts deps (~1.5h) ← PRÓXIMA
-4. **2.D** — data-model gaps + stubs ontologías (~2h)
+3. **2.F** — backup/PITR + drifts deps (~1.5h) ✅
+4. **2.D** — data-model gaps + stubs ontologías (~2h) ← PRÓXIMA
 5. **2.B** — 2 E2E críticos (accept invite cross-domain + register custom domain) (~3h) · reusa harness E2E de 2.A
 6. **2.C** — coverage thresholds + investigar flake `pnpm test` (~3h)
 7. **2.H** — Suspense boundaries settings + streaming (~2-3h) · load-bearing
@@ -556,13 +556,20 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`)
 
 ---
 
-### Sesión 2.F — Backup + drifts deps [~1.5h]
+### Sesión 2.F — Backup + drifts deps [~1.5h] ✅
 
-- [ ] Documentar backup/PITR strategy en `docs/stack.md` §Datos: confirmar tier Neon, retention window, RPO/RTO, runbook de restore (link a Neon docs)
-- [ ] Reclasificar dep `drizzle-orm`: schema-only no query builder (drift ADR-0004). Decisión: (a) update ADR-0004 reflejando uso real (schema-as-types + SQL raw via @neondatabase/serverless) o (b) migrar queries a Drizzle. **Recomendación a** (status quo funciona, ADR debería reflejar realidad)
-- [ ] `docs/stack.md` env drift: `RESEND_API_KEY` + `AI_GATEWAY_API_KEY` declarados sin imports. Decisión drop o mark planned con timeframe
+**Decisiones de la sesión (2026-06-01)**:
+- **Retention window confirmado empíricamente = 6h** (NO asumido): `history_retention_seconds = 21600` en `prod-place` (`odd-mountain-73982304`), leído vía Neon API. El **tier NO lo expone la API/MCP** (es info de billing) → documentado como "confirmar en dashboard"; la API sí da el resto (Postgres 17, AWS us-east-1, autoscaling 0.25–2 CU). ⚠️ **Hallazgo operativo surfaceado: 6h es una ventana de PITR corta para prod** — flaggeado en `stack.md` + reporte al user; NO se cambió (extender retención es decisión de costo/arquitectura, fuera de scope de una sesión de docs per CLAUDE.md §"Ante una desviación").
+- **Drizzle: NO se edita el cuerpo de ADR-0004** (inmutable per ADR-0004 §línea 8). Se usó el patrón canónico del repo "**Addendum operacional**" dated (ya presente en ADR-0046 ×6, ADR-0044) — opción (a) del tracker materializada como addendum, no como rewrite. Diagnóstico confirmó el drift: grep retornó **cero** usos de query builder Drizzle (`.select/.insert/...`); solo `pg-core` + tag `sql` en el schema.
+- **Env drift: la premisa del tracker era imprecisa para `AI_GATEWAY_API_KEY`**. El item asumía "ambas declaradas sin imports". Diagnóstico: `RESEND_API_KEY` SÍ es fantasma (cero código + sin paquete `resend`), pero `AI_GATEWAY_API_KEY` tiene import real (`generateObject` from `ai` en `suggest-style-action.ts`) — es dep activa con slice dormido (ADR-0020), no planned. Documentadas con status distinto, sin lumping.
 
-**Acceptance**: backup strategy clara · ADR-0004 actualizado O migration plan registrado · stack.md sin env vars fantasma.
+**Items cerrados**:
+- [x] `docs/stack.md` — sección nueva "## Backup, PITR y recuperación (Neon)" (tras §Región e infraestructura): mecanismo history-retention (no snapshots) + ventana 6h confirmada vía API + tier a confirmar en dashboard + RPO ≈ 0 dentro de ventana / ilimitado fuera + RTO minutos (branch copy-on-write) + nota Neon Auth se restaura junto con `public` + **runbook de restore en 5 pasos** (in-place vs branch nuevo, repoint Vercel, smoke post-restore) + 3 links Neon docs.
+- [x] `docs/decisions/0004-acceso-datos-drizzle.md` — "## Addendum operacional — Phase 2.F (2026-06-01)": uso real (schema-as-types + `drizzle-kit` migraciones; queries dominio = SQL raw vía `@neondatabase/serverless` Pool + DEFINERs; `sql` tag solo en schema) + por qué NO es reversión de ADR-0004 + decisión status quo (no migrar a query builder).
+- [x] `docs/stack.md` §Piezas "Acceso a datos" — cláusula "Uso real (Phase 2.F)" apuntando al addendum.
+- [x] `docs/stack.md` §Variables de entorno — `RESEND_API_KEY` y `AI_GATEWAY_API_KEY` separadas en bullets con status distinto (planned-sin-código vs dep-activa-slice-dormido); eliminado el lumping previo "Planned V1.3+". `.env.example` ya era preciso (Phase 0.B) → no requirió cambios.
+
+**Acceptance** (verificado 2026-06-01): backup strategy clara con runbook ✅ · ADR-0004 con addendum reflejando uso real ✅ · stack.md sin env vars fantasma (RESEND roadmapped, AI_GATEWAY dep activa documentada) ✅ · sesión docs-only, cero `.ts` tocado → typecheck/suite sin cambios (no aplica re-run).
 
 **Commit**: _pending_
 
