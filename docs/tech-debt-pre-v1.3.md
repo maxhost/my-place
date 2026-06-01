@@ -442,7 +442,7 @@ V1.3 puede arrancar **en paralelo** con esta phase si recursos lo permiten. No b
 
 ### Orden de ejecución acordado (2026-05-31)
 
-Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`8c92061`). Próxima = **2.E**. Las restantes en este orden:
+Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`aace521`). Próxima = **2.E**. Las restantes en este orden:
 
 1. **2.G** — i18n strings → translations (~1h) ✅
 2. **2.E** — doc polish + cookie audit (~1.5h) ← PRÓXIMA
@@ -586,7 +586,7 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`)
 - ✅ Node project: **963/963** verde (sin regresión)
 - ✅ 0 strings ES hardcoded en los 3 callsites del item (grep limpio); pages en EN/FR/etc no leakean ES (catálogos traducidos in-place)
 
-**Commit**: `8c92061 i18n(2.G): strings hardcoded → catálogo + fecha con locale del place`
+**Commit**: `aace521 i18n(2.G): strings hardcoded → catálogo + fecha con locale del place`
 
 ---
 
