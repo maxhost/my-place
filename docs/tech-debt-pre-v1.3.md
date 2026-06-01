@@ -442,7 +442,7 @@ V1.3 puede arrancar **en paralelo** con esta phase si recursos lo permiten. No b
 
 ### Orden de ejecución acordado (2026-05-31)
 
-Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`aace521`) · **2.E cerrada** (_pending hash_). Próxima = **2.F**. Las restantes en este orden:
+Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`aace521`) · **2.E cerrada** (`c5602b2`). Próxima = **2.F**. Las restantes en este orden:
 
 1. **2.G** — i18n strings → translations (~1h) ✅
 2. **2.E** — doc polish + cookie audit (~1.5h) ✅
@@ -552,7 +552,7 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`)
 - ✅ UI project: **213/213** verde (sin regresión)
 - ✅ Cookie config explícita (`sameSite: "strict"`) · cascade rules justificadas en data-model.md §Invariantes
 
-**Commit**: _pending_
+**Commit**: `c5602b2 docs+chore(2.E): doc polish (§Pointers 9/9 + plan-sesiones) + cookie audit Neon Auth`
 
 ---
 
