@@ -337,7 +337,12 @@
     "emptyBody": "Podés crear el tuyo o sumarte a uno con una invitación.",
     "emptyCreateAction": "Crear un lugar",
     "emptyJoinAction": "Sumarme a un lugar",
-    "emptyJoinComingSoon": "Próximamente"
+    "emptyJoinComingSoon": "Próximamente",
+    "notFound": {
+      "title": "Esta sección no existe",
+      "body": "La vista que buscás todavía no está disponible en tu espacio.",
+      "cta": "Ir a Place"
+    }
   },
   "navHub": {
     "appName": "Place",
@@ -530,7 +535,8 @@
       "failureTitle": "No pudimos iniciarte sesión automáticamente",
       "failureBody": "Hubo un inconveniente al verificar tu identidad para **{slug}**. Podés volver a tu URL canónica para iniciar sesión manualmente.",
       "fallbackCta": "Ir a {slug} en place.community",
-      "retry": "Reintentar"
+      "retry": "Reintentar",
+      "technicalDetails": "Detalles técnicos"
     }
   },
   "placeNotFound": {

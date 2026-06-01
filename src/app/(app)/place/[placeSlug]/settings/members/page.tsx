@@ -121,6 +121,7 @@ export default async function PlaceSettingsMembersPage({
           failureTitle: tSso("failureTitle"),
           failureBody: tSso("failureBody", { slug: hostZone.slug }),
           fallbackCta: tSso("fallbackCta", { slug: hostZone.slug }),
+          technicalDetails: tSso("technicalDetails"),
         };
         const canonicalUrl = buildSubdomainCanonicalUrl({
           slug: hostZone.slug,
@@ -230,6 +231,7 @@ export default async function PlaceSettingsMembersPage({
           }}
           placeId={place.id}
           placeSlug={place.slug}
+          locale={place.defaultLocale}
           inviteBaseUrl={inviteBaseUrl}
           actions={{
             createInvitation: createInvitationAction,

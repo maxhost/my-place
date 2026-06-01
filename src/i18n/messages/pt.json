@@ -337,7 +337,12 @@
     "emptyBody": "Você pode criar o seu ou entrar em um com um convite.",
     "emptyCreateAction": "Criar um lugar",
     "emptyJoinAction": "Entrar em um lugar",
-    "emptyJoinComingSoon": "Em breve"
+    "emptyJoinComingSoon": "Em breve",
+    "notFound": {
+      "title": "Esta seção não existe",
+      "body": "A vista que você procura ainda não está disponível no seu espaço.",
+      "cta": "Ir para Place"
+    }
   },
   "navHub": {
     "appName": "Place",
@@ -530,7 +535,8 @@
       "failureTitle": "Não conseguimos iniciar sua sessão automaticamente",
       "failureBody": "Houve um problema ao verificar sua identidade para **{slug}**. Você pode voltar à sua URL original para entrar manualmente.",
       "fallbackCta": "Ir para {slug} em place.community",
-      "retry": "Tentar de novo"
+      "retry": "Tentar de novo",
+      "technicalDetails": "Detalhes técnicos"
     }
   },
   "placeNotFound": {

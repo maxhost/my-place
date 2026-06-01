@@ -55,6 +55,7 @@ function setup(
   opts: {
     invitations?: PendingInvitation[];
     revokeAction?: ReturnType<typeof makeRevoke>;
+    locale?: string;
   } = {},
 ) {
   const invitations = opts.invitations ?? FIXTURES;
@@ -63,6 +64,7 @@ function setup(
     <PendingInvitationsTab
       invitations={invitations}
       placeSlug="mi-club"
+      locale={opts.locale ?? "es"}
       revokeAction={revokeAction}
       labels={LABELS}
     />,
@@ -80,6 +82,27 @@ describe("<PendingInvitationsTab />", () => {
     expect(
       screen.getAllByRole("button", { name: "Revocar" }),
     ).toHaveLength(2);
+  });
+
+  it("Formatea la caducidad con el locale del place (en ≠ es)", () => {
+    const expiresAt = new Date("2026-06-15T12:00:00.000Z");
+    const inv: PendingInvitation = {
+      invitationId: "inv_x",
+      email: "z@x.com",
+      expiresAt,
+      invitedByDisplayName: "Bob",
+    };
+    const fmt = { day: "numeric", month: "short", year: "numeric" } as const;
+    const en = expiresAt.toLocaleDateString("en", fmt);
+    const es = expiresAt.toLocaleDateString("es", fmt);
+    // Sanity: el locale efectivamente cambia el output ("Jun 15, 2026" vs
+    // "15 jun 2026") — si no, el test no probaría nada.
+    expect(en).not.toBe(es);
+    const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    setup({ invitations: [inv], locale: "en" });
+    expect(screen.getByText(new RegExp(esc(en)))).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(esc(es)))).toBeNull();
   });
 
   it("Array vacío ⇒ empty state visible", () => {

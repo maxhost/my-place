@@ -194,7 +194,12 @@ describe("S10 · settings/page.tsx — branch custom-domain + sin sesión", () =
       searchParams: makeSearchParams({ sso_error: "state_mismatch" }),
     })) as ReactElement<{
       canonicalUrl: string;
-      labels: { failureTitle: string; failureBody: string; fallbackCta: string };
+      labels: {
+        failureTitle: string;
+        failureBody: string;
+        fallbackCta: string;
+        technicalDetails: string;
+      };
       errorCode?: string;
     }>;
 
@@ -215,6 +220,9 @@ describe("S10 · settings/page.tsx — branch custom-domain + sin sesión", () =
     );
     expect(result.props.labels.fallbackCta).toBe(
       `customDomainRouting.sso.fallbackCta[slug=${TEST_SLUG}]`,
+    );
+    expect(result.props.labels.technicalDetails).toBe(
+      "customDomainRouting.sso.technicalDetails",
     );
   });
 });

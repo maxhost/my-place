@@ -28,8 +28,14 @@ import type { PendingInvitation, RevokeInviteError } from "../types";
 // estilo "Expira 1 jun 2026". V1 NO usa `Intl.RelativeTimeFormat` —
 // se reservó la decisión para S10 cuando aparezca el spec de copy fino
 // (tests.md §S9 menciona "caducidad relativa" pero V1 cierra con format
-// fijo `toLocaleDateString` ES-AR para mantener el componente puro y
+// fijo `toLocaleDateString` para mantener el componente puro y
 // determinístico — extensión a relative ⇒ task de polish post-S12).
+//
+// **Locale de la fecha** (Phase 2.G, 2026-05-31): `toLocaleDateString` recibe
+// el `locale` del place (`place.default_locale`, uno de los 6 operativos) como
+// prop, NO un `es-AR` hardcodeado. Un place en `en` muestra "Jun 1, 2026"; en
+// `es`, "1 jun 2026". Determinístico server/client (el locale es un string
+// fijo del render, no del browser).
 
 export interface PendingInvitationsTabLabels {
   emptyTitle: string;
@@ -67,8 +73,8 @@ function revokeErrorToLabel(
   return map[e] ?? l.errorGeneric;
 }
 
-function formatExpiresAt(d: Date): string {
-  return d.toLocaleDateString("es-AR", {
+function formatExpiresAt(d: Date, locale: string): string {
+  return d.toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -78,11 +84,14 @@ function formatExpiresAt(d: Date): string {
 export function PendingInvitationsTab({
   invitations,
   placeSlug,
+  locale,
   revokeAction,
   labels,
 }: {
   invitations: PendingInvitation[];
   placeSlug: string;
+  /** Locale del place (`place.default_locale`) para formatear la caducidad. */
+  locale: string;
   revokeAction: typeof revokeInvitationAction;
   labels: PendingInvitationsTabLabels;
 }) {
@@ -139,7 +148,7 @@ export function PendingInvitationsTab({
               <span className="text-sm text-ink">{inv.email}</span>
               <span className="text-xs text-muted">
                 {labels.invitedByPrefix} {inv.invitedByDisplayName} ·{" "}
-                {labels.expiresLabel} {formatExpiresAt(inv.expiresAt)}
+                {labels.expiresLabel} {formatExpiresAt(inv.expiresAt, locale)}
               </span>
             </div>
             <button

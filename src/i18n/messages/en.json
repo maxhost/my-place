@@ -337,7 +337,12 @@
     "emptyBody": "You can create your own or join one with an invitation.",
     "emptyCreateAction": "Create a place",
     "emptyJoinAction": "Join a place",
-    "emptyJoinComingSoon": "Coming soon"
+    "emptyJoinComingSoon": "Coming soon",
+    "notFound": {
+      "title": "This section doesn't exist",
+      "body": "The view you're looking for isn't available in your space yet.",
+      "cta": "Go to Place"
+    }
   },
   "navHub": {
     "appName": "Place",
@@ -530,7 +535,8 @@
       "failureTitle": "We couldn't sign you in automatically",
       "failureBody": "Something went wrong while verifying your identity for **{slug}**. You can go back to its original URL to sign in manually.",
       "fallbackCta": "Go to {slug} on place.community",
-      "retry": "Try again"
+      "retry": "Try again",
+      "technicalDetails": "Technical details"
     }
   },
   "placeNotFound": {

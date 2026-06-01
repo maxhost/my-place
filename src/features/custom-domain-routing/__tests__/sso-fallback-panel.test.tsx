@@ -37,6 +37,7 @@ const LABELS: SsoFallbackLabels = {
   failureBody:
     "Hubo un inconveniente al verificar tu identidad para **mi-place**. Podés volver a tu URL canónica para iniciar sesión manualmente.",
   fallbackCta: "Ir a mi-place en place.community",
+  technicalDetails: "Detalles técnicos",
 };
 
 function setup(over?: {
@@ -134,6 +135,16 @@ describe("SsoFallbackPanel — errorCode opcional", () => {
     const details = container.querySelector("details");
     expect(details).not.toBeNull();
     expect(within(details!).getByText(/state_mismatch/)).toBeInTheDocument();
+  });
+
+  it("usa el label `technicalDetails` en el <summary> (i18n, no hardcoded)", () => {
+    const { container } = setup({
+      errorCode: "state_mismatch",
+      labels: { technicalDetails: "Technical details" },
+    });
+    const summary = container.querySelector("details > summary");
+    expect(summary).not.toBeNull();
+    expect(summary!.textContent).toBe("Technical details");
   });
 
   it("NO renderea <details> cuando errorCode es undefined", () => {

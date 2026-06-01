@@ -175,6 +175,7 @@ function setup(
       callerCtx={opts.callerCtx ?? CALLER_FOUNDER}
       placeId="p_1"
       placeSlug="mi-club"
+      locale="es"
       inviteBaseUrl="https://mi-club.place.community"
       actions={actions}
       labels={LABELS}

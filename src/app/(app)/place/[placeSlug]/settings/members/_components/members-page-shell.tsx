@@ -91,6 +91,7 @@ export function MembersPageShell({
   callerCtx,
   placeId,
   placeSlug,
+  locale,
   inviteBaseUrl,
   actions,
   labels,
@@ -100,6 +101,8 @@ export function MembersPageShell({
   callerCtx: MemberRowActionsMenuCallerContext;
   placeId: string;
   placeSlug: string;
+  /** Locale del place (`place.default_locale`) — formatea la caducidad del tab pending. */
+  locale: string;
   /** Base URL sin trailing slash. El modal templea `${base}/invite/<token>`. */
   inviteBaseUrl: string;
   actions: MembersPageShellActions;
@@ -183,6 +186,7 @@ export function MembersPageShell({
           <PendingInvitationsTab
             invitations={pendingInvitations}
             placeSlug={placeSlug}
+            locale={locale}
             revokeAction={actions.revokeInvitation}
             labels={labels.pending}
           />

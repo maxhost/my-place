@@ -337,7 +337,12 @@
     "emptyBody": "Pots crear el teu o unir-te a un amb una invitació.",
     "emptyCreateAction": "Crear un lloc",
     "emptyJoinAction": "Unir-me a un lloc",
-    "emptyJoinComingSoon": "Pròximament"
+    "emptyJoinComingSoon": "Pròximament",
+    "notFound": {
+      "title": "Aquesta secció no existeix",
+      "body": "La vista que cerques encara no està disponible al teu espai.",
+      "cta": "Anar a Place"
+    }
   },
   "navHub": {
     "appName": "Place",
@@ -530,7 +535,8 @@
       "failureTitle": "No hem pogut iniciar-te la sessió automàticament",
       "failureBody": "Hi ha hagut un problema en verificar la teva identitat per a **{slug}**. Pots tornar a la teva URL canònica per iniciar sessió manualment.",
       "fallbackCta": "Anar a {slug} a place.community",
-      "retry": "Reintenta"
+      "retry": "Reintenta",
+      "technicalDetails": "Detalls tècnics"
     }
   },
   "placeNotFound": {

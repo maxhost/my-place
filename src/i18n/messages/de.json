@@ -337,7 +337,12 @@
     "emptyBody": "Du kannst deinen eigenen erstellen oder dich mit einer Einladung anschließen.",
     "emptyCreateAction": "Einen Ort erstellen",
     "emptyJoinAction": "Einem Ort beitreten",
-    "emptyJoinComingSoon": "Demnächst"
+    "emptyJoinComingSoon": "Demnächst",
+    "notFound": {
+      "title": "Dieser Bereich existiert nicht",
+      "body": "Die gesuchte Ansicht ist in deinem Bereich noch nicht verfügbar.",
+      "cta": "Zu Place gehen"
+    }
   },
   "navHub": {
     "appName": "Place",
@@ -530,7 +535,8 @@
       "failureTitle": "Wir konnten dich nicht automatisch anmelden",
       "failureBody": "Bei der Überprüfung deiner Identität für **{slug}** ist ein Problem aufgetreten. Du kannst zu deiner ursprünglichen URL zurückkehren, um dich manuell anzumelden.",
       "fallbackCta": "Zu {slug} auf place.community gehen",
-      "retry": "Erneut versuchen"
+      "retry": "Erneut versuchen",
+      "technicalDetails": "Technische Details"
     }
   },
   "placeNotFound": {

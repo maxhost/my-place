@@ -77,6 +77,12 @@ export interface SsoFallbackLabels {
    * `customDomainRouting.sso.fallbackCta` (con `{slug}` ya resuelto).
    */
   fallbackCta: string;
+  /**
+   * Etiqueta del `<summary>` que colapsa el `errorCode` para debug del owner.
+   * i18n key `customDomainRouting.sso.technicalDetails` (Phase 2.G). El
+   * `errorCode` en sí NO se traduce (identificador estable del protocolo SSO).
+   */
+  technicalDetails: string;
 }
 
 interface Props {
@@ -134,7 +140,7 @@ export function SsoFallbackPanel({
       </a>
       {errorCode ? (
         <details className="text-xs text-muted">
-          <summary className="cursor-pointer select-none">Detalles técnicos</summary>
+          <summary className="cursor-pointer select-none">{labels.technicalDetails}</summary>
           <code className="mt-2 block break-all rounded bg-muted/10 px-2 py-1">
             {errorCode}
           </code>

@@ -337,7 +337,12 @@
     "emptyBody": "Tu peux créer le tien ou rejoindre un avec une invitation.",
     "emptyCreateAction": "Créer un lieu",
     "emptyJoinAction": "Rejoindre un lieu",
-    "emptyJoinComingSoon": "Bientôt"
+    "emptyJoinComingSoon": "Bientôt",
+    "notFound": {
+      "title": "Cette section n'existe pas",
+      "body": "La vue que tu cherches n'est pas encore disponible dans ton espace.",
+      "cta": "Aller à Place"
+    }
   },
   "navHub": {
     "appName": "Place",
@@ -530,7 +535,8 @@
       "failureTitle": "Nous n'avons pas pu te connecter automatiquement",
       "failureBody": "Un problème est survenu lors de la vérification de ton identité pour **{slug}**. Tu peux retourner à ton URL canonique pour te connecter manuellement.",
       "fallbackCta": "Aller à {slug} sur place.community",
-      "retry": "Réessayer"
+      "retry": "Réessayer",
+      "technicalDetails": "Détails techniques"
     }
   },
   "placeNotFound": {

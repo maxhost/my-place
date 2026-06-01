@@ -155,6 +155,7 @@ export default async function PlaceSettingsPage({
           failureTitle: tSso("failureTitle"),
           failureBody: tSso("failureBody", { slug: hostZone.slug }),
           fallbackCta: tSso("fallbackCta", { slug: hostZone.slug }),
+          technicalDetails: tSso("technicalDetails"),
         };
         const canonicalUrl = buildSubdomainCanonicalUrl({
           slug: hostZone.slug,

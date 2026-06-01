@@ -25,11 +25,11 @@
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
 | **1 — Hardening** | 7 | 7/7 ✅ | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | `baseline/phase-1-tech-debt-done` = `3fa0cc3` ✅ |
-| **2 — Tests + docs** | 9 | 1/9 (2.A ✅) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | _pending_ |
+| **2 — Tests + docs** | 9 | 2/9 (2.A, 2.G ✅) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 13/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 14/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -442,10 +442,10 @@ V1.3 puede arrancar **en paralelo** con esta phase si recursos lo permiten. No b
 
 ### Orden de ejecución acordado (2026-05-31)
 
-Criterio: menos→más esfuerzo + sentido funcional. **2.A ya cerrada** (`e538543`). Próxima = **2.G**. Las 8 restantes en este orden:
+Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`8c92061`). Próxima = **2.E**. Las restantes en este orden:
 
-1. **2.G** — i18n strings → translations (~1h) ← PRÓXIMA
-2. **2.E** — doc polish + cookie audit (~1.5h)
+1. **2.G** — i18n strings → translations (~1h) ✅
+2. **2.E** — doc polish + cookie audit (~1.5h) ← PRÓXIMA
 3. **2.F** — backup/PITR + drifts deps (~1.5h)
 4. **2.D** — data-model gaps + stubs ontologías (~2h)
 5. **2.B** — 2 E2E críticos (accept invite cross-domain + register custom domain) (~3h) · reusa harness E2E de 2.A
@@ -557,17 +557,36 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A ya cerrada** (`e53854
 
 ---
 
-### Sesión 2.G — i18n strings + date format [~1h]
+### Sesión 2.G — i18n strings + date format [~1h] ✅
 
-- [ ] Reemplazar strings hardcoded ES por translations:
-  - `src/app/(app)/inbox/[locale]/not-found.tsx:13,15,21` (3 strings)
-  - `src/features/custom-domain-routing/ui/sso-fallback-panel.tsx:137` ("Detalles técnicos")
-- [ ] Agregar keys correspondientes a `messages/{es,en,fr,pt,de,ca}.json` (6 locales, verificar parity post-cambio)
-- [ ] Date format en `src/features/invitations/ui/pending-invitations-tab.tsx:71`: cambiar `toLocaleDateString("es-AR", ...)` a usar `locale` prop del place
+**Decisiones de la sesión (2026-05-31)**:
+- **`inbox/[locale]/not-found.tsx` resuelve contra `routing.defaultLocale`, NO el segmento `[locale]`** (mismo patrón que el sibling `(marketing)/[locale]/not-found.tsx`). Razón empírica del diagnóstico: el archivo tenía un comentario deliberado "sin i18n runtime (locale podría ser inválido)" — `not-found.tsx` no recibe `params` (contract App Router) y el trigger DOMINANTE de este 404 es justamente un `[locale]` inválido (`hasLocale` falla en el layout → `notFound()`). Confiar en el segmento rebotaría a una key cruda. La conversión a `getTranslations({locale: defaultLocale, namespace: "inbox.notFound"})` hace las 3 strings traducibles satisfaciendo el item SIN romper el rationale original. Trade-off conocido y aceptado (idéntico al sibling marketing): un 404 con locale válido (sub-vista inexistente futura) igual renderea en `es` — aceptable para pantalla de error de borde.
+- **6 catálogos están traducidos in-place** (no copias de `es.json` como en S1.a/b): en/fr/pt/de/ca tienen traducciones reales. Por eso cada key nueva se agregó con traducción real por locale, no copia ES (sino habría ES leaking en EN/FR — lo que el acceptance prohíbe).
+- **Edición de catálogos programática + verificada byte-idéntica**: round-trip `JSON.parse→stringify(_,null,2)+"\n"` confirmado byte-idéntico sobre `es.json` ANTES de mutar → la inserción de keys produce CERO ruido de reformateo (git diff = solo las adiciones). Las keys nuevas se appendean al final de su objeto padre (orden intra-namespace es irrelevante; `check-translations` compara sets de paths).
+- **Date format usa el `locale` del place (bare locale), no `es-AR`**: `place.default_locale` es uno de los 6 operativos. `toLocaleDateString(locale, ...)` → un place `en` muestra "Jun 1, 2026"; `es`, "1 jun 2026". Determinístico server/client (el locale es un string fijo del render, no del browser). Se dropeó el `-AR` regional — el place define su locale, no se asume Argentina.
 
-**Acceptance**: `pnpm check-translations` verde (0 missing) · pages cargan en EN/FR/etc sin string ES leaking.
+**Items cerrados**:
+- [x] `inbox/[locale]/not-found.tsx` → `async` + `getTranslations({locale: routing.defaultLocale, namespace: "inbox.notFound"})`; las 3 strings (`title`/`body`/`cta`) desde catálogo. Comentario header reescrito documentando el rationale defaultLocale + el trade-off.
+- [x] `sso-fallback-panel.tsx` `<summary>` "Detalles técnicos" → `{labels.technicalDetails}`. Campo nuevo `technicalDetails: string` agregado a `SsoFallbackLabels` (+ JSDoc: el `errorCode` en sí NO se traduce, es identificador estable del protocolo SSO). Wireado en los **3 pages** que construyen `ssoLabels`: `settings/page.tsx`, `settings/members/page.tsx`, `settings/domain/page.tsx` (`technicalDetails: tSso("technicalDetails")`).
+- [x] `pending-invitations-tab.tsx`: `formatExpiresAt(d, locale)` + prop nueva `locale: string`. Threadeado por `MembersPageShell` (prop `locale`) ← `members/page.tsx` (`locale={place.defaultLocale}`). Comentario "ES-AR" del header actualizado.
+- [x] Keys nuevas en `messages/{es,en,fr,pt,de,ca}.json` (6 locales, traducidas):
+  - `inbox.notFound.{title,body,cta}`
+  - `customDomainRouting.sso.technicalDetails`
+- [x] Tests actualizados (TDD — contrato nuevo encodeado antes de impl):
+  - `sso-fallback-panel.test.tsx`: `technicalDetails` en fixture `LABELS` (campo requerido) + test nuevo asserta que `<summary>` usa el label (no hardcoded).
+  - `pending-invitations-tab.test.tsx`: `setup` pasa `locale` (default `es`) + test nuevo "en ≠ es" (computa expected vía `Intl` para ser TZ-robusto; asserta forma EN presente + forma ES ausente).
+  - `members-page-shell.test.tsx`: render con `locale="es"`.
+  - `sso-trigger.test.ts`: cast type extendido con `technicalDetails` + assertion del label wireado por el settings page.
 
-**Commit**: _pending_
+**Acceptance** (verificado 2026-05-31):
+- ✅ `node scripts/check-translations.mjs` → es.json reference (364 keys) · en/fr/pt/de/ca **0 missing, 0 extras** (parity total) [no hay package script `check-translations`; se corre directo]
+- ✅ `pnpm typecheck` verde
+- ✅ `pnpm lint --max-warnings 0` sobre los 7 archivos tocados — clean
+- ✅ UI project: **213/213** verde (+2 tests nuevos sobre baseline 211)
+- ✅ Node project: **963/963** verde (sin regresión)
+- ✅ 0 strings ES hardcoded en los 3 callsites del item (grep limpio); pages en EN/FR/etc no leakean ES (catálogos traducidos in-place)
+
+**Commit**: `8c92061 i18n(2.G): strings hardcoded → catálogo + fecha con locale del place`
 
 ---
 
