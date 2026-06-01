@@ -571,7 +571,7 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`)
 
 **Acceptance** (verificado 2026-06-01): backup strategy clara con runbook ✅ · ADR-0004 con addendum reflejando uso real ✅ · stack.md sin env vars fantasma (RESEND roadmapped, AI_GATEWAY dep activa documentada) ✅ · sesión docs-only, cero `.ts` tocado → typecheck/suite sin cambios (no aplica re-run).
 
-**Commit**: _pending_
+**Commit**: `4c20adf docs(2.F): backup/PITR Neon + drift Drizzle (addendum ADR-0004) + env drift`
 
 ---
 
