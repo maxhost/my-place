@@ -436,9 +436,24 @@ Cleanup directo del cluster auth + DB + invite. Evita acumulación durante V1.3.
 
 ## Phase 2 — Tests + docs completeness (9 sesiones, ~14-16h)
 
-**Save point**: `baseline/pre-phase-2-tech-debt` (= tag post-phase-1)
+**Save point**: `baseline/pre-phase-2-tech-debt` = `118ab5a` ✅ (pre-2.A)
 
 V1.3 puede arrancar **en paralelo** con esta phase si recursos lo permiten. No bloqueante pero recomendable cerrar antes de scope creep.
+
+### Orden de ejecución acordado (2026-05-31)
+
+Criterio: menos→más esfuerzo + sentido funcional. **2.A ya cerrada** (`e538543`). Próxima = **2.G**. Las 8 restantes en este orden:
+
+1. **2.G** — i18n strings → translations (~1h) ← PRÓXIMA
+2. **2.E** — doc polish + cookie audit (~1.5h)
+3. **2.F** — backup/PITR + drifts deps (~1.5h)
+4. **2.D** — data-model gaps + stubs ontologías (~2h)
+5. **2.B** — 2 E2E críticos (accept invite cross-domain + register custom domain) (~3h) · reusa harness E2E de 2.A
+6. **2.C** — coverage thresholds + investigar flake `pnpm test` (~3h)
+7. **2.H** — Suspense boundaries settings + streaming (~2-3h) · load-bearing
+8. **2.I** — Strict CSP nonce-based (~2-4h) · load-bearing · última (más compleja)
+
+**Protocolo por sesión** (canon §"Reglas operativas"): commit dedicado al cierre (stagear por path explícito) + registrar el hash en el item · `/clear` o `/compact` entre sesiones para ventana limpia · al cerrar la phase, tag `baseline/phase-2-tech-debt-done`.
 
 ### Sesión 2.A — Playwright setup + 1er E2E [~3h] ✅
 
@@ -467,7 +482,7 @@ V1.3 puede arrancar **en paralelo** con esta phase si recursos lo permiten. No b
 1. Agregar GitHub Secrets del branch test: `DATABASE_URL_TEST`, `DATABASE_URL_TEST_MIGRATE` (ya requeridos por `tests.yml`), `E2E_NEON_AUTH_BASE_URL`, `E2E_NEON_AUTH_JWKS_URL`, `NEON_AUTH_COOKIE_SECRET` (instrucciones en header de `e2e.yml`).
 2. El `trusted_origins` del branch test ya tiene `https://lvh.me:3000` (aplicado esta sesión). Si se recrea el branch test, re-aplicar.
 
-**Commit**: _pending_
+**Commit**: `e538543 test(e2e): Phase 2.A — Playwright setup + 1er E2E signup happy path (HTTPS lvh.me + cleanup)`
 
 ---
 
