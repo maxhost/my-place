@@ -59,6 +59,14 @@ const nextConfig: NextConfig = {
   // workspace root. Fijarlo a este repo.
   outputFileTracingRoot: path.join(__dirname),
 
+  // E2E (Phase 2.A): los tests Playwright corren la app local sobre el apex
+  // `lvh.me` (resuelve a 127.0.0.1 incl. subdominios; es dotted → pasa el regex
+  // de auth-config). Next 16 dev bloquea HMR + dev assets para orígenes ≠
+  // localhost salvo que estén acá → sin esto la hidratación no completa sobre
+  // lvh.me. SOLO afecta `next dev`; ignorado en el build de producción. Ver
+  // docs/testing.md.
+  allowedDevOrigins: ["lvh.me", "*.lvh.me"],
+
   async headers() {
     return [
       {

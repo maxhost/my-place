@@ -25,11 +25,11 @@
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
 | **1 — Hardening** | 7 | 7/7 ✅ | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | `baseline/phase-1-tech-debt-done` = `3fa0cc3` ✅ |
-| **2 — Tests + docs** | 9 | 0/9 | _pending_ | _pending_ |
+| **2 — Tests + docs** | 9 | 1/9 (2.A ✅) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 12/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 13/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -440,15 +440,32 @@ Cleanup directo del cluster auth + DB + invite. Evita acumulación durante V1.3.
 
 V1.3 puede arrancar **en paralelo** con esta phase si recursos lo permiten. No bloqueante pero recomendable cerrar antes de scope creep.
 
-### Sesión 2.A — Playwright setup + 1er E2E [~3h]
+### Sesión 2.A — Playwright setup + 1er E2E [~3h] ✅
 
-- [ ] Install Playwright: `pnpm add -D @playwright/test playwright`
-- [ ] Config `playwright.config.ts`: 2 projects (chromium + webkit), baseURL apex prod, retries 2, parallel 4
-- [ ] Script `pnpm e2e` en `package.json`
-- [ ] 1er E2E crítico: **signup happy path** apex login → place creation wizard 3-step → land Hub. Asegurar fixtures de cleanup post-test (delete user creado)
-- [ ] CI workflow `e2e.yml` opcional (correr en preview deploys, no en cada PR — costoso)
+**Decisiones de la sesión (2026-05-31)**:
+- **App LOCAL contra branch `test`, NO apex prod** (el plan original decía "baseURL apex prod"): correr E2E que hacen signup + create contra prod sembraría data real y dependería del deploy. Se corre `next dev` apuntado al branch `test` de Neon (mismo branch que la suite Vitest), con apex local `lvh.me` (resuelve a 127.0.0.1 incl. subdominios; dotted → pasa el regex `APEX_DOMAIN`). Doc canónico nuevo `docs/testing.md`.
+- **`workers: 1` + serial (NO "parallel 4")**: el branch `test` cold-startea varios segundos (WebSocket neon-serverless); paralelo genera contención de pool + flakiness. Serial con timeouts generosos (60s test / 15s expect) + `retries: 2` absorbe el cold-start.
+- **HTTPS obligatorio (hallazgo bloqueante)**: el spike fallaba el signup con `403 "Invalid origin"`. Diagnóstico: el SDK Neon Auth reenvía el header `Origin` al backend gestionado, que valida contra `trusted_origins`. Better Auth **rechaza `http://` no-localhost** (sólo `https://` o `http://localhost`). Como el apex es `lvh.me`, el dev server DEBE correr sobre HTTPS. Solución: cert self-signed para `lvh.me` con openssl (sin mkcert/sudo) vía `scripts/ensure-e2e-cert.mjs` (corrido por `pnpm e2e`) + `next dev --experimental-https --…-key/-cert` + `ignoreHTTPSErrors`. Más fiel a prod (que es HTTPS).
+- **Cleanup por barrido global (pattern-based), NO fixture per-test**: `globalTeardown` (+ `globalSetup` pre-clean defensivo) borra TODA cuenta `e2e-%@example.com` en orden FK-safe con el rol admin (`neondb_owner`). Robusto a crashes (barre huérfanos de runs previos); más simple que rastrear IDs por test.
+- **`e2e.yml` = `workflow_dispatch` (manual)**, no `on: pull_request` (el plan lo marcaba "opcional, no en cada PR"): el E2E levanta la app + cold-startea Neon → caro para cada PR; los gates baratos (typecheck/lint/vitest) ya protegen.
 
-**Acceptance**: `pnpm e2e` corre verde local + en CI · cleanup test post-run · screenshot artifact en CI si falla.
+**Items cerrados**:
+- [x] `@playwright/test@^1.60.0` en devDeps + scripts `e2e` / `e2e:ui` (corren `ensure-e2e-cert.mjs` antes de `playwright test`)
+- [x] `playwright.config.ts`: 2 projects (chromium + webkit), HTTPS sobre `lvh.me`, carga `.env.e2e` con dotenv (runner + `webServer.env`), `globalSetup`/`globalTeardown`, retries 2, workers 1
+- [x] `next.config.ts` `allowedDevOrigins: ["lvh.me", "*.lvh.me"]` (HMR/dev assets sobre lvh.me)
+- [x] E2E #1 `tests/e2e/signup-happy-path.spec.ts`: place-first `/es/crear` → wizard 3 pasos → signUp + `app.create_place` → success screen "Tu lugar está listo". **2 passed (chromium + webkit)** verificado local contra branch test
+- [x] Cleanup: `tests/e2e/_support/db-cleanup.ts` (`cleanupE2EData` + `E2E_EMAIL_PATTERN`) + `global-setup.ts` (pre-clean) + `global-teardown.ts` (barrido post-run). Verificado: teardown borró 2 users + 2 places
+- [x] `scripts/ensure-e2e-cert.mjs` (cert self-signed idempotente, openssl) + `certificates/` gitignored
+- [x] `.env.e2e.example` (template, HTTPS) + `.github/workflows/e2e.yml` (manual, sube reporte HTML si falla)
+- [x] `docs/testing.md` — doc canónico nuevo (capas de testing + rationale E2E completo: lvh.me, HTTPS, cleanup, CI)
+- [x] **Config externa aplicada**: `trusted_origins += https://lvh.me:3000` en el Neon Auth del branch `test` (MCP `configure_neon_auth`, sólo branch test)
+- [x] Limpieza: revertido el `console.error` DIAG temporal de `auth-actions.ts` (violaba canon Phase 0.E — cero `console.*` en `src/`)
+
+**Acceptance**: ✅ `pnpm e2e` verde local (2 passed) · ✅ cleanup post-run verificado (teardown borró users+places) · ✅ typecheck verde · ✅ `e2e.yml` con upload de reporte HTML on-failure. CI verde queda pendiente de los GitHub Secrets del branch test (nota operativa abajo).
+
+**Notas operativas pendientes para user** (para CI):
+1. Agregar GitHub Secrets del branch test: `DATABASE_URL_TEST`, `DATABASE_URL_TEST_MIGRATE` (ya requeridos por `tests.yml`), `E2E_NEON_AUTH_BASE_URL`, `E2E_NEON_AUTH_JWKS_URL`, `NEON_AUTH_COOKIE_SECRET` (instrucciones en header de `e2e.yml`).
+2. El `trusted_origins` del branch test ya tiene `https://lvh.me:3000` (aplicado esta sesión). Si se recrea el branch test, re-aplicar.
 
 **Commit**: _pending_
 

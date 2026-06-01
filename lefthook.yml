@@ -30,7 +30,10 @@ pre-commit:
         # patrones de credenciales. Defense-in-depth sobre .gitignore (que
         # podría haber sido ignorado con `git add -f`).
         deny_name='(^|/)\.env([.][^/]+)?$|(-backup)|credentials|secret|\.pem$|\.key$|_token([.]|$)|id_rsa|id_ed25519'
-        bad_name=$(printf '%s\n' "$@" | grep -iE "$deny_name" | grep -vE '\.env\.example$' || true)
+        # Whitelist: templates `.env.example` y `.env.<entorno>.example` (p. ej.
+        # `.env.e2e.example`) — sólo placeholders, versionados a propósito
+        # (excepción en .gitignore). El content-guard (abajo) los escanea igual.
+        bad_name=$(printf '%s\n' "$@" | grep -iE "$deny_name" | grep -vE '\.env(\.[a-z0-9-]+)?\.example$' || true)
         if [ -n "$bad_name" ]; then
           printf '\nArchivos con nombre sospechoso de credencial en staging:\n%s\n\n' "$bad_name" >&2
           printf 'Si es intencional, --no-verify + revisar antes de pushear.\n' >&2

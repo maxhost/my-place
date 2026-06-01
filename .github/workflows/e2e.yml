@@ -1,0 +1,71 @@
+# Suite E2E Playwright (Phase 2.A tech-debt closure, 2026-05-31).
+#
+# ## Por qué workflow_dispatch (manual), NO on: pull_request
+#
+# El E2E levanta la app local (`pnpm dev`) y cold-startea el branch `test` de
+# Neon (WebSocket neon-serverless, varios segundos el primer connect) — lento y
+# costoso para correr en cada PR. Los gates baratos ya protegen cada PR:
+# typecheck + lint (lighthouse.yml) + suite Vitest (tests.yml). Este workflow se
+# dispara ON-DEMAND desde la pestaña Actions antes de un release o tras tocar
+# flujos críticos (wizard de creación, auth, routing multi-tenant).
+#
+# ## Env vars requeridos en GitHub Secrets
+#
+# Mismas creds del branch `test` que usa la suite Vitest, más Neon Auth per-branch:
+#   - DATABASE_URL              → rol `app_system` del branch test (la app)
+#   - DATABASE_URL_MIGRATE      → rol admin `neondb_owner` (cleanup + migrate)
+#   - NEON_AUTH_BASE_URL        → endpoint Neon Auth del branch test (PER-BRANCH)
+#   - NEON_AUTH_JWKS_URL        → JWKS del branch test (PER-BRANCH)
+#   - NEON_AUTH_COOKIE_SECRET   → mismo secret de dev (≥32 chars)
+#
+# Setup en GitHub repo → Settings → Secrets and variables → Actions. Sin estos
+# secrets el cleanup (global-setup/teardown) falla loud con "DATABASE_URL_MIGRATE
+# ausente" — flag explícito de setup pendiente, no regresión.
+
+name: e2e
+
+on:
+  workflow_dispatch:
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20  # cold-start Neon + 2 engines + retries
+    env:
+      # Overrides del branch test (los lee tanto `next dev` como el cleanup).
+      DATABASE_URL: ${{ secrets.DATABASE_URL_TEST }}
+      DATABASE_URL_MIGRATE: ${{ secrets.DATABASE_URL_TEST_MIGRATE }}
+      NEON_AUTH_BASE_URL: ${{ secrets.E2E_NEON_AUTH_BASE_URL }}
+      NEON_AUTH_JWKS_URL: ${{ secrets.E2E_NEON_AUTH_JWKS_URL }}
+      NEON_AUTH_COOKIE_SECRET: ${{ secrets.NEON_AUTH_COOKIE_SECRET }}
+      # Apex local público (lvh.me → 127.0.0.1 incl. subdominios) también en CI.
+      # HTTPS: Neon Auth rechaza http:// no-localhost; `pnpm e2e` genera el cert
+      # self-signed (openssl, presente en ubuntu-latest) antes de Playwright.
+      # El origin https://lvh.me:3000 debe estar en trusted_origins del branch test.
+      NEXT_PUBLIC_APP_URL: https://lvh.me:3000
+      NEXT_PUBLIC_APP_DOMAIN: lvh.me
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Instalar browsers Playwright (chromium + webkit)
+        run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Suite E2E
+        run: pnpm e2e
+
+      - name: Subir reporte HTML si falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
