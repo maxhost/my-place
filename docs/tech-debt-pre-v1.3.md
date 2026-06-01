@@ -25,7 +25,7 @@
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
 | **1 — Hardening** | 7 | 7/7 ✅ | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | `baseline/phase-1-tech-debt-done` = `3fa0cc3` ✅ |
-| **2 — Tests + docs** | 9 | 2/9 (2.A, 2.G ✅) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | _pending_ |
+| **2 — Tests + docs** | 9 | 3/9 (2.A, 2.G, 2.E ✅) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
@@ -442,11 +442,11 @@ V1.3 puede arrancar **en paralelo** con esta phase si recursos lo permiten. No b
 
 ### Orden de ejecución acordado (2026-05-31)
 
-Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`aace521`). Próxima = **2.E**. Las restantes en este orden:
+Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`aace521`) · **2.E cerrada** (_pending hash_). Próxima = **2.F**. Las restantes en este orden:
 
 1. **2.G** — i18n strings → translations (~1h) ✅
-2. **2.E** — doc polish + cookie audit (~1.5h) ← PRÓXIMA
-3. **2.F** — backup/PITR + drifts deps (~1.5h)
+2. **2.E** — doc polish + cookie audit (~1.5h) ✅
+3. **2.F** — backup/PITR + drifts deps (~1.5h) ← PRÓXIMA
 4. **2.D** — data-model gaps + stubs ontologías (~2h)
 5. **2.B** — 2 E2E críticos (accept invite cross-domain + register custom domain) (~3h) · reusa harness E2E de 2.A
 6. **2.C** — coverage thresholds + investigar flake `pnpm test` (~3h)
@@ -532,14 +532,25 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`)
 
 ---
 
-### Sesión 2.E — Doc polish + cookie audit [~1.5h]
+### Sesión 2.E — Doc polish + cookie audit [~1.5h] ✅
 
-- [ ] Agregar §Pointers a `docs/features/inbox/spec.md` + `docs/features/settings/spec.md` (otros 7 tienen — homogeneizar)
-- [ ] Update `docs/features/inbox/plan-sesiones.md` con timestamp final + nota "V1 implementada, S11.3 cerrada"
-- [ ] Cookie Neon Auth SDK audit: verificar/setear explícito en `src/shared/lib/auth-config.ts` los flags `httpOnly`, `secure`, `sameSite` (zero-trust en SDK defaults)
-- [ ] Documentar decisión `ON DELETE NO ACTION` en todas las FKs en `data-model.md` §Invariantes: justificar soft-delete + WORM-via-DEFINER
+**Decisiones de la sesión (2026-06-01)**:
+- **Cookie audit reinterpretado por hallazgo del SDK**: el item original asumía 3 flags seteables (`httpOnly`, `secure`, `sameSite`). El diagnóstico del tipo `SessionCookieConfig` (SDK `@neondatabase/auth@0.4.1-beta`, `dist/next/server/index.d.mts`) reveló que el SDK **solo expone `sameSite`** como flag de cookie configurable (junto a `secret`/`domain`/`sessionDataTtl`). `httpOnly` y `secure` NO son configurables: el SDK los aplica internamente (session cookies de Better Auth son `HttpOnly` por diseño; `Secure` "always applied" per JSDoc del SDK). → el único hardening explícito posible es `sameSite`.
+- **`sameSite: "strict"` fijado explícito = sin cambio de comportamiento**: el default actual del SDK ya es `"strict"`, así que pinnearlo es no-op funcional (no toca prod, que ya corre strict y pasó smoke en Phase 0). El valor agregado es **zero-trust sobre defaults**: si una versión futura del SDK cambiara el default, nuestra postura no se altera en silencio. `"strict"` es seguro para la topología: subdominios same-site viajan por `Domain` compartido (no por sameSite); el cruce a custom domains usa el Signed Ticket SSO (ADR-0032), no envío cross-site de la cookie. NO es decisión arquitectónica nueva (pin del status quo), documentado inline + acá per canon §"Decisiones scope durante ejecución".
 
-**Acceptance**: 9/9 features specs tienen §Pointers · cookie config explícita · cascade rules justificadas en doc.
+**Items cerrados**:
+- [x] §Pointers agregado a `docs/features/inbox/spec.md` + `docs/features/settings/spec.md` (al final, tras "Decisiones del producto cerradas"). Formato homogéneo con members/invitations: ADRs canónicas consumidas (links relativos verificados) + slices que implementan + schema/ontología/multi-tenancy + plan-sesiones + tests. **9/9 specs ahora tienen §Pointers** (eran 7/9).
+- [x] `docs/features/inbox/plan-sesiones.md` — banner de estado al top: "V1 implementada y en producción · S11.3 (ADR-0033) cerró el último gotcha returnTo · referencia histórica · slices vivos `nav-hub` + `inbox`".
+- [x] Cookie audit en `src/shared/lib/auth-config.ts`: `cookies.sameSite: "strict"` explícito + bloque de comentario "Cookie hardening" documentando que `httpOnly`/`secure` son SDK-managed (no configurables) + rationale strict-safe vía SSO. TDD: test `auth.test.ts` "zero-trust: cookies.sameSite fijado explícito a strict" (rojo→verde verificado).
+- [x] `docs/data-model.md` §Invariantes — invariante nuevo "Todas las FKs son `ON DELETE NO ACTION` (sin CASCADE)": enumera las 6 FKs del core + justifica soft-delete canónico + WORM-via-DEFINER (contenido pertenece al place, sobrevive salida de miembro; tombstone deja `app_user` cáscara para PRESERVAR FKs, no romperlos) + regla heredada por FKs futuras.
+
+**Acceptance** (verificado 2026-06-01):
+- ✅ 9/9 features specs tienen `## Pointers` (grep verde)
+- ✅ `pnpm typecheck` verde
+- ✅ `pnpm lint --max-warnings 0` sobre archivos tocados — clean
+- ✅ Node project: **964/964** verde (+1 test nuevo sobre baseline 963 de 2.G)
+- ✅ UI project: **213/213** verde (sin regresión)
+- ✅ Cookie config explícita (`sameSite: "strict"`) · cascade rules justificadas en data-model.md §Invariantes
 
 **Commit**: _pending_
 

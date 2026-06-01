@@ -56,6 +56,16 @@ describe("buildNeonAuthConfig", () => {
     expect(buildNeonAuthConfig().cookies.domain?.startsWith(".")).toBe(true);
   });
 
+  // Cookie hardening (Phase 2.E): `sameSite` es el único flag de cookie que el
+  // SDK Neon Auth expone (`SessionCookieConfig`); `httpOnly` y `secure` los
+  // aplica el SDK internamente (no son configurables). Lo fijamos explícito a
+  // `"strict"` (= default actual del SDK) para que un cambio futuro de default
+  // no altere la postura de seguridad en silencio (zero-trust sobre defaults).
+  it("zero-trust: cookies.sameSite fijado explícito a strict", () => {
+    setValidEnv();
+    expect(buildNeonAuthConfig().cookies.sameSite).toBe("strict");
+  });
+
   it("rechaza si falta NEON_AUTH_BASE_URL", () => {
     setValidEnv();
     delete process.env.NEON_AUTH_BASE_URL;

@@ -1,5 +1,7 @@
 # Plan de implementación — Hub V1 (5 sesiones)
 
+> **Estado (actualizado 2026-06-01): V1 implementada y en producción.** Las 5 sesiones de este plan se ejecutaron completas; el flujo end-to-end del hub (`app.place.community`) funciona. El fix posterior de apex-login honrando `returnTo` (S11.3, ADR-0033) cerró el último gotcha relacionado con la sesión cross-domain hacia el hub. Este plan queda como **referencia histórica** del desglose de implementación; los slices vivos son `src/features/nav-hub/` + `src/features/inbox/`.
+
 > _Revisado 2026-05-19 tras audit (incorpora hub navegable + sidebar mobile-first + DB function + i18n en zona app)_. Divide el [spec del hub](./spec.md) en sesiones cortas y atómicas. TDD obligatorio (CLAUDE.md §47). Green-close completo antes de commit.
 
 ## Resumen

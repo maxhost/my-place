@@ -598,3 +598,19 @@ Cuando se ejecute la sesión 5, agregar sección en `docs/multi-tenancy.md` que 
 | G8 | theme.accent siempre presente (preset o custom) | User §G8 |
 | NEW | Hub con sidebar + topbar mobile-first | User §"sidebar como en las imagenes" |
 | NEW | Sidebar V1: 3 items (Tus lugares activo, Mensajes/Actividad disabled) | User §"para ver places + DMs + gestionar multi-place futuro" |
+
+## Pointers
+
+- **ADRs canónicas consumidas**:
+  - [`../../decisions/0021-rls-member-read-pattern.md`](../../decisions/0021-rls-member-read-pattern.md) — member-read RLS (`place_sel`/`membership_sel` extendidos); esta spec §"RLS — cierra el TBD de ADR-0010" lo origina.
+  - [`../../decisions/0010-rls-por-operacion-invitacion-token-link.md`](../../decisions/0010-rls-por-operacion-invitacion-token-link.md) — el TBD member-read que esta spec cierra.
+  - [`../../decisions/0022-locale-del-place.md`](../../decisions/0022-locale-del-place.md) + [`../../decisions/0024-i18n-fallback-deep-merge.md`](../../decisions/0024-i18n-fallback-deep-merge.md) — i18n del chrome (el hub resuelve locale por path-prefix + cookie, modo público; ver `architecture.md` § "i18n: dos modos").
+  - [`../../decisions/0023-app-shell-agnostico-shared-ui.md`](../../decisions/0023-app-shell-agnostico-shared-ui.md) + [`../../decisions/0025-sidebar-agrupado-iconoir.md`](../../decisions/0025-sidebar-agrupado-iconoir.md) — AppShell agnóstico + sidebar que el slice `nav-hub` consume.
+  - [`../../decisions/0003-lifecycle-cuenta-place-tombstone.md`](../../decisions/0003-lifecycle-cuenta-place-tombstone.md) — `subscription_status` que la lista de places refleja con badge de estado (G7).
+- **Auth + SSO de la sesión del hub**: [`../../decisions/0018-jwt-neon-auth-y-place-first-two-phase.md`](../../decisions/0018-jwt-neon-auth-y-place-first-two-phase.md) (JWT) + [`../../decisions/0032-custom-domain-sso-signed-ticket.md`](../../decisions/0032-custom-domain-sso-signed-ticket.md) (Signed Ticket cross-domain) + [`../../decisions/0033-apex-login-honors-returnto.md`](../../decisions/0033-apex-login-honors-returnto.md) (apex login honra `returnTo`). Topología canónica en [`../../architecture.md`](../../architecture.md) § "Sesión y SSO".
+- **Slices que implementan esta spec**: `src/features/nav-hub/` (topbar + sidebar + drawer mobile + `logoutAction`) + `src/features/inbox/` (vista "Tus lugares" + cards + badge + estado vacío).
+- **Schema base + invariantes del dominio**: [`../../data-model.md`](../../data-model.md).
+- **Ontología canónica**: [`../../ontologia/miembros.md`](../../ontologia/miembros.md).
+- **Routing multi-tenant** (zona inbox `app.place.community`): [`../../multi-tenancy.md`](../../multi-tenancy.md).
+- **Plan de sesiones operativo**: [`./plan-sesiones.md`](./plan-sesiones.md).
+- **Test checklist por sesión**: [`./tests.md`](./tests.md).

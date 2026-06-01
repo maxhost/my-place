@@ -442,3 +442,19 @@ vía `loadPlaceBySlug`. `<html lang>` dinámico desde DB. Co-location iad1.
 | NEW | Migration `app.create_place` additive backward-compatible (DEFAULT param), no DROP+CREATE. | Audit del plan: evita downtime durante rolling deploy de Vercel |
 | NEW | Skip-link a11y en layout zona place desde V1 (paridad con marketing/hub). | Audit del plan: gap a11y identificado |
 | NEW | Settings reusa `logoutAction` del slice `nav-hub` vía `public.ts`. | Acíclico: feature→feature unidireccional, pattern ADR-0014/0015/0016 |
+
+## Pointers
+
+- **ADRs canónicas consumidas**:
+  - [`../../decisions/0022-locale-del-place.md`](../../decisions/0022-locale-del-place.md) — `place.default_locale` editable desde settings (eje de la spec V1) + `<html lang>` dinámico DB-based.
+  - [`../../decisions/0024-i18n-fallback-deep-merge.md`](../../decisions/0024-i18n-fallback-deep-merge.md) — fallback runtime deep-merge (keys sin traducir caen al default `es`).
+  - [`../../decisions/0023-app-shell-agnostico-shared-ui.md`](../../decisions/0023-app-shell-agnostico-shared-ui.md) + [`../../decisions/0025-sidebar-agrupado-iconoir.md`](../../decisions/0025-sidebar-agrupado-iconoir.md) — AppShell agnóstico + sidebar agrupado (V1.1) que consume el slice de settings.
+  - [`../../decisions/0010-rls-por-operacion-invitacion-token-link.md`](../../decisions/0010-rls-por-operacion-invitacion-token-link.md) — patrón RLS owner-only (`place_sel`): el guard de settings es RLS, no código separado.
+  - [`../../decisions/0003-lifecycle-cuenta-place-tombstone.md`](../../decisions/0003-lifecycle-cuenta-place-tombstone.md) — sección "Suscripción" del sidebar (relación owner ↔ producto Place).
+  - [`../../decisions/0026-custom-domain-v1-lazy-verification.md`](../../decisions/0026-custom-domain-v1-lazy-verification.md) — sub-vista `/settings/domain` (gestión de custom domain).
+- **Multi-owner** (V1 schema permite N owners; UX de co-owner en gestión): [`../../decisions/0035-place-ownership-multi-owner-v1.md`](../../decisions/0035-place-ownership-multi-owner-v1.md).
+- **Slice que implementa esta spec**: `src/features/place-settings/` (shell + sección idioma) — reusa `logoutAction` de `src/features/nav-hub/` vía su `public.ts`.
+- **Schema base + invariantes del dominio**: [`../../data-model.md`](../../data-model.md) — invariante `place.default_locale` editable + CHECK de los 6 locales.
+- **Routing multi-tenant** (zona place `{slug}.place.community/settings`): [`../../multi-tenancy.md`](../../multi-tenancy.md).
+- **Plan de sesiones operativo**: [`./plan-sesiones.md`](./plan-sesiones.md).
+- **Test checklist por sesión**: [`./tests.md`](./tests.md).

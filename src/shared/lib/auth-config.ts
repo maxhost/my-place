@@ -20,6 +20,20 @@ type NeonAuthConfig = Parameters<typeof createNeonAuth>[0];
 // líder es host-only → la sesión no cruza subdominios y auth rota en silencio
 // entre el sitio público y cada place. Por eso `cookies.domain` es
 // OBLIGATORIO y se deriva del apex `NEXT_PUBLIC_APP_DOMAIN` con punto líder.
+//
+// Cookie hardening (audit Phase 2.E, 2026-06-01): el SDK Neon Auth expone UN
+// solo flag de cookie configurable —`sameSite`— en su `SessionCookieConfig`
+// (junto a `secret`/`domain`/`sessionDataTtl`). `httpOnly` y `secure` NO son
+// configurables: el SDK los aplica internamente (session cookies de Better
+// Auth son `HttpOnly` por diseño; `Secure` "always applied" per docs del SDK).
+// Por eso el único hardening explícito posible acá es `sameSite`. Lo fijamos a
+// `"strict"` (= default actual del SDK) por zero-trust sobre defaults: si una
+// versión futura cambiara el default, nuestra postura no se altera en silencio.
+// `"strict"` es seguro para nuestra topología: los subdominios de `.<apex>`
+// son same-site (la cookie viaja por `Domain` compartido, no por sameSite), y
+// el cruce a custom domains NO depende de que la cookie viaje cross-site — usa
+// el Signed Ticket SSO (ADR-0032: init→issue→redeem siembra sesión local en
+// el destino). Ningún flujo depende de envío cross-site de esta cookie.
 const APEX_DOMAIN = /^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
 
 function requireEnv(name: string): string {
@@ -52,7 +66,12 @@ export function buildNeonAuthConfig(): NeonAuthConfig {
 
   return {
     baseUrl,
-    // Punto líder = compartida entre todos los subdominios del apex.
-    cookies: { secret, domain: `.${appDomain}` },
+    cookies: {
+      secret,
+      // Punto líder = compartida entre todos los subdominios del apex.
+      domain: `.${appDomain}`,
+      // Explícito (no default) — ver bloque "Cookie hardening" arriba.
+      sameSite: "strict",
+    },
   };
 }
