@@ -12,6 +12,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:node": "vitest run --project node",
+    "test:ui": "vitest run --project ui",
     "e2e": "node scripts/ensure-e2e-cert.mjs && playwright test",
     "e2e:ui": "node scripts/ensure-e2e-cert.mjs && playwright test --ui",
     "db:generate": "drizzle-kit generate",

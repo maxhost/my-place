@@ -56,8 +56,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Vitest suite full (node + ui projects)
-        run: pnpm test
+      # Projects en pasos separados (Phase 2.C.1, 2026-06-02): status check
+      # independiente por capa — un fail dice de una si rompió la DB/lógica
+      # (node) o la UI (jsdom). El project `node` (integration contra Neon)
+      # lleva los secrets; el `ui` (jsdom puro) no toca DB. NO es un fix de
+      # flake: la investigación 2.C.1 corrió la suite 6x (5 bajo carga 8x) sin
+      # reproducir el flake del 2026-05-28 → ver docs/gotchas/vitest-parallel-projects-flake.md.
+      - name: Vitest project node (integration + lógica)
+        run: pnpm test:node
         env:
           DATABASE_URL_TEST: ${{ secrets.DATABASE_URL_TEST }}
           DATABASE_URL_TEST_MIGRATE: ${{ secrets.DATABASE_URL_TEST_MIGRATE }}
+
+      - name: Vitest project ui (componentes jsdom)
+        run: pnpm test:ui

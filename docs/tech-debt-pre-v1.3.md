@@ -539,11 +539,11 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`)
   - `src/features/access/auth-actions.ts` branches: `error → status:'signup_failed'`, `data?.token` falsy
   - Integration `app.invitation_preview` directo (no solo via wrapper)
   - Integration `app.lookup_user_email_by_id` (si decisión 1.A.iii = keep; skip si dropped)
-- [ ] **Investigar flake `pnpm test` ambos projects en paralelo** (hallazgo Phase 1.B, 2026-05-28): `vitest run` sin filtro corre node + ui projects concurrentemente y reporta 26 fails (WebSocket close en `src/db/__tests__/lookup-place-by-domain.test.ts` y otros DB tests Neon). Aislados (`--project node` y `--project ui`) ambos verde total (949/949 + 211/211). Síntoma: contención de connection pool Neon + WS disconnect cuando jsdom workers de UI corren en paralelo con node DB workers. Pre-existente al cambio de 1.B (no regresión). Pendiente investigar config `vitest.config.ts`:
-  - Probar `poolMatchGlobs` o `pool: "forks"` para isolation por project
-  - Limitar `maxConcurrency` del project node (DB-bound, sequential-friendly)
-  - O documentar como gotcha + ajustar workflow CI / `package.json` script local (separar `test:node` + `test:ui` en lugar de `test` único)
-  - Workflow CI actual no afectado (corre los projects por separado)
+- [x] **Investigar flake `pnpm test` ambos projects en paralelo** (hallazgo Phase 1.B, 2026-05-28) → **INVESTIGADO 2026-06-02, NO REPRODUCIBLE**. Repro empírico con config idéntica a la del hallazgo (`vitest.config.ts` sin cambios desde 2026-05-18, `testTimeout` node 30s ya presente): 6/6 corridas verde (1177/1177), 5 de ellas bajo 8 CPU burners en máquina de 8 cores (load avg 65-76, oversubscripción 8x). **Hipótesis de starvation de CPU REFUTADA** — si fuera contención de CPU sobre el event loop del worker node (→ WS heartbeat tardío → close), load 70+ lo habría disparado; no lo hizo, y cada iter tardó ~8min incluso bajo carga (suite node es I/O-bound, no CPU-bound). Causa probable del flake del 28/05: condición transitoria de Neon (restart compute scale-to-zero / blip de red / límite de conexiones del branch ese momento), ya resuelta. **Decisión: NO tocar pools/concurrency** (sería fixear un fantasma, viola "evidencia reproducible antes del fix"). Mitigación higiénica aplicada:
+  - Scripts `test:node` + `test:ui` (`package.json`) — DX + aislamiento por capa.
+  - `tests.yml` corre los projects en pasos separados → status check independiente por project + hace verdadera la nota previa "CI separa los projects" (que era **incorrecta**: el workflow corría `pnpm test` = ambos juntos).
+  - Gotcha `docs/gotchas/vitest-parallel-projects-flake.md` con el protocolo si reaparece (capturar stack fresco → verificar connection limit del branch Neon → recién ahí limitar `maxForks`).
+  - `pnpm test` (ambos en paralelo) queda sin cambios como entrypoint local.
 
 **Acceptance**: coverage report visible en cada PR · threshold no rota tests existentes · 3-4 tests nuevos verdes · `pnpm test` no flakea o split en scripts separados con doc clara.
 
