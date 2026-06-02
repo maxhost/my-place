@@ -65,7 +65,13 @@ const nextConfig: NextConfig = {
   // localhost salvo que estén acá → sin esto la hidratación no completa sobre
   // lvh.me. SOLO afecta `next dev`; ignorado en el build de producción. Ver
   // docs/testing.md.
-  allowedDevOrigins: ["lvh.me", "*.lvh.me"],
+  //
+  // Phase 2.B.2: `127.0.0.1.nip.io` es el custom domain del E2E accept invite
+  // cross-domain (registrable domain ≠ lvh.me, loopback IPv4). Sin él la
+  // hidratación del `InviteAcceptancePanel` no completa sobre ese host → el
+  // botón "Aceptar" nunca se vuelve interactivo (click no-op, flaky por race de
+  // hidratación). Mismo carácter dev-only que las entradas `lvh.me`.
+  allowedDevOrigins: ["lvh.me", "*.lvh.me", "127.0.0.1.nip.io"],
 
   async headers() {
     return [

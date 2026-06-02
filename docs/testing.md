@@ -145,6 +145,51 @@ El flip `pending→verified` es determinístico: el registro usa `addDomain`
 creds (`VERCEL_API_TOKEN`/`VERCEL_PROJECT_ID`) se inyectan como mock — el stub
 ignora auth. Producción nunca setea `VERCEL_API_BASE_URL` → cae al default real.
 
+### E2E accept invite cross-domain (Phase 2.B.2)
+
+El E2E más frágil del V1.2 (`accept-invite-cross-domain.spec.ts`): un invitee
+aterriza en el invite link de un place **con custom domain verificado**, se crea
+cuenta en el apex, y acepta la invitación **desde el custom domain** (sesión
+local SSO, registrable domain distinto del apex). Custom domain =
+`127.0.0.1.nip.io` (A-record IPv4-only; `localtest.me` trae AAAA → happy-eyeballs
+puede pegarle a `::1` y flakear). El cert E2E lo cubre en su SAN.
+
+**Camino activo: fallback documentado (cadena SSO live sustituida).** La cadena
+live (init→issue→redeem) es **intratable** en el harness local `:3000`: las
+rutas SSO (`buildSsoInitUrlForInvite`, `sso-issue` `buildRedeemUrl`, `sso-redeem`
+`buildLandingUrl`) reconstruyen el host del custom domain **sin puerto**
+(`https://<host>/...` → `:443`) — correcto para producción, roto cuando todo
+corre en `:3000`. Arreglarlo exigiría tocar código de producción de routing
+(fuera de scope de un test) o correr en `:443` (privilegiado, inviable en CI), y
+el flaky-risk del redirect chain cross-registrable-domain con TLS self-signed
+violaría el acceptance "0 flaky".
+
+Por eso **sustituimos sólo los 3 hops del redirect SSO** — ya cubiertos por sus
+`route.test.ts` (sso-init/issue/redeem) — minteando la cookie
+`__Host-place_sso_session` que el redeem habría emitido (`mintLocalSession`,
+misma signing key del apex) e inyectándola en el custom domain
+(`context.addCookies`). **Todo lo demás corre real**: signup del owner (wizard) +
+signup del invitee (apex AccessFlow, cuenta sin place) + seed del `place_domain`
+verified + invitación (DEFINER `app.create_invitation`) + routing custom-domain
+del proxy + `verifyLocalSession` + `acceptInvitationAction` cross-domain +
+consumo del token (re-visita → 404). Bonus del fallback: no ejecuta el self-fetch
+JWKS → **no** requiere `NODE_TLS_REJECT_UNAUTHORIZED=0`.
+
+Aserciones (independientes de la nav post-success, que apunta a un `placeHomeUrl`
+sin puerto que NO seguimos): (1) anon ve la variante unauth en el custom domain,
+(4) con sesión local ve la variante **match** (Aceptar) — render autenticado
+cross-domain, (5) `membership` creada en el DB, (6) re-visita → 404.
+
+**Seed (`_support/db-seed.ts`)**: conexión admin (`DATABASE_URL_MIGRATE`, espejo
+de `db-cleanup.ts`). Siembra `place_domain` verified vía INSERT y la invitación
+vía la DEFINER canónica con el claim `request.jwt.claims` spoofeado tx-local al
+`auth_user_id` del owner (`set_config`, forma estándar de invocar una función
+SECURITY DEFINER como un usuario concreto en seeds). `neondb_owner` es dueño de
+la función → la ejecuta pese al REVOKE FROM PUBLIC. Requiere
+`PLACE_SSO_SIGNING_KEY` + `PLACE_SSO_SIGNING_KEY_KID` en `.env.e2e` (server para
+verificar, runner para mintear). El cleanup barre `place_domain` + `invitation` +
+`membership` por patrón de email.
+
 ### Bootstrap compartido del owner
 
 `_support/bootstrap.ts` (`signUpOwner`) corre el wizard de signup completo y
@@ -160,9 +205,11 @@ decisión 1.C). La sesión queda con `Domain=.lvh.me` → viaja a los subdominio
 tests/e2e/
   signup-happy-path.spec.ts        # E2E #1: place-first signup → create → success
   register-custom-domain.spec.ts   # E2E #2: none → pending → verified → none (stub Vercel)
+  accept-invite-cross-domain.spec.ts # E2E #3: anon invite → signup → accept en custom domain
   _support/
     bootstrap.ts                   # signUpOwner — wizard de signup compartido
     db-cleanup.ts                  # cleanupE2EData + E2E_EMAIL_PATTERN (canon)
+    db-seed.ts                     # seed place_domain+invitación + mint sesión SSO local (E2E #3)
     global-setup.ts                # pre-clean defensivo
     global-teardown.ts             # barrido post-run
 scripts/
