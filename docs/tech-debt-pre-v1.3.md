@@ -25,7 +25,7 @@
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
 | **1 — Hardening** | 7 | 7/7 ✅ | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | `baseline/phase-1-tech-debt-done` = `3fa0cc3` ✅ |
-| **2 — Tests + docs** | 9 | 5/9 (2.A, 2.G, 2.E, 2.F, 2.D ✅) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | _pending_ |
+| **2 — Tests + docs** | 9 | 6/9 (2.A, 2.G, 2.E, 2.F, 2.D, 2.B ✅) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
@@ -442,13 +442,13 @@ V1.3 puede arrancar **en paralelo** con esta phase si recursos lo permiten. No b
 
 ### Orden de ejecución acordado (2026-05-31)
 
-Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`aace521`) · **2.E cerrada** (`c5602b2`) · **2.F cerrada** (`4c20adf`) · **2.D cerrada** (`79c96a7` + `77a5b05`, 2 subsesiones). Próxima = **2.B**. Las restantes en este orden:
+Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`aace521`) · **2.E cerrada** (`c5602b2`) · **2.F cerrada** (`4c20adf`) · **2.D cerrada** (`79c96a7` + `77a5b05`, 2 subsesiones) · **2.B cerrada** (`1b9df3f` + `780b9be`, 2 subsesiones). Próxima = **2.C**. Las restantes en este orden:
 
 1. **2.G** — i18n strings → translations (~1h) ✅
 2. **2.E** — doc polish + cookie audit (~1.5h) ✅
 3. **2.F** — backup/PITR + drifts deps (~1.5h) ✅
 4. **2.D** — data-model gaps + stubs ontologías (~2h) ✅
-5. **2.B** — 2 E2E críticos · reusa harness E2E de 2.A · dividida en 2 subsesiones: **2.B.1 register custom domain ✅** (`1b9df3f`) · **2.B.2 accept invite cross-domain ← PRÓXIMA**
+5. **2.B ✅** — 2 E2E críticos · reusa harness E2E de 2.A · dividida en 2 subsesiones: **2.B.1 register custom domain ✅** (`1b9df3f`) · **2.B.2 accept invite cross-domain ✅** (`780b9be`)
 6. **2.C** — coverage thresholds + investigar flake `pnpm test` (~3h)
 7. **2.H** — Suspense boundaries settings + streaming (~2-3h) · load-bearing
 8. **2.I** — Strict CSP nonce-based (~2-4h) · load-bearing · última (más compleja)
@@ -510,16 +510,23 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`)
 
 **Commit**: `1b9df3f test(e2e): Phase 2.B.1 — E2E register custom domain + stub Vercel (seam DI)` · **Tag**: _no aplica (no load-bearing; el tag de phase espera a 2.B.2)_
 
-#### Sesión 2.B.2 — E2E accept invite cross-domain [~2.5h]
+#### Sesión 2.B.2 — E2E accept invite cross-domain [~2.5h] ✅
 
-- [ ] 2º loopback domain (`localtest.me` → 127.0.0.1) como custom domain + extender cert SAN (`scripts/ensure-e2e-cert.mjs`)
-- [ ] `_support/db-seed.ts` (admin conn): `place_domain` verified + invitación pendiente (`app.create_invitation`)
-- [ ] TLS del self-fetch JWKS (`NODE_TLS_REJECT_UNAUTHORIZED=0` E2E-only)
-- [ ] E2E: signup → cadena SSO 4-hop → accept en custom domain → Hub CD. **Fidelidad: cadena completa con fallback documentado** (mintear `__Host-place_sso_session` si el live resulta intratable), timeboxed
+**Camino activo (decisión de la sesión, 2026-06-01): FALLBACK documentado del plan, no la cadena live.** Diagnóstico: la cadena SSO live (init→issue→redeem) es **intratable** en el harness local `:3000` — las rutas SSO (`buildSsoInitUrlForInvite`, `sso-issue:buildRedeemUrl`, `sso-redeem:buildLandingUrl`) reconstruyen el host del custom domain **sin puerto** (`https://<host>/...` → `:443`), correcto para prod pero roto en `:3000`. Arreglarlo exigiría tocar código de producción de routing (fuera de scope) o correr en `:443` (privilegiado, inviable en CI), y el flaky-risk del redirect chain violaría el acceptance "0 flaky". Se sustituyen **sólo los 3 hops del redirect** — ya cubiertos por sus `route.test.ts` (sso-init/issue/redeem) — minteando la cookie `__Host-place_sso_session` que el redeem habría emitido (`mintLocalSession`, misma signing key) e inyectándola. Todo lo demás corre REAL. Bonus: el fallback NO ejecuta el self-fetch JWKS → `NODE_TLS_REJECT_UNAUTHORIZED=0` resultó innecesario.
 
-**Acceptance**: 3 E2E verdes en CI · runtime <5min total · 0 flaky en 3 runs consecutivas.
+**Items cerrados**:
+- [x] Custom domain = `127.0.0.1.nip.io` (NO `localtest.me`: trae AAAA → happy-eyeballs flakea contra `::1`; nip.io es A-record IPv4-only, empareja el stack de `lvh.me`). Cert SAN extendido + regeneración si un cert viejo no lo cubre (`scripts/ensure-e2e-cert.mjs`).
+- [x] `_support/db-seed.ts` (admin conn): `place_domain` verified (INSERT idempotente — barre fila activa del dominio constante antes de insertar, índice único es por-dominio global) + invitación vía `app.create_invitation` con claim `request.jwt.claims` spoofeado tx-local al owner (`set_config`). + `lookupAuthUserIdByEmail` + `mintLocalSessionCookie` + `membershipExists`.
+- [x] ~~TLS self-fetch JWKS~~ **no aplica** (el fallback no ejecuta el redeem → sin self-fetch).
+- [x] `next.config.ts`: `allowedDevOrigins` suma `127.0.0.1.nip.io` (dev-only) — **root cause de la flakiness inicial**: sin él, la hidratación del `InviteAcceptancePanel` no completa sobre ese host → el botón Aceptar nunca se vuelve interactivo (click no-op por race de hidratación).
+- [x] E2E `tests/e2e/accept-invite-cross-domain.spec.ts` (chromium+webkit): (1) anon en custom domain → unauth · (2) signup real del invitee en apex · (3) mint+inject sesión local · (4) custom domain con sesión → variante **match** (render autenticado cross-domain) · (5) Aceptar → `membership` creada (verdad en DB) · (6) re-visita → 404 (token consumido). Pasos del custom domain en páginas nuevas (la nav post-success portless cuelga la página). Aserciones por selectores estables (los labels con placeholder rinden la key cruda por FORMATTING_ERROR pre-existente).
+- [x] Docs: `docs/testing.md` (§"E2E accept invite cross-domain" + fallback rationale + estructura) · `.env.e2e.example` (PLACE_SSO_SIGNING_KEY throwaway requerida + E2E_CUSTOM_DOMAIN).
 
-**Commit**: _pending_ · **Tag**: `baseline/phase-2-B-e2e-done` (al cerrar la phase, post-2.B.2)
+**Observación (no bloqueante, candidata a bug separado)**: el invite page rinde la **key i18n cruda** (`placeInvitation.header`, etc.) para labels con placeholder `{placeName}`/`{email}` porque la page los pasa por `t()` (no `t.raw()`) y los interpola client-side → next-intl tira FORMATTING_ERROR y devuelve la key. Pre-existente (notado en 2.B.1). Triage aparte si se decide arreglar (usar `t.raw()` en `invite/[token]/page.tsx`).
+
+**Acceptance** (verificado 2026-06-01): ✅ suite e2e completa **6/6** (signup×2 + register×2 + accept×2, ~1.2min <5min) · ✅ accept spec **3 runs consecutivas verdes** (2 passed c/u, chromium+webkit → 0 flaky) · ✅ `membership` stampeada + token consumido (re-visita 404) · ✅ render autenticado en custom domain (variante match vía sso-local) · ✅ vitest **1177/1177** (sin regresión) · ✅ typecheck.
+
+**Commit**: `780b9be test(e2e): Phase 2.B.2 — E2E accept invite cross-domain (fallback sso-local)` · **Tag**: `baseline/phase-2-B-e2e-done` (creado sobre el tracker commit de cierre).
 
 ---
 
