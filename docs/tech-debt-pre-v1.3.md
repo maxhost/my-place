@@ -448,7 +448,7 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`)
 2. **2.E** — doc polish + cookie audit (~1.5h) ✅
 3. **2.F** — backup/PITR + drifts deps (~1.5h) ✅
 4. **2.D** — data-model gaps + stubs ontologías (~2h) ✅
-5. **2.B** — 2 E2E críticos (accept invite cross-domain + register custom domain) (~3h) · reusa harness E2E de 2.A ← PRÓXIMA
+5. **2.B** — 2 E2E críticos · reusa harness E2E de 2.A · dividida en 2 subsesiones: **2.B.1 register custom domain ✅** (`1b9df3f`) · **2.B.2 accept invite cross-domain ← PRÓXIMA**
 6. **2.C** — coverage thresholds + investigar flake `pnpm test` (~3h)
 7. **2.H** — Suspense boundaries settings + streaming (~2-3h) · load-bearing
 8. **2.I** — Strict CSP nonce-based (~2-4h) · load-bearing · última (más compleja)
@@ -508,7 +508,7 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`)
 
 **Acceptance** (verificado 2026-06-01): ✅ typecheck verde · ✅ `pnpm e2e register-custom-domain` 2/2 verde (chromium+webkit, 33s) · ✅ suite e2e completa 4/4 verde (signup×2 + register×2) · ✅ cleanup post-run barre place+place_domain · ✅ vitest custom-domain 69/69 + vercel 33/33 (sin regresión por el seam) · ✅ `FORMATTING_ERROR` en logs = warnings pre-existentes de next-intl ({slug}/{domain} resueltos client-side, no regresión).
 
-**Commit**: _ver siguiente commit_ · **Tag**: _no aplica (no load-bearing; el tag de phase espera a 2.B.2)_
+**Commit**: `1b9df3f test(e2e): Phase 2.B.1 — E2E register custom domain + stub Vercel (seam DI)` · **Tag**: _no aplica (no load-bearing; el tag de phase espera a 2.B.2)_
 
 #### Sesión 2.B.2 — E2E accept invite cross-domain [~2.5h]
 
