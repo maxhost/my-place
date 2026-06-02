@@ -2,7 +2,7 @@
 
 Schema del core del producto, expresado en **SQL (Postgres) ORM-agnóstico**. El método de acceso (ORM/query builder/SQL plano) está TBD; el modelo no depende de esa decisión. Cada feature agrega sus propias tablas respetando este core.
 
-> _Última actualización: 2026-05-28 (Phase 1.A tech-debt closure — migrations 0025 FK indexes + canon `SET lock_timeout = '5s'` en migrations DDL, 0026 DROP zombie `app.lookup_user_email_by_id` superseded por 0024)._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
+> _Última actualización: 2026-06-01 (Phase 2.D tech-debt closure — §"Catálogo DEFINER" (18 funciones), policy `au_peer_member_read` en §Auth (ADR-0038), §"Tablas anti-replay" con `app.sso_jti_used` (ADR-0032))._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
 
 ## Schema base
 
@@ -269,7 +269,17 @@ Place usa **Neon Auth** (sobre Better Auth managed) para el apex `*.place.commun
 - **Integración con `app_user` (decidido: separada, 1:1).** `app_user` es la capa de identidad universal del producto y vive **separada** de la tabla de login de Better Auth, con link 1:1 vía `app_user.auth_user_id UNIQUE`. Razón: la anonimización del derecho al olvido opera sobre `app_user` sin tocar las tablas de auth, y el modelo de dominio no se acopla al schema de la librería. `app_user` se provisiona por orquestación app-side (Server Action de signup) + guard JIT idempotente `ensureAppUser`, **no** por hook/trigger (Neon Auth gestionado, sin webhooks) — canónico en ADR-0006.
 - **SSO cross-domain via Signed Ticket (ADR-0032, post-2026-05-22).** `*.place.community` (subdomains + inbox) comparten la cookie cross-subdomain `Domain=.place.community` (Neon Auth managed) y **no requieren SSO** entre ellos. Custom domains tienen **sesión local propia**: cookie host-only `__Host-place_sso_session` con JWT ES256 (firmado por apex, TTL 7d, claims `{iss:'place.community', sub:<neon_auth.user.id>, host:<custom_domain>, kid}`). El flow init → issue → redeem usa 4 endpoints (`/api/auth/sso-init`, `/api/auth/sso-issue`, `/api/auth/sso-redeem`, `/api/auth/sso-jwks`) + tabla `app.sso_jti_used` (single-use anti-replay, GC oportunista, función `app.consume_sso_jti` SECURITY DEFINER) + cookie efímera `__Host-place_sso_state` (CSRF + nonce echo, TTL 120s, HMAC firmada con HKDF de signing key). **NO** se provisiona OIDC client per dominio — la columna `place_domain.oauth_client_id` queda NULL indefinidamente (forward-compat). Audience binding (`aud` claim del ticket vs host del redeem) + jti single-use + state cookie CSRF + open-redirect validation triple (init, issue, redeem) = defense-in-depth. Continuidad RLS: `sub` del local session = `neon_auth.user.id` → `app.current_user_id()` retorna el mismo valor cross-domain, cero refactor de policies. Topología canónica + spec detallada en `architecture.md` § "Sesión y SSO" + ADR-0032.
 - **RLS base (ADR-0006/0010/0011).** El aislamiento entre places se enforcea en Postgres RLS por-operación, no solo en código. Identidad vía función propia `app.current_user_id()` (ADR-0011, no Neon RLS). Base: `app_user` solo accesible por su dueño (`app.current_user_id() = auth_user_id`); tablas con `place_id` solo por el owner del place (vía `place_ownership`). Acceso de miembros = por-feature encima de la base. Rol custom no-admin + JWT verificado por JWKS; sin Data API ni `anon`. Spec operativa: `docs/multi-tenancy.md` § RLS.
+- **Peer-read sobre `app_user` (`au_peer_member_read`, migration 0021, ADR-0038).** Segunda policy `FOR SELECT` sobre `app_user`, **agregada** (no reemplaza) a `au_self` (`FOR ALL` self-only) — Postgres OR-ea ambas en SELECT, así que INSERT/UPDATE/DELETE siguen self-only. Permite al caller leer las filas de otros usuarios con los que **comparte una membership activa** en algún place (regla canónica del "3er sujeto del trio `place`/`membership`/`app_user`", extiende ADR-0021). Resuelve el gap de Feature E S6: `loadMembers`/`loadPendingInvitations` necesitan `display_name`/`handle`/`avatar_url` de otros miembros e inviters. El predicado natural (EXISTS con 3-table JOIN que re-lee `app_user`) causa `infinite recursion detected in policy`; se rompe extrayendo el EXISTS al helper `app.is_peer_member(text)` **SECURITY DEFINER STABLE** (corre como `neondb_owner`, BYPASSRLS por construcción, retorna boolean puro — cero leak de filas). Reglas de lectura derivadas + reverse SQL + cobertura por `idx_membership_user_active` (migration 0004): ver ADR-0038 y catálogo DEFINER abajo.
 - **TBD acotado restante:** firma de ID tokens (RS256 vs EdDSA) la gestiona Neon Auth (`neon_auth.jwks` presente) — detalle de implementación, no afecta el modelo.
+
+## Tablas anti-replay (schema `app`)
+
+Tablas de estado interno de seguridad, sin UI ni path de lectura legítimo desde features. Patrón canónico: la tabla vive en el schema `app`, owned por `neondb_owner` (rol de migraciones, BYPASSRLS), **sin GRANT a `app_system`** (rol runtime) + **RLS ENABLE sin policies** → doble capa de deny; el único canal de acceso es una función `SECURITY DEFINER`.
+
+- **`app.sso_jti_used` (migration 0011, ADR-0032 §"jti single-use").** Anti-replay del ticket SSO cross-domain (custom domains). Cada ticket JWT lleva un `jti` (UUID random) que `/api/auth/sso-redeem` debe consumir exactamente una vez; un segundo intento (browser back, replay, double-click) lo detecta y responde `?sso_error=replay`. Columnas: `jti TEXT PRIMARY KEY`, `consumed_at TIMESTAMPTZ DEFAULT now()`, `expires_at TIMESTAMPTZ NOT NULL` + índice `sso_jti_used_expires_at_idx` sobre `expires_at`. 
+  - **Único canal**: `app.consume_sso_jti(p_jti text, p_exp timestamptz) → boolean` SECURITY DEFINER **VOLATILE** (no STABLE: cachearía resultados → replay invisible). Hace GC oportunista (`DELETE WHERE expires_at < now()`) + `INSERT ... ON CONFLICT (jti) DO NOTHING` + `GET DIAGNOSTICS row_count`: retorna `true` si insertó (primera consume), `false` si ya existía (replay). `ON CONFLICT` sobre la PK serializa la race → exactamente un consume gana bajo concurrencia.
+  - **Doble deny defense-in-depth**: (a) sin GRANT, cualquier acceso directo de `app_system` lanza `permission denied for table sso_jti_used` antes de evaluar RLS; (b) RLS ENABLE sin policies → 0 rows aún si un bug futuro agregara GRANT. El caller del redeem es **anónimo** (la sesión local se está construyendo en el flow) → no hay claim `sub` para autorizar; la DEFINER es el único canal seguro.
+  - **GC sin cron** (V1): cada consume limpia los expirados antes del INSERT → la tabla nunca crece más allá de `throughput × ticket TTL`. Si el tráfico cae a cero, las filas expiradas quedan hasta el próximo consume (irrelevante, sin costo de query).
 
 ## Derecho al olvido
 
@@ -316,7 +326,7 @@ Las migrations viven en `src/db/migrations/*.sql` numeradas secuencialmente (`00
 
 - **Canon `SET lock_timeout = '5s'` en migrations DDL**: toda migration que tome AccessExclusiveLock sobre tablas con tráfico potencial (`CREATE INDEX`, `ALTER TABLE ADD COLUMN`, `ALTER TABLE ALTER COLUMN`, `ALTER TABLE ADD CONSTRAINT` validando filas existentes, etc.) DEBE prefijarse con `SET lock_timeout = '5s';--> statement-breakpoint`. Establecido como canon transversal en migration 0025 (Phase 1.A tech-debt closure 2026-05-28). Rationale: 5s es el budget máximo aceptable por AccessExclusiveLock antes de fail-fast → evita stalls indefinidos por lock contention silenciosa (long-running query bloqueando deploy). Si la migration excede el budget, falla con SQLSTATE `55P03` (lock_not_available) → operator corre off-hours o reformula con `CREATE INDEX CONCURRENTLY`. El timeout es session-local (no requiere reverse SQL). DEFINER-only migrations (`CREATE FUNCTION`, sin DDL en tablas) no requieren el SET — el lock que toman es trivial.
 
-- **Verify post-apply**: cada migration debería tener su integration test correspondiente en `src/db/__tests__/*.test.ts` (cobertura DEFINER ~95%, ver inventario en §"Catálogo DEFINER" abajo cuando exista — pendiente Phase 2.D).
+- **Verify post-apply**: cada migration debería tener su integration test correspondiente en `src/db/__tests__/*.test.ts` (cobertura DEFINER ~95%, inventario completo en §"Catálogo DEFINER" abajo).
 
 ### Rollback de migration
 
@@ -326,3 +336,41 @@ Drizzle-kit NO soporta rollback automático (no hay `down` migrations en el desi
 2. **Dev branch Neon**: opción de reset desde parent branch via Neon dashboard (`neon branch reset`) o vía MCP.
 
 El reverse SQL recomendado vive en comentario al inicio del `.sql` original (precedente: `0008_place_domain_partial_unique.sql:38-43`).
+
+## Catálogo DEFINER
+
+Toda mutación crítica del core + todo lookup que deba bypasear RLS pasa por una función `SECURITY DEFINER` del schema `app`. Son la **única** superficie de escritura sobre las tablas WORM/protegidas (las rutas TS nunca tocan SQL directo — defense-in-depth vía `REVOKE INSERT/UPDATE/DELETE` sobre las tablas + `GRANT EXECUTE` sólo sobre la función). El SQL canónico vive en `src/db/migrations/*.sql`; cada DEFINER tiene `SET search_path` fijo (anti-hijack) y su integration test en `src/db/__tests__/*.test.ts`.
+
+**ACL canon (uniforme, las 18):** `REVOKE EXECUTE ... FROM PUBLIC` + `GRANT EXECUTE ... TO "app_system"`. `app_system` es el ÚNICO rol runtime (ADR-0011) que conecta el backend Vercel a Postgres; ninguna DEFINER es invocable por `PUBLIC` ni por otro rol. La columna EXECUTE de la tabla es por eso uniforme y se omite por fila.
+
+**18 funciones DEFINER activas** (al momento de este doc; `create_place` cuenta como 2 por overload de aridad — Postgres trata distintas aridades como funciones distintas):
+
+| Función | Migration canónica | Propósito · feature owner |
+|---------|--------------------|---------------------------|
+| `app.create_place` (5-arg) | 0013 (orig 0002) | place-creation: place + founder ownership + membership · **compat surface legacy** (sin `default_locale`) |
+| `app.create_place` (6-arg) | 0013 (orig 0007) | place-creation: idem + `default_locale` · **caller actual del wizard** (ADR-0022) |
+| `app.invitation_preview` | 0003 | invitations: valida token + retorna place/name/email invitado (preview pre-accept) |
+| `app.accept_invitation` | 0003 | invitations: consume token + inserta membership (acceptance) |
+| `app.lookup_place_by_domain` | 0009 | custom-domain-routing: lookup **anónimo** custom domain → `{place_id, slug}` |
+| `app.lookup_place_locale_by_slug` | 0010 | custom-domain-routing / i18n: lookup **anónimo** slug → `default_locale` |
+| `app.consume_sso_jti` | 0011 | custom-domain-sso: anti-replay del ticket jti (ver §Tablas anti-replay) |
+| `app.current_user_owns_place` | 0012 | **helper RLS anti-recursión**: ownership check para policies de `place_ownership` (ADR-0035 §4) |
+| `app.elevate_to_owner` | 0014 | place-ownership: promueve miembro activo a co-owner |
+| `app.revoke_ownership` | 0015 | place-ownership: revoca co-owner (no founder, no self-revoke V1) |
+| `app.transfer_founder_ownership` | 0016 | place-ownership: transfiere founder slot a otro owner (atómico) |
+| `app.update_my_headline` | 0017 | members: self-edit `membership.headline` ≤280 chars |
+| `app.create_invitation` | 0018 | invitations: owner genera token capability + quota check |
+| `app.revoke_invitation` | 0019 | invitations: owner cancela pending invitation (DELETE físico) |
+| `app.remove_member` | 0020 | members: owner soft-remove miembro activo (`left_at`) |
+| `app.is_peer_member` | 0021 | **helper RLS anti-recursión**: peer-member read sobre `app_user` (ADR-0038, ver §Auth) |
+| `app.lookup_custom_domain_by_slug` | 0022 | custom-domain-routing: lookup **anónimo** slug → custom domain verificado (inverso de 0009) |
+| `app.lookup_user_identity_by_id` | 0024 | access / members: lookup **anónimo** id → `{email, name}` jsonb (cross-schema `neon_auth`) |
+
+**Dropeadas:** `app.lookup_user_email_by_id(uuid)` — definida en 0023, **dropeada en 0026** (superseded por `app.lookup_user_identity_by_id` de 0024; zero callers TS post Phase 1.A). No cuenta en las 18.
+
+**Helpers de seguridad NO-DEFINER** (no bypasean RLS — se listan para completar el mapa, no son parte del catálogo DEFINER):
+
+| Función | Tipo | Propósito |
+|---------|------|-----------|
+| `app.current_user_id()` | `STABLE` (INVOKER) | extrae el claim `sub` del JWT del request (GUC `request.jwt.claims`); base de identidad de toda policy (ADR-0011) |
+| `app.get_inbox_payload()` | `STABLE` (INVOKER) | hub payload del caller (places + profile) **respetando RLS** del propio caller |
