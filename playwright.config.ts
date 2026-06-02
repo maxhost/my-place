@@ -27,6 +27,15 @@ const PORT = 3000;
 const BASE_URL = e2eEnv.NEXT_PUBLIC_APP_URL ?? `https://lvh.me:${PORT}`;
 const isCI = !!process.env.CI;
 
+// Stub HTTP de la Vercel Domains REST API (Phase 2.B.1). El wrapper
+// `src/shared/lib/vercel/domains-shared.ts` lee `VERCEL_API_BASE_URL` (seam
+// DI, default `api.vercel.com`); en E2E lo apuntamos a este stub local
+// (`scripts/e2e-vercel-stub.mjs`) para que el flujo de register custom domain
+// sea determinístico y hermético, sin tocar la API real ni registrar dominios
+// de verdad. Ver docs/testing.md §"Mock de Vercel en E2E".
+const VERCEL_STUB_PORT = 3010;
+const VERCEL_STUB_URL = `http://127.0.0.1:${VERCEL_STUB_PORT}`;
+
 // Cert self-signed (gitignored, regenerado por `pnpm e2e`). Paths relativos al
 // root del repo — Next los resuelve desde cwd del `next dev`.
 const HTTPS_KEY = "certificates/lvh.me-key.pem";
@@ -59,16 +68,36 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],
-  webServer: {
-    // `--experimental-https` + cert propio (no mkcert: evita el `-install` que
-    // pide sudo). El cert lo garantiza `pnpm e2e` antes de arrancar Playwright.
-    command: `pnpm dev --experimental-https --experimental-https-key ${HTTPS_KEY} --experimental-https-cert ${HTTPS_CERT}`,
-    url: `https://lvh.me:${PORT}`,
-    ignoreHTTPSErrors: true,
-    reuseExistingServer: !isCI,
-    timeout: 120_000,
-    // Inyecta los overrides del test branch al proceso `next dev`. Next no pisa
-    // vars ya seteadas en el entorno → estas ganan sobre `.env.local`.
-    env: { ...e2eEnv, PORT: String(PORT) },
-  },
+  // Dos servidores: (1) el stub de Vercel (arranca primero, sin deps), (2) el
+  // dev server de Next apuntado al stub vía `VERCEL_API_BASE_URL`. Playwright
+  // espera a que ambos `url` respondan antes de correr los specs.
+  webServer: [
+    {
+      command: `node scripts/e2e-vercel-stub.mjs`,
+      url: VERCEL_STUB_URL,
+      reuseExistingServer: !isCI,
+      timeout: 30_000,
+      env: { E2E_VERCEL_STUB_PORT: String(VERCEL_STUB_PORT) },
+    },
+    {
+      // `--experimental-https` + cert propio (no mkcert: evita el `-install` que
+      // pide sudo). El cert lo garantiza `pnpm e2e` antes de arrancar Playwright.
+      command: `pnpm dev --experimental-https --experimental-https-key ${HTTPS_KEY} --experimental-https-cert ${HTTPS_CERT}`,
+      url: `https://lvh.me:${PORT}`,
+      ignoreHTTPSErrors: true,
+      reuseExistingServer: !isCI,
+      timeout: 120_000,
+      // Inyecta los overrides del test branch al proceso `next dev`. Next no pisa
+      // vars ya seteadas en el entorno → estas ganan sobre `.env.local`.
+      // Las VERCEL_* apuntan el wrapper al stub local con creds mock (el stub
+      // ignora auth); el `?? default` permite override desde `.env.e2e`.
+      env: {
+        ...e2eEnv,
+        PORT: String(PORT),
+        VERCEL_API_BASE_URL: e2eEnv.VERCEL_API_BASE_URL ?? VERCEL_STUB_URL,
+        VERCEL_API_TOKEN: e2eEnv.VERCEL_API_TOKEN ?? "e2e-mock-token",
+        VERCEL_PROJECT_ID: e2eEnv.VERCEL_PROJECT_ID ?? "e2e-mock-project",
+      },
+    },
+  ],
 });

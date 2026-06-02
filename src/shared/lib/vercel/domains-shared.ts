@@ -11,8 +11,19 @@ import { log } from "@/shared/lib/observability/log";
 // (root-scoped: `getDomainConfig`, ADR-0029). Para mantener cada
 // archivo bajo el cap LOC ≤300, los helpers comunes viven acá.
 
-/** Base URL de la REST API de Vercel — sin trailing slash. */
-export const VERCEL_API_BASE = "https://api.vercel.com";
+/**
+ * Base URL de la REST API de Vercel — sin trailing slash.
+ *
+ * Override por `VERCEL_API_BASE_URL` (default `https://api.vercel.com`):
+ * seam de inyección de dependencia para los E2E (Phase 2.B), que apuntan el
+ * wrapper a un stub HTTP local (`scripts/e2e-vercel-stub.mjs`) en vez de la
+ * API real. NO es lógica de test en el wrapper: el código de negocio es
+ * idéntico, sólo cambia el host destino — production nunca setea esta var y
+ * cae al default. Evaluado a module-load: el dev server de los E2E inyecta la
+ * var por `webServer.env` antes de arrancar Next (ver playwright.config.ts).
+ */
+export const VERCEL_API_BASE =
+  process.env.VERCEL_API_BASE_URL ?? "https://api.vercel.com";
 
 /**
  * Discriminated union de razones de error que el wrapper expone hacia

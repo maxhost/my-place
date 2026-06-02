@@ -3,7 +3,7 @@
 Estrategia de tests de Place y cómo correr cada capa. Doc canónico: la config de
 Playwright, `next.config.ts` y `.env.e2e.example` apuntan acá para el rationale.
 
-> **Última actualización:** 2026-05-31 (Phase 2.A tech-debt — setup E2E Playwright).
+> **Última actualización:** 2026-06-01 (Phase 2.B.1 tech-debt — E2E register custom domain + stub de Vercel + helper de bootstrap).
 
 ## Capas
 
@@ -119,15 +119,54 @@ fallara.
   el cold-start, no flakiness real.
 - **Projects `chromium` + `webkit`**: cobertura de los 2 engines que más divergen.
 
+### Mock de Vercel en E2E (Phase 2.B.1)
+
+El E2E de **register custom domain** (`register-custom-domain.spec.ts`) ejercita
+el flujo owner → `/settings/domain` → vincular → `pending` → `verified` →
+remover. Los Server Actions del slice (`registerCustomDomainAction`,
+`getCustomDomainStatus`) llaman a la **Vercel Domains REST API desde el server
+Node** — Playwright (browser) no puede interceptar ese fetch.
+
+Solución (seam DI, sin lógica de test en el código de negocio): el wrapper
+`src/shared/lib/vercel/domains-shared.ts` lee el host destino de
+`VERCEL_API_BASE_URL` (default `https://api.vercel.com`). En E2E lo apuntamos a
+un **stub HTTP local** (`scripts/e2e-vercel-stub.mjs`) que `playwright.config.ts`
+arranca como un segundo `webServer`. El stub responde:
+
+- `addDomain` (POST v10) → `verified:false` → el registro queda **pending** con
+  tabla DNS.
+- `getDomainConfig` (GET v6) → `misconfigured:false` → DNS OK.
+- `getDomainStatus` (GET v9) → `verified:true` → en el **reload** el lazy poll
+  (`verified && !misconfigured`, ADR-0029) hace `UPDATE verified_at` →
+  **verified**.
+
+El flip `pending→verified` es determinístico: el registro usa `addDomain`
+(verified:false) y sólo el reload llama `getDomainStatus` (verified:true). Las
+creds (`VERCEL_API_TOKEN`/`VERCEL_PROJECT_ID`) se inyectan como mock — el stub
+ignora auth. Producción nunca setea `VERCEL_API_BASE_URL` → cae al default real.
+
+### Bootstrap compartido del owner
+
+`_support/bootstrap.ts` (`signUpOwner`) corre el wizard de signup completo y
+devuelve `{email, slug, …}`. Lo usan los specs que necesitan partir de un owner
+autenticado (signup-happy-path lo verifica; register-custom-domain lo reusa como
+bootstrap). Crear el owner vía el wizard evita seedear un usuario "login-able" en
+el backend gestionado de Neon Auth (que las factories deliberadamente no crean,
+decisión 1.C). La sesión queda con `Domain=.lvh.me` → viaja a los subdominios.
+
 ### Estructura de archivos
 
 ```
 tests/e2e/
-  signup-happy-path.spec.ts     # E2E #1: place-first signup → create → success
+  signup-happy-path.spec.ts        # E2E #1: place-first signup → create → success
+  register-custom-domain.spec.ts   # E2E #2: none → pending → verified → none (stub Vercel)
   _support/
-    db-cleanup.ts               # cleanupE2EData + E2E_EMAIL_PATTERN (canon)
-    global-setup.ts             # pre-clean defensivo
-    global-teardown.ts          # barrido post-run
+    bootstrap.ts                   # signUpOwner — wizard de signup compartido
+    db-cleanup.ts                  # cleanupE2EData + E2E_EMAIL_PATTERN (canon)
+    global-setup.ts                # pre-clean defensivo
+    global-teardown.ts             # barrido post-run
+scripts/
+  e2e-vercel-stub.mjs              # stub HTTP de la Vercel Domains API (webServer #2)
 ```
 
 ### Cómo correr

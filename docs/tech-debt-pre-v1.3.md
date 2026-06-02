@@ -488,13 +488,38 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`)
 
 ### Sesión 2.B — 2 E2E críticos restantes [~3h]
 
-- [ ] E2E: **accept invite cross-domain** (escenario 4 V1.2: signup → SSO chain → accept en custom domain → Hub CD)
-- [ ] E2E: **register custom domain** (owner → /settings/domain → add domain → wait DNS verify mock → activate)
-- [ ] Refactor común a helpers si emerge pattern (`tests/e2e/_fixtures/`)
+**Dividida en 2 subsesiones (commit dedicado + compact entre ambas, 2026-06-01)**: 2.B.1 = register custom domain (autocontenido en zona `lvh.me`, reusa harness 2.A + stub Vercel) · 2.B.2 = accept invite cross-domain (el más frágil: 2º loopback + cert + TLS + cadena SSO). **Orden reordenado vs el listado original** por criterio Phase 2 (menos→más esfuerzo): register primero. Plan completo en `~/.claude/plans/sprightly-popping-peach.md`.
+
+#### Sesión 2.B.1 — E2E register custom domain [~1.5h] ✅
+
+**Decisiones de la sesión (2026-06-01)**:
+- **Mock Vercel = override de base URL por env** (`VERCEL_API_BASE_URL`, default `https://api.vercel.com`): seam DI de 1 línea en `domains-shared.ts`. Los Server Actions llaman a Vercel desde el server Node → Playwright (browser) no puede interceptar; el wrapper apunta a un stub HTTP local. NO es lógica de test en el wrapper — el fetch es idéntico, sólo cambia el host destino. Producción nunca setea la var. Confirmado por user (pre-plan).
+- **Stub stateful que modela propagación DNS** (no respuestas estáticas): un dominio arranca sin propagar (V6 `misconfigured:true` + V9 `verified:false` → pending con tabla DNS); el test dispara `POST /__advance` (modela "el owner configuró el DNS") → V6 ok + V9 verified → en el reload el lazy poll (`verified && !misconfigured`, ADR-0029) hace `UPDATE verified_at` → verified. Esto evita depender de cuántos renders server hace Next (el `revalidatePath` del register re-renderiza y corre el lazy poll — con stub estático verificaba al instante, saltando pending).
+- **Bootstrap del owner vía wizard de signup** (no seed de usuario): `_support/bootstrap.ts` `signUpOwner` corre el wizard completo → place + usuario Neon Auth + sesión en un flujo. Evita seedear un usuario login-able en el backend gestionado de Neon Auth (las factories deliberadamente no lo crean, decisión 1.C). `signup-happy-path.spec.ts` refactorizado para reusar el helper (DRY).
+- **Selector `getByRole("textbox")` no `getByLabel("Dominio")`**: el sidebar tiene un link "Dominio" → un selector por label es ambiguo cuando el form no está montado (matchea el link, no el input). El rol textbox sólo matchea el input + espera a que se monte (clave para esperar el archive → none).
+
+**Items cerrados**:
+- [x] Seam env `VERCEL_API_BASE` ← `process.env.VERCEL_API_BASE_URL ?? "https://api.vercel.com"` en `src/shared/lib/vercel/domains-shared.ts` (única línea de producción tocada; doc inline + `.env.example`/`stack.md`/`testing.md`). Wrapper vitest 33/33 verde (el default real se mantiene).
+- [x] Stub HTTP `scripts/e2e-vercel-stub.mjs` (node `http`, puerto 3010): responde POST v10 (verified:false + verification[]), GET v6 config (misconfigured = !propagado), GET v9 status (verified = propagado), DELETE v9, `POST /__advance` (control E2E), health.
+- [x] `playwright.config.ts`: `webServer` array (stub + dev server); inyecta `VERCEL_API_BASE_URL`/`TOKEN`/`PROJECT_ID` mock al env del dev server (overridables por `.env.e2e`).
+- [x] E2E `tests/e2e/register-custom-domain.spec.ts`: none → vincular → pending (tabla DNS) → `/__advance` + reload → verified → remover → none. **chromium + webkit verdes** (estable, sin flaky tras bump del timeout de bootstrap a 45s).
+- [x] `_support/bootstrap.ts` `signUpOwner` (helper compartido) + `signup-happy-path.spec.ts` refactorizado para usarlo.
+- [x] Docs: `docs/testing.md` (§"Mock de Vercel en E2E" + §"Bootstrap compartido" + estructura de archivos), `docs/stack.md` (env `VERCEL_API_BASE_URL`), `.env.e2e.example` (vars opcionales con default al stub).
+
+**Acceptance** (verificado 2026-06-01): ✅ typecheck verde · ✅ `pnpm e2e register-custom-domain` 2/2 verde (chromium+webkit, 33s) · ✅ suite e2e completa 4/4 verde (signup×2 + register×2) · ✅ cleanup post-run barre place+place_domain · ✅ vitest custom-domain 69/69 + vercel 33/33 (sin regresión por el seam) · ✅ `FORMATTING_ERROR` en logs = warnings pre-existentes de next-intl ({slug}/{domain} resueltos client-side, no regresión).
+
+**Commit**: _ver siguiente commit_ · **Tag**: _no aplica (no load-bearing; el tag de phase espera a 2.B.2)_
+
+#### Sesión 2.B.2 — E2E accept invite cross-domain [~2.5h]
+
+- [ ] 2º loopback domain (`localtest.me` → 127.0.0.1) como custom domain + extender cert SAN (`scripts/ensure-e2e-cert.mjs`)
+- [ ] `_support/db-seed.ts` (admin conn): `place_domain` verified + invitación pendiente (`app.create_invitation`)
+- [ ] TLS del self-fetch JWKS (`NODE_TLS_REJECT_UNAUTHORIZED=0` E2E-only)
+- [ ] E2E: signup → cadena SSO 4-hop → accept en custom domain → Hub CD. **Fidelidad: cadena completa con fallback documentado** (mintear `__Host-place_sso_session` si el live resulta intratable), timeboxed
 
 **Acceptance**: 3 E2E verdes en CI · runtime <5min total · 0 flaky en 3 runs consecutivas.
 
-**Commit**: _pending_ · **Tag**: `baseline/phase-2-B-e2e-done`
+**Commit**: _pending_ · **Tag**: `baseline/phase-2-B-e2e-done` (al cerrar la phase, post-2.B.2)
 
 ---
 
