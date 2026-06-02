@@ -25,7 +25,7 @@
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
 | **1 — Hardening** | 7 | 7/7 ✅ | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | `baseline/phase-1-tech-debt-done` = `3fa0cc3` ✅ |
-| **2 — Tests + docs** | 9 | 4/9 (2.A, 2.G, 2.E, 2.F ✅) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | _pending_ |
+| **2 — Tests + docs** | 9 | 5/9 (2.A, 2.G, 2.E, 2.F, 2.D ✅) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | _pending_ |
 | **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
@@ -442,13 +442,13 @@ V1.3 puede arrancar **en paralelo** con esta phase si recursos lo permiten. No b
 
 ### Orden de ejecución acordado (2026-05-31)
 
-Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`aace521`) · **2.E cerrada** (`c5602b2`) · **2.F cerrada** (commit pending). Próxima = **2.D**. Las restantes en este orden:
+Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`aace521`) · **2.E cerrada** (`c5602b2`) · **2.F cerrada** (`4c20adf`) · **2.D cerrada** (`79c96a7` + `77a5b05`, 2 subsesiones). Próxima = **2.B**. Las restantes en este orden:
 
 1. **2.G** — i18n strings → translations (~1h) ✅
 2. **2.E** — doc polish + cookie audit (~1.5h) ✅
 3. **2.F** — backup/PITR + drifts deps (~1.5h) ✅
-4. **2.D** — data-model gaps + stubs ontologías (~2h) ← PRÓXIMA
-5. **2.B** — 2 E2E críticos (accept invite cross-domain + register custom domain) (~3h) · reusa harness E2E de 2.A
+4. **2.D** — data-model gaps + stubs ontologías (~2h) ✅
+5. **2.B** — 2 E2E críticos (accept invite cross-domain + register custom domain) (~3h) · reusa harness E2E de 2.A ← PRÓXIMA
 6. **2.C** — coverage thresholds + investigar flake `pnpm test` (~3h)
 7. **2.H** — Suspense boundaries settings + streaming (~2-3h) · load-bearing
 8. **2.I** — Strict CSP nonce-based (~2-4h) · load-bearing · última (más compleja)
@@ -519,16 +519,27 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`)
 
 ---
 
-### Sesión 2.D — Data-model gaps + ontologías stubs [~2h]
+### Sesión 2.D — Data-model gaps + ontologías stubs [~2h] ✅
 
-- [ ] `docs/data-model.md` agregar §"Catálogo DEFINER": tabla con 18 DEFINERs · migration · feature owner · ACLs canon
-- [ ] Documentar policy `au_peer_member_read` (migration 0021, ADR-0038) en `data-model.md` §Auth
-- [ ] Documentar tabla `app.sso_jti_used` (migration 0011) en `data-model.md` §"Anti-replay tables"
-- [ ] Crear stubs `docs/features/{conversations,events,library}/spec.md` con §Estado="No empezada" + link a ontología canónica + §Pointers. Rompe convención CLAUDE.md hoy (ontología sin entrada features/)
+**Dividida en 2 subsesiones (de corrido, commit dedicado + compact entre ambas, 2026-06-01)**: 2.D.1 = gaps de `data-model.md` (1 archivo, capa de seguridad SQL) · 2.D.2 = stubs de ontologías en `features/` (set de archivos separado). Corte limpio: archivos disjuntos, research disjunto.
 
-**Acceptance**: data-model.md cubre 100% de DEFINERs + tablas + policies actuales · 3 features stubs creadas con shape consistente con specs existentes.
+**Decisiones de la sesión (diagnóstico empírico pre-edición)**:
+- **Conteo DEFINER confirmado = 18 activos** (el audit decía "18", verificado con grep preciso de `SECURITY DEFINER` en la línea de definición, no en comentarios). `app.create_place` cuenta como 2 por overload de aridad (5-arg legacy compat + 6-arg actual del wizard, ambos refactoreados en 0013 con cuerpo canónico). 1 dropeada (`lookup_user_email_by_id`, 0023→0026) NO cuenta. **ACL uniforme**: las 18 → `GRANT EXECUTE TO app_system` + `REVOKE FROM PUBLIC`, cero excepciones → columna ACL documentada una vez como canon, no por fila.
+- **2 helpers RLS anti-recursión SÍ son DEFINER** (`current_user_owns_place` 0012, `is_peer_member` 0021): incluidos en el catálogo, marcados como helpers. **2 helpers de identidad NO son DEFINER** (`current_user_id` STABLE INVOKER, `get_inbox_payload` STABLE INVOKER): listados aparte para completar el mapa, fuera del catálogo.
 
-**Commit**: _pending_
+**Items cerrados (2.D.1 — `data-model.md`)**:
+- [x] §"Catálogo DEFINER" (nueva sección al final, satisface el forward-ref de §Migrations "ver inventario abajo"): tabla de 18 DEFINERs activos · migration canónica · propósito/feature owner + ACL canon uniforme + dropeada + 2 helpers no-DEFINER. Prosa de apertura sobre la única-superficie-de-escritura + `search_path` fijo + integration tests.
+- [x] Policy `au_peer_member_read` (migration 0021, ADR-0038) en §"Auth y SSO": bullet nuevo con la regla peer-read (3er sujeto del trio), el helper `is_peer_member` SECURITY DEFINER anti-recursión, y ref a la cobertura por `idx_membership_user_active`.
+- [x] Tabla `app.sso_jti_used` (migration 0011, ADR-0032) en nueva §"Tablas anti-replay (schema `app`)": patrón canónico (owned por `neondb_owner`, sin GRANT + RLS sin policies = doble deny) + `consume_sso_jti` VOLATILE + GC oportunista sin cron.
+- [x] Forward-ref de §Migrations actualizado (de "pendiente Phase 2.D" a "inventario completo abajo") + fecha header → 2026-06-01.
+
+**Items cerrados (2.D.2 — stubs `features/`)**:
+- [x] 3 stubs `docs/features/{conversations,events,library}/spec.md` con shape consistente: banner stub (la ontología es fuente de verdad hasta que se construya) + §Estado="No empezada" + §Contexto (relación con el primitivo Discusión + zona Core vs opcional + activación desde `/settings`) + §Pointers (ontología canónica + objetos hermanos + data-model + activación de zona + gate de horario + storage R2 para library + slice futuro inexistente). Cierra el gap CLAUDE.md "ontología sin entrada features/".
+- [x] Links relativos verificados (ontologías, data-model, multi-tenancy, `architecture.md` § "Gate de horario del place" L152, `settings/spec.md`, `features/README.md` — todos resuelven).
+
+**Acceptance** (verificado 2026-06-01): data-model.md cubre 100% de DEFINERs (18) + tabla anti-replay + policy peer-read · 3 features stubs creadas con shape consistente · pre-commit hook (typecheck/lint skip por ser docs-only, secret-scan verde) en ambos commits.
+
+**Commits**: `79c96a7` (2.D.1 — data-model gaps) · `77a5b05` (2.D.2 — stubs features)
 
 ---
 
