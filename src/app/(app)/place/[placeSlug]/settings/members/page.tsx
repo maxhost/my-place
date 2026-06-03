@@ -1,33 +1,20 @@
 import { getTranslations } from "next-intl/server";
 import { notFound, redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import {
   SsoFallbackPanel,
   type SsoFallbackLabels,
 } from "@/features/custom-domain-routing/public";
-import {
-  createInvitationAction,
-  loadPendingInvitations,
-  revokeInvitationAction,
-} from "@/features/invitations/public";
-import { loadMembers } from "@/features/members/public";
 import { logoutAction } from "@/features/nav-hub/public";
 import {
   NavPlaceLayout,
   type NavPlaceLabels,
 } from "@/features/nav-place/public";
 import {
-  elevateToOwnerAction,
-  revokeOwnershipAction,
-  transferFounderOwnershipAction,
-} from "@/features/place-ownership-actions/public";
-import { removeMemberAction } from "@/features/members/public";
-import {
   buildApexLoginUrl,
-  buildPlaceCanonicalUrl,
   buildSubdomainCanonicalUrl,
 } from "@/shared/lib/auth-redirect";
-import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
 import { isServiceableSlug } from "@/shared/lib/host-routing";
 
 import {
@@ -36,25 +23,26 @@ import {
   getPlaceLocaleFallback,
   getSessionTokenForZone,
 } from "../../_lib/get-place-for-zone";
-import { MembersPageShell } from "./_components/members-page-shell";
-import { buildMembersPageShellLabels } from "./_lib/build-shell-labels";
+import { MembersContent } from "./_components/members-content";
+import { MembersSkeleton } from "./_components/page-skeletons";
 
 // Page del settings — sección "Miembros" (`{slug}.place.community/settings/
 // members`, proxy reescribe a `/place/{slug}/settings/members`, ver
 // `docs/multi-tenancy.md`). S11 del feature `members` V1 (`docs/features/
-// members/spec.md` §"UI screens" S11, plan-sesiones §S11).
+// members/spec.md` §"UI screens" S11).
 //
-// Server Component que orquesta el seam-split del slice page-level: carga
-// queries server-side bajo RLS owner-only (Feature E §"Decisión operativa")
-// y delega la composición + state client-side al `<MembersPageShell />`
-// (Client co-located en `./_components/`, convención ADR-0043).
+// **Streaming agresivo del shell** (Phase 2.H.1, architecture.md
+// §"Streaming agresivo del shell"): el page hace SÓLO el guard top-level
+// (slug + host-zone + session + place, todos memoizados con el layout vía
+// React.cache) y los labels del frame (JSON local, rápido). Renderiza el
+// `<NavPlaceLayout>` (shell + sidebar) inmediato, y suspende el contenido
+// pesado — el `await getAuthenticatedDbForRequest(...)` vive en
+// `<MembersContent>` bajo `<Suspense fallback={<MembersSkeleton/>}>`. El
+// browser pinta el shell + skeleton (~FCP inmediato) en vez de esperar la
+// tx Neon. NO hay `loading.tsx` (route-level taparía el shell entero +
+// doble transición — architecture.md §224).
 //
-// Espejo intencional de `settings/domain/page.tsx` (Feature custom-domain
-// V1 S4 + Feature B/C S10): mismo guard pattern (slug + host-zone + session
-// guard + custom-domain SSO branch + place load), mismo `<NavPlaceLayout>`
-// shell. Lo único distinto es el payload de la sección.
-//
-// Flujo:
+// Flujo del guard:
 //   1. Gate estructural del slug (`isServiceableSlug`).
 //   2. Host-zone (memoizado con el layout via React.cache).
 //   3. Guard sesión cross-subdomain. Sin sesión, branchea por zona:
@@ -64,20 +52,6 @@ import { buildMembersPageShellLabels } from "./_lib/build-shell-labels";
 //         con locale del place via lookup anónimo.
 //   4. Carga del place. `null` ⇒ no-owner por RLS / slug inexistente /
 //      archivado → `notFound()`.
-//   5. Carga de datos del page (members + pending invitations) + lookup
-//      `app_user.id` del caller en un solo tx autenticada (`getAuthenticated
-//      DbForRequest`, ADR-0034). El caller siempre es owner por (4); el
-//      lookup de `app_user.id` lo resuelve la fila `app_user` filtrada por
-//      `auth_user_id = claims.sub`. Si `currentAppUserId` no aparece en
-//      `members` (race condition: caller fue removido entre tx y render),
-//      `notFound()` — UX defensiva.
-//   6. i18n DB-based: `getTranslations({locale: place.defaultLocale,
-//      namespace: "placeMembers"})` resuelve ~80 keys + `placeSettings`
-//      para el frame + `navHub` para el account menu.
-//   7. Render `<NavPlaceLayout activeSection="members">` con `<Members
-//      PageShell>` adentro. El shell inyecta el `<MemberRowActionsMenu />`
-//      page-level vía render-prop a `<MembersList />` (cierra el cableado
-//      iniciado en S10.9).
 //
 // `dynamic = "force-dynamic"`: el guard depende de cookie + queries leen
 // RLS owner-only — no SSG-cacheable. `preferredRegion = "iad1"` por co-
@@ -146,23 +120,6 @@ export default async function PlaceSettingsMembersPage({
   const place = await getPlaceForZone(placeSlug);
   if (place === null) notFound();
 
-  const { members, pendingInvitations, currentAppUserId } =
-    await getAuthenticatedDbForRequest(async (sql, claims) => {
-      const m = await loadMembers(sql, place.id);
-      const p = await loadPendingInvitations(sql, place.id);
-      const cuRows = await sql(
-        `SELECT id FROM app_user WHERE auth_user_id = $1`,
-        [claims.sub],
-      );
-      const cuid = (cuRows[0]?.id as string | undefined) ?? null;
-      return { members: m, pendingInvitations: p, currentAppUserId: cuid };
-    });
-
-  const callerMember = currentAppUserId
-    ? members.find((mem) => mem.userId === currentAppUserId)
-    : undefined;
-  if (!callerMember) notFound();
-
   const tSettings = await getTranslations({
     locale: place.defaultLocale,
     namespace: "placeSettings",
@@ -170,10 +127,6 @@ export default async function PlaceSettingsMembersPage({
   const tNav = await getTranslations({
     locale: place.defaultLocale,
     namespace: "navHub",
-  });
-  const tMembers = await getTranslations({
-    locale: place.defaultLocale,
-    namespace: "placeMembers",
   });
 
   const navPlaceLabels: NavPlaceLabels = {
@@ -199,20 +152,12 @@ export default async function PlaceSettingsMembersPage({
     accountMenuLogoutPending: tNav("logoutConfirming"),
   };
 
-  const shellLabels = buildMembersPageShellLabels(tMembers);
-
   const onLogout = logoutAction.bind(null, place.defaultLocale);
 
-  // V1.2 Sesión A (ADR-0046 §D1): emisión zone-aware del invite link. Si el
-  // place tiene custom domain verified, el invite emitido apunta al custom
-  // domain (`https://nocodecompany.co/invite/{token}`) en vez del subdomain
-  // canon — cierra el gap UX V1.1 donde el owner publicitaba un dominio pero
-  // los invites llegaban con otro. Para places sin custom domain, el helper
-  // cae al subdomain canon (zero regresión).
-  const inviteBaseUrl = (
-    await buildPlaceCanonicalUrl({ slug: place.slug, path: "/" })
-  ).replace(/\/$/, "");
-
+  // `<main id="contenido">` queda en el page (estructura a11y del route +
+  // target del skip-link del layout). El contenido pesado streamea bajo
+  // `<Suspense>`: `<MembersContent>` hace el `await` de la tx Neon mientras
+  // el skeleton ocupa el lugar.
   return (
     <NavPlaceLayout
       labels={navPlaceLabels}
@@ -221,30 +166,9 @@ export default async function PlaceSettingsMembersPage({
       onLogout={onLogout}
     >
       <main id="contenido" className="flex flex-1 flex-col">
-        <MembersPageShell
-          members={members}
-          pendingInvitations={pendingInvitations}
-          callerCtx={{
-            userId: callerMember.userId,
-            isOwner: callerMember.isOwner,
-            isFounder: callerMember.isFounder,
-          }}
-          placeId={place.id}
-          placeSlug={place.slug}
-          locale={place.defaultLocale}
-          inviteBaseUrl={inviteBaseUrl}
-          actions={{
-            createInvitation: createInvitationAction,
-            revokeInvitation: revokeInvitationAction,
-            menu: {
-              elevateAction: elevateToOwnerAction,
-              revokeOwnershipAction,
-              removeAction: removeMemberAction,
-              transferFounderAction: transferFounderOwnershipAction,
-            },
-          }}
-          labels={shellLabels}
-        />
+        <Suspense fallback={<MembersSkeleton />}>
+          <MembersContent place={place} />
+        </Suspense>
       </main>
     </NavPlaceLayout>
   );
