@@ -442,14 +442,14 @@ V1.3 puede arrancar **en paralelo** con esta phase si recursos lo permiten. No b
 
 ### Orden de ejecución acordado (2026-05-31)
 
-Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`aace521`) · **2.E cerrada** (`c5602b2`) · **2.F cerrada** (`4c20adf`) · **2.D cerrada** (`79c96a7` + `77a5b05`, 2 subsesiones) · **2.B cerrada** (`1b9df3f` + `780b9be`, 2 subsesiones). Próxima = **2.C**. Las restantes en este orden:
+Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`) · **2.G cerrada** (`aace521`) · **2.E cerrada** (`c5602b2`) · **2.F cerrada** (`4c20adf`) · **2.D cerrada** (`79c96a7` + `77a5b05`, 2 subsesiones) · **2.B cerrada** (`1b9df3f` + `780b9be`, 2 subsesiones) · **2.C cerrada** (`566fb4b` + `6ccf823` + `456c379`, 3 subsesiones). Próxima = **2.H**. Las restantes en este orden:
 
 1. **2.G** — i18n strings → translations (~1h) ✅
 2. **2.E** — doc polish + cookie audit (~1.5h) ✅
 3. **2.F** — backup/PITR + drifts deps (~1.5h) ✅
 4. **2.D** — data-model gaps + stubs ontologías (~2h) ✅
 5. **2.B ✅** — 2 E2E críticos · reusa harness E2E de 2.A · dividida en 2 subsesiones: **2.B.1 register custom domain ✅** (`1b9df3f`) · **2.B.2 accept invite cross-domain ✅** (`780b9be`)
-6. **2.C** — coverage thresholds + investigar flake `pnpm test` (~3h)
+6. **2.C ✅** — coverage thresholds + investigar flake `pnpm test` · dividida en 3 subsesiones: **2.C.1 flake investigado ✅** (`566fb4b`) · **2.C.2 unit branch coverage ✅** (`6ccf823`) · **2.C.3 coverage v8 + thresholds + PR comment + invitations wrappers ✅** (`456c379`)
 7. **2.H** — Suspense boundaries settings + streaming (~2-3h) · load-bearing
 8. **2.I** — Strict CSP nonce-based (~2-4h) · load-bearing · última (más compleja)
 
@@ -556,7 +556,7 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`)
 
 **Acceptance** (verificado 2026-06-02): ✅ coverage report se postea en cada PR (job `coverage` + action) · ✅ thresholds calibrados contra medición real, NO rompen tests existentes (`pnpm test:coverage` exit 0 end-to-end) · ✅ ambos targets del tracker **CUMPLIDOS**: `access` 90-96% y `invitations` 87-96% (ambos ≥85) · ✅ 22 tests 2.C.2 + 27 tests 2.C.3 verdes · ✅ flake `pnpm test` investigado (no reproducible) + split en scripts/CI con gotcha (2.C.1). Único ajuste vs el target literal: global `functions` en 68 (medido 69.46, sub-70 por un pelo).
 
-**Commit**: _pending_
+**Commit**: `566fb4b` (2.C.1 — flake) · `6ccf823` (2.C.2 — unit branch coverage) · `456c379` (2.C.3 — coverage v8 + thresholds + PR comment + invitations wrappers)
 
 ---
 
