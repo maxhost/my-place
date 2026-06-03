@@ -42,6 +42,30 @@ sería arreglar un fantasma.
   Esto además hace verdadera la afirmación previa del tracker "CI separa los projects".
 - `pnpm test` (ambos projects en paralelo) queda **sin cambios** — es el entrypoint local.
 
+## Reaparición bajo coverage (Phase 2.C.3, 2026-06-02)
+
+Al configurar `@vitest/coverage-v8` (`pnpm test:coverage` = `vitest run --coverage`,
+ambos projects con merge nativo), el **full run timeouteó 71 tests** — TODOS de
+`src/db/__tests__/*`, todos con `Hook timed out in 30000ms` / `Test timed out in
+30000ms` (cero AssertionError, cero `connection refused`/`too many connections`).
+Intermitente: 2 runs previos del mismo comando dieron exit 0; el 3ro timeouteó.
+
+**Diagnóstico**: la instrumentación v8 agrega overhead por worker que, sumado al
+cold-connect del branch `test` (scale-to-zero) bajo forks paralelos, empuja el
+cold-start de DB por encima del sobre de 30s calibrado para runs SIN instrumentar.
+El síntoma es **timeout (lentitud), no límite de conexiones** → descarta capar
+`maxForks` (trataría otra causa); el fix correcto es **headroom de timeout**. Esto
+además ACOTA la causa del flake original: el mecanismo es la contención del
+cold-connect bajo carga (no CPU-starvation, ya refutada en 2.C.1), y cualquier cosa
+que ensanche el sobre (instrumentación, Neon frío, red) puede dispararlo.
+
+**Fix aplicado** (`vitest.config.ts`): `nodeDbTimeout = underCoverage ? 60_000 :
+30_000` (detecta `COVERAGE=1` que setea el script `test:coverage`, o el flag
+`--coverage`). Bajo coverage los projects corren a 60s; en `test:node`/`test:ui`
+normales el 30s documentado queda intacto (un timeout mayor es gratis en runs
+verdes: sólo cambia cuánto espera un test colgado). Verificado: `pnpm test:coverage`
+**1226/1226 verde, exit 0** tras el bump (vs 71 timeouts a 30s).
+
 ## Si reaparece
 
 1. Capturar el stack trace fresco (`pnpm test 2>&1 | tee` y grep `WebSocket|ECONNRESET|

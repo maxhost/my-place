@@ -70,6 +70,8 @@ const eslintConfig = [
       ".next/**",
       "out/**",
       "build/**",
+      // Reporte HTML generado por `@vitest/coverage-v8` (gitignored, 2.C.3).
+      "coverage/**",
       "next-env.d.ts",
     ],
   },

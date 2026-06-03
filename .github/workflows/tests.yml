@@ -70,3 +70,44 @@ jobs:
 
       - name: Vitest project ui (componentes jsdom)
         run: pnpm test:ui
+
+  # Coverage + comment en PR (Phase 2.C.3, 2026-06-02). Job SEPARADO con
+  # `needs: vitest` a propósito:
+  #   (1) corre DESPUÉS del gate bloqueante → NO se solapa con `test:node`
+  #       sobre el MISMO branch `test` de Neon (la gotcha 2.C.1 deja como causa
+  #       probable del flake del 28/05 la presión de conexiones concurrentes;
+  #       serializar elimina ese riesgo sin tocar pools).
+  #   (2) sólo corre si los tests pasan → no gastamos la corrida con coverage
+  #       (instrumentada, más lenta) cuando ya hay un fail que arreglar.
+  # `pnpm test:coverage` = `vitest run --coverage` (ambos projects, merge nativo
+  # de cobertura). Los thresholds viven en `vitest.config.ts`: si la cobertura
+  # cae bajo el piso, este job falla (gate de no-regresión). El comment se postea
+  # igual (`if: always()` + `reportOnFailure` en config) para ver el porqué.
+  coverage:
+    needs: vitest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Coverage (ambos projects, merge nativo)
+        run: pnpm test:coverage
+        env:
+          DATABASE_URL_TEST: ${{ secrets.DATABASE_URL_TEST }}
+          DATABASE_URL_TEST_MIGRATE: ${{ secrets.DATABASE_URL_TEST_MIGRATE }}
+
+      - name: Comment coverage en el PR
+        if: always()
+        uses: davelosert/vitest-coverage-report-action@v2
