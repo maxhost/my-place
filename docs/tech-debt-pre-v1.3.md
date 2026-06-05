@@ -770,7 +770,7 @@ Polish + decisiones scope que pueden hacerse durante V1.3 development sin bloque
 
 **Acceptance**: ✅ ESC cierra invite-member-modal (test verde) · grep `bg-black/40` en src retorna 0 · typecheck limpio · suites invitations+confirm-dialog+custom-domain verdes (12+85).
 
-**Commit**: `pending-3C`
+**Commit**: `4f3e2c9`
 
 ---
 
