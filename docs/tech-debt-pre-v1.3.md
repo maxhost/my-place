@@ -25,11 +25,11 @@
 |-------|----------|-------------|---------------|----------------|
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
 | **1 — Hardening** | 7 | 7/7 ✅ | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | `baseline/phase-1-tech-debt-done` = `3fa0cc3` ✅ |
-| **2 — Tests + docs** | 9 | 6/9 (2.A, 2.G, 2.E, 2.F, 2.D, 2.B ✅) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | _pending_ |
-| **3 — Polish** | 6 | 1/6 (3.A ✅) | `baseline/pre-phase-3-tech-debt` = `cd7a94a` ✅ | _pending_ |
+| **2 — Tests + docs** | 9 | 9/9 ✅ (2.A, 2.B, 2.C, 2.D, 2.E, 2.F, 2.G, 2.H, 2.I) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | `baseline/phase-2-tech-debt-done` (cierre `cd7a94a`) |
+| **3 — Polish** | 6 | 2/6 (3.A, 3.B ✅) | `baseline/pre-phase-3-tech-debt` = `cd7a94a` ✅ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 16/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 23/27 sesiones (Phase 0+1+2 cerradas · Phase 3: 2/6) · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -742,15 +742,24 @@ Polish + decisiones scope que pueden hacerse durante V1.3 development sin bloque
 
 ---
 
-### Sesión 3.B — DB polish [~1h]
+### Sesión 3.B — DB polish [~1h] ✅
 
-- [ ] Migration 0027: `FORCE ROW LEVEL SECURITY` en core tables (`app_user`, `place`, `place_domain`, `membership`, `place_ownership`, `invitation`) — defense-in-depth contra futuras migrations corriendo como table owner
-- [ ] `SET search_path` explícito en `app.current_user_id()` (migration 0000) — canonicidad anti-hijack
-- [ ] `VOLATILE` explícito en DEFINERs viejos (migrations 0002, 0003, 0007, 0013) — consistencia con 0014+ que sí lo declaran
+**Diagnóstico empírico previo (test branch `br-withered-darkness-apz87zyz`, 2026-06-05)**:
+- **`neondb_owner.rolbypassrls = true`** (verificado vía `pg_roles`) + las 6 tablas owned por `neondb_owner`. Por eso `FORCE ROW LEVEL SECURITY` es **INERTE para el owner**: el atributo BYPASSRLS gana sobre FORCE → los 18 DEFINER que corren como `neondb_owner` siguen escribiendo sobre las tablas WORM sin evaluar policies. **Cero regresión en write paths.** Esto era el riesgo central de la sesión (si el bypass fuera sólo owner-exemption en vez del atributo, FORCE habría roto `create_place`/`accept_invitation`/`elevate_to_owner`/…); la verificación lo descartó ANTES de aplicar. El valor de FORCE es future-proofing (un futuro rol/migration que escriba como owner sin bypassrls quedaría sujeto a policies en vez de bypasearlas).
+- **`app.current_user_id()` tenía `proconfig = NULL`** (sin search_path). Es SECURITY INVOKER + STABLE SQL y referencia SÓLO built-ins de `pg_catalog` → `pg_catalog, pg_temp` es el anti-hijack más ajustado (sin `public`: no referencia nada de public).
+- **Los 4 DEFINER (create_place ×2, invitation_preview, accept_invitation) ya eran `provolatile = 'v'`** en runtime (default de plpgsql). El item es cosmético/consistencia: hacerlo explícito en la historia forward.
 
-**Acceptance**: tests RLS pasan post-FORCE · `\df+` Postgres muestra search_path + volatility correctos.
+**Decisión `ALTER` over `CREATE OR REPLACE` para §2 y §3**: ambos se hacen con `ALTER FUNCTION … SET search_path` / `ALTER FUNCTION … VOLATILE` en vez de re-declarar el cuerpo. Surgical (toca sólo el flag/atributo), cero duplicación de los ~80 LOC del body → cero riesgo de drift vs el canon de 0000/0003/0013. Append-only forward history: 0027 refina sin tocar los .sql originales.
 
-**Commit**: _pending_
+**Items cerrados**:
+- [x] **Migration 0027** (`0027_force_rls_searchpath_volatile_canon.sql`) — hand-written custom SQL (sin snapshot, convención del repo) + entry `idx 27` en `_journal.json`. Tres bloques: §1 `FORCE ROW LEVEL SECURITY` en las 6 tablas del core; §2 `ALTER FUNCTION app.current_user_id() SET search_path = pg_catalog, pg_temp`; §3 `ALTER FUNCTION … VOLATILE` en los 4 DEFINER de la era 0002/0003/0007/0013. Prefijo `SET lock_timeout = '5s'` (canon AccessExclusiveLock). Reverse SQL completo en header.
+- [x] `data-model.md`: header fecha + §"RLS base" (nota FORCE RLS canon + rationale inerte/future-proofing) + §"Catálogo DEFINER" (volatility explícita canon + search_path de `current_user_id`) + rango migrations `… 0027_*.sql`.
+
+**Aplicado en test branch via Neon MCP** (`br-withered-darkness-apz87zyz`): los 12 statements aplicados OK. Verificado vía catálogo: 6 tablas `relforcerowsecurity = true` ✅ · `current_user_id.proconfig = {search_path=pg_catalog, pg_temp}` ✅ · 4 DEFINER `provolatile = 'v'` ✅. Production apply deferido al próximo deploy Vercel (canon ADR-0017 `maybe-migrate.mjs`).
+
+**Acceptance** (verificado 2026-06-05): suite DB/RLS `vitest --project node src/db/__tests__` **226/226 verde idéntica pre y post-migration** (23 files; baseline capturado antes de aplicar → re-run post-FORCE sin un solo cambio) ✅ · catálogo `pg_class`/`pg_proc` muestra FORCE + search_path + volatility correctos ✅.
+
+**Commit**: `351876f`
 
 ---
 
