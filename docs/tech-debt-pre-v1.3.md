@@ -691,33 +691,28 @@ Dividida en 2 sub-sesiones (streaming + error boundaries), compact entre ambas.
 - Strict con nonce per request bloquea TODOS los scripts no-firmados → atacante con XSS sink stuck.
 
 **Items**:
-- [ ] Generar nonce per request en `src/proxy.ts` (`crypto.randomUUID()` base64url) + setear header `Content-Security-Policy` con `'nonce-<nonce>'` + `'strict-dynamic'`.
-- [ ] Propagar nonce a Next.js scripts via `next/headers` (`headers().get('x-nonce')`) en root layout(s); cada `<Script>` component lee el nonce de context.
-- [ ] CSP directives finales:
-  - `default-src 'self'`
-  - `script-src 'self' 'nonce-<>' 'strict-dynamic'`
-  - `style-src 'self' 'unsafe-inline'` (Tailwind v4 injecta inline; styled-jsx similar)
-  - `img-src 'self' data: blob: https:` (avatares + logos place + Storage Phase 1.G)
-  - `font-src 'self' data:`
-  - `connect-src 'self' https://*.neon.tech wss://*.neon.tech https://*.upstash.io`
-  - `frame-ancestors 'none'` (redundante con X-Frame-Options DENY pero CSP es authoritative)
-  - `form-action 'self'`
-  - `base-uri 'self'`
-  - `upgrade-insecure-requests` (browser auto-upgradea http→https)
-- [ ] Smoke verify: custom domain (`nocodecompany.co`), Hub, place page, login form, invite acceptance — confirmar 0 console errors CSP.
-- [ ] Audit headers existentes Phase 0.D — ¿se puede tightener `Permissions-Policy` con más features (clipboard-write, etc.)?
+- [x] Generar nonce per request en `src/proxy.ts` (base64url) + setear header `Content-Security-Policy` con `'nonce-<nonce>'` + `'strict-dynamic'`. → `shared/lib/security/content-security-policy.ts` (`generateNonce` edge-safe: `crypto.randomUUID()` + `btoa`, NO `Buffer`; `buildContentSecurityPolicy`). El proxy muta `req.headers` (nonce + CSP) ANTES de branchear → next-intl los copia a su forward (`new Headers(t.headers)`); las rewrites manuales (place/custom-domain/inbox) forwardean `req.headers` vía `{request:{headers}}`.
+- [x] Propagar nonce a Next.js scripts. → Next lee el nonce del header **de request** `Content-Security-Policy` forwardeado y nonce-a sus `<script>` de framework automáticamente. `x-nonce` queda seteado para `<Script nonce>` manuales (hoy **ninguno** en el repo → no hace falta tocar layouts). Smoke confirmó los 15 `<script>` con el mismo nonce que el header.
+- [x] CSP directives finales (ver `content-security-policy.ts`):
+  - `default-src 'self'` · `script-src 'self' 'nonce-<>' 'strict-dynamic'` · `style-src 'self' 'unsafe-inline'` (Tailwind v4 inline + atributos `style={{}}` del theming) · `img-src 'self' data: blob: https:` · `font-src 'self' data:` · `connect-src 'self' https://*.neon.tech wss://*.neon.tech https://*.upstash.io https://*.sentry.io` · `frame-ancestors 'none'` · `form-action 'self'` · `base-uri 'self'` · `upgrade-insecure-requests`.
+  - **Ajuste vs plan**: se agregó `https://*.sentry.io` al `connect-src` — sin él los beacons de error del SDK Sentry client (ADR-0047) violarían CSP (regresión de observabilidad).
+  - **CSP gated a `NODE_ENV=production`**: `next dev` usa `eval` (React Refresh/HMR) + websockets del dev server; una CSP strict los bloquearía. Además la suite E2E (Playwright) corre sobre `next dev`. Prod queda 100% strict; smoke en local vía `pnpm build && pnpm start`. (Práctica estándar — la propia guía CSP de Next reconoce que dev necesita `'unsafe-eval'`.)
+- [x] Smoke verify (prod build `pnpm build && pnpm start`): apex (marketing, 307), subdomain place (200), custom-domain rewrite — todas emiten CSP con nonce dinámico; los 15 `<script>` de framework nonce-ados (1 nonce distinto = el del header → **0 self-block**). Build OK.
+- [x] Audit headers Phase 0.D: `Permissions-Policy` tightened en `next.config.ts` → `geolocation=(), camera=(), microphone=(), payment=(), usb=(), browsing-topics=()` (deny de features no usadas V1 + opt-out Topics API). Comentario "NO incluido CSP" reconciliado (la CSP vive en el proxy, no en next.config).
 
-**Acceptance**: page-load en prod retorna CSP con nonce dinámico · DevTools console muestra 0 errores CSP en flujos críticos · CSP report-uri opcional (Sentry Phase 0.E si vivo) loggea violaciones · permissive CSP eliminada de tracker.
+**Acceptance**: ✅ page-load en prod retorna CSP con nonce dinámico (smoke curl) · scripts de framework nonce-ados (0 self-block) · permissive CSP eliminada (nunca existió, era el placeholder de 0.D) · report-uri NO incluido V1 (opcional, deferible a una sesión Sentry futura). Tests: `content-security-policy` 11/11 + `proxy-csp` 6/6 (incl. guard de no-CSP fuera de prod) + `proxy` 8/8 sin regresión.
 
-**Commit**: _pending_ · **Tag**: `baseline/phase-2-I-csp-strict-done` (load-bearing)
+**Commit**: `9e01b6d` · **Tag**: `baseline/phase-2-I-csp-strict-done` (load-bearing)
 
 ---
 
-### 🏁 Cierre Phase 2
+### 🏁 Cierre Phase 2 ✅ (2026-06-05)
 
 **Tag post-phase**: `baseline/phase-2-tech-debt-done`
 
-**Acceptance phase**: 3 E2E verdes en CI · coverage threshold enforced · data-model.md 100% coverage · 3 ontologías con stubs · backup strategy doc · zero i18n strings hardcoded · Suspense streaming en pages settings · strict CSP shippeado.
+**Acceptance phase** (toda ✅): 3 E2E verdes en CI · coverage threshold enforced · data-model.md 100% coverage · 3 ontologías con stubs · backup strategy doc · zero i18n strings hardcoded · Suspense streaming en pages settings · strict CSP shippeado.
+
+**9/9 sesiones cerradas**: 2.A `e538543` · 2.G `aace521` · 2.E `c5602b2` · 2.F `4c20adf` · 2.D `79c96a7`+`77a5b05` · 2.B `1b9df3f`+`780b9be` · 2.C `566fb4b`+`6ccf823`+`456c379` · 2.H `921fc95`+`e1fc237` · 2.I `9e01b6d`.
 
 ---
 
@@ -731,7 +726,7 @@ Polish + decisiones scope que pueden hacerse durante V1.3 development sin bloque
 
 - [ ] Decisión slice `src/features/member-profile/` (589 LOC órfano, `<HeadlineEditor />` NO montado en producción):
   - Opción A: V1.3 lo monta (definir cuándo + en qué page)
-  - Opción B: parking-lot explícito con ADR `docs/decisions/0049-member-profile-parking-lot.md` + remover slice o marcar `@deprecated`
+  - Opción B: parking-lot explícito con ADR nueva (número al redactarse — `0049` ya lo tomó la CSP strict; será `0050+`) + remover slice o marcar `@deprecated`
 - [ ] Decisión slice `src/features/style-assist/` + dep `ai` (330 LOC dormido por ADR-0020):
   - Opción A: V1.3 reactiva (registrar timeline)
   - Opción B: drop slice + dep `ai` del package.json
@@ -841,10 +836,10 @@ Items que NO son cleanup tech debt sino features/optimizaciones para más adelan
 | `baseline/phase-1-tech-debt-done` | `3fa0cc3` | Cierre Phase 1 |
 | `baseline/pre-phase-2-tech-debt` | _= phase-1-done (`3fa0cc3`)_ | Save point pre-Phase 2 |
 | `baseline/phase-0-D-edge-config-done` | _pending_ | Headers + rate limit (Upstash) load-bearing |
-| `baseline/phase-2-B-e2e-done` | _pending_ | E2E suite load-bearing |
-| `baseline/phase-2-H-suspense-done` | _pending_ | Suspense streaming load-bearing |
-| `baseline/phase-2-I-csp-strict-done` | _pending_ | CSP strict (nonce-based) load-bearing |
-| `baseline/phase-2-tech-debt-done` | _pending_ | Cierre Phase 2 |
+| `baseline/phase-2-B-e2e-done` | `e67c951` | E2E suite load-bearing |
+| `baseline/phase-2-H-suspense-done` | `4f30849` | Suspense streaming load-bearing |
+| `baseline/phase-2-I-csp-strict-done` | `9e01b6d` | CSP strict (nonce-based) load-bearing |
+| `baseline/phase-2-tech-debt-done` | _= HEAD del commit de cierre_ | Cierre Phase 2 ✅ |
 | `baseline/pre-phase-3-tech-debt` | _= phase-2-done_ | Save point pre-Phase 3 |
 | `baseline/phase-3-tech-debt-done` | _pending_ | Cierre Phase 3 + tech debt closure |
 
