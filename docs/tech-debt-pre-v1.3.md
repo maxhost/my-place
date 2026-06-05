@@ -797,7 +797,7 @@ Polish + decisiones scope que pueden hacerse durante V1.3 development sin bloque
 
 **Acceptance** (verificado 2026-06-05): `node scripts/check-translations.mjs` → exit 0 (364 keys, 0 drift en los 6 locales) ✅ · job `translations` en CI con YAML válido ✅ · JSDoc consistente (3 menciones canónicas) · typecheck + lint limpios ✅ · migration 0028 aplicada en test branch (`br-withered-darkness-apz87zyz`) vía Neon MCP → `pg_indexes` confirma el índice; `EXPLAIN` con `enable_seqscan=off` muestra `Index Scan using idx_place_founder_user_id` para `WHERE founder_user_id=$1` (tabla en 0 rows → seqscan por default, idéntico a 0025) ✅ · **suite node 98 files / 1030 tests verde** (0028 aplica en secuencia sin regresión) ✅. Prod apply diferido al próximo deploy (canon ADR-0017 `maybe-migrate.mjs`).
 
-**Commit**: _pending_
+**Commit**: `8f710ac`
 
 ---
 
