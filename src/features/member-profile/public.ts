@@ -5,8 +5,15 @@
 // Cohesión: capability autónoma del perfil contextual del miembro en este
 // place (self-edit only, ADR-0036 §3). V1 expone: 1 Server Action +
 // 1 Client Component + tipos (`HeadlineError`, `UpdateMyHeadlineInput`).
-// Consumer principal: page S11 `/settings/members` que monta
-// `<HeadlineEditor />` en la sección "Tu perfil en este place".
+//
+// Mount point (ADR-0050, Phase 3.A): el slice está LISTO y testeado pero
+// `<HeadlineEditor />` NO se monta todavía. Su consumer destino canónico es
+// el **modal de perfil contextual del miembro** (disparado al tappear el
+// propio avatar) — NO `/settings/members` (esa page es curaduría
+// owner→miembros; el headline es self-edit). El mount está COMPROMETIDO a
+// V1.3: la feature que construya ese modal montará `<HeadlineEditor />` como
+// su pane de edición. Las keys i18n `placeMembers.headline.*` ya están en el
+// catálogo esperando.
 //
 // Reserva V1.1+: avatar contextual + otros campos perfil-en-place se
 // agregarán a este slice cuando se implementen. NO se exportan maps de

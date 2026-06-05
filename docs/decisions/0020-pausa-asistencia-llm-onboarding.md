@@ -1,5 +1,7 @@
 # 0020 — Pausa de la asistencia LLM propose-only en el onboarding del MVP
 
+> **Refinada por ADR-0051 (2026-06-05, Phase 3.A):** la **pausa del MVP sigue vigente** (la asistencia LLM no se reactiva todavía), pero el stance de futuro cambia — esta ADR §16/§54 señalaba que el LLM "probablemente no se reactive en el corto plazo"; ADR-0051 lo convierte en **reactivación comprometida a V1.3** con plan de reconstrucción documentado. La saga + Server Action + dominio siguen dormidos y testeados; la dep `ai@^6.0.185` se mantiene deliberadamente. La ADR que reactive efectivamente el slice en V1.3 reemplaza a ésta en su totalidad.
+
 - **Fecha:** 2026-05-19
 - **Estado:** Aceptada
 - **Alcance:** producto (onboarding), arquitectura (slice `style-assist`), i18n (drop 11 keys), tests (drop integration de la isla)

@@ -7,7 +7,15 @@
 // glue (hook `use-style-assist`, componente `style-assist-island`, contrato
 // `StyleAssistLabels`) se eliminó del slice. La saga + Server Action +
 // dominio quedan **dormidos y testeados** (`__tests__/suggest-style.test.ts`
-// sigue verde) — listos para reactivar cuando ADR-0020 sea superseded.
+// sigue verde).
+//
+// ADR-0051 (2026-06-05, Phase 3.A): reactivación COMPROMETIDA a V1.3. La
+// pausa sigue vigente HOY (no se reactiva acá); la dep `ai@^6.0.185` se
+// mantiene deliberadamente. Plan de reconstrucción en ADR-0051 §4: recuperar
+// UI glue de git `f837e5b` + re-wire 11 keys `assist*` x 6 locales +
+// re-introducir input "Descripción" + re-cablear wizard + verificar LLM en
+// preview (blocker original) + re-validar ROI. La ADR de V1.3 que reactive
+// efectivamente reemplaza ADR-0020 en su totalidad.
 //
 // Sin consumer activo de producción: `grep -rn "@/features/style-assist"`
 // debería matchear sólo este archivo (re-exports internos). Si esa búsqueda

@@ -26,10 +26,10 @@
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
 | **1 — Hardening** | 7 | 7/7 ✅ | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | `baseline/phase-1-tech-debt-done` = `3fa0cc3` ✅ |
 | **2 — Tests + docs** | 9 | 6/9 (2.A, 2.G, 2.E, 2.F, 2.D, 2.B ✅) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | _pending_ |
-| **3 — Polish** | 6 | 0/6 | _pending_ | _pending_ |
+| **3 — Polish** | 6 | 1/6 (3.A ✅) | `baseline/pre-phase-3-tech-debt` = `cd7a94a` ✅ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 15/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 16/27 sesiones · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -722,17 +722,21 @@ Dividida en 2 sub-sesiones (streaming + error boundaries), compact entre ambas.
 
 Polish + decisiones scope que pueden hacerse durante V1.3 development sin bloquear.
 
-### Sesión 3.A — Scope decisions [~1h]
+### Sesión 3.A — Scope decisions [~1h] ✅
 
-- [ ] Decisión slice `src/features/member-profile/` (589 LOC órfano, `<HeadlineEditor />` NO montado en producción):
-  - Opción A: V1.3 lo monta (definir cuándo + en qué page)
-  - Opción B: parking-lot explícito con ADR nueva (número al redactarse — `0049` ya lo tomó la CSP strict; será `0050+`) + remover slice o marcar `@deprecated`
-- [ ] Decisión slice `src/features/style-assist/` + dep `ai` (330 LOC dormido por ADR-0020):
-  - Opción A: V1.3 reactiva (registrar timeline)
-  - Opción B: drop slice + dep `ai` del package.json
-- [ ] Update docs según decisión
+**Decisiones del owner (2026-06-05)**:
+- **`member-profile/` (589 LOC huérfano)** → **Opción A: comprometer a V1.3**. El slice está completo y testeado (action `updateMyHeadlineAction` + `<HeadlineEditor />` + tests verdes); sólo le falta mount point. Diagnóstico empírico confirmó: NO está montado, y el header de `public.ts` afirmaba *incorrectamente* el mount en `/settings/members` (la spec + ADR-0036 lo ubican en el **modal de perfil contextual** disparado al tappear el propio avatar). El slice **no arrastra dependencias** → costo de mantenerlo ~0. Rechazadas parking-lot (duplica la decisión) y remover (descarta código member-facing testeado con casa designada).
+- **`style-assist/` (347 LOC) + dep `ai@^6.0.185`** → **Opción A: reactivar en V1.3**. La pausa de ADR-0020 sigue vigente HOY; la reactivación queda comprometida a V1.3 con plan de reconstrucción documentado. La dep `ai` se **mantiene deliberadamente** (dropear ahora para re-agregar en V1.3 = churn de lockfile + drift de versión mayor de un SDK evolucionante; peso server-only tolerable contra el compromiso). Rechazadas drop (churn sin ganancia) y mantener dormido sin ADR (no cierra el item).
 
-**Acceptance**: 2 ADRs nuevas (parking-lot o reactivate) · package.json refleja decisión.
+**Items cerrados**:
+- [x] **ADR-0050** (`docs/decisions/0050-member-profile-commit-v1.3.md`) — comprometer `member-profile` a V1.3 + mount point canónico (modal de perfil contextual). Refina ADR-0042 (fija el consumer destino) + ADR-0036 §47 (UI de headline diferida "V1.1+" → fijada V1.3). Indexada en README.
+- [x] **ADR-0051** (`docs/decisions/0051-style-assist-reactivate-v1.3.md`) — reactivación de `style-assist` comprometida a V1.3 + plan de reconstrucción (§4) + rationale de por qué se mantiene la dep `ai`. Refina ADR-0020 (revierte el stance "probablemente no se reactive"). Indexada en README.
+- [x] Banner de refinamiento en ADR-0020 apuntando a ADR-0051 (la pausa MVP sigue vigente; la expectativa de no-reactivación queda revertida).
+- [x] Header `member-profile/public.ts` **corregido**: el mount real es el modal de perfil contextual (no `/settings/members`), comprometido V1.3 por ADR-0050.
+- [x] Header `style-assist/public.ts` actualizado: dormido con reactivación comprometida V1.3 por ADR-0051 (+ plan de reconstrucción).
+- [x] `package.json` refleja decisión: **sin cambios** — ambos slices se mantienen, dep `ai` se conserva (decisión deliberada documentada en ADR-0051, para que un audit futuro no la marque huérfana).
+
+**Acceptance** (verificado 2026-06-05): 2 ADRs nuevas (ambas reactivate/commit, no parking-lot) ✅ · README index con 2 entradas nuevas ✅ · package.json refleja decisión (sin cambios, `ai` conservada) ✅ · headers de ambos slices corregidos/actualizados ✅ · banner ADR-0020 ✅. Sin cambios de código fuente ni tests → suite sin impacto (sesión doc-only).
 
 **Commit**: _pending_
 
@@ -818,6 +822,8 @@ Items que NO son cleanup tech debt sino features/optimizaciones para más adelan
 | **θ — theme color en branding apex** (necesita `theme_config` shape canonizado) | ADR-0046 | V1.3 |
 | **Auditoría DEFINERs post-signup**: futuras Server Actions sin PlaceWizard | spec.md invitations §Followups V1.2 bullet 3 | V1.3 mid |
 | **Conversaciones / Eventos / Library**: implementación de las 3 ontologías canónicas | docs/ontologia/* + Phase 2.D stubs | V1.3+ |
+| **Montar `<HeadlineEditor />`** en el modal de perfil contextual del miembro (slice `member-profile/` ya listo + testeado) | ADR-0050 (Phase 3.A) | V1.3 |
+| **Reactivar `style-assist/`**: reconstruir UI glue (git `f837e5b`) + 11 keys `assist*` × 6 locales + input "Descripción" + re-cablear wizard + verificar LLM preview + re-validar ROI + ADR que supersede ADR-0020 | ADR-0051 (Phase 3.A) | V1.3 |
 | **Storybook/Ladle** para componentes `shared/ui/` | DX nice-to-have | V1.4+ |
 
 ---
