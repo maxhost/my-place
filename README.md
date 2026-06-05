@@ -68,6 +68,29 @@ pnpm dev                # http://localhost:3000
 
 5. **Probar multi-tenancy local**: el proxy interno mapea `*.localhost:3000` → zona-place. Editá `/etc/hosts` (o usá `dnsmasq`/`xip.io`) para resolver `mi-place.localhost` → `127.0.0.1`. La page `/` apex muestra la landing; `/{placeSlug}` muestra el Hub del place.
 
+6. **Seed de datos de prueba** (opcional): ver §"Seed de desarrollo" abajo.
+
+---
+
+## Seed de desarrollo
+
+> **⚠️ Solo branch DEV — NUNCA producción.** El script escribe con el rol admin `neondb_owner` (`DATABASE_URL_MIGRATE`) y aborta si detecta `VERCEL`/`CI`. Igual, verificá el host que imprime antes de continuar.
+
+`pnpm db:seed` puebla la DB con data observable de un comando: **1 owner + 1 place ("Club de Lectura") + 3 miembros + 2 invitaciones pendientes**. Sirve para ver `/settings/members` sin crear todo a mano tras cada reset del branch.
+
+La identidad de login vive en Neon Auth (`neon_auth.user`), no en nuestras tablas — el seed **no** crea el owner, lo **vincula** a uno existente. Flujo de 2 pasos:
+
+```bash
+# 1) Registrá el owner UNA vez por la UI real (esto lo crea en Neon Auth):
+pnpm dev                                   # → http://localhost:3000/es/login → "crear cuenta"
+#    p.ej. ana@dev.local
+
+# 2) Sembrá el resto vinculando ese email:
+SEED_OWNER_EMAIL=ana@dev.local pnpm db:seed
+```
+
+El script imprime las 2 invite URLs accionables y aborta limpio si el place del seed ya existe (re-sembrar = borrar el place del branch dev primero). Detalle en el header de `scripts/db-seed.mjs`.
+
 ---
 
 ## Scripts
@@ -81,6 +104,7 @@ pnpm dev                # http://localhost:3000
 | `pnpm test` | Vitest suite full (2 projects: `node` para DB integration tests, `ui` para RTL) |
 | `pnpm db:generate` | Drizzle-kit generate desde `src/db/schema/` (solo schema changes; custom SQL se escribe a mano — ver `data-model.md`) |
 | `pnpm db:migrate` | Aplica migrations pendientes contra `DATABASE_URL_MIGRATE` |
+| `pnpm db:seed` | Puebla un branch **dev** con data de prueba (1 owner + 1 place + 3 miembros + 2 invitaciones). Ver §"Seed de desarrollo". **⚠️ solo dev branch, NUNCA prod** |
 | `pnpm analyze` | Build con `@next/bundle-analyzer` |
 | `pnpm lhci` | Lighthouse CI assertion (corre en `lighthouse.yml` workflow) |
 

@@ -26,10 +26,10 @@
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
 | **1 — Hardening** | 7 | 7/7 ✅ | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | `baseline/phase-1-tech-debt-done` = `3fa0cc3` ✅ |
 | **2 — Tests + docs** | 9 | 9/9 ✅ (2.A, 2.B, 2.C, 2.D, 2.E, 2.F, 2.G, 2.H, 2.I) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | `baseline/phase-2-tech-debt-done` (cierre `cd7a94a`) |
-| **3 — Polish** | 6 | 2/6 (3.A, 3.B ✅) | `baseline/pre-phase-3-tech-debt` = `cd7a94a` ✅ | _pending_ |
+| **3 — Polish** | 6 | 4/6 (3.A, 3.B, 3.C, 3.D ✅) | `baseline/pre-phase-3-tech-debt` = `cd7a94a` ✅ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 24/27 sesiones (Phase 0+1+2 cerradas · Phase 3: 3/6) · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 25/27 sesiones (Phase 0+1+2 cerradas · Phase 3: 4/6) · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -776,11 +776,14 @@ Polish + decisiones scope que pueden hacerse durante V1.3 development sin bloque
 
 ### Sesión 3.D — Seed script [~2h]
 
-- [ ] Crear `scripts/db-seed.mjs` (o similar): 1 owner user (Neon Auth + app_user) + 1 place + 3 miembros + 2 invitations pending
-- [ ] Script `pnpm db:seed` en package.json (NO en build, solo on-demand local)
-- [ ] Documentar uso en `README.md` §Setup + warning "solo dev branch, NUNCA prod"
+- [x] Crear `scripts/db-seed.mjs`: 1 owner (Neon Auth + app_user) + 1 place + 3 miembros + 2 invitations pending. **Owner = Opción 1 (bind a owner existente)**: NO crea la identidad de login (no replica signup ni hash de Better-Auth — seam vivo, auth-actions.ts §50-59); el owner se registra una vez por la UI y se vincula vía `SEED_OWNER_EMAIL`. Reusa los DEFINER `app.create_place`/`app.create_invitation` con el patrón claims tx-local (db.ts §30) sobre `DATABASE_URL_MIGRATE`.
+- [x] Script `pnpm db:seed` en package.json (NO en build, solo on-demand local)
+- [x] Documentar uso en `README.md` §"Seed de desarrollo" (flujo 2 pasos) + fila en §Scripts + warning "solo dev branch, NUNCA prod"
+- [x] Guards de seguridad: aborta en `VERCEL`/`CI`, exige `SEED_OWNER_EMAIL`, imprime host target, idempotente (aborta si el place del seed ya existe)
 
-**Acceptance**: `pnpm db:seed` en branch dev Neon produce data observable en `/settings/members` + invite URLs accionables.
+**Acceptance**: ✅ Verificado E2E contra branch dev (`ep-old-hat-apcao96c`). `pnpm db:seed` creó place `club-lectura-seed` + 4 miembros activos (owner + 3) + 2 invitaciones pendientes con tokens reales de 64 hex; data confirmada vía SQL (loadMembers + invitation rows). Guards + idempotencia (re-run aborta) verificados. Sin test vitest (excepción: tooling dev I/O contra Neon vivo + `neon_auth` managed, misma categoría que el seam de auth).
+
+**Hallazgo (fuera de scope, señalado)**: cada branch Neon tiene su propia instancia Neon Auth. El `.env.local` apunta `DATABASE_URL`→dev pero `NEON_AUTH_BASE_URL`/`NEXT_PUBLIC_APP_URL`→**producción** — el dev local autentica contra prod y las invite URLs salen con apex `place.community`. Corregir el env dev (auth+URLs→dev/localhost) queda pendiente como tarea aparte.
 
 **Commit**: _pending_
 

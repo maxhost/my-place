@@ -19,6 +19,7 @@
     "e2e:ui": "node scripts/ensure-e2e-cert.mjs && playwright test --ui",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:seed": "node scripts/db-seed.mjs",
     "analyze": "cross-env ANALYZE=true NODE_ENV=production next build",
     "lhci": "lhci autorun",
     "prepare": "lefthook install || true"
