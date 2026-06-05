@@ -785,7 +785,7 @@ Polish + decisiones scope que pueden hacerse durante V1.3 development sin bloque
 
 **Hallazgo (fuera de scope, señalado)**: cada branch Neon tiene su propia instancia Neon Auth. El `.env.local` apunta `DATABASE_URL`→dev pero `NEON_AUTH_BASE_URL`/`NEXT_PUBLIC_APP_URL`→**producción** — el dev local autentica contra prod y las invite URLs salen con apex `place.community`. Corregir el env dev (auth+URLs→dev/localhost) queda pendiente como tarea aparte.
 
-**Commit**: _pending_
+**Commit**: `7b70cac`
 
 ---
 
