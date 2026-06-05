@@ -2,7 +2,7 @@
 
 Schema del core del producto, expresado en **SQL (Postgres) ORM-agnóstico**. El método de acceso (ORM/query builder/SQL plano) está TBD; el modelo no depende de esa decisión. Cada feature agrega sus propias tablas respetando este core.
 
-> _Última actualización: 2026-06-05 (Phase 3.B tech-debt closure — migration 0027: `FORCE ROW LEVEL SECURITY` en las 6 tablas del core + `search_path` fijo en `app.current_user_id()` + `VOLATILE` explícito en los 4 DEFINER 0002/0003/0007/0013). Previa: 2026-06-01 (Phase 2.D — §"Catálogo DEFINER" (18 funciones), policy `au_peer_member_read` en §Auth (ADR-0038), §"Tablas anti-replay" con `app.sso_jti_used` (ADR-0032))._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
+> _Última actualización: 2026-06-05 (Phase 3.E tech-debt closure — migration 0028: índice `idx_place_founder_user_id` sobre `place(founder_user_id)` para el patrón inverso "qué places fundó X"). Previa: 2026-06-05 (Phase 3.B tech-debt closure — migration 0027: `FORCE ROW LEVEL SECURITY` en las 6 tablas del core + `search_path` fijo en `app.current_user_id()` + `VOLATILE` explícito en los 4 DEFINER 0002/0003/0007/0013). Previa: 2026-06-01 (Phase 2.D — §"Catálogo DEFINER" (18 funciones), policy `au_peer_member_read` en §Auth (ADR-0038), §"Tablas anti-replay" con `app.sso_jti_used` (ADR-0032))._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
 
 ## Schema base
 
@@ -234,7 +234,7 @@ Reglas que el código debe enforzar. No son validaciones UI — son invariantes 
 
 - **Máximo 150 miembros por place.** Al intentar agregar el miembro 151, el modelo rechaza con error estructural.
 - **Mínimo 1 owner por place activo (enforce DB-side via DEFINER).** Un place no puede quedar sin owner. Enforce vía las funciones `app.revoke_ownership` y `app.transfer_founder_ownership` (`SECURITY DEFINER`, RAISE EXCEPTION en cuerpo) + `REVOKE INSERT, UPDATE, DELETE ON place_ownership FROM "app_system"` (defense-in-depth: ninguna ruta TS llega directo a SQL). Canónico: ADR-0035 §4.
-- **Founder slot único por place, no-delete por otro owner.** `place.founder_user_id` es el `app_user.id` del owner-fundador (creador o quien recibió transfer). Inmutable salvo por `app.transfer_founder_ownership` (`SECURITY DEFINER`, sólo el founder actual puede transferirlo a un owner pre-existente). Canónico: ADR-0035 §2.
+- **Founder slot único por place, no-delete por otro owner.** `place.founder_user_id` es el `app_user.id` del owner-fundador (creador o quien recibió transfer). Inmutable salvo por `app.transfer_founder_ownership` (`SECURITY DEFINER`, sólo el founder actual puede transferirlo a un owner pre-existente). Canónico: ADR-0035 §2. Indexado por `idx_place_founder_user_id` (migration 0028, Phase 3.E) para el patrón inverso `WHERE founder_user_id = $1` ("qué places fundó X") — auditoría de ownership + futuras vistas de perfil de fundador; los lookups de los DEFINER van por `place(id)` (PK).
 - **Transfer founder requiere target owner pre-existente.** El target de `app.transfer_founder_ownership` debe ser owner actual (≥2 owners pre-transfer); si N=1 (founder solo), el caller debe elevar primero a alguien vía `app.elevate_to_owner`. Bloqueado con RAISE EXCEPTION explícito. Canónico: ADR-0035 §2/§4.
 - **Multi-owner desde V1; co-owners se elevan desde miembros pre-existentes.** Un place tiene N owners simultáneos (N filas en `place_ownership` con mismo `place_id`); todos comparten poder operativo (CRUD owner-only vía policies de `place`/`membership`/`invitation`/`place_domain`). La asimetría es de origen (founder vs co-owner). `app.elevate_to_owner` requiere que el target sea miembro activo (`membership.left_at IS NULL`) del mismo place — no se puede elevar a externos. Canónico: ADR-0035 §1/§2.
 - **No se pueden mezclar billing modes.** Un place tiene un solo modo activo. Cambiar de modo requiere flow explícito. (Estrategia de pagos concreta: TBD.)
@@ -306,7 +306,7 @@ Implementado en `features/members/` y `features/places/` con cron/scheduled func
 
 ## Migrations & snapshots (convención del repo)
 
-Las migrations viven en `src/db/migrations/*.sql` numeradas secuencialmente (`0000_*.sql` … `0027_*.sql` al momento de este doc). El runner es **drizzle-kit migrate** (script `pnpm db:migrate`), que se ejecuta automáticamente en cada production deploy via `scripts/maybe-migrate.mjs` (canon ADR-0017).
+Las migrations viven en `src/db/migrations/*.sql` numeradas secuencialmente (`0000_*.sql` … `0028_*.sql` al momento de este doc). El runner es **drizzle-kit migrate** (script `pnpm db:migrate`), que se ejecuta automáticamente en cada production deploy via `scripts/maybe-migrate.mjs` (canon ADR-0017).
 
 **Dos tipos de migrations conviven**:
 

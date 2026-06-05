@@ -26,10 +26,10 @@
 | **0 — Bloqueantes** | 5 | 5/5 | `baseline/pre-phase-0-tech-debt` ✅ | `baseline/phase-0-tech-debt-done` = `204a124` ✅ (pushed) |
 | **1 — Hardening** | 7 | 7/7 ✅ | `baseline/pre-phase-1-tech-debt` = `f577908` ✅ | `baseline/phase-1-tech-debt-done` = `3fa0cc3` ✅ |
 | **2 — Tests + docs** | 9 | 9/9 ✅ (2.A, 2.B, 2.C, 2.D, 2.E, 2.F, 2.G, 2.H, 2.I) | `baseline/pre-phase-2-tech-debt` = `3fa0cc3` | `baseline/phase-2-tech-debt-done` (cierre `cd7a94a`) |
-| **3 — Polish** | 6 | 4/6 (3.A, 3.B, 3.C, 3.D ✅) | `baseline/pre-phase-3-tech-debt` = `cd7a94a` ✅ | _pending_ |
+| **3 — Polish** | 6 | 5/6 (3.A, 3.B, 3.C, 3.D, 3.E ✅) | `baseline/pre-phase-3-tech-debt` = `cd7a94a` ✅ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 25/27 sesiones (Phase 0+1+2 cerradas · Phase 3: 4/6) · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 26/27 sesiones (Phase 0+1+2 cerradas · Phase 3: 5/6) · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -789,13 +789,13 @@ Polish + decisiones scope que pueden hacerse durante V1.3 development sin bloque
 
 ---
 
-### Sesión 3.E — CI extras + index polish [~1h]
+### Sesión 3.E — CI extras + index polish [~1h] ✅
 
-- [ ] Agregar `check-translations.mjs` a CI (warning visible, no fail-fast por canon ADR-0024)
-- [ ] Normalizar JSDoc seam-split en `src/features/custom-domain-verification/actions/get-custom-domain-status.ts` (frase canónica para consistencia)
-- [ ] Migration 0028: `CREATE INDEX idx_place_founder_user_id ON place(founder_user_id)` — lookups en `revoke_ownership` + `transfer_founder_ownership` + queries futuras "qué places fundó X"
+- [x] Agregar `check-translations.mjs` a CI (warning visible, no fail-fast). **Desviación detectada + resuelta**: el tracker decía "por canon ADR-0024" pero ADR-0024 §87 dice literal "no corre en CI"; y las ADR son inmutables (§10). Resuelto con **ADR-0052** (decisión owner 2026-06-05) que refina §87: el script corre en CI pero como step `exit 0` siempre (nunca fail-fast). Job `translations` separado en `tests.yml` (sin `needs`, sin `pnpm install` — el script es Node ESM puro, sin secrets). Banner forward en ADR-0024 + header §1 del script actualizado. La sustancia de ADR-0024 (deep-merge runtime + NO fail-closed) queda intacta.
+- [x] Normalizar JSDoc seam-split en `src/features/custom-domain-verification/actions/get-custom-domain-status.ts`: las 3 menciones de la frase ahora usan la forma canónica `UX-equivalente al `requireSessionJwt` previo (ADR-0032 §S11.2)` (línea 30 le faltaba la cita ADR; línea 187 decía "retorno previo" en vez de "`requireSessionJwt` previo").
+- [x] Migration 0028 (`0028_idx_place_founder_user_id.sql`): `CREATE INDEX IF NOT EXISTS idx_place_founder_user_id ON place(founder_user_id)` con prefijo `SET lock_timeout='5s'` (canon 0025) + entry `idx 28` en `_journal.json`. Cubre el patrón inverso `WHERE founder_user_id = $1` ("qué places fundó X" — auditoría + futuras vistas de perfil); los lookups de `revoke_ownership`/`transfer_founder_ownership` van por `place(id)` (PK). `data-model.md`: header fecha + invariante founder + rango migrations `… 0028_*.sql`.
 
-**Acceptance**: CI muestra check-translations result · JSDoc consistente · query planner usa index nuevo.
+**Acceptance** (verificado 2026-06-05): `node scripts/check-translations.mjs` → exit 0 (364 keys, 0 drift en los 6 locales) ✅ · job `translations` en CI con YAML válido ✅ · JSDoc consistente (3 menciones canónicas) · typecheck + lint limpios ✅ · migration 0028 aplicada en test branch (`br-withered-darkness-apz87zyz`) vía Neon MCP → `pg_indexes` confirma el índice; `EXPLAIN` con `enable_seqscan=off` muestra `Index Scan using idx_place_founder_user_id` para `WHERE founder_user_id=$1` (tabla en 0 rows → seqscan por default, idéntico a 0025) ✅ · **suite node 98 files / 1030 tests verde** (0028 aplica en secuencia sin regresión) ✅. Prod apply diferido al próximo deploy (canon ADR-0017 `maybe-migrate.mjs`).
 
 **Commit**: _pending_
 

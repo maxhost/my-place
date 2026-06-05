@@ -27,7 +27,7 @@ import { decideDomainFlow, type DomainFlowDecision } from "./_v6-helpers";
 // fail-closed (sin sesión válida) se materializa como `NoSessionError`
 // lanzado dentro de `loadActiveDomainRow`; su try/catch lo colapsa a
 // `null` que el caller mapea a `{status: "none"}` — UX-equivalente al
-// `requireSessionJwt` previo que retornaba el mismo shape.
+// `requireSessionJwt` previo (ADR-0032 §S11.2).
 //
 // COSTO: +1 round-trip a V6 por carga del page (~50-150ms). El page es
 // low-traffic (owner-only) — aceptable. Si en V2 molesta, cachear V6 con
@@ -184,7 +184,7 @@ async function applyFlowDecision(
  * (`getAuthenticatedDbForRequest`) detecta la zona del request y lee la
  * cookie correcta. `NoSessionError` se materializa dentro de
  * `loadActiveDomainRow`, su catch lo colapsa a `null` y el caller mapea
- * a `{status: "none"}` — UX-equivalente al retorno previo
+ * a `{status: "none"}` — UX-equivalente al `requireSessionJwt` previo
  * (ADR-0032 §S11.2).
  */
 export async function getCustomDomainStatus(

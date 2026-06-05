@@ -71,6 +71,33 @@ jobs:
       - name: Vitest project ui (componentes jsdom)
         run: pnpm test:ui
 
+  # Reporte i18n drift informativo (ADR-0052, Phase 3.E tech-debt closure).
+  # NO bloqueante por construcción: `check-translations.mjs` hace `exit 0`
+  # SIEMPRE (ver su §1) — el drift de traducciones queda visible en el log de
+  # Actions pero NUNCA marca el job en rojo. La red de seguridad real es el
+  # deep-merge runtime de `src/i18n/request.ts` (ADR-0024): UX nunca renderea
+  # una key cruda. Job SEPARADO a propósito:
+  #   - sin `needs` → corre en paralelo con `vitest` (no serializa el gate).
+  #   - sin `pnpm install` → el script es Node ESM puro (`fs`/`path`/`url`,
+  #     cero deps de runtime) → sólo checkout + setup-node. Más rápido, no
+  #     toca el lockfile.
+  #   - sin secrets → no toca DB ni red.
+  # Refina ADR-0024 §87 ("no corre en CI") vía ADR-0052: la sustancia
+  # (NO fail-closed) queda intacta. Fail-closed selectivo en CI sigue diferido
+  # a un check separado en su propia ADR (ADR-0024 §87/§158).
+  translations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: check-translations (drift i18n informativo, ADR-0024/0052)
+        run: node scripts/check-translations.mjs
+
   # Coverage + comment en PR (Phase 2.C.3, 2026-06-02). Job SEPARADO con
   # `needs: vitest` a propósito:
   #   (1) corre DESPUÉS del gate bloqueante → NO se solapa con `test:node`

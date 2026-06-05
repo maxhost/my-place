@@ -8,8 +8,10 @@
 //
 // Reglas (ADR-0024 §96, §147, §152):
 // 1. **Informativo, NUNCA fail-closed.** `process.exit(0)` siempre, incluso
-//    si todos los locales tienen drift. Se invoca manualmente (no en CI ni en
-//    el build). El runtime ya tiene la red de seguridad real: deep-merge de
+//    si todos los locales tienen drift. Se invoca manualmente o como step
+//    informativo en CI (job `translations` de `.github/workflows/tests.yml`,
+//    ADR-0052 que refina ADR-0024 §87) — nunca en el build, nunca fail-fast.
+//    El runtime ya tiene la red de seguridad real: deep-merge de
 //    `defaultLocale` con `{locale}.json` en `src/i18n/request.ts` — UX nunca
 //    renderea una key cruda por ausencia de traducción.
 // 2. **Locales sin archivo físico** (`en/fr/pt` al momento de S1.b) se

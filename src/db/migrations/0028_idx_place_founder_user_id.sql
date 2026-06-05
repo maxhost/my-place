@@ -1,0 +1,55 @@
+-- Phase 3 tech-debt closure · Sesión 3.E (docs/tech-debt-pre-v1.3.md,
+-- 2026-06-05). Hand-written custom SQL (sin snapshot Drizzle por convención
+-- proyecto — ver data-model.md §"Migrations & snapshots").
+--
+-- ## Por qué este migration existe
+--
+-- `place.founder_user_id` (NOT NULL desde migration 0012, ADR-0035) no tiene
+-- índice. Es referencia lógica a `app_user.id` (sin FK hard, mismo criterio
+-- que `app_user.auth_user_id` por ADR-0006) → Postgres no crea índice
+-- automático. Los DEFINER del core lo filtran/comparan por place:
+--   - `app.transfer_founder_ownership` (0016): `SELECT founder_user_id INTO
+--     v_founder FROM place WHERE id = p_place_id` + `UPDATE place SET
+--     founder_user_id = p_to_user_id WHERE id = p_place_id` (pre-cond 4 +
+--     mutación atómica).
+--   - `app.revoke_ownership` (0015): `SELECT founder_user_id INTO v_founder
+--     FROM place WHERE id = p_place_id` (pre-cond 5: target NOT founder).
+-- Hoy esos lookups van por `place(id)` (PK, indexada) — el índice sobre
+-- `founder_user_id` cubre el patrón inverso "qué places fundó X"
+-- (`WHERE founder_user_id = $1`), que aparecerá en queries de auditoría de
+-- ownership y futuras vistas de perfil de fundador. Sin él, ese filtro
+-- ejecuta SEQ SCAN — viable hoy (tabla chica pre-launch) pero degrada
+-- non-linearly al scale-up. Canon production-minded (CLAUDE.md
+-- `feedback_production_minded`): cerrar pre-launch, no post-incident.
+-- Mismo rationale que los 5 índices de FK columns de migration 0025.
+--
+-- ## Canon `SET lock_timeout = '5s'`
+--
+-- `CREATE INDEX` toma AccessExclusiveLock sobre `place`. Prefijado con el
+-- canon transversal establecido en 0025 (data-model.md §"Protocolo para
+-- futuras migrations"): fail-fast a los 5s (SQLSTATE 55P03) en vez de stall
+-- indefinido por lock contention. El timeout es session-local (sin reverse).
+--
+-- ## Por qué NO `CREATE INDEX CONCURRENTLY`
+--
+-- `CONCURRENTLY` requiere correr fuera de transacción; drizzle-kit migrate
+-- corre en transacción (canon ADR-0017 + scripts/maybe-migrate.mjs). Para
+-- `place` pre-launch (cero tráfico, ≤100 rows) el blocking `CREATE INDEX`
+-- con `lock_timeout 5s` es estrictamente más simple y rápido (idéntico
+-- razonamiento que 0025).
+--
+-- ## Idempotencia
+--
+-- `CREATE INDEX IF NOT EXISTS` (defense-in-depth ante re-runs manuales o
+-- aplicación tras drop accidental). Pattern canónico del proyecto (0025 +
+-- precedentes 0006/0008).
+--
+-- ## Reverse SQL (rollback puntual)
+--
+--   DROP INDEX IF EXISTS idx_place_founder_user_id;
+--   -- (lock_timeout es session-local, no requiere reverse)
+--
+-- Sin caveats: el índice no afecta corrección — sólo performance. Drop
+-- revierte a SEQ SCAN sin pérdida de data ni cambio de invariantes.
+SET lock_timeout = '5s';--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_place_founder_user_id" ON "place" USING btree ("founder_user_id");

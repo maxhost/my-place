@@ -1,5 +1,7 @@
 # 0024 — Fallback runtime deep-merge entre `defaultLocale.json` y `{locale}.json`; `check-translations` informativo no-fail-closed
 
+> **Refinada por ADR-0052 (2026-06-05, Phase 3.E):** la cláusula operativa §87 ("`check-translations.mjs` **no corre en CI**, ni en `pnpm build` ni en GitHub Actions") cambia — el script ahora **sí** corre en CI, pero como **step informativo que siempre hace `exit 0`** (nunca fail-fast). La sustancia de esta ADR (deep-merge runtime como red de seguridad real + NO fail-closed que bloquee velocity) queda **intacta**: correr el reporte general non-blocking no reintroduce ningún bloqueo. El fail-closed selectivo en CI sigue diferido a un check separado en su propia ADR (§87/§158).
+
 - **Fecha:** 2026-05-20
 - **Estado:** Aceptada
 - **Alcance:** infraestructura i18n (`src/i18n/request.ts`), proceso de traducción (cómo el equipo agrega keys sin bloquear deploys), CI (no bloquea), UX (nunca se renderea una key cruda en pantalla)
