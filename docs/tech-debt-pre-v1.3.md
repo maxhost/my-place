@@ -783,7 +783,7 @@ Polish + decisiones scope que pueden hacerse durante V1.3 development sin bloque
 
 **Acceptance**: ✅ Verificado E2E contra branch dev (`ep-old-hat-apcao96c`). `pnpm db:seed` creó place `club-lectura-seed` + 4 miembros activos (owner + 3) + 2 invitaciones pendientes con tokens reales de 64 hex; data confirmada vía SQL (loadMembers + invitation rows). Guards + idempotencia (re-run aborta) verificados. Sin test vitest (excepción: tooling dev I/O contra Neon vivo + `neon_auth` managed, misma categoría que el seam de auth).
 
-**Hallazgo (fuera de scope, señalado)**: cada branch Neon tiene su propia instancia Neon Auth. El `.env.local` apunta `DATABASE_URL`→dev pero `NEON_AUTH_BASE_URL`/`NEXT_PUBLIC_APP_URL`→**producción** — el dev local autentica contra prod y las invite URLs salen con apex `place.community`. Corregir el env dev (auth+URLs→dev/localhost) queda pendiente como tarea aparte.
+**Nota topología (fuera de scope)**: cada branch Neon tiene su propia instancia Neon Auth. No hay dev local — se trabaja en la nube contra el stack real; el `.env.local` solo sirve para tooling (migrate, seed) y apunta `DATABASE_URL`→dev pero `NEON_AUTH_BASE_URL`/`NEXT_PUBLIC_APP_URL`→prod (coherente con el flujo, NO un bug). Implicancia: `db:seed` local escribe al branch dev y las invite URLs usan el apex prod (`place.community`).
 
 **Commit**: `7b70cac`
 
