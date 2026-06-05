@@ -27,19 +27,22 @@ const withAnalyzer = withBundleAnalyzer({ enabled: process.env.ANALYZE === "true
 //   origin leakeán SÓLO el origin (sin path/query). Same-origin envía URL
 //   completa. Balance entre privacy + analytics interno.
 //
-// - `Permissions-Policy`: bloquea geolocation/camera/microphone (no usadas
-//   V1). Si V1.3 introduce uno, agregar `allow=self` puntual.
+// - `Permissions-Policy`: deny-list de browser features que la app NO usa V1.
+//   Phase 2.I tightening: además de geolocation/camera/microphone se deniegan
+//   payment, usb y browsing-topics (opt-out de la Topics API de tracking). Los
+//   directivos no reconocidos por un browser se ignoran sin error. Si V1.3
+//   introduce alguna feature, cambiar su entrada a `allow=self` puntual.
 //
 // - `X-Content-Type-Options: nosniff`: el browser respeta Content-Type
 //   server-side (no MIME-sniffing). Anti-XSS via upload de archivos con
 //   Content-Type ambiguo (relevante post-Phase 1.G Storage decision).
 //
-// ## NO incluido: CSP (Content-Security-Policy)
+// ## CSP (Content-Security-Policy): vive en `src/proxy.ts`, NO acá
 //
-// CSP permisiva tendría valor marginal (sólo bloquea scripts cross-origin
-// — vector raro) + Phase 2 vamos a strict CSP (nonce-based) que reescribe
-// TODO el setup. Skipear ahora evita work throwaway. Ver:
-//   docs/tech-debt-pre-v1.3.md §Phase 2.I — CSP strict (nonce-based).
+// La CSP es strict (nonce-based) y el nonce se genera POR REQUEST → no puede
+// ser un header estático de `next.config`. Se compone en el proxy (Phase 2.I).
+// Ver `src/shared/lib/security/content-security-policy.ts` + proxy.ts §CSP y
+// docs/tech-debt-pre-v1.3.md §Phase 2.I.
 const SECURITY_HEADERS = [
   {
     key: "Strict-Transport-Security",
@@ -49,7 +52,8 @@ const SECURITY_HEADERS = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "geolocation=(), camera=(), microphone=()",
+    value:
+      "geolocation=(), camera=(), microphone=(), payment=(), usb=(), browsing-topics=()",
   },
   { key: "X-Content-Type-Options", value: "nosniff" },
 ];

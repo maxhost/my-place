@@ -3,6 +3,12 @@ import { type NextRequest, NextResponse } from "next/server";
 import { routing } from "@/i18n/routing";
 import { lookupPlaceByDomain } from "@/shared/lib/custom-domain-lookup";
 import { resolveHostWithCustomDomains } from "@/shared/lib/host-routing";
+import {
+  buildContentSecurityPolicy,
+  CSP_HEADER,
+  generateNonce,
+  NONCE_HEADER,
+} from "@/shared/lib/security/content-security-policy";
 
 // Proxy host-based (Next 16 renombra middleware→proxy, ADR-0013). Clasifica el
 // host (ADR-0005 §10 · multi-tenancy.md) y:
@@ -46,14 +52,66 @@ import { resolveHostWithCustomDomains } from "@/shared/lib/host-routing";
 
 const intlMiddleware = createMiddleware(routing);
 
+// ## CSP strict (nonce-based) — Phase 2.I
+//
+// Sólo en producción. `next dev` usa `eval` (React Refresh/HMR) + websockets
+// del dev server: una CSP strict los bloquearía y rompería el dev — y la suite
+// E2E (Playwright) corre sobre `next dev`. El header CSP estático (HSTS,
+// X-Frame-Options, etc.) vive en `next.config.ts`; el CSP necesita nonce
+// per-request → se compone acá. Smoke en prod: `pnpm build && pnpm start`.
+//
+// Mecánica del nonce: se genera por request y se SETEA en `req.headers`
+// ANTES de cualquier branch. Razones:
+//   - Next lee el nonce del header de request `Content-Security-Policy`
+//     forwardeado al render y lo aplica a sus `<script>` de framework.
+//   - El branch `marketing`/`inbox` delega en `intlMiddleware`, que internamente
+//     copia `new Headers(req.headers)` para su forward → hereda nonce + CSP sin
+//     intervención. En `inbox` el locale viaja en el PATH (`/inbox/[locale]/`),
+//     no en un header, así que el rewrite manual puede forwardear `req.headers`
+//     sin pisar el routing del locale.
+//   - `x-nonce` queda disponible para `<Script nonce>` manuales (hoy ninguno).
+//
+// Devuelve el string CSP (para setearlo también en la respuesta) o `null` fuera
+// de producción.
+function prepareCsp(req: NextRequest): string | null {
+  if (process.env.NODE_ENV !== "production") return null;
+  const nonce = generateNonce();
+  const csp = buildContentSecurityPolicy(nonce);
+  req.headers.set(NONCE_HEADER, nonce);
+  req.headers.set(CSP_HEADER, csp);
+  return csp;
+}
+
+// Setea el header CSP en la respuesta (no-op fuera de producción).
+function applyCsp(res: NextResponse, csp: string | null): NextResponse {
+  if (csp) res.headers.set(CSP_HEADER, csp);
+  return res;
+}
+
+// Rewrite que forwarda `req.headers` (con nonce + CSP) al render SÓLO cuando
+// hay CSP activa; fuera de producción es un rewrite plano idéntico al previo
+// (no agrega override-markers → comportamiento dev/test sin cambios).
+function rewriteWithCsp(
+  url: URL,
+  req: NextRequest,
+  csp: string | null,
+): NextResponse {
+  const res = csp
+    ? NextResponse.rewrite(url, { request: { headers: req.headers } })
+    : NextResponse.rewrite(url);
+  return applyCsp(res, csp);
+}
+
 export default async function proxy(req: NextRequest): Promise<NextResponse> {
+  const csp = prepareCsp(req);
+
   const target = await resolveHostWithCustomDomains(
     req.headers.get("host") ?? "",
     undefined,
     lookupPlaceByDomain,
   );
 
-  if (target.zone === "marketing") return intlMiddleware(req);
+  if (target.zone === "marketing") return applyCsp(intlMiddleware(req), csp);
 
   if (target.zone === "inbox") {
     // 1. intl corre primero: resuelve locale, redirige (302) si falta el
@@ -64,17 +122,18 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
     //    redirect; el siguiente request llega con el path ya prefixado y se
     //    procesa por el branch del rewrite.
     if (intlResponse.status >= 300 && intlResponse.status < 400) {
-      return intlResponse;
+      return applyCsp(intlResponse, csp);
     }
 
     // 3. intl pasó (200/next). Aplicamos el rewrite al prefix interno
     //    `/inbox/`, propagando cookies (NEXT_LOCALE) y headers `x-*` que intl
-    //    setea por compatibilidad server (`x-next-intl-locale` etc.).
+    //    setea por compatibilidad server (`x-next-intl-locale` etc.). El
+    //    `rewriteWithCsp` forwarda `req.headers` (con nonce + CSP) al render.
     const url = req.nextUrl.clone();
     const rest =
       url.pathname === "/" || url.pathname === "/inbox" ? "" : url.pathname;
     url.pathname = `/inbox${rest}`;
-    const rewriteResponse = NextResponse.rewrite(url);
+    const rewriteResponse = rewriteWithCsp(url, req, csp);
     intlResponse.cookies
       .getAll()
       .forEach((cookie) => rewriteResponse.cookies.set(cookie));
@@ -95,14 +154,14 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
     const url = req.nextUrl.clone();
     const rest = url.pathname === "/" ? "" : url.pathname;
     url.pathname = `/place/${target.slug}${rest}`;
-    return NextResponse.rewrite(url);
+    return rewriteWithCsp(url, req, csp);
   }
 
   // zone === "place"
   const url = req.nextUrl.clone();
   const rest = url.pathname === "/" ? "" : url.pathname;
   url.pathname = `/place/${target.slug}${rest}`;
-  return NextResponse.rewrite(url);
+  return rewriteWithCsp(url, req, csp);
 }
 
 export const config = {
