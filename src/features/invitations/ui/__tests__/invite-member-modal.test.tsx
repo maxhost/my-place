@@ -98,6 +98,13 @@ describe("<InviteMemberModal />", () => {
     ).toBeInTheDocument();
   });
 
+  it("ESC cierra el modal (invoca onClose)", async () => {
+    const user = userEvent.setup();
+    const { onClose } = setup();
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("Submit válido invoca createAction con shape correcto + revela link copiable", async () => {
     const user = userEvent.setup();
     const createAction = makeCreate({

@@ -29,7 +29,7 @@
 | **3 — Polish** | 6 | 2/6 (3.A, 3.B ✅) | `baseline/pre-phase-3-tech-debt` = `cd7a94a` ✅ | _pending_ |
 | **4 — Backlog V1.3 mid** | — | — | n/a (no sesiones predefinidas) | n/a |
 
-**Progreso total**: 23/27 sesiones (Phase 0+1+2 cerradas · Phase 3: 2/6) · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
+**Progreso total**: 24/27 sesiones (Phase 0+1+2 cerradas · Phase 3: 3/6) · ~50h dev estimadas si serial · esfuerzo Phase 0+1 (mínimo viable pre-V1.3) = ~3.5 días dev.
 
 ---
 
@@ -765,12 +765,12 @@ Polish + decisiones scope que pueden hacerse durante V1.3 development sin bloque
 
 ### Sesión 3.C — UI polish [~30min]
 
-- [ ] ESC handler en `src/features/invitations/ui/invite-member-modal.tsx` copiando patrón de `src/shared/ui/confirm-dialog.tsx:44-51` (useEffect + keydown listener)
-- [ ] Tokenizar `bg-black/40` como `--scrim` en `src/app/globals.css` + reemplazar 3 usos (`confirm-dialog.tsx:70`, `invite-member-modal.tsx:175`, `domain-section-archive.tsx:137`)
+- [x] ESC handler en `src/features/invitations/ui/invite-member-modal.tsx` copiando patrón de `src/shared/ui/confirm-dialog.tsx:44-51` (useEffect + keydown listener). Sin guard de `open`: el modal siempre está montado cuando renderea (el padre controla open/unmount) — mismo caso que el precedente `domain-section-archive.tsx`. Test TDD agregado al suite del modal.
+- [x] Tokenizar `bg-black/40` como `--scrim` en `src/app/globals.css` (`:root` + `@theme inline` → `--color-scrim`) + reemplazados los 3 usos por `bg-scrim` (`confirm-dialog.tsx`, `invite-member-modal.tsx`, `domain-section-archive.tsx`)
 
-**Acceptance**: ESC cierra invite-member-modal · grep `bg-black/40` en src retorna 0.
+**Acceptance**: ✅ ESC cierra invite-member-modal (test verde) · grep `bg-black/40` en src retorna 0 · typecheck limpio · suites invitations+confirm-dialog+custom-domain verdes (12+85).
 
-**Commit**: _pending_
+**Commit**: `pending-3C`
 
 ---
 

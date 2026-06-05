@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useId, useRef, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import type {
   CreateInvitationResult,
@@ -122,6 +122,19 @@ export function InviteMemberModal({
   const expiresId = useId();
   const errorId = useId();
 
+  // ESC cierra el modal. Mismo patrón doc-level que `confirm-dialog.tsx:44-51`
+  // y el precedente `domain-section-archive.tsx`: listener en `document` (no
+  // `<dialog>` HTML nativo, jsdom no implementa `showModal()` fiable). El modal
+  // siempre está montado cuando renderea (el padre controla open/unmount), por
+  // eso no hace falta guard de `open`.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (submittingRef.current) return;
@@ -175,7 +188,7 @@ export function InviteMemberModal({
       aria-modal="true"
       aria-labelledby={titleId}
       aria-describedby={bodyId}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim px-4"
     >
       <div className="flex w-full max-w-md flex-col gap-4 rounded-lg border border-border bg-surface p-6">
         <h2 id={titleId} className="text-lg font-semibold text-ink">

@@ -30,6 +30,13 @@
    */
   --warn: #f0c97a;
   --info: #b8cbd9;
+  /*
+   * Scrim de overlay para modales/diálogos (negro al 40%). Token semántico
+   * que reemplaza el fill negro semitransparente hardcoded (CLAUDE.md: colores
+   * como CSS custom properties, nunca clases Tailwind de color). Consumido como
+   * `bg-scrim` por confirm-dialog, invite-member-modal y domain-section-archive.
+   */
+  --scrim: rgb(0 0 0 / 0.4);
 }
 
 @theme inline {
@@ -43,6 +50,7 @@
   --color-accent-ink: var(--accent-ink);
   --color-warn: var(--warn);
   --color-info: var(--info);
+  --color-scrim: var(--scrim);
   --font-sans: var(--font-inter);
   --font-serif: var(--font-fraunces);
 }

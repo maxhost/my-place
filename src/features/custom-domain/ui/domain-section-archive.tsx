@@ -134,7 +134,7 @@ function ConfirmDialog(props: {
       aria-modal="true"
       aria-labelledby={titleId}
       aria-describedby={bodyId}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim px-4"
     >
       <div className="flex max-w-md flex-col gap-4 rounded-lg border border-border bg-surface p-6">
         <h2 id={titleId} className="text-lg font-semibold text-ink">
