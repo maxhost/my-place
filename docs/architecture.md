@@ -234,7 +234,13 @@ Los 3 Suspense children del page suelen compartir queries (ej: `resolveViewerFor
 
 ### Implementaciones de referencia
 
-Aún no existen (reset a scaffold limpio). La primera page de detalle que se construya con este patrón queda como implementación canónica y se referencia acá.
+Las pages de `settings/*` (Phase 2.H, refactor del streaming) son la implementación canónica del patrón:
+
+- **`settings/domain/page.tsx`** — caso completo y caso testigo. El page hace SOLO el guard top-level (slug → host-zone → session → place, todo memoizado con el layout vía React.cache) + labels del shell, renderiza `<NavPlaceLayout>` inmediato, y suspende el await pesado (`getCustomDomainStatus`: SELECT + posible round-trip a Vercel, el más lento) en el async server child `_components/domain-content.tsx` bajo `<Suspense fallback={<DomainSkeleton/>}>`.
+- **`settings/members/page.tsx`** — mismo patrón, await pesado = `getAuthenticatedDbForRequest` (members + invitations); el `notFound()` del `callerMember` (race marginal) vive en el child (flicker skeleton→404 aceptable, ver arriba).
+- **Skeletons** (`_components/page-skeletons.tsx`): fallback del Suspense, NO `loading.tsx` (§224). Tailwind solo layout/spacing, color de bloques vía token `bg-border`, sin shimmer, `role="status"` + `aria-busy` + `aria-label` ES.
+- **Error boundary** (`shared/ui/segment-error-boundary` + `error.tsx` thin por segment): renderiza dentro del layout vivo (no reemplaza `<html>/<body>` como `global-error.tsx`), copy ES hardcodeado (no hay i18n client, ADR-0024), Sentry vía `useEffect` (ADR-0047), CTA retry.
+- **Excepción honesta**: `settings/page.tsx` (idioma) NO usa Suspense — su contenido solo necesita `place.defaultLocale` (ya en el guard), un boundary sería no-op. Se streamea SOLO lo que tiene un await pesado real.
 
 ## Checklist de validación por feature
 

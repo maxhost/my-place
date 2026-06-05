@@ -660,19 +660,24 @@ Criterio: menos→más esfuerzo + sentido funcional. **2.A cerrada** (`e538543`)
 
 ---
 
-### Sesión 2.H — Suspense boundaries [~2-3h]
+### Sesión 2.H — Suspense boundaries [~2-3h] ✅
 
-- [ ] Agregar Suspense boundaries en pages largas bajo `src/app/(app)/place/[placeSlug]/settings/*`:
-  - `settings/members/page.tsx` (lista miembros + invitations pending)
-  - `settings/page.tsx` (load place data)
-  - `settings/domain/page.tsx` (load custom domain status)
-- [ ] Crear `loading.tsx` por segment con skeleton consistente con DS
-- [ ] Crear `error.tsx` por segment con error boundary + retry CTA
-- [ ] Verificar que la shell streamea (RSC starts rendering antes de DB resolves), per ADR-0023
+Dividida en 2 sub-sesiones (streaming + error boundaries), compact entre ambas.
 
-**Acceptance**: HAR de page muestra TTFB <300ms (vs antes 800ms+ con DB hold) · skeleton visible mientras DB resuelve · error tracker captura errors en boundary.
+**2.H.1 — Suspense streaming** (`921fc95`):
+- [x] Suspense boundaries en pages largas bajo `settings/*`:
+  - `settings/members/page.tsx` → guard top-level + shell, await pesado (`getAuthenticatedDbForRequest`: members + invitations + lookup) movido a async server child `_components/members-content.tsx` bajo `<Suspense fallback={<MembersSkeleton/>}>`.
+  - `settings/domain/page.tsx` → idem, `getCustomDomainStatus` (lazy poll: SELECT + posible round-trip Vercel, el await más lento) movido a `_components/domain-content.tsx`. **Caso testigo** del streaming.
+  - `settings/page.tsx` (idioma) → **fuera del streaming**: su contenido solo necesita `place.defaultLocale` (ya cargado por el guard), un `<Suspense>` ahí sería no-op. Reconciliación honesta con el item original (no cargo-cult).
+- [x] ~~Crear `loading.tsx` por segment~~ → **NO se crea**. Contradice `architecture.md` §"Streaming agresivo del shell" §224 (canónico): `loading.tsx` route-level tapa el shell entero + causa doble transición. Patrón correcto = `<Suspense>` in-page. Skeletons como fallback del Suspense (`_components/page-skeletons.tsx`), DS-consistentes (Tailwind layout + token `bg-border`, sin shimmer, `role="status"` + `aria-busy`).
+- [x] Verificada la shell streamea (guard top-level memoizado con React.cache, RSC pinta shell+sidebar antes que el DB resuelva), per ADR-0023.
 
-**Commit**: _pending_ · **Tag**: `baseline/phase-2-H-suspense-done` (UX-visible)
+**2.H.2 — Error boundaries** (`e1fc237`):
+- [x] `error.tsx` por segment con error boundary + retry CTA: primitive `shared/ui/segment-error-boundary` (client, renderiza dentro del layout vivo, copy ES hardcodeado — no hay i18n client en el repo, ADR-0024 — Sentry vía useEffect, ADR-0047) + re-exports thin en `settings/error.tsx` (root, cubre idioma), `settings/members/error.tsx`, `settings/domain/error.tsx`.
+
+**Acceptance**: HAR de page muestra TTFB <300ms (vs antes 800ms+ con DB hold) · skeleton visible mientras DB resuelve · error tracker captura errors en boundary. Tests: `test:ui` 221/221 (+5 sobre 216 baseline), typecheck + lint limpios, `sso-trigger` 4/4 (guard preservado). Acceptance de FCP/TTFB verificable manual en dev (`pnpm dev`), domain es el caso más visible.
+
+**Commits**: `921fc95` (2.H.1 streaming) + `e1fc237` (2.H.2 error boundaries) · **Tag**: `baseline/phase-2-H-suspense-done` (UX-visible)
 
 ---
 
