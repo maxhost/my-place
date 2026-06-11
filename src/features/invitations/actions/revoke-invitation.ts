@@ -30,7 +30,7 @@ export async function revokeInvitationAction(
       sql(`SELECT app.revoke_invitation($1)`, [parsed.data.invitationId]),
     );
 
-    revalidatePath(`/${placeSlug}/settings/members`);
+    revalidatePath(`/place/${placeSlug}/settings/members`);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: mapRevokeInviteError(err) };

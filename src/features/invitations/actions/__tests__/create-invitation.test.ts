@@ -76,7 +76,9 @@ describe("createInvitationAction (Phase 2.C.3)", () => {
       expect.stringContaining("app.create_invitation"),
       expect.arrayContaining(["place-1", "ana@ejemplo.com"]),
     );
-    expect(mockRevalidate).toHaveBeenCalledWith("/mi-place/settings/members");
+    expect(mockRevalidate).toHaveBeenCalledWith(
+      "/place/mi-place/settings/members",
+    );
   });
 
   it("Zod fail (email inválido): invalid_email SIN tocar rate-limit ni DB", async () => {

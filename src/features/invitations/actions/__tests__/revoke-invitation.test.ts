@@ -45,7 +45,9 @@ describe("revokeInvitationAction (Phase 2.C.3)", () => {
       expect.stringContaining("app.revoke_invitation"),
       ["inv-1"],
     );
-    expect(mockRevalidate).toHaveBeenCalledWith("/mi-place/settings/members");
+    expect(mockRevalidate).toHaveBeenCalledWith(
+      "/place/mi-place/settings/members",
+    );
   });
 
   it("Zod fail (invitationId vacío): generic SIN tocar la DB", async () => {

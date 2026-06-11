@@ -15,8 +15,10 @@ import {
 // ADR-0034: getAuthenticatedDbForRequest + zod + DEFINER + map error +
 // revalidatePath. Result `{ok: true, invitationId, token}` ⇒ caller arma
 // `https://<host>/invite/<token>` UI-side; `{ok: false, error}` ⇒ tag
-// discriminado de `InviteError`. revalidatePath SÍ usa `/${placeSlug}/...`
-// (canon revalidatePath, distinto de URLs públicas que van por subdomain).
+// discriminado de `InviteError`. revalidatePath usa el path interno del
+// file-system routing: `/place/${placeSlug}/...` (el grupo `(app)` se elide
+// pero `place` es segmento literal) — distinto de URLs públicas que van por
+// subdomain sin slug.
 
 export type CreateInvitationResult =
   | { ok: true; invitationId: string; token: string }
@@ -65,7 +67,7 @@ export async function createInvitationAction(
     const payload = rows[0]?.payload;
     if (!payload) return { ok: false, error: "generic" };
 
-    revalidatePath(`/${placeSlug}/settings/members`);
+    revalidatePath(`/place/${placeSlug}/settings/members`);
     return {
       ok: true,
       invitationId: payload.invitation_id,

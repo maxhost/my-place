@@ -46,7 +46,7 @@ export async function updateMyHeadlineAction(
       ]),
     );
 
-    revalidatePath(`/${placeSlug}/settings/members`);
+    revalidatePath(`/place/${placeSlug}/settings/members`);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: mapHeadlineError(err) };

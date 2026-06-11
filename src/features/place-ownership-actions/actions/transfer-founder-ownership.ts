@@ -36,7 +36,7 @@ export async function transferFounderOwnershipAction(
       ]),
     );
 
-    revalidatePath(`/${placeSlug}/settings/members`);
+    revalidatePath(`/place/${placeSlug}/settings/members`);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: mapTransferError(err) };

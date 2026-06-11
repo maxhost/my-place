@@ -11,8 +11,8 @@
 //
 // Cohesión por capability:
 //   - 3 actions (elevate/revoke/transfer): SELECT app.<fn>($1, $2) wrappers
-//     `(p_target_user_id, p_place_id)` con `revalidatePath('/[slug]/settings/
-//     members')` post-success.
+//     `(p_target_user_id, p_place_id)` con `revalidatePath('/place/[slug]/
+//     settings/members')` post-success.
 //   - 3 maps `_lib/` puros (DEFINER message → error tag discriminable) +
 //     sus tests vitest (cobertura por rama).
 //   - 3 schemas zod `_lib/` (identidad estructural: strings no vacíos) +
