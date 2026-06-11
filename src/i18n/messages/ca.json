@@ -330,7 +330,7 @@
     "viewTitle": "Els teus llocs",
     "cardEnter": "Entrar",
     "cardSettings": "Configurar",
-    "cardMemberSince": "Membre des de {date}",
+    "cardMemberSince": "Oient des de {date}",
     "statusPaymentPending": "Pagament pendent",
     "statusInactivationProcess": "En recuperació",
     "statusInactive": "Tancat",
@@ -365,7 +365,7 @@
       "groupSubscription": "Subscripció",
       "groupManagement": "Gestió",
       "language": "Idioma del Place",
-      "members": "Membres",
+      "members": "Oients",
       "appearance": "Aparença",
       "hours": "Horari",
       "billing": "Facturació",
@@ -396,7 +396,7 @@
     "domain": {
       "title": "Domini propi",
       "description": "Connecta un domini propi (ex. comunidad.mi-marca.com). El teu lloc seguirà disponible a {slug}.place.community sempre.",
-      "descriptionVerified": "El teu domini està configurat. Els membres del teu lloc poden accedir-hi directament des de {domain}.",
+      "descriptionVerified": "El teu domini està configurat. Els oients del teu lloc poden accedir-hi directament des de {domain}.",
       "inputLabel": "Domini",
       "inputPlaceholder": "comunidad.mi-marca.com",
       "submitButton": "Vincula el domini",
@@ -434,20 +434,20 @@
     }
   },
   "placeMembers": {
-    "pageTitle": "Membres",
-    "tabActive": "Membres actius",
+    "pageTitle": "Oients",
+    "tabActive": "Oients actius",
     "tabPending": "Invitacions pendents",
-    "inviteButton": "Convidar membre",
+    "inviteButton": "Convidar oient",
     "list": {
-      "emptyTitle": "Encara no hi ha membres actius",
+      "emptyTitle": "Encara no hi ha oients actius",
       "emptyDescription": "Quan algú accepti una invitació, apareixerà aquí.",
       "badgeFounder": "Fundador",
       "badgeOwner": "Owner"
     },
     "actionsMenu": {
       "triggerLabel": "Accions per a {name}",
-      "removeLabel": "Retirar membre",
-      "confirmRemoveTitle": "Retirar membre",
+      "removeLabel": "Retirar oient",
+      "confirmRemoveTitle": "Retirar oient",
       "confirmRemoveBody": "Retirar {name} del lloc? Perdrà l'accés immediatament.",
       "confirmYes": "Confirmar",
       "confirmNo": "Cancel·lar",
@@ -455,11 +455,11 @@
       "errorNotOwner": "Només els owners poden fer això.",
       "errorTargetIsOwner": "No es pot retirar un owner.",
       "errorCannotSelfRemove": "No et pots retirar a tu mateix.",
-      "errorTargetNotActiveMember": "Aquesta persona ja no és un membre actiu.",
+      "errorTargetNotActiveMember": "Aquesta persona ja no és un oient actiu.",
       "errorGeneric": "Alguna cosa ha anat malament. Torna-ho a provar."
     },
     "inviteModal": {
-      "title": "Convidar membre",
+      "title": "Convidar oient",
       "description": "Generarem un enllaç d'invitació. Qualsevol amb l'enllaç pot unir-se — comparteix-lo només amb la persona que vols convidar.",
       "emailLabel": "Email de la persona",
       "emailPlaceholder": "persona@exemple.com",
@@ -491,7 +491,7 @@
       "errorUnauthorized": "Has d'iniciar sessió.",
       "errorNotOwner": "Només els owners poden revocar invitacions.",
       "errorNotFound": "Aquesta invitació ja no existeix.",
-      "errorAlreadyAccepted": "Aquesta invitació ja s'ha acceptat. Per desfer-ho, retira el membre.",
+      "errorAlreadyAccepted": "Aquesta invitació ja s'ha acceptat. Per desfer-ho, retira l'oient.",
       "errorGeneric": "No hem pogut revocar. Torna-ho a provar."
     },
     "headline": {
@@ -505,7 +505,7 @@
       "counterTemplate": "{count}/280",
       "errorTooLong": "Màxim 280 caràcters.",
       "errorUnauthorized": "Has d'iniciar sessió.",
-      "errorNotMember": "Només els membres del lloc poden editar la headline.",
+      "errorNotMember": "Només els oients del lloc poden editar la headline.",
       "errorGeneric": "No hem pogut desar. Torna-ho a provar."
     }
   },
@@ -543,7 +543,7 @@
     "emailMismatchLogoutCta": "Tancar sessió i entrar com a {invEmail}",
     "errorExpired": "Aquesta invitació ha caducat. Demana'n una de nova a qui et va convidar.",
     "errorAlreadyUsed": "Aquesta invitació ja s'ha fet servir.",
-    "errorPlaceFull": "Aquest lloc ha arribat al seu màxim (150 membres). Parla amb qui et va convidar.",
+    "errorPlaceFull": "Aquest lloc ha arribat al seu màxim (150 oients). Parla amb qui et va convidar.",
     "errorRateLimited": "Massa intents. Espera {seconds} segons i torna-ho a provar.",
     "errorUnknown": "Alguna cosa ha anat malament. Torna-ho a provar o demana una invitació nova."
   }

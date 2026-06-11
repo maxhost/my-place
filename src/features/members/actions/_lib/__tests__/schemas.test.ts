@@ -8,7 +8,7 @@ import { removeMemberSchema } from "../schemas";
 //
 // Slice diet — tests de schemas extraídos viven en slices hermanos:
 //   - `place-ownership-actions/actions/_lib/__tests__/schemas.test.ts`
-//     (S10.5 Plan B): los 3 schemas del slot ownership.
+//     (S10.5 Plan B): eliminado junto con su slice (ADR-0054).
 //   - `invitations/actions/_lib/__tests__/schemas.test.ts` (S10.7
 //     ADR-0041): los 2 schemas del slot invitations.
 //   - `member-profile/actions/_lib/__tests__/schemas.test.ts` (S10.8

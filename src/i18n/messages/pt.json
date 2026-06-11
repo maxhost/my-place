@@ -330,7 +330,7 @@
     "viewTitle": "Seus lugares",
     "cardEnter": "Entrar",
     "cardSettings": "Configurar",
-    "cardMemberSince": "Membro desde {date}",
+    "cardMemberSince": "Ouvinte desde {date}",
     "statusPaymentPending": "Pagamento pendente",
     "statusInactivationProcess": "Em recuperação",
     "statusInactive": "Fechado",
@@ -365,7 +365,7 @@
       "groupSubscription": "Assinatura",
       "groupManagement": "Gestão",
       "language": "Idioma do Place",
-      "members": "Membros",
+      "members": "Ouvintes",
       "appearance": "Aparência",
       "hours": "Horário",
       "billing": "Cobrança",
@@ -396,7 +396,7 @@
     "domain": {
       "title": "Domínio próprio",
       "description": "Conecte um domínio próprio (ex. comunidad.mi-marca.com). Seu lugar vai continuar disponível em {slug}.place.community sempre.",
-      "descriptionVerified": "Seu domínio está configurado. Os membros do seu lugar podem acessá-lo diretamente em {domain}.",
+      "descriptionVerified": "Seu domínio está configurado. Os ouvintes do seu lugar podem acessá-lo diretamente em {domain}.",
       "inputLabel": "Domínio",
       "inputPlaceholder": "comunidad.mi-marca.com",
       "submitButton": "Vincular domínio",
@@ -434,20 +434,20 @@
     }
   },
   "placeMembers": {
-    "pageTitle": "Membros",
-    "tabActive": "Membros ativos",
+    "pageTitle": "Ouvintes",
+    "tabActive": "Ouvintes ativos",
     "tabPending": "Convites pendentes",
-    "inviteButton": "Convidar membro",
+    "inviteButton": "Convidar ouvinte",
     "list": {
-      "emptyTitle": "Ainda não há membros ativos",
+      "emptyTitle": "Ainda não há ouvintes ativos",
       "emptyDescription": "Quando alguém aceitar um convite, vai aparecer aqui.",
       "badgeFounder": "Fundador",
       "badgeOwner": "Owner"
     },
     "actionsMenu": {
       "triggerLabel": "Ações para {name}",
-      "removeLabel": "Remover membro",
-      "confirmRemoveTitle": "Remover membro",
+      "removeLabel": "Remover ouvinte",
+      "confirmRemoveTitle": "Remover ouvinte",
       "confirmRemoveBody": "Remover {name} do lugar? Vai perder o acesso imediatamente.",
       "confirmYes": "Confirmar",
       "confirmNo": "Cancelar",
@@ -455,11 +455,11 @@
       "errorNotOwner": "Só os owners podem fazer isto.",
       "errorTargetIsOwner": "Não é possível remover um owner.",
       "errorCannotSelfRemove": "Você não pode se remover.",
-      "errorTargetNotActiveMember": "Essa pessoa já não é membro ativo.",
+      "errorTargetNotActiveMember": "Essa pessoa já não é ouvinte ativo.",
       "errorGeneric": "Algo deu errado. Tente de novo."
     },
     "inviteModal": {
-      "title": "Convidar membro",
+      "title": "Convidar ouvinte",
       "description": "Vamos gerar um link de convite. Qualquer pessoa com o link pode entrar — compartilhe só com quem você quer convidar.",
       "emailLabel": "Email da pessoa",
       "emailPlaceholder": "pessoa@exemplo.com",
@@ -491,7 +491,7 @@
       "errorUnauthorized": "Você precisa entrar.",
       "errorNotOwner": "Só os owners podem revogar convites.",
       "errorNotFound": "Esse convite já não existe.",
-      "errorAlreadyAccepted": "Esse convite já foi aceito. Para reverter, remova o membro.",
+      "errorAlreadyAccepted": "Esse convite já foi aceito. Para reverter, remova o ouvinte.",
       "errorGeneric": "Não conseguimos revogar. Tente de novo."
     },
     "headline": {
@@ -505,7 +505,7 @@
       "counterTemplate": "{count}/280",
       "errorTooLong": "Máximo 280 caracteres.",
       "errorUnauthorized": "Você precisa entrar.",
-      "errorNotMember": "Só os membros do lugar podem editar a headline.",
+      "errorNotMember": "Só os ouvintes do lugar podem editar a headline.",
       "errorGeneric": "Não conseguimos salvar. Tente de novo."
     }
   },
@@ -543,7 +543,7 @@
     "emailMismatchLogoutCta": "Sair e entrar como {invEmail}",
     "errorExpired": "Este convite venceu. Peça um novo a quem te convidou.",
     "errorAlreadyUsed": "Este convite já foi usado.",
-    "errorPlaceFull": "Este lugar chegou ao limite (150 membros). Fale com quem te convidou.",
+    "errorPlaceFull": "Este lugar chegou ao limite (150 ouvintes). Fale com quem te convidou.",
     "errorRateLimited": "Muitas tentativas. Aguarde {seconds} segundos e tente de novo.",
     "errorUnknown": "Algo deu errado. Tente de novo ou peça um novo convite."
   }

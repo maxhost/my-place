@@ -14,10 +14,8 @@
 //
 // Slices hermanos extraídos por capability (cap LOC ≤1500 CLAUDE.md):
 //   - `place-ownership-actions/` (S10.5 Plan B, S10.6 ADR-0040):
-//     3 wrappers Feature D reutilizadas (`elevateToOwnerAction`,
-//     `revokeOwnershipAction`, `transferFounderOwnershipAction`) + sus
-//     error/Input types. Consumido cross-slice por el menú page-level
-//     (post-S10.9) y por consumers futuros.
+//     ELIMINADO por ADR-0054 (un place = un owner) — las 3 ownership
+//     actions (elevate/revoke/transfer) dejaron de ser producto.
 //   - `invitations/` (S10.7 ADR-0041): 1 query + 2 actions + 2 UI
 //     components + tipos + schemas. Consumido cross-slice por el page
 //     S11 que ensambla `<MembersList />` + `<PendingInvitationsTab />`.
@@ -28,9 +26,9 @@
 // Componente page-level co-located (S10.9 ADR-0043) — NO vive en este
 // slice:
 //   - `<MemberRowActionsMenu />` (`src/app/.../settings/members/
-//     _components/member-row-actions-menu.tsx`): context menu por fila
-//     que ensambla 4 actions cruzando `members/` (1) + `place-ownership-
-//     actions/` (3). El page S11 lo inyecta a `<MembersList />` vía
+//     _components/member-row-actions-menu.tsx`): context menu por fila,
+//     remover-only post ADR-0054 — consume sólo `removeMemberAction` de
+//     este slice. El page S11 lo inyecta a `<MembersList />` vía
 //     render-prop `renderRowActions`. Razón en ADR-0043.
 //
 // Lo que NO se exporta (intencional):

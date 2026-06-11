@@ -1,7 +1,8 @@
 // SoT canónica de tipos del slice `invitations` (extracción S10.7
 // ADR-0041 desde `members/types.ts`). Cohesión: capability autónoma del
 // slot `invitation` (migrations 0018-0019), ortogonal a `membership`
-// (`members/`) y a `place_ownership` (`place-ownership-actions/`).
+// (`members/`) y a `place_ownership` (slot 1:1 owner↔place; su slice
+// `place-ownership-actions/` fue eliminado por ADR-0054).
 //
 // 2 error unions (1 por DEFINER consumida) — superficie public-stable;
 // los maps `_lib/` regex(message)→tag y los strings DEFINER son internals

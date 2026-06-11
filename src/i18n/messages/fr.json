@@ -330,7 +330,7 @@
     "viewTitle": "Tes lieux",
     "cardEnter": "Entrer",
     "cardSettings": "Configurer",
-    "cardMemberSince": "Membre depuis le {date}",
+    "cardMemberSince": "Auditeur depuis le {date}",
     "statusPaymentPending": "Paiement en attente",
     "statusInactivationProcess": "En récupération",
     "statusInactive": "Fermé",
@@ -365,7 +365,7 @@
       "groupSubscription": "Abonnement",
       "groupManagement": "Gestion",
       "language": "Langue du Place",
-      "members": "Membres",
+      "members": "Auditeurs",
       "appearance": "Apparence",
       "hours": "Horaires",
       "billing": "Facturation",
@@ -396,7 +396,7 @@
     "domain": {
       "title": "Domaine propre",
       "description": "Connecte un domaine à toi (ex. comunidad.mi-marca.com). Ton lieu restera toujours disponible sur {slug}.place.community.",
-      "descriptionVerified": "Ton domaine est configuré. Les membres de ton lieu peuvent y accéder directement depuis {domain}.",
+      "descriptionVerified": "Ton domaine est configuré. Les auditeurs de ton lieu peuvent y accéder directement depuis {domain}.",
       "inputLabel": "Domaine",
       "inputPlaceholder": "comunidad.mi-marca.com",
       "submitButton": "Lier le domaine",
@@ -434,20 +434,20 @@
     }
   },
   "placeMembers": {
-    "pageTitle": "Membres",
-    "tabActive": "Membres actifs",
+    "pageTitle": "Auditeurs",
+    "tabActive": "Auditeurs actifs",
     "tabPending": "Invitations en attente",
-    "inviteButton": "Inviter un membre",
+    "inviteButton": "Inviter un auditeur",
     "list": {
-      "emptyTitle": "Pas encore de membres actifs",
+      "emptyTitle": "Pas encore d'auditeurs actifs",
       "emptyDescription": "Quand quelqu'un acceptera une invitation, il apparaîtra ici.",
       "badgeFounder": "Fondateur",
       "badgeOwner": "Propriétaire"
     },
     "actionsMenu": {
       "triggerLabel": "Actions pour {name}",
-      "removeLabel": "Retirer le membre",
-      "confirmRemoveTitle": "Retirer le membre",
+      "removeLabel": "Retirer l'auditeur",
+      "confirmRemoveTitle": "Retirer l'auditeur",
       "confirmRemoveBody": "Retirer {name} de ce lieu ? L'accès est perdu immédiatement.",
       "confirmYes": "Confirmer",
       "confirmNo": "Annuler",
@@ -455,11 +455,11 @@
       "errorNotOwner": "Seuls les propriétaires peuvent faire ça.",
       "errorTargetIsOwner": "Impossible de retirer un propriétaire.",
       "errorCannotSelfRemove": "Tu ne peux pas te retirer toi-même.",
-      "errorTargetNotActiveMember": "Cette personne n'est plus un membre actif.",
+      "errorTargetNotActiveMember": "Cette personne n'est plus un auditeur actif.",
       "errorGeneric": "Quelque chose s'est mal passé. Réessaie."
     },
     "inviteModal": {
-      "title": "Inviter un membre",
+      "title": "Inviter un auditeur",
       "description": "Nous allons générer un lien d'invitation. Quiconque a le lien peut rejoindre — partage-le uniquement avec la personne que tu veux inviter.",
       "emailLabel": "Email de la personne",
       "emailPlaceholder": "personne@exemple.com",
@@ -491,7 +491,7 @@
       "errorUnauthorized": "Tu dois te connecter.",
       "errorNotOwner": "Seuls les propriétaires peuvent révoquer.",
       "errorNotFound": "Cette invitation n'existe plus.",
-      "errorAlreadyAccepted": "Cette invitation a déjà été acceptée. Pour annuler, retire le membre.",
+      "errorAlreadyAccepted": "Cette invitation a déjà été acceptée. Pour annuler, retire l'auditeur.",
       "errorGeneric": "Nous n'avons pas pu révoquer. Réessaie."
     },
     "headline": {
@@ -505,7 +505,7 @@
       "counterTemplate": "{count}/280",
       "errorTooLong": "Maximum 280 caractères.",
       "errorUnauthorized": "Tu dois te connecter.",
-      "errorNotMember": "Seuls les membres du lieu peuvent éditer l'accroche.",
+      "errorNotMember": "Seuls les auditeurs du lieu peuvent éditer l'accroche.",
       "errorGeneric": "Nous n'avons pas pu enregistrer. Réessaie."
     }
   },
@@ -543,7 +543,7 @@
     "emailMismatchLogoutCta": "Se déconnecter et entrer en tant que {invEmail}",
     "errorExpired": "Cette invitation a expiré. Demande-en une nouvelle à la personne qui t'a invité.",
     "errorAlreadyUsed": "Cette invitation a déjà été utilisée.",
-    "errorPlaceFull": "Ce lieu a atteint sa capacité maximale (150 membres). Parle-en à la personne qui t'a invité.",
+    "errorPlaceFull": "Ce lieu a atteint sa capacité maximale (150 auditeurs). Parle-en à la personne qui t'a invité.",
     "errorRateLimited": "Trop de tentatives. Patiente {seconds} secondes et réessaie.",
     "errorUnknown": "Quelque chose s'est mal passé. Réessaie ou demande une nouvelle invitation."
   }

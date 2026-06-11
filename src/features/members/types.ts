@@ -31,8 +31,8 @@
 // `getMemberRole` + `RemoveMemberError`. Los tipos extraídos viven en
 // slices hermanos capability-named:
 //   - `place-ownership-actions/types.ts` (S10.5 Plan B, renombrado en
-//     S10.6 ADR-0040): `ElevateError`, `RevokeError`, `TransferError` +
-//     Input types — los 3 wrappers Feature D reutilizadas.
+//     S10.6 ADR-0040): slice ELIMINADO por ADR-0054 (un place = un
+//     owner) — `ElevateError`/`RevokeError`/`TransferError` ya no existen.
 //   - `invitations/types.ts` (S10.7 ADR-0041): `PendingInvitation`,
 //     `InviteError`, `RevokeInviteError` — el slot `invitation`
 //     (migrations 0018-0019). 2 errors V1 + 1 shape de query.
@@ -134,8 +134,8 @@ export type RemoveMemberError =
   | "generic";
 
 // Los 3 errors del slot ownership (`ElevateError`, `RevokeError`, `TransferError`)
-// se movieron a `src/features/place-ownership-actions/types.ts` (extracción Plan B
-// S10.5, renombrado S10.6 ADR-0040 — ver header).
+// se eliminaron junto con el slice `place-ownership-actions/` (ADR-0054,
+// un place = un owner — ver header).
 //
 // Los tipos del slot invitations (`PendingInvitation`, `InviteError`,
 // `RevokeInviteError`) se movieron a `src/features/invitations/types.ts`

@@ -330,7 +330,7 @@
     "viewTitle": "Your places",
     "cardEnter": "Enter",
     "cardSettings": "Settings",
-    "cardMemberSince": "Member since {date}",
+    "cardMemberSince": "Listener since {date}",
     "statusPaymentPending": "Payment pending",
     "statusInactivationProcess": "In recovery",
     "statusInactive": "Closed",
@@ -365,7 +365,7 @@
       "groupSubscription": "Subscription",
       "groupManagement": "Management",
       "language": "Place language",
-      "members": "Members",
+      "members": "Listeners",
       "appearance": "Appearance",
       "hours": "Open hours",
       "billing": "Billing",
@@ -396,7 +396,7 @@
     "domain": {
       "title": "Custom domain",
       "description": "Connect your own domain (e.g. comunidad.mi-marca.com). Your place will still always be available at {slug}.place.community.",
-      "descriptionVerified": "Your domain is set up. Members of your place can access it directly at {domain}.",
+      "descriptionVerified": "Your domain is set up. Listeners of your place can access it directly at {domain}.",
       "inputLabel": "Domain",
       "inputPlaceholder": "comunidad.mi-marca.com",
       "submitButton": "Link domain",
@@ -434,20 +434,20 @@
     }
   },
   "placeMembers": {
-    "pageTitle": "Members",
-    "tabActive": "Active members",
+    "pageTitle": "Listeners",
+    "tabActive": "Active listeners",
     "tabPending": "Pending invitations",
-    "inviteButton": "Invite member",
+    "inviteButton": "Invite listener",
     "list": {
-      "emptyTitle": "No active members yet",
+      "emptyTitle": "No active listeners yet",
       "emptyDescription": "When someone accepts an invitation, they'll appear here.",
       "badgeFounder": "Founder",
       "badgeOwner": "Owner"
     },
     "actionsMenu": {
       "triggerLabel": "Actions for {name}",
-      "removeLabel": "Remove member",
-      "confirmRemoveTitle": "Remove member",
+      "removeLabel": "Remove listener",
+      "confirmRemoveTitle": "Remove listener",
       "confirmRemoveBody": "Remove {name} from this place? They'll lose access immediately.",
       "confirmYes": "Confirm",
       "confirmNo": "Cancel",
@@ -455,11 +455,11 @@
       "errorNotOwner": "Only owners can do this.",
       "errorTargetIsOwner": "An owner can't be removed.",
       "errorCannotSelfRemove": "You can't remove yourself.",
-      "errorTargetNotActiveMember": "This person is no longer an active member.",
+      "errorTargetNotActiveMember": "This person is no longer an active listener.",
       "errorGeneric": "Something went wrong. Try again."
     },
     "inviteModal": {
-      "title": "Invite member",
+      "title": "Invite listener",
       "description": "We'll generate an invitation link. Anyone with the link can join — share it only with the person you want to invite.",
       "emailLabel": "Person's email",
       "emailPlaceholder": "person@example.com",
@@ -491,7 +491,7 @@
       "errorUnauthorized": "You need to sign in.",
       "errorNotOwner": "Only owners can revoke invitations.",
       "errorNotFound": "This invitation no longer exists.",
-      "errorAlreadyAccepted": "This invitation was already accepted. To undo, remove the member instead.",
+      "errorAlreadyAccepted": "This invitation was already accepted. To undo, remove the listener instead.",
       "errorGeneric": "We couldn't revoke it. Try again."
     },
     "headline": {
@@ -505,7 +505,7 @@
       "counterTemplate": "{count}/280",
       "errorTooLong": "Maximum 280 characters.",
       "errorUnauthorized": "You need to sign in.",
-      "errorNotMember": "Only members of this place can edit the headline.",
+      "errorNotMember": "Only listeners of this place can edit the headline.",
       "errorGeneric": "We couldn't save. Try again."
     }
   },
@@ -543,7 +543,7 @@
     "emailMismatchLogoutCta": "Sign out and come back as {invEmail}",
     "errorExpired": "This invitation expired. Ask whoever invited you for a new one.",
     "errorAlreadyUsed": "This invitation has already been used.",
-    "errorPlaceFull": "This place hit its cap (150 members). Talk to whoever invited you.",
+    "errorPlaceFull": "This place hit its cap (150 listeners). Talk to whoever invited you.",
     "errorRateLimited": "Too many attempts. Wait {seconds} seconds and try again.",
     "errorUnknown": "Something went wrong. Try again or ask for a new invitation."
   }

@@ -15,7 +15,8 @@ import { getMemberRole, type Member } from "../types";
 // internamente. Adopta el patrón render-prop: el page-level co-located
 // `<MemberRowActionsMenu />` (vive en `src/app/.../settings/members/_components/`)
 // se inyecta vía `renderRowActions={(member) => <MemberRowActionsMenu ... />}`.
-// Razón: el menú ensambla 2 slices (`members/` + `place-ownership-actions/`)
+// Razón: el menú ensamblaba 2 slices (`members/` + `place-ownership-actions/`,
+// este último eliminado por ADR-0054; hoy el menú es remover-only)
 // y su composición es naturalmente trabajo del page; mover la wiring a
 // page-level libera ~553 LOC del slice `members/` (cerró el gap restante
 // post-S10.6/S10.7/S10.8 sin romper el cap heurístico ≤1500).

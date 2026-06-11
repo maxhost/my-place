@@ -330,7 +330,7 @@
     "viewTitle": "Deine Orte",
     "cardEnter": "Eintreten",
     "cardSettings": "Konfigurieren",
-    "cardMemberSince": "Mitglied seit {date}",
+    "cardMemberSince": "Hörer seit {date}",
     "statusPaymentPending": "Zahlung ausstehend",
     "statusInactivationProcess": "In Wiederherstellung",
     "statusInactive": "Geschlossen",
@@ -365,7 +365,7 @@
       "groupSubscription": "Abonnement",
       "groupManagement": "Verwaltung",
       "language": "Sprache des Ortes",
-      "members": "Mitglieder",
+      "members": "Hörer",
       "appearance": "Erscheinungsbild",
       "hours": "Öffnungszeiten",
       "billing": "Abrechnung",
@@ -396,7 +396,7 @@
     "domain": {
       "title": "Eigene Domain",
       "description": "Verbinde eine eigene Domain (z. B. comunidad.mi-marca.com). Dein Ort bleibt immer unter {slug}.place.community erreichbar.",
-      "descriptionVerified": "Deine Domain ist eingerichtet. Mitglieder deines Ortes können direkt über {domain} darauf zugreifen.",
+      "descriptionVerified": "Deine Domain ist eingerichtet. Hörer deines Ortes können direkt über {domain} darauf zugreifen.",
       "inputLabel": "Domain",
       "inputPlaceholder": "comunidad.mi-marca.com",
       "submitButton": "Domain verknüpfen",
@@ -434,20 +434,20 @@
     }
   },
   "placeMembers": {
-    "pageTitle": "Mitglieder",
-    "tabActive": "Aktive Mitglieder",
+    "pageTitle": "Hörer",
+    "tabActive": "Aktive Hörer",
     "tabPending": "Ausstehende Einladungen",
-    "inviteButton": "Mitglied einladen",
+    "inviteButton": "Hörer einladen",
     "list": {
-      "emptyTitle": "Noch keine aktiven Mitglieder",
+      "emptyTitle": "Noch keine aktiven Hörer",
       "emptyDescription": "Wenn jemand eine Einladung annimmt, erscheint die Person hier.",
       "badgeFounder": "Gründer",
       "badgeOwner": "Owner"
     },
     "actionsMenu": {
       "triggerLabel": "Aktionen für {name}",
-      "removeLabel": "Mitglied entfernen",
-      "confirmRemoveTitle": "Mitglied entfernen",
+      "removeLabel": "Hörer entfernen",
+      "confirmRemoveTitle": "Hörer entfernen",
       "confirmRemoveBody": "{name} aus dem Ort entfernen? Der Zugang geht sofort verloren.",
       "confirmYes": "Bestätigen",
       "confirmNo": "Abbrechen",
@@ -455,11 +455,11 @@
       "errorNotOwner": "Nur Owners können das.",
       "errorTargetIsOwner": "Ein Owner kann nicht entfernt werden.",
       "errorCannotSelfRemove": "Du kannst dich nicht selbst entfernen.",
-      "errorTargetNotActiveMember": "Diese Person ist kein aktives Mitglied mehr.",
+      "errorTargetNotActiveMember": "Diese Person ist kein aktiver Hörer mehr.",
       "errorGeneric": "Etwas ist schiefgelaufen. Versuche es erneut."
     },
     "inviteModal": {
-      "title": "Mitglied einladen",
+      "title": "Hörer einladen",
       "description": "Wir erzeugen einen Einladungslink. Wer den Link hat, kann beitreten — teile ihn nur mit der Person, die du einladen willst.",
       "emailLabel": "E-Mail der Person",
       "emailPlaceholder": "person@beispiel.com",
@@ -491,7 +491,7 @@
       "errorUnauthorized": "Du musst dich anmelden.",
       "errorNotOwner": "Nur Owners können Einladungen widerrufen.",
       "errorNotFound": "Diese Einladung existiert nicht mehr.",
-      "errorAlreadyAccepted": "Diese Einladung wurde bereits angenommen. Entferne stattdessen das Mitglied.",
+      "errorAlreadyAccepted": "Diese Einladung wurde bereits angenommen. Entferne stattdessen den Hörer.",
       "errorGeneric": "Wir konnten nicht widerrufen. Versuche es erneut."
     },
     "headline": {
@@ -505,7 +505,7 @@
       "counterTemplate": "{count}/280",
       "errorTooLong": "Maximal 280 Zeichen.",
       "errorUnauthorized": "Du musst dich anmelden.",
-      "errorNotMember": "Nur Mitglieder des Ortes können die Headline bearbeiten.",
+      "errorNotMember": "Nur Hörer des Ortes können die Headline bearbeiten.",
       "errorGeneric": "Wir konnten nicht speichern. Versuche es erneut."
     }
   },
@@ -543,7 +543,7 @@
     "emailMismatchLogoutCta": "Abmelden und als {invEmail} anmelden",
     "errorExpired": "Diese Einladung ist abgelaufen. Bitte die Person, die dich eingeladen hat, um eine neue.",
     "errorAlreadyUsed": "Diese Einladung wurde bereits verwendet.",
-    "errorPlaceFull": "Dieser Ort hat seine maximale Mitgliederzahl erreicht (150 Mitglieder). Sprich mit der Person, die dich eingeladen hat.",
+    "errorPlaceFull": "Dieser Ort hat seine maximale Hörerzahl erreicht (150 Hörer). Sprich mit der Person, die dich eingeladen hat.",
     "errorRateLimited": "Zu viele Versuche. Warte {seconds} Sekunden und versuche es erneut.",
     "errorUnknown": "Etwas ist schiefgelaufen. Versuch es erneut oder bitte um eine neue Einladung."
   }

@@ -8,8 +8,8 @@ import { z } from "zod";
 //
 // Slice diet S10.5-S10.8 — los schemas extraídos viven en slices hermanos:
 //   - `place-ownership-actions/actions/_lib/schemas.ts` (S10.5 Plan B,
-//     S10.6 ADR-0040): `elevateToOwnerSchema`, `revokeOwnershipSchema`,
-//     `transferFounderOwnershipSchema`.
+//     S10.6 ADR-0040): slice ELIMINADO por ADR-0054 — los 3 schemas de
+//     ownership (elevate/revoke/transfer) ya no existen.
 //   - `invitations/actions/_lib/schemas.ts` (S10.7 ADR-0041):
 //     `createInvitationSchema`, `revokeInvitationSchema`.
 //   - `member-profile/actions/_lib/schemas.ts` (S10.8 ADR-0042):

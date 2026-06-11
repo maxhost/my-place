@@ -330,7 +330,7 @@
     "viewTitle": "Tus lugares",
     "cardEnter": "Entrar",
     "cardSettings": "Configurar",
-    "cardMemberSince": "Miembro desde {date}",
+    "cardMemberSince": "Oyente desde {date}",
     "statusPaymentPending": "Pago pendiente",
     "statusInactivationProcess": "En recuperación",
     "statusInactive": "Cerrado",
@@ -365,7 +365,7 @@
       "groupSubscription": "Suscripción",
       "groupManagement": "Gestión",
       "language": "Idioma del place",
-      "members": "Miembros",
+      "members": "Oyentes",
       "appearance": "Apariencia",
       "hours": "Horario",
       "billing": "Billing",
@@ -396,7 +396,7 @@
     "domain": {
       "title": "Dominio propio",
       "description": "Conectá un dominio propio (ej. comunidad.mi-marca.com). Tu lugar va a seguir disponible en {slug}.place.community siempre.",
-      "descriptionVerified": "Tu dominio ya está configurado. Los miembros de tu place pueden acceder a él directamente desde {domain}.",
+      "descriptionVerified": "Tu dominio ya está configurado. Los oyentes de tu place pueden acceder a él directamente desde {domain}.",
       "inputLabel": "Dominio",
       "inputPlaceholder": "comunidad.mi-marca.com",
       "submitButton": "Vincular dominio",
@@ -434,20 +434,20 @@
     }
   },
   "placeMembers": {
-    "pageTitle": "Miembros",
-    "tabActive": "Miembros activos",
+    "pageTitle": "Oyentes",
+    "tabActive": "Oyentes activos",
     "tabPending": "Invitaciones pendientes",
-    "inviteButton": "Invitar miembro",
+    "inviteButton": "Invitar oyente",
     "list": {
-      "emptyTitle": "Todavía no hay miembros activos",
+      "emptyTitle": "Todavía no hay oyentes activos",
       "emptyDescription": "Cuando alguien acepte una invitación, va a aparecer acá.",
       "badgeFounder": "Founder",
       "badgeOwner": "Owner"
     },
     "actionsMenu": {
       "triggerLabel": "Acciones para {name}",
-      "removeLabel": "Remover miembro",
-      "confirmRemoveTitle": "Remover miembro",
+      "removeLabel": "Remover oyente",
+      "confirmRemoveTitle": "Remover oyente",
       "confirmRemoveBody": "¿Querés remover a {name} del lugar? Va a perder acceso inmediatamente.",
       "confirmYes": "Confirmar",
       "confirmNo": "Cancelar",
@@ -455,11 +455,11 @@
       "errorNotOwner": "Sólo los owners pueden hacer esto.",
       "errorTargetIsOwner": "No se puede remover a un owner.",
       "errorCannotSelfRemove": "No podés removerte a vos mismo.",
-      "errorTargetNotActiveMember": "Esta persona ya no es miembro activo.",
+      "errorTargetNotActiveMember": "Esta persona ya no es oyente activo.",
       "errorGeneric": "Algo salió mal. Probá de nuevo."
     },
     "inviteModal": {
-      "title": "Invitar miembro",
+      "title": "Invitar oyente",
       "description": "Vamos a generar un link de invitación. Cualquiera con el link puede unirse — compartilo sólo con la persona que querés invitar.",
       "emailLabel": "Email de la persona",
       "emailPlaceholder": "persona@ejemplo.com",
@@ -491,7 +491,7 @@
       "errorUnauthorized": "Necesitás iniciar sesión.",
       "errorNotOwner": "Sólo los owners pueden revocar invitaciones.",
       "errorNotFound": "Esta invitación ya no existe.",
-      "errorAlreadyAccepted": "Esta invitación ya fue aceptada. Si querés revertir, remové el miembro.",
+      "errorAlreadyAccepted": "Esta invitación ya fue aceptada. Si querés revertir, remové al oyente.",
       "errorGeneric": "No pudimos revocar. Probá de nuevo."
     },
     "headline": {
@@ -505,7 +505,7 @@
       "counterTemplate": "{count}/280",
       "errorTooLong": "Máximo 280 caracteres.",
       "errorUnauthorized": "Necesitás iniciar sesión.",
-      "errorNotMember": "Sólo los miembros del lugar pueden editar el headline.",
+      "errorNotMember": "Sólo los oyentes del lugar pueden editar el headline.",
       "errorGeneric": "No pudimos guardar. Probá de nuevo."
     }
   },
@@ -543,7 +543,7 @@
     "emailMismatchLogoutCta": "Cerrar sesión y entrar como {invEmail}",
     "errorExpired": "Esta invitación venció. Pedí una nueva a quien te invitó.",
     "errorAlreadyUsed": "Esta invitación ya se usó.",
-    "errorPlaceFull": "Este lugar alcanzó su cupo máximo (150 miembros). Hablá con quien te invitó.",
+    "errorPlaceFull": "Este lugar alcanzó su cupo máximo (150 oyentes). Hablá con quien te invitó.",
     "errorRateLimited": "Demasiados intentos. Esperá {seconds} segundos y volvé a intentar.",
     "errorUnknown": "Algo salió mal. Intentá de nuevo o pedí una nueva invitación."
   }
