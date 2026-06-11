@@ -27,8 +27,9 @@ import esMessages from "@/i18n/messages/es.json";
 
 // Source of truth de las keys que el page S11 consume — espejo de los
 // `*Labels` interfaces de los 5 componentes UI (members-list 4 + actions-
-// menu 28 + invite-modal 17 + pending 14 + headline 11) + 4 page-level
-// (pageTitle, tabActive, tabPending, inviteButton). Total 78 keys.
+// menu 12 remover-only post ADR-0054 + invite-modal 17 + pending 14 +
+// headline 11) + 4 page-level (pageTitle, tabActive, tabPending,
+// inviteButton). Total 62 keys.
 const EXPECTED_KEYS: readonly string[] = [
   // Page-level header + tabs + CTA invite
   "pageTitle",
@@ -40,34 +41,18 @@ const EXPECTED_KEYS: readonly string[] = [
   "list.emptyDescription",
   "list.badgeFounder",
   "list.badgeOwner",
-  // MemberRowActionsMenuLabels (28)
+  // MemberRowActionsMenuLabels (12, remover-only post ADR-0054)
   "actionsMenu.triggerLabel",
-  "actionsMenu.elevateLabel",
   "actionsMenu.removeLabel",
-  "actionsMenu.revokeOwnershipLabel",
-  "actionsMenu.transferFounderLabel",
   "actionsMenu.confirmRemoveTitle",
   "actionsMenu.confirmRemoveBody",
-  "actionsMenu.confirmRevokeTitle",
-  "actionsMenu.confirmRevokeBody",
-  "actionsMenu.confirmTransferTitle",
-  "actionsMenu.confirmTransferBody",
   "actionsMenu.confirmYes",
   "actionsMenu.confirmNo",
   "actionsMenu.errorUnauthorized",
   "actionsMenu.errorNotOwner",
-  "actionsMenu.errorNotFounder",
   "actionsMenu.errorTargetIsOwner",
   "actionsMenu.errorCannotSelfRemove",
   "actionsMenu.errorTargetNotActiveMember",
-  "actionsMenu.errorCannotRevokeFounder",
-  "actionsMenu.errorCannotSelfRevoke",
-  "actionsMenu.errorLastOwner",
-  "actionsMenu.errorTargetNotOwner",
-  "actionsMenu.errorTargetAlreadyOwner",
-  "actionsMenu.errorTargetNotMember",
-  "actionsMenu.errorCannotTransferToSelf",
-  "actionsMenu.errorPlaceNotFound",
   "actionsMenu.errorGeneric",
   // InviteMemberModalLabels (17)
   "inviteModal.title",

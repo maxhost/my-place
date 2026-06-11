@@ -8,11 +8,6 @@ import {
 } from "@/features/invitations/public";
 import { loadMembers, removeMemberAction } from "@/features/members/public";
 import type { PlaceData } from "@/features/place/public";
-import {
-  elevateToOwnerAction,
-  revokeOwnershipAction,
-  transferFounderOwnershipAction,
-} from "@/features/place-ownership-actions/public";
 import { buildPlaceCanonicalUrl } from "@/shared/lib/auth-redirect";
 import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
 
@@ -87,10 +82,7 @@ export async function MembersContent({ place }: { place: PlaceData }) {
         createInvitation: createInvitationAction,
         revokeInvitation: revokeInvitationAction,
         menu: {
-          elevateAction: elevateToOwnerAction,
-          revokeOwnershipAction,
           removeAction: removeMemberAction,
-          transferFounderAction: transferFounderOwnershipAction,
         },
       }}
       labels={shellLabels}

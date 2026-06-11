@@ -30,9 +30,9 @@ import {
 // (Activos/Pendientes) + visibility del invite modal + cableado del menú
 // page-level vía render-prop a `<MembersList />`.
 //
-// **Por qué Client + page-level (no slice):** el shell ensambla 4 slices
-// (`members/` + `invitations/` + `place-ownership-actions/` + `member-
-// profile/` futuro) con state coordinado. No tiene capability DB propia ni
+// **Por qué Client + page-level (no slice):** el shell ensambla varios
+// slices (`members/` + `invitations/` + `member-profile/` futuro) con
+// state coordinado. No tiene capability DB propia ni
 // spec independiente — ADR-0028 §"Política a futuro" descarta promoverlo a
 // slice. Vive cerca de su único consumer (la page RSC) en `_components/`,
 // como el `<MemberRowActionsMenu />` (ADR-0043).
