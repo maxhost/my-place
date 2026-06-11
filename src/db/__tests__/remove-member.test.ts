@@ -3,7 +3,6 @@ import { endRlsAdminPool, inRlsTx, type RlsTx } from "./db-test-pool";
 import {
   captureError,
   makeMembership,
-  makeOwnership,
   makePlace,
   makeUser,
 } from "./_factories";
@@ -28,12 +27,13 @@ import {
 //      caller=target=founder+owner (T6) caiga acá con mensaje específico
 //      (en lugar del genérico 'target is owner'). V1.1+ tendrá leave_place
 //      con design separado para no-owners que se sale por su cuenta.
-//   5. target NO es owner del place (separation of concerns con
-//      `app.revoke_ownership` Feature D) → P0001 'target is an owner; revoke
-//      ownership first'. Cubre target founder naturalmente (founder ES owner
-//      por construcción). El path correcto para expulsar a un owner es:
-//      revoke_ownership PRIMERO (deja membership intacta) + remove_member
-//      DESPUÉS si se quiere expulsión total.
+//   5. target NO es owner del place → P0001 'target is an owner; revoke
+//      ownership first'. Post-ADR-0054 (single-owner, migration 0029) esta
+//      pre-condition es defense-in-depth UNREACHABLE por el path canónico:
+//      con UNIQUE place_ownership(place_id), "caller es owner Y target es
+//      owner del mismo place" implica caller = target, que ya cayó en la
+//      self-check (4). El check queda en el cuerpo como guard estructural
+//      (su antiguo test multi-owner se eliminó con `app.revoke_ownership`).
 //   6. target es miembro activo (membership existe AND left_at IS NULL) →
 //      P0001 'target is not an active member'. Captura uniformemente target
 //      sin membership en place (T7) + target ya-removido con left_at NOT NULL
@@ -49,8 +49,8 @@ import {
 
 afterAll(() => endRlsAdminPool());
 
-// Escenario canónico S4:
-//   - place-a: alice founder+owner, bob co-owner, carol miembro activo
+// Escenario canónico S4 (single-owner post-ADR-0054, migration 0029):
+//   - place-a: alice founder+owner única; bob/carol miembros activos
 //     no-owner, dave ex-miembro (left_at NOT NULL).
 //   - place-b: carol founder+owner (isolation cross-place — el target
 //     existirá en place-b mientras caller intenta operar sobre place-b
@@ -64,7 +64,6 @@ async function seedScenario(tx: RlsTx) {
   const eve = await makeUser(tx, { authUserId: "authE" });
   const placeA = await makePlace(tx, { slug: "place-a", name: "Place A", founderUserId: alice.userId });
   const placeB = await makePlace(tx, { slug: "place-b", name: "Place B", founderUserId: carol.userId });
-  await makeOwnership(tx, { userId: bob.userId, placeId: placeA.placeId });
   // Memberships en place-a: alice/bob/carol activos.
   await makeMembership(tx, { userId: alice.userId, placeId: placeA.placeId });
   await makeMembership(tx, { userId: bob.userId, placeId: placeA.placeId });
@@ -137,37 +136,10 @@ describe("S4 app.remove_member — DEFINER soft-remove (spec §CU4)", () => {
     });
   });
 
-  // T4: target es co-owner — caller=alice (founder), target=bob (co-owner)
-  // → P0001 'target is an owner; revoke ownership first'. Separation of
-  // concerns con app.revoke_ownership (Feature D) — el path correcto para
-  // remover a un owner es revoke_ownership PRIMERO + remove_member DESPUÉS.
-  it("denial: target es co-owner → P0001 'target is an owner; revoke ownership first'", async () => {
-    await inRlsTx(async (tx) => {
-      const { uB, pidA } = await seedScenario(tx);
-      await tx.as("authA");
-      const err = await captureError(tx, `SELECT app.remove_member($1, $2)`, [uB, pidA]);
-      expect(err.code).toBe("P0001");
-      expect(err.message).toMatch(/target is an owner/i);
-      expect(err.message).toMatch(/revoke ownership first/i);
-    });
-  });
-
-  // T5: target es founder — caller=bob (co-owner), target=alice (founder)
-  // → P0001 'target is an owner; revoke ownership first'. Founder ES owner
-  // por construcción (place_ownership row + place.founder_user_id apunta),
-  // mismo error path que T4 — no hay error específico para founder. Path
-  // correcto: transfer_founder_ownership PRIMERO + revoke_ownership DESPUÉS
-  // + remove_member último.
-  it("denial: target es founder → P0001 'target is an owner; revoke ownership first'", async () => {
-    await inRlsTx(async (tx) => {
-      const { uA, pidA } = await seedScenario(tx);
-      await tx.as("authB"); // bob co-owner intenta remover founder alice
-      const err = await captureError(tx, `SELECT app.remove_member($1, $2)`, [uA, pidA]);
-      expect(err.code).toBe("P0001");
-      expect(err.message).toMatch(/target is an owner/i);
-      expect(err.message).toMatch(/revoke ownership first/i);
-    });
-  });
+  // (Los viejos T4/T5 "target es co-owner/founder" se eliminaron con
+  // ADR-0054: sin co-owners no existe el escenario caller-owner ≠
+  // target-owner; el caso caller=target=owner único lo cubre T6 vía la
+  // self-check, que corre ANTES del guard 'target is an owner'.)
 
   // T6: self-remove — caller=alice, target=alice → P0001 'cannot self-remove;
   // use leave_place (V1.1+)'. La self-check viene ANTES de target-is-owner
@@ -213,21 +185,8 @@ describe("S4 app.remove_member — DEFINER soft-remove (spec §CU4)", () => {
     });
   });
 
-  // T9: multi-owner co-owner OK — bob (co-owner de place-a, no founder)
-  // remueve carol (miembro no-owner). Confirma que cualquier owner puede
-  // remover no-owners, no sólo founder.
-  it("happy multi-owner: caller co-owner remueve no-owner → UPDATE OK", async () => {
-    await inRlsTx(async (tx) => {
-      const { uC, pidA } = await seedScenario(tx);
-      await tx.as("authB"); // bob = co-owner de place-a
-      await tx.q(`SELECT app.remove_member($1, $2)`, [uC, pidA]);
-      const rows = (await tx.seed(
-        `SELECT left_at FROM membership WHERE user_id = $1 AND place_id = $2`,
-        [uC, pidA],
-      )) as Array<{ left_at: Date | null }>;
-      expect(rows[0]!.left_at).not.toBeNull();
-    });
-  });
+  // (El viejo T9 "multi-owner: co-owner remueve" se eliminó con ADR-0054 —
+  // no existen co-owners; el gate owner-of-place queda cubierto por T1/T3.)
 
   // T10: cross-place denied — alice (owner de place-a, NO de place-b)
   // intenta remover a carol (miembro activo de place-b donde alice no es

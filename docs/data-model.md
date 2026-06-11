@@ -4,7 +4,7 @@ Schema del core del producto, expresado en **SQL (Postgres) ORM-agnóstico**. El
 
 > ⚠️ **PIVOT ADR-0053 (2026-06-11): este schema expresa parcialmente un dominio superseded.** Place pivoteó al Substack para podcasts; la ontología nueva (threads con tipos, episodios, blogposts, suscripción de oyentes vía Stripe Connect) **aún no tiene expresión en schema** — se modela cuando cada feature se especifique. Mientras tanto, en este doc quedan **muertos como dominio pero vivos como columnas** (migración futura, sin cambio de código en S3): el enum **`billing_mode`** (el modelo nuevo es creador-paga-SaaS + creador-cobra-por-Connect, ortogonal a los 3 valores del enum; la columna conserva su default app-side), **`place.opening_hours`** (el horario de apertura murió; columna dormida con default, ningún gate la lee), y el invariante **"máximo 150 miembros"** (no hay más límites). Las marcas inline ⚰️ abajo señalan cada punto. El resto del schema (identidad, ownership, invitations, domains, RLS, DEFINERs) sigue 100% vigente.
 >
-> _Última actualización: 2026-06-11 (banner pivot ADR-0053). Previa: 2026-06-05 (Phase 3.E tech-debt closure — migration 0028: índice `idx_place_founder_user_id` sobre `place(founder_user_id)` para el patrón inverso "qué places fundó X"). Previa: 2026-06-05 (Phase 3.B tech-debt closure — migration 0027: `FORCE ROW LEVEL SECURITY` en las 6 tablas del core + `search_path` fijo en `app.current_user_id()` + `VOLATILE` explícito en los 4 DEFINER 0002/0003/0007/0013). Previa: 2026-06-01 (Phase 2.D — §"Catálogo DEFINER" (18 funciones), policy `au_peer_member_read` en §Auth (ADR-0038), §"Tablas anti-replay" con `app.sso_jti_used` (ADR-0032))._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
+> _Última actualización: 2026-06-11 (single-owner ADR-0054 — migration 0029: DROP de las 3 DEFINERs multi-owner 0014/0015/0016 + UNIQUE index `place_ownership_place_id_unq` sobre `place_ownership(place_id)`; §Invariantes reescritos al modelo un-place-un-owner; §Catálogo DEFINER 18→15). Previa: 2026-06-11 (banner pivot ADR-0053). Previa: 2026-06-05 (Phase 3.E tech-debt closure — migration 0028: índice `idx_place_founder_user_id` sobre `place(founder_user_id)` para el patrón inverso "qué places fundó X"). Previa: 2026-06-05 (Phase 3.B tech-debt closure — migration 0027: `FORCE ROW LEVEL SECURITY` en las 6 tablas del core + `search_path` fijo en `app.current_user_id()` + `VOLATILE` explícito en los 4 DEFINER 0002/0003/0007/0013). Previa: 2026-06-01 (Phase 2.D — §"Catálogo DEFINER" (18 funciones), policy `au_peer_member_read` en §Auth (ADR-0038), §"Tablas anti-replay" con `app.sso_jti_used` (ADR-0032))._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
 
 ## Schema base
 
@@ -82,9 +82,10 @@ CREATE TABLE place (
   -- Default: ambas OFF — un place nace solo con Discusiones; el owner
   -- activa Eventos y/o Biblioteca desde /settings cuando las quiere.
   enabled_features JSONB NOT NULL DEFAULT '[]',
-  -- Slot único del owner-fundador (creador del place o quien recibió transfer
-  -- de ownership). NOT NULL post back-fill de migration 0012 (ADR-0035).
-  -- Inmutable salvo por `app.transfer_founder_ownership` (SECURITY DEFINER).
+  -- Slot único del owner-fundador (el creador del podcast). NOT NULL post
+  -- back-fill de migration 0012 (ADR-0035). Post-ADR-0054 (single-owner,
+  -- migration 0029) founder == owner único e INMUTABLE: la transferencia
+  -- (`app.transfer_founder_ownership`) fue dropeada — no hay vía de cambio.
   -- Referencia lógica a app_user.id (sin FK hard, mismo criterio que
   -- app_user.auth_user_id → neon_auth.user.id).
   founder_user_id  TEXT NOT NULL,
@@ -153,20 +154,18 @@ CREATE TABLE membership (
   UNIQUE (user_id, place_id)
 );
 
--- WORM-via-DEFINER (ADR-0035 §4, Feature D V1 close 2026-05-24): tabla
--- write-once-read-many vía SECURITY DEFINER. La RLS policy `po_sel` permite
--- SELECT a los owners del place (via helper `app.current_user_owns_place`);
--- INSERT/UPDATE/DELETE están REVOKED a `app_system` (defense-in-depth) →
--- toda mutación pasa por 4 funciones `SECURITY DEFINER` que validan
--- invariantes en cuerpo:
---   - app.create_place                (CU1, migration 0013) — INSERT founder
---   - app.elevate_to_owner            (CU2, migration 0014) — INSERT co-owner
---   - app.revoke_ownership            (CU3, migration 0015) — DELETE co-owner
---   - app.transfer_founder_ownership  (CU4, migration 0016) — UPDATE founder
---                                                            + DELETE caller
+-- WORM-via-DEFINER (ADR-0035 §4, reducido a su mínimo por ADR-0054
+-- single-owner, 2026-06-11): tabla write-once-read-many vía SECURITY
+-- DEFINER. La RLS policy `po_sel` permite SELECT al owner del place (via
+-- helper `app.current_user_owns_place`); INSERT/UPDATE/DELETE están REVOKED
+-- a `app_system` (defense-in-depth). Post-migration 0029 el ÚNICO writer es
+--   - app.create_place (CU1, migration 0013) — INSERT founder al crear place
+-- (las 3 DEFINERs de mutación multi-owner — elevate_to_owner 0014,
+-- revoke_ownership 0015, transfer_founder_ownership 0016 — fueron DROPPED
+-- en 0029). La tabla queda como slot 1:1 owner↔place: mapea la relación y
+-- las policies RLS de las 6 tablas del core la leen.
 -- Síntoma de drift (mutación directa por código de feature): `ERROR:
--- permission denied for table place_ownership`. Ver gotcha `docs/gotchas/
--- place-ownership-defining-functions-only.md` (a crear en S6).
+-- permission denied for table place_ownership`.
 CREATE TABLE place_ownership (
   id         TEXT PRIMARY KEY,
   user_id    TEXT NOT NULL REFERENCES app_user(id),
@@ -174,6 +173,9 @@ CREATE TABLE place_ownership (
   granted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (user_id, place_id)
 );
+-- Single-owner enforcement (migration 0029, ADR-0054): un place = un owner,
+-- DB-side. Cualquier segundo INSERT para el mismo place falla con 23505.
+CREATE UNIQUE INDEX place_ownership_place_id_unq ON place_ownership (place_id);
 
 CREATE TABLE invitation (
   id         TEXT PRIMARY KEY,
@@ -236,10 +238,8 @@ Las columnas `JSONB` no son libres: tienen un shape canónico validado con Zod e
 Reglas que el código debe enforzar. No son validaciones UI — son invariantes estructurales que viven en el modelo o en domain services.
 
 - ⚰️ ~~**Máximo 150 miembros por place.**~~ MUERTO (ADR-0053): no hay más límites de tamaño. Sin enforcement en código que remover; cualquier feature nueva NO debe implementarlo.
-- **Mínimo 1 owner por place activo (enforce DB-side via DEFINER).** Un place no puede quedar sin owner. Enforce vía las funciones `app.revoke_ownership` y `app.transfer_founder_ownership` (`SECURITY DEFINER`, RAISE EXCEPTION en cuerpo) + `REVOKE INSERT, UPDATE, DELETE ON place_ownership FROM "app_system"` (defense-in-depth: ninguna ruta TS llega directo a SQL). Canónico: ADR-0035 §4.
-- **Founder slot único por place, no-delete por otro owner.** `place.founder_user_id` es el `app_user.id` del owner-fundador (creador o quien recibió transfer). Inmutable salvo por `app.transfer_founder_ownership` (`SECURITY DEFINER`, sólo el founder actual puede transferirlo a un owner pre-existente). Canónico: ADR-0035 §2. Indexado por `idx_place_founder_user_id` (migration 0028, Phase 3.E) para el patrón inverso `WHERE founder_user_id = $1` ("qué places fundó X") — auditoría de ownership + futuras vistas de perfil de fundador; los lookups de los DEFINER van por `place(id)` (PK).
-- **Transfer founder requiere target owner pre-existente.** El target de `app.transfer_founder_ownership` debe ser owner actual (≥2 owners pre-transfer); si N=1 (founder solo), el caller debe elevar primero a alguien vía `app.elevate_to_owner`. Bloqueado con RAISE EXCEPTION explícito. Canónico: ADR-0035 §2/§4.
-- **Multi-owner desde V1; co-owners se elevan desde miembros pre-existentes.** Un place tiene N owners simultáneos (N filas en `place_ownership` con mismo `place_id`); todos comparten poder operativo (CRUD owner-only vía policies de `place`/`membership`/`invitation`/`place_domain`). La asimetría es de origen (founder vs co-owner). `app.elevate_to_owner` requiere que el target sea miembro activo (`membership.left_at IS NULL`) del mismo place — no se puede elevar a externos. Canónico: ADR-0035 §1/§2.
+- **Un place = un owner (enforce DB-side via UNIQUE index).** Post-ADR-0054 (supersede ADR-0035 §1/§2): un place tiene exactamente un owner — el creador del podcast. Enforce estructural: UNIQUE index `place_ownership_place_id_unq ON place_ownership(place_id)` (migration 0029) — ningún bug futuro puede insertar un segundo owner (`23505`). El único writer de `place_ownership` es `app.create_place` (inserta al founder al crear el place); las 3 DEFINERs de mutación multi-owner (`elevate_to_owner`/`revoke_ownership`/`transfer_founder_ownership`) fueron dropeadas en 0029. El `REVOKE INSERT, UPDATE, DELETE ON place_ownership FROM "app_system"` (defense-in-depth: ninguna ruta TS llega directo a SQL) sigue vigente.
+- **Founder == owner; slot único e inmutable.** `place.founder_user_id` es el `app_user.id` del owner-fundador. Con un solo owner por place (ADR-0054), founder y owner son la misma persona y NO existe vía de cambio: la transferencia (`app.transfer_founder_ownership`) murió con la migration 0029. Consecuencia de lifecycle (refina ADR-0003): para eliminar la cuenta del único owner de un place activo, el único camino es **cerrar el place** (la pata "primero transferir" desaparece). La columna y su índice quedan: `idx_place_founder_user_id` (migration 0028, Phase 3.E) cubre el patrón inverso `WHERE founder_user_id = $1` ("qué places fundó X") — auditoría de ownership + futuras vistas de perfil de fundador.
 - ⚰️ ~~**No se pueden mezclar billing modes.**~~ MUERTO (ADR-0053): el enum `billing_mode` está superseded (ver comentario en el schema); el invariante cae con él. El modelo de monetización nuevo vive en `docs/ontologia/monetizacion.md`.
 - **Slug inmutable.** Ver `multi-tenancy.md`.
 - **Un usuario no puede tener dos memberships activas en el mismo place.** Enforzado por unique constraint `(user_id, place_id)`.
@@ -249,12 +249,12 @@ Reglas que el código debe enforzar. No son validaciones UI — son invariantes 
 - **Discusiones es la zona no-desactivable.** Es el primitivo del que derivan eventos y biblioteca; siempre está activa. Eventos y Biblioteca son zonas **opcionales** que el owner activa/desactiva desde `/settings/*` (`enabled_features`). Miembros no es una zona toggleable: los miembros existen siempre.
 - **`place.default_locale` editable por el owner, fijo para todos los miembros (ADR-0022).** Default `es` al crear; el owner puede cambiarlo en `/settings` a uno de los 6 locales operativos (`es/en/fr/pt/de/ca`, enforzado por `CHECK`). NO existe locale por-miembro: todos los miembros ven el chrome del place en `place.default_locale`. La zona pública (marketing, Hub) sigue el locale del path del visitante — son dos modos distintos canónicos en `architecture.md` § "i18n: dos modos de resolución de locale".
 - **Handle obligatorio y único global.** `app_user.handle NOT NULL UNIQUE`. Auto-asignado random no-usado al crear la cuenta, editable por el usuario, liberado para reuso **solo al borrar la cuenta** (no al salir de un place).
-- **Exención de la escala de inactividad.** La escala 6m/12m de cuenta NO corre mientras el usuario sea owner de ≥1 place activo O tenga ≥1 pago activo. Es una condición evaluada, no un flag permanente: al dejar de cumplir ambas, la cuenta entra a la escala. Ver ADR-0003. **Post-ADR-0035:** "owner de ≥1 place activo" se interpreta literal post-multi-owner — cualquier owner (founder o co-owner) extiende la exención mientras el place esté `subscription_status IN ('ACTIVE','PAYMENT_PENDING','INACTIVATION_PROCESS')`. La revocación de ownership re-evalúa la condición.
+- **Exención de la escala de inactividad.** La escala 6m/12m de cuenta NO corre mientras el usuario sea owner de ≥1 place activo O tenga ≥1 pago activo. Es una condición evaluada, no un flag permanente: al dejar de cumplir ambas, la cuenta entra a la escala. Ver ADR-0003. **Post-ADR-0054 (single-owner):** "owner de ≥1 place activo" = el único owner de cada place; la exención corre mientras el place esté `subscription_status IN ('ACTIVE','PAYMENT_PENDING','INACTIVATION_PROCESS')`.
 - **Alta owner-first: cuenta y place se crean juntos (saga, no transacción única).** El alta del apex crea `app_user` (+ identidad Better Auth) y luego `place` + `place_ownership` + `membership` vía la función atómica `app.create_place` (ADR-0005, refinado por ADR-0012 — INSERT directo denegado por RLS). Una cuenta queda sin place solo si falla ese último paso (reintento, no error fatal). Excepción de diseño: alta desde invitación o "join" del directorio crea cuenta + `membership` sin crear place.
-- **Place requiere suscripción del owner activa.** Sin pago, el place avanza por `subscription_status` hasta purga a los 12m. La eliminación/tombstone de un usuario que es único owner de un place activo se bloquea: primero transferir ownership o cerrar el place (extiende "mínimo 1 owner").
+- **Place requiere suscripción del owner activa.** Sin pago, el place avanza por `subscription_status` hasta purga a los 12m. La eliminación/tombstone del owner de un place activo se bloquea: el único camino es **cerrar el place** (post-ADR-0054 no existe transferencia de ownership).
 - **`membership.headline` ≤ 280 caracteres (ADR-0036).** Texto personal corto, opcional, contextual al place (NO viaja entre places — vive en capa 2 de identidad). Enforce DB-side vía `CHECK (headline IS NULL OR length(headline) <= 280)` + zod del action `updateMyHeadlineAction` (defense-in-depth ante drift app-side). Sólo el propio miembro lo edita (`user_id = caller`); el owner del place NO edita el headline de otros. Render condicional en UI: bloque desaparece cuando NULL.
 - **Todas las FKs son `ON DELETE NO ACTION` (sin CASCADE).** Las 6 foreign keys del core (`invitation.place_id`, `membership.user_id`, `membership.place_id`, `place_domain.place_id`, `place_ownership.user_id`, `place_ownership.place_id`) se declaran `ON DELETE no action ON UPDATE no action` (default de Drizzle/Postgres, explícito en `0000_youthful_hydra.sql`). **Es deliberado, no un default accidental.** Razones: (a) **soft-delete es el modelo canónico** (§Convenciones: `archived_at`/`left_at`, no `DELETE` físico) — en operación normal ninguna fila padre se borra, así que no hay evento de cascade que disparar; (b) **WORM-via-DEFINER** — el contenido pertenece al place y sobrevive a la salida de un miembro (ADR-0035, "Derecho al olvido"); un `CASCADE` borraría contenido al tocar el padre, violando la garantía. Los únicos hard-deletes son operaciones explícitas (purga de place, borrado de cuenta) ejecutadas **ordenadamente por funciones `SECURITY DEFINER`** que hacen el scrub/anonimización en el orden correcto (el tombstone deja `app_user` como cáscara anónima justamente para **preservar la integridad de los FKs** del contenido, no para romperla). Cualquier FK nueva en V1.1+ hereda esta regla salvo justificación explícita en su ADR.
-- **`place.member_invite_quota` ≥ 0 (ADR-0037, V1 schema-only).** Cupo máximo de invitaciones concurrentes por miembro no-owner del place. Owner exento vía `app.current_user_owns_place` (cualquiera de los N owners por ADR-0035 §1). Default 0 = sólo owner invita (comportamiento histórico ADR-0010). V1 (Feature E): la columna existe pero `app.create_invitation` la IGNORA — gate hardcoded `caller is owner`. V2+ agregará UI editor + counter `membership.invitations_used` + gate por cupo en cuerpo de `create_invitation` + decremento on cancel/expire (cita literal user: "si la invitacion no fue aceptada el miembro podra eliminarla o cancelarla y volver a usarla para invitar a alguien mas").
+- **`place.member_invite_quota` ≥ 0 (ADR-0037, V1 schema-only).** Cupo máximo de invitaciones concurrentes por miembro no-owner del place. Owner exento vía `app.current_user_owns_place` (el owner único del place, ADR-0054). Default 0 = sólo owner invita (comportamiento histórico ADR-0010). V1 (Feature E): la columna existe pero `app.create_invitation` la IGNORA — gate hardcoded `caller is owner`. V2+ agregará UI editor + counter `membership.invitations_used` + gate por cupo en cuerpo de `create_invitation` + decremento on cancel/expire (cita literal user: "si la invitacion no fue aceptada el miembro podra eliminarla o cancelarla y volver a usarla para invitar a alguien mas").
 
 ## Capas de identidad de un usuario
 
@@ -309,7 +309,7 @@ Implementado en `features/members/` y `features/places/` con cron/scheduled func
 
 ## Migrations & snapshots (convención del repo)
 
-Las migrations viven en `src/db/migrations/*.sql` numeradas secuencialmente (`0000_*.sql` … `0028_*.sql` al momento de este doc). El runner es **drizzle-kit migrate** (script `pnpm db:migrate`), que se ejecuta automáticamente en cada production deploy via `scripts/maybe-migrate.mjs` (canon ADR-0017).
+Las migrations viven en `src/db/migrations/*.sql` numeradas secuencialmente (`0000_*.sql` … `0029_*.sql` al momento de este doc). El runner es **drizzle-kit migrate** (script `pnpm db:migrate`), que se ejecuta automáticamente en cada production deploy via `scripts/maybe-migrate.mjs` (canon ADR-0017).
 
 **Dos tipos de migrations conviven**:
 
@@ -344,9 +344,9 @@ El reverse SQL recomendado vive en comentario al inicio del `.sql` original (pre
 
 Toda mutación crítica del core + todo lookup que deba bypasear RLS pasa por una función `SECURITY DEFINER` del schema `app`. Son la **única** superficie de escritura sobre las tablas WORM/protegidas (las rutas TS nunca tocan SQL directo — defense-in-depth vía `REVOKE INSERT/UPDATE/DELETE` sobre las tablas + `GRANT EXECUTE` sólo sobre la función). El SQL canónico vive en `src/db/migrations/*.sql`; cada DEFINER tiene `SET search_path` fijo (anti-hijack) y su integration test en `src/db/__tests__/*.test.ts`. La volatility se declara **explícita** en el `CREATE` (`VOLATILE`/`STABLE`); migration 0027 (Phase 3.B) saneó los 4 DEFINER de la era 0002/0003/0007/0013 (`create_place` ×2, `invitation_preview`, `accept_invitation`) que la dejaban implícita en el default `VOLATILE` de plpgsql. El helper de identidad `app.current_user_id()` (SECURITY INVOKER, no DEFINER) también lleva `search_path = pg_catalog, pg_temp` fijo desde 0027 — referencia sólo built-ins, así que no incluye `public`.
 
-**ACL canon (uniforme, las 18):** `REVOKE EXECUTE ... FROM PUBLIC` + `GRANT EXECUTE ... TO "app_system"`. `app_system` es el ÚNICO rol runtime (ADR-0011) que conecta el backend Vercel a Postgres; ninguna DEFINER es invocable por `PUBLIC` ni por otro rol. La columna EXECUTE de la tabla es por eso uniforme y se omite por fila.
+**ACL canon (uniforme, las 15):** `REVOKE EXECUTE ... FROM PUBLIC` + `GRANT EXECUTE ... TO "app_system"`. `app_system` es el ÚNICO rol runtime (ADR-0011) que conecta el backend Vercel a Postgres; ninguna DEFINER es invocable por `PUBLIC` ni por otro rol. La columna EXECUTE de la tabla es por eso uniforme y se omite por fila.
 
-**18 funciones DEFINER activas** (al momento de este doc; `create_place` cuenta como 2 por overload de aridad — Postgres trata distintas aridades como funciones distintas):
+**15 funciones DEFINER activas** (al momento de este doc; `create_place` cuenta como 2 por overload de aridad — Postgres trata distintas aridades como funciones distintas):
 
 | Función | Migration canónica | Propósito · feature owner |
 |---------|--------------------|---------------------------|
@@ -358,9 +358,6 @@ Toda mutación crítica del core + todo lookup que deba bypasear RLS pasa por un
 | `app.lookup_place_locale_by_slug` | 0010 | custom-domain-routing / i18n: lookup **anónimo** slug → `default_locale` |
 | `app.consume_sso_jti` | 0011 | custom-domain-sso: anti-replay del ticket jti (ver §Tablas anti-replay) |
 | `app.current_user_owns_place` | 0012 | **helper RLS anti-recursión**: ownership check para policies de `place_ownership` (ADR-0035 §4) |
-| `app.elevate_to_owner` | 0014 | place-ownership: promueve miembro activo a co-owner |
-| `app.revoke_ownership` | 0015 | place-ownership: revoca co-owner (no founder, no self-revoke V1) |
-| `app.transfer_founder_ownership` | 0016 | place-ownership: transfiere founder slot a otro owner (atómico) |
 | `app.update_my_headline` | 0017 | members: self-edit `membership.headline` ≤280 chars |
 | `app.create_invitation` | 0018 | invitations: owner genera token capability + quota check |
 | `app.revoke_invitation` | 0019 | invitations: owner cancela pending invitation (DELETE físico) |
@@ -369,7 +366,12 @@ Toda mutación crítica del core + todo lookup que deba bypasear RLS pasa por un
 | `app.lookup_custom_domain_by_slug` | 0022 | custom-domain-routing: lookup **anónimo** slug → custom domain verificado (inverso de 0009) |
 | `app.lookup_user_identity_by_id` | 0024 | access / members: lookup **anónimo** id → `{email, name}` jsonb (cross-schema `neon_auth`) |
 
-**Dropeadas:** `app.lookup_user_email_by_id(uuid)` — definida en 0023, **dropeada en 0026** (superseded por `app.lookup_user_identity_by_id` de 0024; zero callers TS post Phase 1.A). No cuenta en las 18.
+**Dropeadas** (no cuentan en las 15):
+
+- `app.lookup_user_email_by_id(uuid)` — definida en 0023, **dropeada en 0026** (superseded por `app.lookup_user_identity_by_id` de 0024; zero callers TS post Phase 1.A).
+- `app.elevate_to_owner(text, text)` — definida en 0014, **dropeada en 0029 (ADR-0054)**: promovía miembro activo a co-owner; sin co-owners no tiene rol.
+- `app.revoke_ownership(text, text)` — definida en 0015, **dropeada en 0029 (ADR-0054)**: revocaba co-owner; sin co-owners no hay nada que revocar.
+- `app.transfer_founder_ownership(text, text)` — definida en 0016, **dropeada en 0029 (ADR-0054)**: exigía target owner pre-existente — sin elevate no hay target posible; la transferencia de founder muere (borrar la cuenta del único owner = cerrar el place).
 
 **Helpers de seguridad NO-DEFINER** (no bypasean RLS — se listan para completar el mapa, no son parte del catálogo DEFINER):
 

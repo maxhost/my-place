@@ -4,7 +4,6 @@ import {
   captureError,
   makeInvitation,
   makeMembership,
-  makeOwnership,
   makePlace,
   makeUser,
 } from "./_factories";
@@ -54,8 +53,8 @@ import {
 
 afterAll(() => endRlsAdminPool());
 
-// Escenario canónico S3:
-//   - place-a: alice founder+owner, bob co-owner, carol miembro no-owner.
+// Escenario canónico S3 (single-owner post-ADR-0054, migration 0029):
+//   - place-a: alice founder+owner única; bob/carol miembros no-owner.
 //   - place-b: carol founder+owner (isolation cross-place).
 //   - 3 invitations en place-a + 1 invitation en place-b:
 //       invPendingA: place-a, pending (expires_at fresh, accepted_at NULL).
@@ -68,8 +67,7 @@ async function seedScenario(tx: RlsTx) {
   const carol = await makeUser(tx, { authUserId: "authC" });
   const placeA = await makePlace(tx, { slug: "place-a", name: "Place A", founderUserId: alice.userId });
   const placeB = await makePlace(tx, { slug: "place-b", name: "Place B", founderUserId: carol.userId });
-  await makeOwnership(tx, { userId: bob.userId, placeId: placeA.placeId });
-  // Memberships en place-a: alice/bob/carol activos (carol no-owner).
+  // Memberships en place-a: alice/bob/carol activos (bob/carol no-owner).
   await makeMembership(tx, { userId: alice.userId, placeId: placeA.placeId });
   await makeMembership(tx, { userId: bob.userId, placeId: placeA.placeId });
   await makeMembership(tx, { userId: carol.userId, placeId: placeA.placeId });
@@ -186,21 +184,9 @@ describe("S3 app.revoke_invitation — DEFINER invitation revoker (ADR-0010 §2 
     });
   });
 
-  // T6: multi-owner co-owner — bob (co-owner de place-a, no founder) puede
-  // revocar igual que alice. Confirma que el gate es owner-of-place (cualquier
-  // owner), no founder-only.
-  it("happy multi-owner: caller co-owner (no-founder) → DELETE succeeds", async () => {
-    await inRlsTx(async (tx) => {
-      const { invPendingA } = await seedScenario(tx);
-      await tx.as("authB"); // bob = co-owner de place-a
-      await tx.q(`SELECT app.revoke_invitation($1)`, [invPendingA]);
-      const rows = (await tx.seed(
-        `SELECT id FROM invitation WHERE id = $1`,
-        [invPendingA],
-      )) as Array<{ id: string }>;
-      expect(rows).toHaveLength(0);
-    });
-  });
+  // (El viejo T6 "multi-owner: co-owner puede revocar" se eliminó con
+  // ADR-0054 — no existen co-owners; el gate owner-of-place queda cubierto
+  // por T1/T4/T7.)
 
   // T7: cross-place denied — alice (owner de place-a) intenta revocar una
   // invitation de place-b (donde alice NO es owner; carol lo es) → P0001

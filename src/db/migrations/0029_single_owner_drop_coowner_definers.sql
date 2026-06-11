@@ -1,0 +1,67 @@
+-- Single-owner (ADR-0054, 2026-06-11) — un place = un owner. Post-pivot
+-- ADR-0053 el place es el podcast de un creador: la figura de co-owner deja
+-- de ser producto, así que se retira la superficie de mutación multi-owner
+-- de la DB y se agrega el invariante estructural que la reemplaza.
+--
+-- ## Qué hace
+--
+-- 1. **DROP de las 3 DEFINERs de Feature D** (ADR-0035 §Decisión 2, ahora
+--    superseded por ADR-0054):
+--      - `app.elevate_to_owner(text, text)`            (migration 0014)
+--      - `app.revoke_ownership(text, text)`            (migration 0015)
+--      - `app.transfer_founder_ownership(text, text)`  (migration 0016)
+--    El DROP FUNCTION elimina también sus ACLs (REVOKE/GRANT viajan con la
+--    función). Post-drop, el ÚNICO camino de escritura sobre
+--    `place_ownership` es `app.create_place` (0013): inserta al founder al
+--    crear el place. El patrón WORM-via-DEFINER (ADR-0035 §4) sobrevive
+--    reducido a ese mínimo: los REVOKE INSERT/UPDATE/DELETE a `app_system`
+--    sobre la tabla NO se tocan.
+--
+-- 2. **UNIQUE index sobre `place_ownership(place_id)`** — "un place = un
+--    owner" deja de ser convención y pasa a invariante DB-side: ningún bug
+--    futuro puede insertar un segundo owner para el mismo place (falla con
+--    `23505 unique_violation`).
+--
+-- ## Precondición fail-loud (deliberada)
+--
+-- Si al aplicar existieran datos con 2+ owners para un mismo place, el
+-- CREATE UNIQUE INDEX falla y aborta la migration. Eso es correcto: significa
+-- que hay co-owners reales que la decisión de producto (ADR-0054) dice que no
+-- deben existir — se resuelve a mano (decidir qué fila sobrevive) ANTES de
+-- re-aplicar, no silenciando el error.
+--
+-- ## Canon `SET lock_timeout = '5s'`
+--
+-- `CREATE UNIQUE INDEX` toma AccessExclusiveLock sobre `place_ownership`.
+-- Prefijado con el canon transversal de 0025 (data-model.md §"Protocolo para
+-- futuras migrations"): fail-fast a los 5s (SQLSTATE 55P03) en vez de stall
+-- indefinido por lock contention. Los DROP FUNCTION no lo necesitan (el lock
+-- que toman es trivial, mismo criterio que las migrations DEFINER-only).
+-- Sin CONCURRENTLY: drizzle-kit migrate corre en transacción (ADR-0017) y la
+-- tabla es chica pre-launch (mismo razonamiento que 0025/0028).
+--
+-- ## Idempotencia
+--
+-- `DROP FUNCTION IF EXISTS` + `CREATE UNIQUE INDEX IF NOT EXISTS`: re-runs
+-- manuales o aplicación sobre un branch ya migrado no rompen.
+--
+-- ## Reverse SQL (rollback puntual)
+--
+-- No automatizable por drizzle-kit (no soporta `down`). Manual:
+--
+--   DROP INDEX IF EXISTS place_ownership_place_id_unq;
+--   -- Re-crear las 3 funciones con su SQL canónico (CREATE OR REPLACE
+--   -- FUNCTION + REVOKE/GRANT): ver los archivos originales
+--   --   src/db/migrations/0014_app_elevate_to_owner.sql
+--   --   src/db/migrations/0015_app_revoke_ownership.sql
+--   --   src/db/migrations/0016_app_transfer_founder_ownership.sql
+--   -- (lock_timeout es session-local, no requiere reverse)
+--
+-- Caveat del rollback: revertir esta migration NO revierte la decisión de
+-- producto — requiere ADR nueva (ver ADR-0054 §Consecuencias 5).
+
+DROP FUNCTION IF EXISTS app.elevate_to_owner(text, text);--> statement-breakpoint
+DROP FUNCTION IF EXISTS app.revoke_ownership(text, text);--> statement-breakpoint
+DROP FUNCTION IF EXISTS app.transfer_founder_ownership(text, text);--> statement-breakpoint
+SET lock_timeout = '5s';--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "place_ownership_place_id_unq" ON "place_ownership" USING btree ("place_id");

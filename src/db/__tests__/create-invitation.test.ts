@@ -3,7 +3,6 @@ import { endRlsAdminPool, inRlsTx, type RlsTx } from "./db-test-pool";
 import {
   captureError,
   makeMembership,
-  makeOwnership,
   makePlace,
   makeUser,
 } from "./_factories";
@@ -28,16 +27,17 @@ import {
 // 256 bits entropy, URL-safe). RETURN json {invitation_id, token}. La
 // función NO re-valida formato del email — delega a zod app-side.
 //
-// Patrón seed-as-owner / assert-as-`app_system` heredado de
-// `elevate-to-owner.test.ts`. Factories de `_factories/` (Phase 1.C).
-// ROLLBACK siempre.
+// Patrón seed-as-owner / assert-as-`app_system` (precedente Feature D).
+// Factories de `_factories/` (Phase 1.C). ROLLBACK siempre.
+//
+// Post-ADR-0054 (single-owner, migration 0029): no existen co-owners — el
+// escenario es single-owner por place (UNIQUE place_ownership(place_id)).
 
 afterAll(() => endRlsAdminPool());
 
-// Escenario canónico S2: 2 places (alice founder+owner de place-a; bob
-// elevado a co-owner de place-a en seed; carol founder+owner de place-b).
-// En place-a: alice/bob/carol/eve son memberships (carol = miembro
-// no-owner; eve = ex-miembro left_at NOT NULL); dave SIN membership en
+// Escenario canónico S2: 2 places (alice founder+owner único de place-a;
+// carol founder+owner único de place-b). En place-a: alice/bob/carol son
+// memberships (bob/carol = miembros no-owner); dave SIN membership en
 // place-a.
 async function seedScenario(tx: RlsTx) {
   const alice = await makeUser(tx, { authUserId: "authA" });
@@ -46,7 +46,6 @@ async function seedScenario(tx: RlsTx) {
   const dave = await makeUser(tx, { authUserId: "authD" });
   const placeA = await makePlace(tx, { slug: "place-a", name: "Place A", founderUserId: alice.userId });
   const placeB = await makePlace(tx, { slug: "place-b", name: "Place B", founderUserId: carol.userId });
-  await makeOwnership(tx, { userId: bob.userId, placeId: placeA.placeId });
   // Memberships en place-a: alice/bob/carol activos. dave no es miembro.
   await makeMembership(tx, { userId: alice.userId, placeId: placeA.placeId });
   await makeMembership(tx, { userId: bob.userId, placeId: placeA.placeId });
@@ -183,25 +182,9 @@ describe("S2 app.create_invitation — DEFINER invitation mutator (ADR-0010 §2 
     });
   });
 
-  // T7: multi-owner — bob (co-owner de place-a) puede invitar igual que
-  // alice (founder). Confirma que el gate V1 es owner-of-place (cualquier
-  // owner), no founder-only.
-  it("happy multi-owner: caller co-owner (no-founder) → INSERT succeeds", async () => {
-    await inRlsTx(async (tx) => {
-      const { uB, pidA } = await seedScenario(tx);
-      await tx.as("authB"); // bob = co-owner de place-a
-      const rows = (await tx.q(
-        `SELECT app.create_invitation($1, $2, now() + interval '7 days') AS j`,
-        [pidA, "frank@test.com"],
-      )) as Array<{ j: { invitation_id: string; token: string } }>;
-      expect(rows[0].j.invitation_id).toMatch(/[0-9a-f-]+/);
-      const inv = (await tx.seed(
-        `SELECT invited_by FROM invitation WHERE id = $1`,
-        [rows[0].j.invitation_id],
-      )) as Array<{ invited_by: string }>;
-      expect(inv[0].invited_by).toBe(uB); // invited_by = bob, no alice.
-    });
-  });
+  // (El viejo T7 "multi-owner: co-owner puede invitar" se eliminó con
+  // ADR-0054 — no existen co-owners; el gate owner-of-place queda cubierto
+  // por T1/T3/T4.)
 
   // T8: token uniqueness — 2 invocaciones consecutivas con el mismo caller
   // generan tokens distintos. Defensa contra una generation strategy que

@@ -26,8 +26,8 @@ const APP_USER = `INSERT INTO app_user (auth_user_id,email,display_name,handle)
 const PLACE = `INSERT INTO place (slug,name,billing_mode,founder_user_id)
                VALUES ($1,$2,'OWNER_PAYS',$3) RETURNING id`;
 
-// Escenario canónico:
-//   - place-a: alice founder+owner, bob co-owner, carol miembro activo
+// Escenario canónico (single-owner post-ADR-0054, migration 0029):
+//   - place-a: alice founder+owner única; bob/carol miembros activos
 //     no-owner, dave ex-miembro (left_at NOT NULL).
 //   - place-b: erin founder+owner; sin overlap con place-a.
 //   - frank: app_user con email/handle pero SIN membership en ningún place
@@ -79,11 +79,11 @@ async function seedScenario(tx: RlsTx) {
     "Place B",
     uE,
   ])) as Array<{ id: string }>;
-  // place-a: alice founder+owner, bob co-owner.
-  await tx.seed(
-    `INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2),($3,$2)`,
-    [uA, pidA, uB],
-  );
+  // place-a: alice founder+owner única (UNIQUE place_ownership(place_id)).
+  await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [
+    uA,
+    pidA,
+  ]);
   // place-b: erin founder+owner.
   await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [
     uE,
@@ -108,7 +108,7 @@ async function seedScenario(tx: RlsTx) {
 
 describe("au_peer_member_read — policy SELECT-only peer-read sobre app_user (ADR-0038)", () => {
   // T1: happy peer-read — carol (miembro no-owner de place-a) lee app_user
-  // de bob (co-owner de place-a, otro miembro activo del mismo place).
+  // de bob (otro miembro activo del mismo place).
   // Comparten place-a → app.is_peer_member(bob.id) = true → SELECT pasa.
   it("T1 peer-read: caller miembro lee app_user de otro miembro activo del mismo place", async () => {
     await inRlsTx(async (tx) => {

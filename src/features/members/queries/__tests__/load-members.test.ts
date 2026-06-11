@@ -32,8 +32,9 @@ const APP_USER = `INSERT INTO app_user (auth_user_id,email,display_name,handle,a
 const PLACE = `INSERT INTO place (slug,name,billing_mode,founder_user_id)
                VALUES ($1,$2,'OWNER_PAYS',$3) RETURNING id`;
 
-// Escenario canónico S6 (compartido con load-pending-invitations.test.ts):
-//   - place-a: alice founder+owner, bob co-owner, carol miembro activo
+// Escenario canónico S6 (compartido con load-pending-invitations.test.ts;
+// ajustado por ADR-0054 single-owner — bob pasó de co-owner a miembro plano):
+//   - place-a: alice founder+owner único, bob y carol miembros activos
 //     no-owner, dave ex-miembro (left_at NOT NULL), todos con headlines
 //     mixtos para verificar el passthrough.
 //   - eve: app_user existe pero SIN membership en place-a (test #3 — no
@@ -81,15 +82,12 @@ async function seedScenario(tx: RlsTx) {
     "Place A",
     uA,
   ])) as Array<{ id: string }>;
-  // alice founder+owner; bob co-owner. carol miembro no-owner. Sin fila en
-  // place_ownership para carol/dave/eve.
+  // alice founder+owner único (ADR-0054: UNIQUE place_ownership(place_id) —
+  // un place = un owner). bob/carol miembros no-owner; sin fila en
+  // place_ownership para bob/carol/dave/eve.
   await tx.seed(
     `INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`,
     [uA, pidA],
-  );
-  await tx.seed(
-    `INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`,
-    [uB, pidA],
   );
   // Memberships activas con joined_at controlado (alice vieja, bob medio,
   // carol nueva) + headlines mixtos para validar passthrough NULL/value.
@@ -197,21 +195,9 @@ describe("loadMembers — query foundation slice members (S6, ADR-0035 + ADR-003
     });
   });
 
-  // T5: co-owner badge — bob (owner pero no founder) viene con
-  // isFounder=false Y isOwner=true.
-  it("badge derivation: co-owner → isFounder=false AND isOwner=true", async () => {
-    await inRlsTx(async (tx) => {
-      const { pidA } = await seedScenario(tx);
-      await tx.as("authA");
-
-      const members = await loadMembers(tx.q, pidA);
-
-      const bob = members.find((m) => m.handle === "bob");
-      expect(bob).toBeDefined();
-      expect(bob!.isFounder).toBe(false);
-      expect(bob!.isOwner).toBe(true);
-    });
-  });
+  // T5 (co-owner badge) eliminado por ADR-0054: la combinación
+  // isOwner=true && isFounder=false ya no es alcanzable (un place = un
+  // owner; el único owner es el founder). T6 cubre la derivación no-owner.
 
   // T6: miembro no-owner — carol (sólo membership, sin place_ownership)
   // viene con isFounder=false Y isOwner=false. Confirma que el LEFT JOIN

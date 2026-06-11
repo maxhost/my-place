@@ -20,9 +20,10 @@ const PLACE = `INSERT INTO place (slug,name,billing_mode,founder_user_id)
 const INVITATION = `INSERT INTO invitation (place_id,email,invited_by,expires_at,token,accepted_at)
                     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`;
 
-// Escenario S6 para invitations:
-//   - place-a: alice founder+owner, bob co-owner (multi-owner — alice y
-//     bob pueden ver pendientes), carol miembro no-owner (NO debe ver).
+// Escenario S6 para invitations (ajustado por ADR-0054 single-owner: bob
+// pasó de co-owner a miembro plano — UNIQUE place_ownership(place_id)):
+//   - place-a: alice founder+owner único, bob y carol miembros no-owner
+//     (NO deben ver pendientes).
 //   - invitaciones en place-a:
 //       - inv_far: pending, expira 90 días (más holgada → ORDER segunda).
 //       - inv_near: pending, expira 1 hora (más urgente → ORDER primera).
@@ -57,10 +58,6 @@ async function seedScenario(tx: RlsTx) {
   await tx.seed(
     `INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`,
     [uA, pidA],
-  );
-  await tx.seed(
-    `INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`,
-    [uB, pidA],
   );
   await tx.seed(`INSERT INTO membership (user_id,place_id) VALUES ($1,$2)`, [
     uA,

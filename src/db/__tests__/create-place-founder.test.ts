@@ -14,6 +14,9 @@ import { endRlsAdminPool, inRlsTx, type RlsTx } from "./db-test-pool";
 //   T4. Back-fill idempotente: re-ejecutar el UPDATE MIN(granted_at) de
 //       migration 0012 NO cambia datos existentes — propiedad clave para
 //       reverse-SQL seguro y para re-aplicación accidental en branches test.
+//       Post-ADR-0054 (single-owner, migration 0029) el escenario es 1 fila
+//       de ownership por place (UNIQUE place_ownership(place_id)) — el MIN
+//       es trivial pero la propiedad de no-op sigue vigente.
 //   T5. ADR-0012 contract preservado: post-refactor, app.create_place sigue
 //       creando atómicamente la trupla (place, place_ownership, membership) —
 //       el wire-up del founder no rompió el saga de creación.
@@ -110,20 +113,14 @@ describe("Feature D · S5 — app.create_place setea founder_user_id (regression
   it("T4 back-fill idempotente: re-ejecutar el UPDATE MIN(granted_at) NO cambia datos", async () => {
     await inRlsTx(async (tx) => {
       const uAlice = await seedUser(tx, "authAlice", "alice");
-      const uBob = await seedUser(tx, "authBob", "bob");
       await tx.as("authAlice");
       const [{ pid }] = await createPlace6(tx, "place-a", "Place A");
 
-      // Seed: bob como segundo co-owner con granted_at posterior a alice.
-      // Bypassear el flow oficial (elevate_to_owner) es OK acá — el test sólo
-      // necesita 2 filas en place_ownership con granted_at ordenadas para
-      // probar la propiedad MIN(granted_at) del back-fill.
-      await tx.seed(
-        `INSERT INTO place_ownership (user_id, place_id, granted_at)
-         VALUES ($1, $2, now() + interval '1 minute')`,
-        [uBob, pid],
-      );
-
+      // Post-ADR-0054 NO se puede sembrar un segundo owner (el UNIQUE
+      // place_ownership(place_id) de migration 0029 lo rechaza con 23505);
+      // el escenario canónico es la única fila del founder que dejó
+      // app.create_place. La propiedad bajo test se reduce a: re-correr el
+      // back-fill de 0012 es no-op sobre datos correctos pre-existentes.
       const founderBefore = await founderOfAdmin(tx, pid);
       expect(founderBefore).toBe(uAlice);
 
@@ -139,8 +136,6 @@ describe("Feature D · S5 — app.create_place setea founder_user_id (regression
       );
 
       const founderAfter = await founderOfAdmin(tx, pid);
-      // alice.granted_at (≈ now() del create_place) < bob.granted_at (+1min)
-      // → back-fill mantiene a alice. Idempotente.
       expect(founderAfter).toBe(uAlice);
       expect(founderAfter).toBe(founderBefore);
     });

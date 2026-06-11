@@ -95,16 +95,9 @@ export async function makePlace(
   return { placeId, slug, founderUserId: opts.founderUserId };
 }
 
-// Co-owner / additional owner — añade place_ownership row sin tocar place.
-export async function makeOwnership(
-  tx: RlsTx,
-  opts: { userId: string; placeId: string },
-): Promise<void> {
-  await tx.seed(
-    `INSERT INTO place_ownership (user_id, place_id) VALUES ($1, $2)`,
-    [opts.userId, opts.placeId],
-  );
-}
+// (La factory `makeOwnership` — co-owner adicional — se eliminó con
+// ADR-0054/migration 0029: el UNIQUE place_ownership(place_id) hace imposible
+// un segundo owner; el slot del founder lo siembra `makePlace` via ownerSeed.)
 
 // Membership active por default. Para sembrar ex-miembro: `leftAt: new Date()`
 // (o cualquier timestamp pasado). El schema acepta NULL natural → activo.

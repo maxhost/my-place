@@ -4,9 +4,17 @@ import { endRlsAdminPool, inRlsTx, type RlsTx } from "./db-test-pool";
 // Feature D · S1 (ADR-0035 §3 + §4, 2026-05-24) — refactor RLS `place_ownership`:
 // 3 policies SELF (`po_sel`/`po_upd`/`po_del`) → única `po_sel` via helper
 // `app.current_user_owns_place` SECURITY DEFINER (anti-recursión); INSERT/
-// UPDATE/DELETE REVOKE explícito a `app_system` (toda mutación pasa por las 4
-// funciones DEFINER S2/S3/S4/S5). Además: `place.founder_user_id text NOT NULL`
-// post back-fill determinístico (`MIN(granted_at).user_id` per place).
+// UPDATE/DELETE REVOKE explícito a `app_system`. Además: `place.founder_user_id
+// text NOT NULL` post back-fill determinístico.
+//
+// Post-ADR-0054 (single-owner, migration 0029): las 3 DEFINERs de mutación
+// multi-owner (`elevate_to_owner`/`revoke_ownership`/`transfer_founder_
+// ownership`) fueron DROPPED; el único writer de `place_ownership` es
+// `app.create_place` y el invariante "un place = un owner" se enforcea con el
+// UNIQUE index `place_ownership_place_id_unq` (ver describe final). El
+// escenario canónico es por eso single-owner: uA owner de pA (uB miembro
+// no-owner), uC owner de pB.
+//
 // Patrón seed-as-owner / assert-as-`app_system` (precedente
 // `rls-place-domain.test.ts`, `consume-sso-jti.test.ts`); ROLLBACK siempre.
 
@@ -20,19 +28,20 @@ const APP_USER = `INSERT INTO app_user (auth_user_id,email,display_name,handle)
 const PLACE = `INSERT INTO place (slug,name,billing_mode,founder_user_id)
                VALUES ($1,$2,'OWNER_PAYS',$3) RETURNING id`;
 
-// Escenario canónico: 2 places (A, B) + 3 users (A founder de pA con B
-// co-owner; C founder solo de pB). granted_at uA = -1h, uB = now → MIN(uA).
+// Escenario canónico single-owner (ADR-0054): 2 places (A, B) + 3 users
+// (A founder+owner único de pA, B miembro activo no-owner de pA; C
+// founder+owner único de pB).
 async function seedScenario(tx: RlsTx) {
   const [{ id: uA }] = (await tx.seed(APP_USER, ["authA", "a@x.com", "h_a"])) as Array<{ id: string }>;
   const [{ id: uB }] = (await tx.seed(APP_USER, ["authB", "b@x.com", "h_b"])) as Array<{ id: string }>;
   const [{ id: uC }] = (await tx.seed(APP_USER, ["authC", "c@x.com", "h_c"])) as Array<{ id: string }>;
   const [{ id: pidA }] = (await tx.seed(PLACE, ["place-a", "Place A", uA])) as Array<{ id: string }>;
   await tx.seed(
-    `INSERT INTO place_ownership (user_id,place_id,granted_at) VALUES
-     ($1,$2, now() - interval '1 hour'),
-     ($3,$2, now())`,
-    [uA, pidA, uB],
+    `INSERT INTO place_ownership (user_id,place_id,granted_at)
+     VALUES ($1,$2, now() - interval '1 hour')`,
+    [uA, pidA],
   );
+  await tx.seed(`INSERT INTO membership (user_id,place_id) VALUES ($1,$2)`, [uB, pidA]);
   const [{ id: pidB }] = (await tx.seed(PLACE, ["place-b", "Place B", uC])) as Array<{ id: string }>;
   await tx.seed(`INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`, [uC, pidB]);
   return { uA, uB, uC, pidA, pidB };
@@ -44,13 +53,14 @@ const countOwnerships = async (tx: RlsTx, pid: string) =>
 describe("S1 RLS `place_ownership` — back-fill + NOT NULL founder", () => {
   // T1: el back-fill canónico (`MIN(granted_at).user_id` per place) ya corrió en
   // la migration 0012; re-correrlo en cualquier punto del lifecycle es no-op
-  // sobre los datos (idempotente). Defensa contra triggers/manual UPDATE que
-  // podrían cambiar founder fuera de `transfer_founder_ownership` (S4).
+  // sobre los datos (idempotente). Post-ADR-0054 hay una sola fila de ownership
+  // por place → el MIN es trivial, pero la propiedad (re-run no cambia founder)
+  // sigue siendo la defensa contra UPDATEs manuales fuera de `app.create_place`.
   it("back-fill MIN(granted_at) es determinístico e idempotente (no-op si re-corre)", async () => {
     await inRlsTx(async (tx) => {
       const { uA, pidA } = await seedScenario(tx);
       // El seed setea founder = uA explícito; re-corre el back-fill literal de
-      // la migration 0012 y verifica que NO cambia (uA tiene MIN granted_at).
+      // la migration 0012 y verifica que NO cambia (uA es el único owner).
       await tx.seed(
         `UPDATE place p SET founder_user_id = (
            SELECT po.user_id FROM place_ownership po
@@ -100,18 +110,16 @@ describe("S1 RLS `place_ownership` — back-fill + NOT NULL founder", () => {
 });
 
 describe("S1 RLS `place_ownership` — po_sel owner-of-place via helper DEFINER", () => {
-  // T3: el cambio semántico clave del refactor. Pre-S1 cada owner SOLO veía su
-  // propia fila (policy SELF); post-S1 cualquier owner del place ve TODAS las
-  // filas de ownership de ese place (founder + co-owners). Necesario para el
-  // UI futuro "miembros con permiso de gestión" y para que `revoke_ownership`
-  // valide pre-conditions leyendo la lista de owners actuales.
-  it("owner ve TODAS las filas de ownership del place (founder + co-owners)", async () => {
+  // T3: el owner del place ve su fila de ownership; un miembro no-owner del
+  // mismo place no ve ninguna (la policy `po_sel` gatea por ownership, no por
+  // membership). Post-ADR-0054 la lista de owners es siempre 1.
+  it("owner ve la fila de ownership del place; miembro no-owner ve 0", async () => {
     await inRlsTx(async (tx) => {
       const { pidA } = await seedScenario(tx);
       await tx.as("authA");
-      expect(await countOwnerships(tx, pidA)).toBe(2); // uA + uB
-      await tx.as("authB");
-      expect(await countOwnerships(tx, pidA)).toBe(2); // co-owner ve lo mismo
+      expect(await countOwnerships(tx, pidA)).toBe(1); // uA, único owner
+      await tx.as("authB"); // miembro activo de pA, no owner
+      expect(await countOwnerships(tx, pidA)).toBe(0);
     });
   });
 
@@ -137,11 +145,10 @@ describe("S1 RLS `place_ownership` — po_sel owner-of-place via helper DEFINER"
 });
 
 describe("S1 RLS `place_ownership` — REVOKE INSERT/UPDATE/DELETE directo", () => {
-  // T6-T8: defense-in-depth WORM (ADR-0035 §4). Toda mutación pasa por las 4
-  // funciones DEFINER (S2/S3/S4/S5). El INSERT ya estaba REVOKE desde 0001;
-  // S1 agrega UPDATE+DELETE. Sin estos REVOKE, un drift futuro podría hacer
-  // INSERT/UPDATE/DELETE directo y bypassar invariantes (founder no-delete,
-  // self-revoke bloqueado, count owners > 1).
+  // T6-T8: defense-in-depth WORM (ADR-0035 §4, reducido por ADR-0054). Toda
+  // escritura pasa por `app.create_place` (único writer post-0029). Sin estos
+  // REVOKE, un drift futuro podría hacer INSERT/UPDATE/DELETE directo y
+  // bypassar el invariante single-owner.
   it("INSERT directo a place_ownership → permission denied", async () => {
     await inRlsTx(async (tx) => {
       const { uC, pidA } = await seedScenario(tx);
@@ -170,12 +177,12 @@ describe("S1 RLS `place_ownership` — REVOKE INSERT/UPDATE/DELETE directo", () 
 
   it("DELETE directo a place_ownership → permission denied", async () => {
     await inRlsTx(async (tx) => {
-      const { uB, pidA } = await seedScenario(tx);
+      const { uA, pidA } = await seedScenario(tx);
       await tx.as("authA");
       expect(
         await tx.denied(`DELETE FROM place_ownership WHERE place_id=$1 AND user_id=$2`, [
           pidA,
-          uB,
+          uA,
         ]),
       ).toBe(true);
     });
@@ -278,6 +285,61 @@ describe("S1 RLS `place_ownership` — helper app.current_user_owns_place behavi
         [pidA],
       )) as Array<{ owns: boolean }>;
       expect(r.owns).toBe(false);
+    });
+  });
+});
+
+describe("Single-owner (ADR-0054, migration 0029) — UNIQUE place_ownership(place_id)", () => {
+  // T15: el invariante nuevo. Insertar un SEGUNDO owner para el mismo place
+  // falla con `23505 unique_violation` aun como rol admin (los constraints/
+  // unique indexes aplican universal, a diferencia de RLS). Esto reemplaza la
+  // convención multi-owner de ADR-0035 por un invariante estructural: ningún
+  // bug futuro puede crear co-owners.
+  it("INSERT de segundo owner para el mismo place → 23505 unique_violation (aun como admin)", async () => {
+    await inRlsTx(async (tx) => {
+      const { uB, pidA } = await seedScenario(tx);
+      let code: string | null = null;
+      try {
+        await tx.seed(
+          `INSERT INTO place_ownership (user_id,place_id) VALUES ($1,$2)`,
+          [uB, pidA],
+        );
+      } catch (e) {
+        code = (e as { code?: string }).code ?? null;
+      }
+      expect(code).toBe("23505");
+    });
+  });
+
+  // T16: structural drift defense — el UNIQUE index existe con el nombre
+  // canónico y es unique de verdad. Si una migration futura lo dropea sin ADR,
+  // este test rompe.
+  it("pg_index: place_ownership_place_id_unq existe y es UNIQUE", async () => {
+    await inRlsTx(async (tx) => {
+      const rows = (await tx.seed(
+        `SELECT i.indisunique AS is_unique
+           FROM pg_class c
+           JOIN pg_index i ON i.indexrelid = c.oid
+          WHERE c.relname = 'place_ownership_place_id_unq'`,
+      )) as Array<{ is_unique: boolean }>;
+      expect(rows).toHaveLength(1);
+      expect(rows[0].is_unique).toBe(true);
+    });
+  });
+
+  // T17: las 3 DEFINERs multi-owner de Feature D ya no existen (DROPPED en
+  // 0029). Si reaparecen (re-apply accidental de 0014/0015/0016 o copy-paste
+  // de un branch viejo), este test rompe y exige ADR nueva (ADR-0054 §5).
+  it("pg_proc: elevate_to_owner / revoke_ownership / transfer_founder_ownership NO existen", async () => {
+    await inRlsTx(async (tx) => {
+      const rows = (await tx.seed(
+        `SELECT p.proname
+           FROM pg_proc p
+           JOIN pg_namespace n ON n.oid = p.pronamespace
+          WHERE n.nspname = 'app'
+            AND p.proname IN ('elevate_to_owner','revoke_ownership','transfer_founder_ownership')`,
+      )) as Array<{ proname: string }>;
+      expect(rows).toHaveLength(0);
     });
   });
 });
