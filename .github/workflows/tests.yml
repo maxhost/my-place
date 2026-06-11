@@ -3,6 +3,13 @@
 # build + lhci) — la suite de 1135 tests NO protegía PRs, regresiones podían
 # mergearse silenciosamente. Este workflow cubre esa brecha.
 #
+# Desde 2026-06-11 (S1 post-review) corre TAMBIÉN en push a main: el flujo
+# real del repo es commit directo a main (sin PR) y Vercel auto-deploya cada
+# push — sin este trigger, la suite no protegía lo que llega a producción.
+# Mismo motivo para el job `audit` (pnpm audit bloqueante a nivel high): la
+# vuln high de better-auth GHSA-p6v2-xcpg-h6xw pasó inadvertida porque ningún
+# workflow auditaba dependencias.
+#
 # ## Por qué workflow separado (no extender lighthouse.yml)
 #
 # (1) Aislar tiempos: lhci toma ~3-5 min adicionales, no debe pelear con el
@@ -38,6 +45,8 @@ name: tests
 
 on:
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
 
 jobs:
@@ -135,6 +144,29 @@ jobs:
           DATABASE_URL_TEST: ${{ secrets.DATABASE_URL_TEST }}
           DATABASE_URL_TEST_MIGRATE: ${{ secrets.DATABASE_URL_TEST_MIGRATE }}
 
+      # Solo en PRs: en push a main no hay PR donde comentar (el action
+      # fallaría); el gate de thresholds del paso anterior corre igual.
       - name: Comment coverage en el PR
-        if: always()
+        if: always() && github.event_name == 'pull_request'
         uses: davelosert/vitest-coverage-report-action@v2
+
+  # Audit de dependencias bloqueante a nivel high (S1 post-review, 2026-06-11).
+  # `pnpm audit` consulta el registry con el lockfile — no necesita install.
+  # Nivel `high` a propósito: las moderates conocidas (better-auth OAuth state
+  # GHSA-wxw3-q3m9-c3jr, esbuild/postcss transitivas dev) esperan fix upstream
+  # y no deben bloquear cada push; cuando upstream las resuelva, el bump las
+  # limpia sin tocar este gate.
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: pnpm audit (prod, gate high)
+        run: pnpm audit --prod --audit-level high
