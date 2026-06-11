@@ -63,6 +63,7 @@ const LABELS: WizardLabels = {
   slugTakenNotice: "Esa dirección ya tiene dueño, probá con otra",
   invalidNotice: "Revisá los datos e intentá de nuevo",
   errorNotice: "No pudimos crear tu lugar. Probá de nuevo en un momento.",
+  rateLimitedNotice: "Demasiados intentos. Esperá un momento y volvé a probar.",
   accountFailedNotice: "No pudimos crear la cuenta. Quizás ya tengas una.",
   paletteModeLabel: "¿Cómo elegís los colores?",
   paletteModePreset: "Predefinidas",
@@ -325,6 +326,25 @@ describe("PlaceWizard — Paso 3 (cuenta) + submit", () => {
     );
     expect(onCreateAccount).toHaveBeenCalledTimes(1);
     expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.queryByText("Tu lugar está listo")).not.toBeInTheDocument();
+  });
+
+  it("submit rate-limited: aviso calmo dedicado, sin success panel (S2 hardening)", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<WizardSubmit>(async () => ({
+      status: "rate_limited" as const,
+    }));
+    setup(onSubmit);
+    await fillToAccountStep(user);
+    await user.click(screen.getByRole("button", { name: "Crear mi lugar" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "Demasiados intentos. Esperá un momento y volvé a probar.",
+        ),
+      ).toBeInTheDocument(),
+    );
     expect(screen.queryByText("Tu lugar está listo")).not.toBeInTheDocument();
   });
 

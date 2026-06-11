@@ -92,6 +92,7 @@ export interface DomainSectionLabels {
   errorDomainTaken: string;
   errorLimitReached: string;
   errorVercelUnavailable: string;
+  errorRateLimited: string;
   errorGeneric: string;
   errorArchiveNotFound: string;
   errorArchiveGeneric: string;
@@ -118,6 +119,7 @@ function registerErrorToLabel(r: RegisterError, l: DomainSectionLabels) {
     domain_taken: l.errorDomainTaken,
     limit_reached: l.errorLimitReached,
     vercel_unavailable: l.errorVercelUnavailable,
+    rate_limited: l.errorRateLimited,
     generic: l.errorGeneric,
   };
   return map[r] ?? l.errorGeneric;

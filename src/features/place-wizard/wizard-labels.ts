@@ -90,6 +90,8 @@ export interface WizardLabels {
   slugTakenNotice: string;
   invalidNotice: string;
   errorNotice: string;
+  /** Gate Upstash de `createPlaceAction` bloqueó el submit (S2 hardening). */
+  rateLimitedNotice: string;
   /** Place-first: no se pudo crear la cuenta (p. ej. email ya registrado). */
   accountFailedNotice: string;
   // Modo de paleta: predefinidas vs. personalizado (custom hex). El owner

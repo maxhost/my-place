@@ -305,6 +305,7 @@
     "slugTakenNotice": "Aquesta adreça ja té propietari, prova'n una altra",
     "invalidNotice": "Revisa les dades i torna-ho a provar",
     "errorNotice": "No hem pogut crear el teu lloc. Torna-ho a provar d'aquí a una estona.",
+    "rateLimitedNotice": "Massa intents. Espera un moment i torna-ho a provar.",
     "accountFailedNotice": "No hem pogut crear el compte. Potser ja en tens un amb aquest correu — prova d'iniciar sessió.",
     "paletteModeLabel": "Com tries els colors?",
     "paletteModePreset": "Predefinits",
@@ -426,6 +427,7 @@
       "errorDomainTaken": "Aquest domini ja està vinculat a un altre lloc de Place. Si és teu, contacta'ns.",
       "errorLimitReached": "Ja tens un domini vinculat a aquest lloc. Retira'l abans d'afegir-ne un altre.",
       "errorVercelUnavailable": "No hem pogut contactar amb el verificador. Torna-ho a provar d'aquí a uns minuts.",
+      "errorRateLimited": "Massa intents. Espera una estona i torna-ho a provar.",
       "errorGeneric": "No hem pogut desar. Torna-ho a provar.",
       "errorArchiveNotFound": "No hem trobat aquest domini.",
       "errorArchiveGeneric": "No hem pogut retirar el domini. Torna-ho a provar."

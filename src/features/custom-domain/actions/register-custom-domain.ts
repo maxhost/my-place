@@ -5,6 +5,7 @@ import { z } from "zod";
 import { validateCustomDomain } from "@/shared/lib/custom-domain";
 import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
 import { log } from "@/shared/lib/observability/log";
+import { enforceRateLimit, getRequestIp } from "@/shared/lib/rate-limit";
 import { addDomain, getDomainConfig } from "@/shared/lib/vercel";
 import {
   type CustomDomainRecord,
@@ -217,6 +218,15 @@ export async function registerCustomDomainAction(
     };
   }
   const normalized = validation.normalized;
+
+  // Rate limit por IP (S2 hardening, 10/h): cada call paga 2 requests a la
+  // API de Vercel + INSERT. Corre DESPUÉS de la validación pura (input
+  // inválido no gasta token de la ventana) y ANTES de tocar DB/Vercel.
+  const ip = await getRequestIp();
+  const gate = await enforceRateLimit("register_domain", ip);
+  if (!gate.success) {
+    return { status: "error", reason: "rate_limited" };
+  }
 
   // Sin `requireSessionJwt` previo: el helper zone-aware
   // (`getAuthenticatedDbForRequest`) detecta la zona del request y lee la

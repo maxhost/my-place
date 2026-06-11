@@ -127,6 +127,7 @@ export default async function CrearPage({ params, searchParams }: Props) {
     slugTakenNotice: t("slugTakenNotice"),
     invalidNotice: t("invalidNotice"),
     errorNotice: t("errorNotice"),
+    rateLimitedNotice: t("rateLimitedNotice"),
     accountFailedNotice: t("accountFailedNotice"),
     paletteModeLabel: t("paletteModeLabel"),
     paletteModePreset: t("paletteModePreset"),

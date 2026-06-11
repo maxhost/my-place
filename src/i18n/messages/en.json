@@ -305,6 +305,7 @@
     "slugTakenNotice": "That address already has an owner, try another one",
     "invalidNotice": "Check the data and try again",
     "errorNotice": "We couldn't create your place. Try again in a moment.",
+    "rateLimitedNotice": "Too many attempts. Wait a moment and try again.",
     "accountFailedNotice": "We couldn't create the account. Maybe you already have one with this email — try signing in.",
     "paletteModeLabel": "How do you pick the colors?",
     "paletteModePreset": "Preset",
@@ -426,6 +427,7 @@
       "errorDomainTaken": "That domain is already linked to another Place. If it's yours, get in touch.",
       "errorLimitReached": "You already have a domain linked to this place. Remove it before adding another.",
       "errorVercelUnavailable": "We couldn't reach the verifier. Try again in a few minutes.",
+      "errorRateLimited": "Too many attempts. Wait a bit and try again.",
       "errorGeneric": "We couldn't save. Try again.",
       "errorArchiveNotFound": "We couldn't find that domain.",
       "errorArchiveGeneric": "We couldn't remove the domain. Try again."

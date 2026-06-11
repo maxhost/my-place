@@ -69,6 +69,7 @@ export async function DomainContent({ place }: { place: PlaceData }) {
     errorDomainTaken: tDomain("errorDomainTaken"),
     errorLimitReached: tDomain("errorLimitReached"),
     errorVercelUnavailable: tDomain("errorVercelUnavailable"),
+    errorRateLimited: tDomain("errorRateLimited"),
     errorGeneric: tDomain("errorGeneric"),
     errorArchiveNotFound: tDomain("errorArchiveNotFound"),
     errorArchiveGeneric: tDomain("errorArchiveGeneric"),

@@ -2,6 +2,7 @@
 
 import { getCurrentUserIdentityForRequest } from "@/shared/lib/current-user-identity";
 import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
+import { enforceRateLimit, getRequestIp } from "@/shared/lib/rate-limit";
 import { type CreatePlaceResult, createPlace } from "./create-place";
 import type { AcquireIdentity } from "./ports";
 
@@ -67,6 +68,14 @@ function sessionIdentity(): AcquireIdentity {
 export async function createPlaceAction(
   input: unknown,
 ): Promise<CreatePlaceResult> {
+  // Rate limit por IP (S2 hardening, 5/h): crear un place es la operación
+  // más pesada del sistema (cuenta + app_user + place + theme) y no tenía
+  // freno. El gate corre ANTES de la saga: bloqueado no toca DB ni identidad.
+  // El wizard mapea `rate_limited` a su aviso calmo dedicado.
+  const ip = await getRequestIp();
+  const gate = await enforceRateLimit("create_place", ip);
+  if (!gate.success) return { status: "rate_limited" };
+
   return createPlace(input, {
     acquireIdentity: sessionIdentity(),
     runAuthedTx: getAuthenticatedDbForRequest,

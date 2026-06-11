@@ -58,6 +58,7 @@ export const LABELS: DomainSectionLabels = {
   errorLimitReached: "Tu place ya tiene un dominio vinculado.",
   errorVercelUnavailable:
     "No pudimos contactar a Vercel. Probá de nuevo en un momento.",
+  errorRateLimited: "Demasiados intentos. Esperá un rato y volvé a intentar.",
   errorGeneric: "Algo salió mal. Probá de nuevo.",
   errorArchiveNotFound: "No encontramos ese dominio.",
   errorArchiveGeneric: "No pudimos remover el dominio. Probá de nuevo.",

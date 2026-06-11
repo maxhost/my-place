@@ -18,7 +18,11 @@ export type RateLimitKind =
   | "accept_invitation"
   | "create_invitation"
   | "sso_init"
-  | "sso_issue";
+  | "sso_issue"
+  | "suggest_style"
+  | "create_place"
+  | "register_domain"
+  | "domain_status_poll";
 
 export type RateLimitResult =
   | {

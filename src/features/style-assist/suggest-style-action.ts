@@ -3,6 +3,7 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import { getCurrentUserIdentityForRequest } from "@/shared/lib/current-user-identity";
+import { enforceRateLimit, getRequestIp } from "@/shared/lib/rate-limit";
 import { type StyleSuggestionResult, suggestStyle } from "./suggest-style";
 
 // Wiring VIVO del Vercel AI Gateway (S10a, ADR-0005 §5 / ADR-0007). Seam-split
@@ -71,6 +72,14 @@ export async function suggestStyleAction(
   // Ver JSDoc §"Auth gate" arriba.
   const identity = await getCurrentUserIdentityForRequest();
   if (identity === null) return { status: "unavailable" };
+
+  // Rate limit por IP (S2 hardening, 10/h): el auth gate solo no frena a un
+  // user autenticado con script pagando tokens del Gateway en loop. Bloqueado
+  // colapsa a `unavailable` — mismo contrato que cualquier caída de la
+  // asistencia (opcional por diseño, ADR-0005 §5): el wizard sigue sin LLM.
+  const ip = await getRequestIp();
+  const gate = await enforceRateLimit("suggest_style", ip);
+  if (!gate.success) return { status: "unavailable" };
 
   return suggestStyle(description, {
     suggest: async (text) => {

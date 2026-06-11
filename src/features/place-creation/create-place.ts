@@ -21,7 +21,11 @@ export type CreatePlaceResult =
       adjustments: ContrastAdjustment[];
     }
   | { status: "slug_taken" }
-  | { status: "invalid"; fields: string[]; message: string };
+  | { status: "invalid"; fields: string[]; message: string }
+  // Producida SOLO por la capa action (`createPlaceAction`, gate Upstash S2
+  // hardening) — la saga nunca la retorna. Vive en esta union porque el
+  // result es el contrato único action→wizard (`WizardSubmit`).
+  | { status: "rate_limited" };
 
 // `place.slug` UNIQUE (S1) = la verificación DURA de disponibilidad; viola
 // con SQLSTATE 23505. El chequeo "en vivo" del wizard no es autoritativo.

@@ -141,8 +141,8 @@ describe("enforceRateLimit — con creds (cualquier NODE_ENV)", () => {
       url: "https://x.upstash.io",
       token: "secret",
     });
-    // 6 RateLimitKinds = 6 instancias Ratelimit
-    expect(RatelimitCtor).toHaveBeenCalledTimes(6);
+    // 10 RateLimitKinds = 10 instancias Ratelimit
+    expect(RatelimitCtor).toHaveBeenCalledTimes(10);
   });
 
   it("NO re-construye entre calls (singleton)", async () => {
@@ -158,7 +158,7 @@ describe("enforceRateLimit — con creds (cualquier NODE_ENV)", () => {
     await mod.enforceRateLimit("login", "9.10.11.12");
 
     expect(RedisCtor).toHaveBeenCalledTimes(1);
-    expect(RatelimitCtor).toHaveBeenCalledTimes(6);
+    expect(RatelimitCtor).toHaveBeenCalledTimes(10);
   });
 
   it("retorna mode='enforced', success=true cuando el limiter permite", async () => {
@@ -208,5 +208,31 @@ describe("enforceRateLimit — con creds (cualquier NODE_ENV)", () => {
     await mod.enforceRateLimit("login", "1.2.3.4");
 
     expect(limitMock).toHaveBeenCalledWith("login:1.2.3.4");
+  });
+});
+
+describe("RATE_LIMITS — kinds de costo (S2 hardening post-review)", () => {
+  it("incluye los 4 kinds nuevos: LLM, creación de place y Vercel API", async () => {
+    const { RATE_LIMITS } = await import("../config");
+    expect(Object.keys(RATE_LIMITS)).toEqual(
+      expect.arrayContaining([
+        "suggest_style",
+        "create_place",
+        "register_domain",
+        "domain_status_poll",
+      ]),
+    );
+  });
+
+  it("domain_status_poll tolera el auto-refresh 30s de la page pending (≥2/min sostenido)", async () => {
+    // El sub-componente AutoRefresh de domain-section-pending refresca cada
+    // 30s → 2 polls/min por tab. El límite debe dejar margen para 2-3 tabs
+    // del mismo owner sin bloquear (si bloquea, la UX degrada calma al
+    // notice vercelUnavailable — pero no debe pasar en uso legítimo).
+    const { RATE_LIMITS } = await import("../config");
+    const cfg = RATE_LIMITS.domain_status_poll;
+    const [n, unit] = cfg.window.split(" ");
+    const windowMinutes = unit === "m" ? Number(n) : Number(n) / 60;
+    expect(cfg.tokens / windowMinutes).toBeGreaterThanOrEqual(4);
   });
 });

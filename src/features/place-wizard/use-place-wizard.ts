@@ -123,6 +123,7 @@ export function usePlaceWizard(opts: {
         slug_taken: labels.slugTakenNotice,
         account: labels.accountFailedNotice,
         invalid: labels.invalidNotice,
+        rate_limited: labels.rateLimitedNotice,
         error: labels.errorNotice,
       }[submit.notice]
     : null;

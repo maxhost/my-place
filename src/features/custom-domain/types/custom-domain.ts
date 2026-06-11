@@ -127,6 +127,9 @@ export type RegisterError =
   | "domain_taken"
   | "limit_reached"
   | "vercel_unavailable"
+  // Gate Upstash propio del action (S2 hardening) — distinto de un 429 de
+  // Vercel, que el action colapsa a `vercel_unavailable`.
+  | "rate_limited"
   | "generic";
 
 export type RegisterCustomDomainResult =

@@ -305,6 +305,7 @@
     "slugTakenNotice": "Diese Adresse ist schon vergeben, versuche eine andere",
     "invalidNotice": "Überprüfe die Daten und versuche es erneut",
     "errorNotice": "Wir konnten deinen Ort nicht erstellen. Versuche es gleich noch einmal.",
+    "rateLimitedNotice": "Zu viele Versuche. Warte einen Moment und versuche es dann erneut.",
     "accountFailedNotice": "Wir konnten das Konto nicht erstellen. Vielleicht hast du schon eines mit dieser E-Mail — versuche, dich anzumelden.",
     "paletteModeLabel": "Wie wählst du die Farben?",
     "paletteModePreset": "Vordefiniert",
@@ -426,6 +427,7 @@
       "errorDomainTaken": "Diese Domain ist bereits mit einem anderen Place verknüpft. Wenn sie dir gehört, melde dich bei uns.",
       "errorLimitReached": "Du hast bereits eine Domain mit diesem Ort verknüpft. Entferne sie, bevor du eine weitere hinzufügst.",
       "errorVercelUnavailable": "Wir konnten den Verifizierer nicht erreichen. Versuche es in ein paar Minuten erneut.",
+      "errorRateLimited": "Zu viele Versuche. Warte kurz und versuche es erneut.",
       "errorGeneric": "Wir konnten nicht speichern. Versuche es erneut.",
       "errorArchiveNotFound": "Wir konnten diese Domain nicht finden.",
       "errorArchiveGeneric": "Wir konnten die Domain nicht entfernen. Versuche es erneut."

@@ -53,4 +53,30 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitConfig> = {
   // 10/min/IP cubre retries + multi-tab simultáneos del mismo user.
   sso_init: { tokens: 10, window: "1 m" },
   sso_issue: { tokens: 10, window: "1 m" },
+
+  // ── S2 hardening post-review 2026-06-11: endpoints de COSTO ──
+  // Cada call de los 4 kinds siguientes gasta recursos externos (AI Gateway
+  // u API de Vercel) — sin límite, un user autenticado con script amplifica
+  // costo sin fricción.
+
+  // Asistencia LLM del wizard: cada call paga tokens del Gateway. 10/h/IP
+  // cubre a un owner iterando la descripción varias veces; bloqueado degrada
+  // a `unavailable` (la asistencia es opcional, ADR-0005 §5).
+  suggest_style: { tokens: 10, window: "1 h" },
+
+  // Creación de place: operación pesada (cuenta + app_user + place + theme).
+  // User legítimo crea 1-2 en su vida; 5/h cubre retries por fallos
+  // transitorios sin abrir vector de spam de places.
+  create_place: { tokens: 5, window: "1 h" },
+
+  // Registro de custom domain: cada call pega a la API de Vercel (addDomain
+  // + getDomainConfig) + INSERT. Owner configurando DNS con retries queda
+  // holgado con 10/h/IP.
+  register_domain: { tokens: 10, window: "1 h" },
+
+  // Lazy poll del page /settings/domain: 2 calls Vercel por carga, y la UI
+  // pending auto-refresca cada 30s (2/min/tab). 60/10min/IP tolera 2-3 tabs
+  // del mismo owner; bloqueado degrada al notice `vercelUnavailable` calmo
+  // sin perder el estado de DB.
+  domain_status_poll: { tokens: 60, window: "10 m" },
 };

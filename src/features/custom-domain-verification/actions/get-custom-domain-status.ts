@@ -1,5 +1,6 @@
 import { getAuthenticatedDbForRequest } from "@/shared/lib/db-for-request";
 import { log } from "@/shared/lib/observability/log";
+import { enforceRateLimit, getRequestIp } from "@/shared/lib/rate-limit";
 import { getDomainConfig, getDomainStatus } from "@/shared/lib/vercel";
 import {
   type CustomDomainRecord,
@@ -200,12 +201,24 @@ export async function getCustomDomainStatus(
     createdAt: row.createdAt,
   };
 
+  // Rate limit por IP (S2 hardening, 60/10min): cada carga del page paga
+  // 1-2 requests a la API de Vercel y el auto-refresh 30s de pending lo
+  // repite indefinidamente — sin freno, N tabs abiertas amplifican contra
+  // Vercel sin límite. Bloqueado NO rompe el page: se sintetiza el mismo
+  // failure que un V6 caído y `decideDomainFlow` degrada por su rama
+  // existente (verified → `verified_fallback`; pending → notice calmo
+  // `vercelUnavailable`). El próximo refresh post-ventana reintenta.
+  const ip = await getRequestIp();
+  const gate = await enforceRateLimit("domain_status_poll", ip);
+
   // V6 SIEMPRE: detecta DNS roto incluso si verified_at ya estaba seteado.
   // V9 condicional: sólo si verifiedAt NULL (confirma ownership antes de
   // persistir). Si ya estaba verified, V9 no agrega info útil.
-  const v6Result = await getDomainConfig(baseRecord.domain);
+  const v6Result = gate.success
+    ? await getDomainConfig(baseRecord.domain)
+    : ({ ok: false, reason: "rate_limited" } as const);
   const v9Result =
-    baseRecord.verifiedAt === null
+    baseRecord.verifiedAt === null && gate.success
       ? await getDomainStatus(baseRecord.domain)
       : null;
 

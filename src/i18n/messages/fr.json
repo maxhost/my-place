@@ -305,6 +305,7 @@
     "slugTakenNotice": "Cette adresse a déjà un propriétaire, essaie-en une autre",
     "invalidNotice": "Vérifie les données et réessaie",
     "errorNotice": "Nous n'avons pas pu créer ton lieu. Réessaie dans un instant.",
+    "rateLimitedNotice": "Trop de tentatives. Attends un instant et réessaie.",
     "accountFailedNotice": "Nous n'avons pas pu créer le compte. Peut-être en as-tu déjà un avec cet e-mail — essaie de te connecter.",
     "paletteModeLabel": "Comment choisis-tu les couleurs ?",
     "paletteModePreset": "Prédéfinies",
@@ -426,6 +427,7 @@
       "errorDomainTaken": "Ce domaine est déjà lié à un autre lieu de Place. S'il est à toi, contacte-nous.",
       "errorLimitReached": "Tu as déjà un domaine lié à ce lieu. Retire-le avant d'en ajouter un autre.",
       "errorVercelUnavailable": "Nous n'avons pas pu joindre le vérificateur. Réessaie dans quelques minutes.",
+      "errorRateLimited": "Trop de tentatives. Attends un peu et réessaie.",
       "errorGeneric": "Nous n'avons pas pu enregistrer. Réessaie.",
       "errorArchiveNotFound": "Nous n'avons pas trouvé ce domaine.",
       "errorArchiveGeneric": "Nous n'avons pas pu retirer le domaine. Réessaie."

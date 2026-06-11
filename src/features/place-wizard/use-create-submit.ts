@@ -11,7 +11,13 @@ import type { WizardSignUp, WizardSubmit } from "./wizard-labels";
 // authed se salta FASE 1. `notice` vive acá; orquestador llama clearNotice
 // desde goNext/goBack. Ver mapa en `use-place-wizard.ts`.
 
-type Notice = "slug_taken" | "invalid" | "error" | "account" | null;
+type Notice =
+  | "slug_taken"
+  | "invalid"
+  | "rate_limited"
+  | "error"
+  | "account"
+  | null;
 
 // tz del browser con fallback fijo a "UTC" (IANA válido → pasa
 // `timezoneSchema`). El owner ajusta el horario luego en `/settings`.
@@ -70,7 +76,8 @@ export function useCreateSubmit(opts: {
       else if (res.status === "slug_taken") {
         setNotice("slug_taken");
         opts.onSlugTaken();
-      } else setNotice("invalid");
+      } else if (res.status === "rate_limited") setNotice("rate_limited");
+      else setNotice("invalid");
     } catch {
       setNotice("error");
     } finally {

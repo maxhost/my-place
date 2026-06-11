@@ -305,6 +305,7 @@
     "slugTakenNotice": "Esse endereço já tem dono, tente outro",
     "invalidNotice": "Confira os dados e tente de novo",
     "errorNotice": "Não conseguimos criar o seu lugar. Tente de novo em um momento.",
+    "rateLimitedNotice": "Muitas tentativas. Aguarde um momento e tente de novo.",
     "accountFailedNotice": "Não conseguimos criar a conta. Talvez você já tenha uma com esse e-mail — tente iniciar sessão.",
     "paletteModeLabel": "Como você escolhe as cores?",
     "paletteModePreset": "Predefinidas",
@@ -426,6 +427,7 @@
       "errorDomainTaken": "Esse domínio já está vinculado a outro lugar de Place. Se for seu, fale com a gente.",
       "errorLimitReached": "Você já tem um domínio vinculado a este lugar. Remova-o antes de adicionar outro.",
       "errorVercelUnavailable": "Não conseguimos contatar o verificador. Tente de novo em alguns minutos.",
+      "errorRateLimited": "Muitas tentativas. Aguarde um pouco e tente de novo.",
       "errorGeneric": "Não conseguimos salvar. Tente de novo.",
       "errorArchiveNotFound": "Não encontramos esse domínio.",
       "errorArchiveGeneric": "Não conseguimos remover o domínio. Tente de novo."

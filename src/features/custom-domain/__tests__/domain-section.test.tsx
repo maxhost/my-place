@@ -329,4 +329,22 @@ describe("DomainSection — submit happy + validación cliente", () => {
     ).toBeInTheDocument();
     expect(registerAction).toHaveBeenCalledTimes(1);
   });
+
+  it("submit server error mapping: `rate_limited` → notice errorRateLimited (S2 hardening)", async () => {
+    const user = userEvent.setup();
+    const registerAction = makeRegister({
+      status: "error",
+      reason: "rate_limited",
+    });
+    setup({ state: { status: "none" }, registerAction });
+    await user.type(screen.getByLabelText("Tu dominio"), "comunidad.test.com");
+    await user.click(screen.getByRole("button", { name: "Vincular dominio" }));
+
+    expect(
+      await screen.findByText(
+        "Demasiados intentos. Esperá un rato y volvé a intentar.",
+      ),
+    ).toBeInTheDocument();
+    expect(registerAction).toHaveBeenCalledTimes(1);
+  });
 });
