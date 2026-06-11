@@ -2,7 +2,9 @@
 
 Documento canónico del objeto "biblioteca" (library) en Place.
 
-> _Última actualización: 2026-05-16._ Ontología canónica del dominio. Si una decisión de producto cambia, se actualiza acá **en la misma sesión** y se ajusta la fecha; el schema (`docs/data-model.md`) es su expresión, no su fuente.
+> ⚠️ **DESPRIORIZADA POST-PIVOT (ADR-0053, 2026-06-11).** Con el pivot al Substack para podcasts, la biblioteca **no es prioridad**: no se construye ni se especifica por ahora. Se revalidará si las comunidades de oyentes la necesitan (material complementario del show, cursos del creador). El documento se conserva como referencia — pero está escrito en el vocabulario pre-pivot ("miembros", "Discusión", grupos/tiers, horario): si la biblioteca se reactiva, esta ontología se reescribe primero contra el canon post-pivot (`conversaciones.md` § tipos de thread + modelo de visibilidad ADR-0053).
+
+> _Última actualización: 2026-06-11 (banner de despriorización ADR-0053; el contenido de fondo permanece al 2026-05-16)._ Ontología del dominio. Si una decisión de producto cambia, se actualiza acá **en la misma sesión** y se ajusta la fecha; el schema (`docs/data-model.md`) es su expresión, no su fuente.
 
 ---
 
@@ -116,7 +118,7 @@ Igual que el resto de las zonas: el miembro no accede fuera del horario del plac
 
 ## Estado
 
-**Ontología:** cerrada — este documento es canónico. **Implementación:** no empezada (scaffold limpio; no hay UI). El detalle de pantallas y el schema de progreso/categorías viven en el spec de la feature cuando se construya, no acá.
+**Ontología:** despriorizada (ADR-0053) — referencia pre-pivot, NO canon activo; se reescribe antes de reactivarse. **Implementación:** no empezada.
 
 ---
 

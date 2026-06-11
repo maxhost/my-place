@@ -1,14 +1,16 @@
-# Miembros · objeto consolidado
+# Oyentes (miembros) · objeto consolidado
 
-Documento final del objeto "miembros" en Place. Incluye identidad del usuario, perfil contextual, y DMs. Todas las decisiones tomadas. Listo para construir.
+Documento final del objeto "oyente" en Place — la persona que se une a la comunidad de un place. Incluye identidad del usuario, perfil contextual, y DMs. Todas las decisiones tomadas.
 
-> _Última actualización: 2026-05-24 (ADR-0036 — `headline` opcional ≤280 chars per place; el principio "identidad-por-contribución" sigue siendo el corazón y el headline es complemento, no sustituto)._ Ontología canónica del dominio. Si una decisión de producto cambia, se actualiza acá **en la misma sesión** y se ajusta la fecha; el schema (`docs/data-model.md`) es su expresión, no su fuente.
+> _Última actualización: 2026-06-11 (ADR-0053 — pivot al Substack para podcasts: **miembro → oyente** como vocabulario canónico; mueren el límite de 150 y el horario; el modelo de identidad en 3 capas, el derecho al olvido, los DMs y el handle global sobreviven intactos. En el schema la tabla sigue llamándose `membership` — el rename de código/schema se decide en su feature, no acá). Previa: 2026-05-24 (ADR-0036 — `headline` opcional ≤280 chars per place)._ Ontología canónica del dominio. Si una decisión de producto cambia, se actualiza acá **en la misma sesión** y se ajusta la fecha; el schema (`docs/data-model.md`) es su expresión, no su fuente.
+
+**Vocabulario post-pivot:** el **oyente** es quien se unió a la comunidad del place. El **suscriptor** es un oyente con suscripción paga activa al creador (ver `monetizacion.md`). En el resto de este doc, donde diga "miembro" léase "oyente" — el modelo es el mismo.
 
 ---
 
 ## El principio
 
-Los miembros en Place no son una sección, no son una página, no son un directorio. **Son personas que se manifiestan en los otros objetos del lugar a través de lo que hacen**. La identidad se construye por contribución al lugar, no por declaración de uno mismo.
+Los oyentes en Place no son una sección, no son una página, no son un directorio. **Son personas que se manifiestan en los otros objetos del lugar a través de lo que hacen**. La identidad se construye por contribución al lugar, no por declaración de uno mismo.
 
 Y la información que un miembro lleva entre distintos lugares es mínima por diseño — lo que sos en un place no viaja a otro place, excepto lo estrictamente necesario para identificarte como la misma persona.
 
@@ -65,7 +67,7 @@ Esto resuelve dos tensiones que la mayoría de productos no resuelve bien: priva
 
 Un perfil tradicional suele tener una URL pública — yourapp.com/user/max. Cualquiera puede buscarte. Tu perfil es independiente de las comunidades a las que pertenecés.
 
-En Place **no hay perfil público fuera de places**. No existe "max.place.community". Si alguien no comparte un place contigo, no puede verte, buscarte, encontrarte. Place no es red social — es sistema de lugares cerrados.
+En Place **no hay perfil público fuera de places**. No existe "max.place.community". El **place** tiene cara pública (la página del show, los episodios, los blogposts — ADR-0053); las **personas** no: si alguien no comparte un place contigo, no puede verte, buscarte, encontrarte. Place no es red social — los públicos son los shows, no la gente.
 
 Esto tiene una consecuencia fuerte: tu existencia en Place es **siempre situada**. No sos un perfil flotante con comunidades asociadas. Sos una persona en ciertos lugares.
 
@@ -88,13 +90,13 @@ Lo que viaja con vos entre places:
 Lo que vive en cada place, no viaja entre places:
 
 - **Antigüedad**: cuándo te sumaste a este place específico. "Desde marzo 2024".
-- **Rol**: owner o miembro. **Owner** = creador del place (founder) o quien otro owner designe (co-owner, multi-owner desde V1 vía ADR-0035); **miembro** = todo el resto. No hay rol "admin": la administración delegada será una feature futura de *grupos con permisos granulares* que el owner crea (un grupo "admin" con miembros elegidos). Asignado por estructura, no por declaración.
+- **Rol**: owner u oyente. **Owner** = el creador del podcast (founder) o quien otro owner designe (co-owner, multi-owner desde V1 vía ADR-0035); **oyente** = todo el resto (el **suscriptor** no es un rol: es un oyente con suscripción paga activa, ver `monetizacion.md`). No hay rol "admin": la administración delegada será una feature futura de *grupos con permisos granulares* que el owner crea (un grupo "admin" con miembros elegidos). Asignado por estructura, no por declaración.
 - **Headline opcional** (≤280 chars, ADR-0036): texto personal corto del miembro, distinto por place, NULL por default. El miembro lo escribe si quiere matizar su perfil contextual ("recién mudada del barrio", "mamá de Iván y Eli", "encantado del jugo de zanahoria"). Complementa a las contribuciones; no las reemplaza. Sólo el propio miembro lo edita (el owner no edita la identidad personal de otros).
 - **Contribuciones**: temas que trajiste, mensajes que escribiste, documentos que subiste, eventos que creaste. Métricas de actividad real, no vanidad. Se muestran como hechos, no como puntaje. **Es el primario del perfil** — el headline puede o no estar; las contribuciones siempre están.
 - **Actividad reciente**: última aparición en el place, últimos temas donde participaste, últimos documentos que subiste.
 - **Reconocimientos específicos del place**: si el place define títulos honoríficos, alguna marca especial. Esto es customizable por place y totalmente opcional.
 
-La identidad contextual es **distinta en cada place**. En El Taller sos "Max que trajo 14 temas sobre Electron". En la iglesia sos "Max que fue a 23 misas este año". En el grupo de amigos sos "Max que no falta a ningún asado".
+La identidad contextual es **distinta en cada place**. En el place de un podcast de tecnología sos "Max que trajo 14 discusiones sobre Electron". En el de un show de historia sos "Max que comenta cada episodio desde 2024". Lo que sos en cada comunidad lo construiste ahí.
 
 ### Datos privados (capa 3)
 
@@ -147,7 +149,6 @@ Los DMs se inician desde un place, pero viven en un inbox universal del usuario.
 - **Iniciación**: desde el perfil contextual de un miembro, botón "iniciar conversación"
 - **Vida**: la conversación vive en un **inbox universal** de DMs del usuario, no dividido por place
 - **Contexto**: cada conversación tiene metadata de contexto — "esta conversación empezó en El Taller" — para que sepas de dónde viene
-- **Horario**: los DMs NO respetan el horario del place. Si Max conoció a Lucía en El Taller que abre los jueves, pueden seguir hablando cuando quieran. La relación personal trasciende el horario del lugar.
 - **Una sola conversación por par**: si Max y Lucía coinciden en El Taller y también en el club de lectura, tienen una sola conversación entre ellos, no una por place. El contexto es el lugar donde se conocieron, no compartimento de la relación.
 
 ### Tratamiento al salir del place
@@ -246,7 +247,7 @@ Para proteger el primitivo:
 - **No hay feed de actividad** del miembro. La actividad se ve en contexto de cada objeto.
 - **Reconocimiento de pertenencia/rol, no competencia.** Sí: antigüedad, hitos temporales tranquilos, insignias/títulos cualitativos por rol o forma de participar (ej. "siempre presente en eventos", "ayuda seguido en [tema]"), conferidos por estructura o por el owner. No: leaderboards, rankings, comparación entre miembros, streaks, puntos/niveles por volumen, colección competitiva de insignias. Principio canónico en `docs/producto.md`.
 - **No hay "última vez online"** general. Solo visible en contexto del place.
-- **No hay verificación de identidad/blue checkmark**. Sos quien decís que sos, y el place es privado por diseño.
+- **No hay verificación de identidad/blue checkmark**. Sos quien decís que sos. (La cara pública es la del show, no la de las personas — la identidad de los oyentes vive adentro.)
 
 ---
 
@@ -283,7 +284,8 @@ Su contenido queda en el place con su nombre (es del place); su presencia y rast
 ## Referencias cruzadas
 
 - `docs/producto.md` — visión y principios de experiencia (marco general)
-- `docs/ontologia/conversaciones.md` — donde los miembros se manifiestan hablando
-- `docs/ontologia/eventos.md` — donde los miembros se manifiestan confirmando y asistiendo
-- `docs/ontologia/library.md` — donde los miembros se manifiestan publicando/consumiendo recursos
+- `docs/ontologia/conversaciones.md` — donde los oyentes se manifiestan hablando (threads)
+- `docs/ontologia/eventos.md` — donde los oyentes se manifiestan confirmando y asistiendo
+- `docs/ontologia/monetizacion.md` — el suscriptor (oyente con suscripción paga)
+- `docs/ontologia/library.md` — despriorizada post-pivot (ADR-0053)
 - `docs/data-model.md` — expresión en schema (capas de identidad, derecho al olvido)
