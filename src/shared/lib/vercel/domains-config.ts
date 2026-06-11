@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   VERCEL_API_BASE,
+  VERCEL_FETCH_TIMEOUT_MS,
   mapStatusToReason,
   readEnvAndHeaders,
   type VercelResult,
@@ -148,7 +149,11 @@ export async function getDomainConfig(
   try {
     response = await fetch(
       `${VERCEL_API_BASE}/v6/domains/${encodeURIComponent(domain)}/config`,
-      { method: "GET", headers: env.headers },
+      {
+        method: "GET",
+        headers: env.headers,
+        signal: AbortSignal.timeout(VERCEL_FETCH_TIMEOUT_MS),
+      },
     );
   } catch {
     return { ok: false, reason: "network" };

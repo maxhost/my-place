@@ -33,6 +33,13 @@ import { type StyleSuggestionResult, suggestStyle } from "./suggest-style";
 // inválido, la saga degrada a `unavailable` sin romper el wizard.
 const LLM_MODEL = "anthropic/claude-haiku-4-5";
 
+// Timeout del call al Gateway (S2 hardening post-review 2026-06-11). Sin
+// signal, un Gateway colgado retiene la action hasta el timeout de la
+// función (300s) con el owner mirando spinner. 15s sobra para ~60 tokens de
+// output de Haiku; el abort lanza dentro del puerto y `suggestStyle` lo
+// colapsa a `unavailable` (degradación elegante, ADR-0005 §5).
+const LLM_TIMEOUT_MS = 15_000;
+
 // Forma de generación PLANA (sin transforms): JSON-schema limpio para el
 // structured output. El dominio (`parseStyleSuggestion`) re-valida estricto y
 // aplica el guardrail — defensa en profundidad, nunca se confía en el modelo.
@@ -72,6 +79,7 @@ export async function suggestStyleAction(
         schema: generationShape,
         system: SYSTEM,
         prompt: `Para quién es el espacio: ${text}`,
+        abortSignal: AbortSignal.timeout(LLM_TIMEOUT_MS),
       });
       return object;
     },

@@ -26,6 +26,17 @@ export const VERCEL_API_BASE =
   process.env.VERCEL_API_BASE_URL ?? "https://api.vercel.com";
 
 /**
+ * Timeout de cada fetch a la API de Vercel (S2 hardening post-review
+ * 2026-06-11). Sin signal, un endpoint colgado retiene el Server Action /
+ * lazy poll hasta el timeout de la función (300s) — el owner ve spinner
+ * infinito. El abort cae en el catch existente de cada wrapper y mapea a
+ * `network` (misma UX calma que un drop de red; el lazy poll reintenta).
+ * 10s: p99 observado de la API de Vercel está muy por debajo; preferimos
+ * cortar tarde un request legítimo lento que colgar la UI.
+ */
+export const VERCEL_FETCH_TIMEOUT_MS = 10_000;
+
+/**
  * Discriminated union de razones de error que el wrapper expone hacia
  * la capa caller (Server Actions). El slice de settings mapea cada
  * razón a copy en español (`docs/features/custom-domain/spec.md`

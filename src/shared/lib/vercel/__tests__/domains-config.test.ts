@@ -280,4 +280,27 @@ describe("getDomainConfig — GET /v6/domains/{domain}/config", () => {
     expect(global.fetch).not.toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalled();
   });
+
+  it("getDomainConfig pasa un AbortSignal al fetch (timeout S2 hardening)", async () => {
+    // Mismo hazard que los 3 fetch de domains.ts: sin signal, un V6 colgado
+    // retiene el lazy poll del page hasta el timeout de la función.
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          configuredBy: null,
+          acceptedChallenges: [],
+          recommendedIPv4: [],
+          recommendedCNAME: [],
+          misconfigured: true,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    await getDomainConfig("x.com");
+
+    const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
+    const init = calls[calls.length - 1][1] as RequestInit;
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
 });

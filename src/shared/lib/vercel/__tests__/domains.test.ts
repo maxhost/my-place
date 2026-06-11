@@ -296,3 +296,40 @@ describe("env vars missing", () => {
     expect(warnSpy).toHaveBeenCalled();
   });
 });
+
+describe("timeout (S2 hardening post-review)", () => {
+  // Sin signal, un fetch a api.vercel.com colgado retiene el Server Action
+  // hasta el timeout de la función (300s) — el owner ve spinner infinito.
+  // Cada fetch lleva AbortSignal.timeout; el abort cae en el catch existente
+  // y mapea a `network` (misma UX que un drop de red).
+  function lastFetchInit(): RequestInit {
+    const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
+    return calls[calls.length - 1][1] as RequestInit;
+  }
+
+  it("addDomain pasa un AbortSignal al fetch", async () => {
+    mockFetchResponse(200, { name: "x.com", verified: true });
+    await addDomain("x.com");
+    expect(lastFetchInit().signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("getDomainStatus pasa un AbortSignal al fetch", async () => {
+    mockFetchResponse(200, { name: "x.com", verified: true });
+    await getDomainStatus("x.com");
+    expect(lastFetchInit().signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("removeDomain pasa un AbortSignal al fetch", async () => {
+    mockFetchResponse(200, {});
+    await removeDomain("x.com");
+    expect(lastFetchInit().signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("abort por timeout (TimeoutError) → network", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new DOMException("The operation timed out.", "TimeoutError"),
+    );
+    const result = await getDomainStatus("x.com");
+    expect(result).toEqual({ ok: false, reason: "network" });
+  });
+});

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   VERCEL_API_BASE,
+  VERCEL_FETCH_TIMEOUT_MS,
   mapStatusToReason,
   readEnvAndHeaders,
   type VercelResult,
@@ -148,6 +149,7 @@ export async function addDomain(
         method: "POST",
         headers: env.headers,
         body: JSON.stringify({ name: domain }),
+        signal: AbortSignal.timeout(VERCEL_FETCH_TIMEOUT_MS),
       },
     );
   } catch {
@@ -182,7 +184,11 @@ export async function getDomainStatus(
   try {
     response = await fetch(
       `${VERCEL_API_BASE}/v9/projects/${env.projectId}/domains/${encodeURIComponent(domain)}`,
-      { method: "GET", headers: env.headers },
+      {
+        method: "GET",
+        headers: env.headers,
+        signal: AbortSignal.timeout(VERCEL_FETCH_TIMEOUT_MS),
+      },
     );
   } catch {
     return { ok: false, reason: "network" };
@@ -216,7 +222,11 @@ export async function removeDomain(
   try {
     response = await fetch(
       `${VERCEL_API_BASE}/v9/projects/${env.projectId}/domains/${encodeURIComponent(domain)}`,
-      { method: "DELETE", headers: env.headers },
+      {
+        method: "DELETE",
+        headers: env.headers,
+        signal: AbortSignal.timeout(VERCEL_FETCH_TIMEOUT_MS),
+      },
     );
   } catch {
     return { ok: false, reason: "network" };
