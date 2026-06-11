@@ -2,7 +2,9 @@
 
 Schema del core del producto, expresado en **SQL (Postgres) ORM-agnóstico**. El método de acceso (ORM/query builder/SQL plano) está TBD; el modelo no depende de esa decisión. Cada feature agrega sus propias tablas respetando este core.
 
-> _Última actualización: 2026-06-05 (Phase 3.E tech-debt closure — migration 0028: índice `idx_place_founder_user_id` sobre `place(founder_user_id)` para el patrón inverso "qué places fundó X"). Previa: 2026-06-05 (Phase 3.B tech-debt closure — migration 0027: `FORCE ROW LEVEL SECURITY` en las 6 tablas del core + `search_path` fijo en `app.current_user_id()` + `VOLATILE` explícito en los 4 DEFINER 0002/0003/0007/0013). Previa: 2026-06-01 (Phase 2.D — §"Catálogo DEFINER" (18 funciones), policy `au_peer_member_read` en §Auth (ADR-0038), §"Tablas anti-replay" con `app.sso_jti_used` (ADR-0032))._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
+> ⚠️ **PIVOT ADR-0053 (2026-06-11): este schema expresa parcialmente un dominio superseded.** Place pivoteó al Substack para podcasts; la ontología nueva (threads con tipos, episodios, blogposts, suscripción de oyentes vía Stripe Connect) **aún no tiene expresión en schema** — se modela cuando cada feature se especifique. Mientras tanto, en este doc quedan **muertos como dominio pero vivos como columnas** (migración futura, sin cambio de código en S3): el enum **`billing_mode`** (el modelo nuevo es creador-paga-SaaS + creador-cobra-por-Connect, ortogonal a los 3 valores del enum; la columna conserva su default app-side), **`place.opening_hours`** (el horario de apertura murió; columna dormida con default, ningún gate la lee), y el invariante **"máximo 150 miembros"** (no hay más límites). Las marcas inline ⚰️ abajo señalan cada punto. El resto del schema (identidad, ownership, invitations, domains, RLS, DEFINERs) sigue 100% vigente.
+>
+> _Última actualización: 2026-06-11 (banner pivot ADR-0053). Previa: 2026-06-05 (Phase 3.E tech-debt closure — migration 0028: índice `idx_place_founder_user_id` sobre `place(founder_user_id)` para el patrón inverso "qué places fundó X"). Previa: 2026-06-05 (Phase 3.B tech-debt closure — migration 0027: `FORCE ROW LEVEL SECURITY` en las 6 tablas del core + `search_path` fijo en `app.current_user_id()` + `VOLATILE` explícito en los 4 DEFINER 0002/0003/0007/0013). Previa: 2026-06-01 (Phase 2.D — §"Catálogo DEFINER" (18 funciones), policy `au_peer_member_read` en §Auth (ADR-0038), §"Tablas anti-replay" con `app.sso_jti_used` (ADR-0032))._ Documento vivo: si un cambio de código altera el schema o un invariante, se actualiza **en la misma sesión** y se ajusta la fecha. El detalle de dominio es canónico en `docs/ontologia/`; este doc es su expresión en schema.
 
 ## Schema base
 
@@ -15,9 +17,10 @@ Schema del core del producto, expresado en **SQL (Postgres) ORM-agnóstico**. El
 -- administración delegada (rol "admin") será una feature futura de grupos con
 -- permisos granulares, no un rol en membership.
 
--- billing_mode: estrategia de pagos TBD. Se conserva el enum como invariante
--- de dominio (un place tiene un solo modo). Las columnas Stripe-específicas se
--- removieron del core hasta decidir proveedor de pagos.
+-- ⚰️ billing_mode: MUERTO como dominio (ADR-0053). El modelo post-pivot es
+-- ortogonal: el creador paga la suscripción SaaS a Place Y cobra a sus oyentes
+-- vía su propia cuenta Stripe (Connect, 0% Place). El enum y la columna quedan
+-- dormidos (default app-side) hasta la migración del feature monetización.
 CREATE TYPE billing_mode AS ENUM ('OWNER_PAYS', 'OWNER_PAYS_AND_CHARGES', 'SPLIT_AMONG_MEMBERS');
 
 -- Lifecycle del place por la suscripción del owner (ver ADR-0003). El borrado
@@ -204,7 +207,7 @@ Las columnas `JSONB` no son libres: tienen un shape canónico validado con Zod e
 // sin corrección + aviso.
 ```
 
-**`place.opening_hours`** — horario del place (gate de horario, `architecture.md` + `docs/ontologia/conversaciones.md` es canónico para el comportamiento; acá solo el shape).
+**`place.opening_hours`** — ⚰️ MUERTO como dominio (ADR-0053: no hay horario de apertura; el gate nunca llegó a implementarse). La columna queda **dormida**: se setea con el default de abajo al crear el place y nadie la lee. Remover en migración futura. Shape histórico:
 
 ```jsonc
 {
@@ -232,12 +235,12 @@ Las columnas `JSONB` no son libres: tienen un shape canónico validado con Zod e
 
 Reglas que el código debe enforzar. No son validaciones UI — son invariantes estructurales que viven en el modelo o en domain services.
 
-- **Máximo 150 miembros por place.** Al intentar agregar el miembro 151, el modelo rechaza con error estructural.
+- ⚰️ ~~**Máximo 150 miembros por place.**~~ MUERTO (ADR-0053): no hay más límites de tamaño. Sin enforcement en código que remover; cualquier feature nueva NO debe implementarlo.
 - **Mínimo 1 owner por place activo (enforce DB-side via DEFINER).** Un place no puede quedar sin owner. Enforce vía las funciones `app.revoke_ownership` y `app.transfer_founder_ownership` (`SECURITY DEFINER`, RAISE EXCEPTION en cuerpo) + `REVOKE INSERT, UPDATE, DELETE ON place_ownership FROM "app_system"` (defense-in-depth: ninguna ruta TS llega directo a SQL). Canónico: ADR-0035 §4.
 - **Founder slot único por place, no-delete por otro owner.** `place.founder_user_id` es el `app_user.id` del owner-fundador (creador o quien recibió transfer). Inmutable salvo por `app.transfer_founder_ownership` (`SECURITY DEFINER`, sólo el founder actual puede transferirlo a un owner pre-existente). Canónico: ADR-0035 §2. Indexado por `idx_place_founder_user_id` (migration 0028, Phase 3.E) para el patrón inverso `WHERE founder_user_id = $1` ("qué places fundó X") — auditoría de ownership + futuras vistas de perfil de fundador; los lookups de los DEFINER van por `place(id)` (PK).
 - **Transfer founder requiere target owner pre-existente.** El target de `app.transfer_founder_ownership` debe ser owner actual (≥2 owners pre-transfer); si N=1 (founder solo), el caller debe elevar primero a alguien vía `app.elevate_to_owner`. Bloqueado con RAISE EXCEPTION explícito. Canónico: ADR-0035 §2/§4.
 - **Multi-owner desde V1; co-owners se elevan desde miembros pre-existentes.** Un place tiene N owners simultáneos (N filas en `place_ownership` con mismo `place_id`); todos comparten poder operativo (CRUD owner-only vía policies de `place`/`membership`/`invitation`/`place_domain`). La asimetría es de origen (founder vs co-owner). `app.elevate_to_owner` requiere que el target sea miembro activo (`membership.left_at IS NULL`) del mismo place — no se puede elevar a externos. Canónico: ADR-0035 §1/§2.
-- **No se pueden mezclar billing modes.** Un place tiene un solo modo activo. Cambiar de modo requiere flow explícito. (Estrategia de pagos concreta: TBD.)
+- ⚰️ ~~**No se pueden mezclar billing modes.**~~ MUERTO (ADR-0053): el enum `billing_mode` está superseded (ver comentario en el schema); el invariante cae con él. El modelo de monetización nuevo vive en `docs/ontologia/monetizacion.md`.
 - **Slug inmutable.** Ver `multi-tenancy.md`.
 - **Un usuario no puede tener dos memberships activas en el mismo place.** Enforzado por unique constraint `(user_id, place_id)`.
 - **Un dominio mapea a lo sumo a un place activo** (`archived_at IS NULL`). Enforzado post-V1.1 (ADR-0026 + migration 0008) por un **partial unique index** `place_domain_domain_active_unq ON place_domain (domain) WHERE archived_at IS NULL`. Filas archived liberan el dominio para re-registro. El routing por hostname (ver `multi-tenancy.md`) resuelve **solo dominios verificados** (`verified_at IS NOT NULL`, `archived_at IS NULL`).

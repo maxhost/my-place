@@ -4,7 +4,7 @@ Paradigma: **Modular Monolith con Vertical Slices**. Priorizamos calma, estabili
 
 Este documento es el índice de las decisiones arquitectónicas. El detalle de cada área vive en `docs/`.
 
-> _Última actualización: 2026-05-20._ Documento vivo: si un cambio de código afecta una decisión de esta página, se actualiza **en la misma sesión** y se ajusta la fecha. Un doc viejo desinforma al agente — los specs stale causan fallos silenciosos.
+> _Última actualización: 2026-06-11 (ADR-0053 — gate de horario retirado)._ Documento vivo: si un cambio de código afecta una decisión de esta página, se actualiza **en la misma sesión** y se ajusta la fecha. Un doc viejo desinforma al agente — los specs stale causan fallos silenciosos.
 
 ## Principios de organización
 
@@ -149,11 +149,9 @@ Canónico en **ADR-0017** (extiende ADR-0012). Regla que todo entorno respeta:
 - **El deploy corre las migraciones contra su branch destino** (paso de pipeline / cutover) → ningún entorno queda atrás. Branches efímeras desde `production` para probar; se promueve el **archivo de migración**, no el estado de la branch; la efímera se descarta.
 - Un entorno **no está listo** hasta: migraciones aplicadas + rol `app_system` + envs verificadas (`DATABASE_URL` app_system@branch, Neon Auth del branch, `NEON_AUTH_COOKIE_SECRET`, `AI_GATEWAY_API_KEY`, `NEXT_PUBLIC_APP_URL`). Síntoma de incumplir esto: `docs/gotchas/neon-branch-sin-migraciones.md`.
 
-## Gate de horario del place
+## Gate de horario del place — ⚰️ RETIRADO (ADR-0053)
 
-Fuera del horario, **el miembro** no accede al place: cualquier ruta no-settings devuelve `<PlaceClosedView>`. **El owner es la excepción: accede al place completo fuera de horario** (discusiones, eventos, miembros, settings) — lo ve como si estuviera abierto. No hay rol "admin"; la administración delegada será una feature futura de grupos.
-
-**Regla técnica:** el gate vive a nivel del place en `[placeSlug]/(gated)/layout.tsx`, **no por feature**. Cada feature confía en que el layout ya validó el acceso; no reimplementa la verificación de horario. El comportamiento de producto (qué ve cada rol fuera de horario) es canónico en `docs/ontologia/conversaciones.md`.
+El horario de apertura murió con el pivot (ADR-0053, 2026-06-11): el place está siempre abierto — el RSS y la página pública no pueden "cerrar", y la comunidad tampoco. El gate descrito acá (`[placeSlug]/(gated)/layout.tsx` + `<PlaceClosedView>`) **nunca llegó a implementarse en código**, así que no hay nada que remover salvo la columna dormida `place.opening_hours` (migración futura, ver `data-model.md` § banner pivot). El patrón "gate a nivel layout del place, no por feature" sigue siendo el criterio correcto si algún gate de acceso futuro lo necesita (p. ej. el paywall de threads privados gatea por objeto, no por layout — ver `docs/ontologia/monetizacion.md`).
 
 ## Presupuesto de performance
 

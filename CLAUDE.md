@@ -4,8 +4,9 @@ Reglas operativas para no romper este proyecto. El producto/dominio se documenta
 
 ## Estado del proyecto
 
-- Scaffold limpio, **sin features implementadas** — no busques features que no existen.
-- Acceso a datos, auth, storage, realtime y pagos están **TBD**: no asumas que existen ni los elijas vos. **NO se vuelve a Prisma.** Stack y estado de los TBD en `docs/stack.md`.
+- Scaffold limpio, **sin features de dominio implementadas** — no busques features que no existen (lo construido es plataforma: auth, multi-tenancy, custom domains+SSO, members/invitations, settings).
+- **Pivot ADR-0053 (2026-06-11): Place es el Substack para podcasts.** El dominio canónico es post-pivot (threads con tipos, episodios, blogposts, oyentes, monetización Stripe Connect). Si un doc o código huele a pre-pivot (horario de apertura, máx 150, `billing_mode`, biblioteca activa), verificá contra `docs/decisions/0053-pivot-substack-para-podcasts.md` antes de propagarlo.
+- Realtime sigue **TBD**; pagos tienen dirección resuelta (**Stripe Connect**, ADR-0053) pero sin integración construida — no asumas que existe ni elijas vos los detalles. **NO se vuelve a Prisma.** Stack y estado de los TBD en `docs/stack.md`.
 - **Antes de tocar UI o tomar una decisión de producto, leé `docs/producto.md`** (visión + principios de experiencia, canónico).
 
 ## Mapa de documentos canónicos
@@ -17,7 +18,7 @@ Cada cosa vive en un solo lugar. Antes de implementar, leé el doc que correspon
 - `docs/stack.md` — stack técnico, variables de entorno, estado de los TBD
 - `docs/data-model.md` — schema SQL del core e invariantes del dominio
 - `docs/multi-tenancy.md` — routing por subdomain, DNS, middleware, slug inmutable
-- `docs/ontologia/` — documentos canónicos de cada objeto del core (`miembros.md`, `conversaciones.md`, `eventos.md`, `library.md`)
+- `docs/ontologia/` — documentos canónicos de cada objeto del core: `conversaciones.md` (threads, el primitivo), `episodios.md`, `blogposts.md`, `monetizacion.md`, `eventos.md`, `miembros.md` (oyentes) · `library.md` está despriorizada (ADR-0053)
 - `docs/landingpage/` — arquitectura y contenido de la landing pública
 - `docs/features/<slug>/` — spec, plan-sesiones y tests de cada feature en construcción (ej. `docs/features/settings/`)
 - `docs/decisions/` — ADRs históricas con fecha, alternativas rechazadas y consecuencias (índice en `decisions/README.md`)
