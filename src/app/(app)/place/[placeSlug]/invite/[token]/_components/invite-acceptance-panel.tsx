@@ -89,7 +89,6 @@ export interface InviteAcceptancePanelLabels {
   /** Mensajes de error mapeados desde `AcceptInvitationError`. */
   errorExpired: string;
   errorAlreadyUsed: string;
-  errorPlaceFull: string;
   /** Phase 0.D — rate limit. `{seconds}` interpolado client-side. */
   errorRateLimited: string;
   errorUnknown: string;
@@ -121,8 +120,6 @@ function errorCopy(
       return labels.errorExpired;
     case "already_used":
       return labels.errorAlreadyUsed;
-    case "place_full":
-      return labels.errorPlaceFull;
     case "rate_limited":
       return labels.errorRateLimited.replaceAll(
         "{seconds}",

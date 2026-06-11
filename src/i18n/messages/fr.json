@@ -543,7 +543,6 @@
     "emailMismatchLogoutCta": "Se déconnecter et entrer en tant que {invEmail}",
     "errorExpired": "Cette invitation a expiré. Demande-en une nouvelle à la personne qui t'a invité.",
     "errorAlreadyUsed": "Cette invitation a déjà été utilisée.",
-    "errorPlaceFull": "Ce lieu a atteint sa capacité maximale (150 auditeurs). Parle-en à la personne qui t'a invité.",
     "errorRateLimited": "Trop de tentatives. Patiente {seconds} secondes et réessaie.",
     "errorUnknown": "Quelque chose s'est mal passé. Réessaie ou demande une nouvelle invitation."
   }

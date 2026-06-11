@@ -543,7 +543,6 @@
     "emailMismatchLogoutCta": "Sign out and come back as {invEmail}",
     "errorExpired": "This invitation expired. Ask whoever invited you for a new one.",
     "errorAlreadyUsed": "This invitation has already been used.",
-    "errorPlaceFull": "This place hit its cap (150 listeners). Talk to whoever invited you.",
     "errorRateLimited": "Too many attempts. Wait {seconds} seconds and try again.",
     "errorUnknown": "Something went wrong. Try again or ask for a new invitation."
   }

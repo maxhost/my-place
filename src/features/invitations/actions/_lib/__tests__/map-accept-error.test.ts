@@ -50,11 +50,13 @@ describe("mapAcceptError", () => {
     expect(mapAcceptError(err)).toEqual({ kind: "email_mismatch" });
   });
 
-  it("SQLSTATE P0009 → { kind: 'place_full' }", () => {
+  it("SQLSTATE P0009 (cap 150 removido por migration 0030) → { kind: 'unknown' }", () => {
+    // El DEFINER ya no emite P0009 (ADR-0053 §6: sin límite de miembros).
+    // Si una DB con drift lo emitiera, cae al genérico anti-info-leak.
     const err = Object.assign(new Error("place lleno (máx 150 miembros)"), {
       code: "P0009",
     });
-    expect(mapAcceptError(err)).toEqual({ kind: "place_full" });
+    expect(mapAcceptError(err)).toEqual({ kind: "unknown" });
   });
 
   it("SQLSTATE desconocido (drift, red, 5xx) → { kind: 'unknown' }", () => {

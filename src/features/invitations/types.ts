@@ -80,11 +80,12 @@ export type RevokeInviteError =
 
 /**
  * Errores discriminables de `acceptInvitationAction` (wrap sobre
- * `app.accept_invitation` migration 0003 prod). Cada SQLSTATE de la
- * DEFINER mapea 1:1 a un `kind`. Discriminated union (vs string union de
- * V1 `InviteError`/`RevokeInviteError`) porque V2+ algunos kinds podrían
- * cargar payload extra (ej.: `place_full` con cupo actual) y porque la UI
- * de aceptación renderiza panels distintos por kind — el shape `{kind:…}`
+ * `app.accept_invitation` migration 0030 prod — body 0003 sin el cap de
+ * 150 miembros, removido por ADR-0053 §6). Cada SQLSTATE de la DEFINER
+ * mapea 1:1 a un `kind`. Discriminated union (vs string union de V1
+ * `InviteError`/`RevokeInviteError`) porque V2+ algunos kinds podrían
+ * cargar payload extra (ya pasa con `rate_limited`) y porque la UI de
+ * aceptación renderiza panels distintos por kind — el shape `{kind:…}`
  * mapea limpio al switch del panel.
  *
  * - `unauthenticated`: 28000 — caller sin sesión (no logueado).
@@ -98,7 +99,6 @@ export type RevokeInviteError =
  *   re-visit del mismo link).
  * - `email_mismatch`: P0008 — email del caller ≠ email del invitee
  *   (case/whitespace-insensitive vía DEFINER).
- * - `place_full`: P0009 — place alcanzó 150 miembros activos.
  * - `rate_limited`: Phase 0.D — rate limit por IP. `retryAfterSeconds` desde
  *   Upstash `resetAt`. UI ⇒ "esperá X segundos y volvé a intentar".
  * - `unknown`: cualquier otro SQLSTATE (drift, red, 5xx) — anti-info-leak.
@@ -110,6 +110,5 @@ export type AcceptInvitationError =
   | { kind: "expired" }
   | { kind: "already_used" }
   | { kind: "email_mismatch" }
-  | { kind: "place_full" }
   | { kind: "rate_limited"; retryAfterSeconds: number }
   | { kind: "unknown" };

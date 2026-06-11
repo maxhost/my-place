@@ -1,10 +1,11 @@
 import type { AcceptInvitationError } from "../../types";
 
 // Mapeo puro DEFINER error → discriminated union `AcceptInvitationError`.
-// Espejo de migration 0003 (`app.accept_invitation`); SQLSTATEs son
-// UNIQUE por error (distinto de V1 create/revoke que reusan P0001 con
-// regex(message)), así que switch-by-code basta. Unknown → `{kind:'unknown'}`
-// (anti-info-leak: no propagamos texto crudo del driver al panel).
+// Espejo de migration 0030 (`app.accept_invitation`, body 0003 sin el cap
+// 150/P0009 — ADR-0053 §6); SQLSTATEs son UNIQUE por error (distinto de V1
+// create/revoke que reusan P0001 con regex(message)), así que
+// switch-by-code basta. Unknown → `{kind:'unknown'}` (anti-info-leak: no
+// propagamos texto crudo del driver al panel).
 
 function readCode(err: unknown): string | undefined {
   if (typeof err === "object" && err !== null) {
@@ -29,8 +30,6 @@ export function mapAcceptError(err: unknown): AcceptInvitationError {
       return { kind: "already_used" };
     case "P0008":
       return { kind: "email_mismatch" };
-    case "P0009":
-      return { kind: "place_full" };
     default:
       return { kind: "unknown" };
   }

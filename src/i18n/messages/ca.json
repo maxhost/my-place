@@ -543,7 +543,6 @@
     "emailMismatchLogoutCta": "Tancar sessió i entrar com a {invEmail}",
     "errorExpired": "Aquesta invitació ha caducat. Demana'n una de nova a qui et va convidar.",
     "errorAlreadyUsed": "Aquesta invitació ja s'ha fet servir.",
-    "errorPlaceFull": "Aquest lloc ha arribat al seu màxim (150 oients). Parla amb qui et va convidar.",
     "errorRateLimited": "Massa intents. Espera {seconds} segons i torna-ho a provar.",
     "errorUnknown": "Alguna cosa ha anat malament. Torna-ho a provar o demana una invitació nova."
   }

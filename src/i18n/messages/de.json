@@ -543,7 +543,6 @@
     "emailMismatchLogoutCta": "Abmelden und als {invEmail} anmelden",
     "errorExpired": "Diese Einladung ist abgelaufen. Bitte die Person, die dich eingeladen hat, um eine neue.",
     "errorAlreadyUsed": "Diese Einladung wurde bereits verwendet.",
-    "errorPlaceFull": "Dieser Ort hat seine maximale Hörerzahl erreicht (150 Hörer). Sprich mit der Person, die dich eingeladen hat.",
     "errorRateLimited": "Zu viele Versuche. Warte {seconds} Sekunden und versuche es erneut.",
     "errorUnknown": "Etwas ist schiefgelaufen. Versuch es erneut oder bitte um eine neue Einladung."
   }

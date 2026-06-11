@@ -153,7 +153,7 @@ export default async function InviteAcceptPage({ params }: Props) {
   // resuelto en (4). El panel mantiene su API: recibe el shape
   // `InviteAcceptancePanelLabels` ya hidratado, con placeholders `{var}` que
   // resuelve internamente via su helper `interpolate`. Mapeo inline aquí
-  // porque las 13 keys son planas (no nested) — sin necesidad de extraer un
+  // porque las 12 keys son planas (no nested) — sin necesidad de extraer un
   // builder helper como `build-shell-labels.ts` del Members slice.
   const t = await getTranslations({ locale, namespace: "placeInvitation" });
   const labels: InviteAcceptancePanelLabels = {
@@ -168,7 +168,6 @@ export default async function InviteAcceptPage({ params }: Props) {
     emailMismatchLogoutCta: t("emailMismatchLogoutCta"),
     errorExpired: t("errorExpired"),
     errorAlreadyUsed: t("errorAlreadyUsed"),
-    errorPlaceFull: t("errorPlaceFull"),
     // Phase 0.D — placeholder `{seconds}` interpolado client-side; t.raw
     // para no triggear el ICU parse de next-intl sin var explicit.
     errorRateLimited: t.raw("errorRateLimited"),

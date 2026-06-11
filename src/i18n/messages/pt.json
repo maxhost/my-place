@@ -543,7 +543,6 @@
     "emailMismatchLogoutCta": "Sair e entrar como {invEmail}",
     "errorExpired": "Este convite venceu. Peça um novo a quem te convidou.",
     "errorAlreadyUsed": "Este convite já foi usado.",
-    "errorPlaceFull": "Este lugar chegou ao limite (150 ouvintes). Fale com quem te convidou.",
     "errorRateLimited": "Muitas tentativas. Aguarde {seconds} segundos e tente de novo.",
     "errorUnknown": "Algo deu errado. Tente de novo ou peça um novo convite."
   }

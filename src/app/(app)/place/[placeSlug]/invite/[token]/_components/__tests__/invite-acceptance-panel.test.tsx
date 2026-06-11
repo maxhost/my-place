@@ -13,9 +13,9 @@ import {
   type InviteAcceptancePanelLabels,
 } from "../invite-acceptance-panel";
 
-// V1.1 S3 — RTL del Client `<InviteAcceptancePanel />`. 8 escenarios: 3
-// estados render (unauth / match / mismatch) + 4 error mappings DEFINER → UX
-// + 1 success-path navigation. Canon ADR-0034 §"seam-split": Client +
+// V1.1 S3 — RTL del Client `<InviteAcceptancePanel />`. 7 escenarios: 3
+// estados render (unauth / match / mismatch) + 2 error mappings DEFINER → UX
+// + 2 submit/success-path. Canon ADR-0034 §"seam-split": Client +
 // puertos inyectados (action + navigate + onLogout), nada de mock de Server
 // Action runtime ni next/navigation real. Labels EN placeholder pre-S4.
 
@@ -32,7 +32,6 @@ const labels: InviteAcceptancePanelLabels = {
   emailMismatchLogoutCta: "Sign out and sign in as {invEmail}",
   errorExpired: "This invitation has expired. Ask whoever invited you for a new one.",
   errorAlreadyUsed: "This invitation has already been used.",
-  errorPlaceFull: "This place has reached its 150-member cap. Contact the owner.",
   errorRateLimited: "Too many attempts. Wait {seconds} seconds and try again.",
   errorUnknown: "Something went wrong. Try again or request a new invitation.",
 };
@@ -230,15 +229,15 @@ describe("InviteAcceptancePanel — submit accept (CU-Accept-4)", () => {
   });
 });
 
-// Error mappings (tests #6/7/8): cada kind del DEFINER ↔ una copy específica
-// del labels. Factor común para no repetir el setup boilerplate (canon
-// CLAUDE.md §"sin abstracciones prematuras" — acá la repetición x3 con sólo
-// 2 vars cambiantes amerita el helper, evita 60+ LOC duplicadas).
+// Error mappings (tests #6/7): cada kind del DEFINER ↔ una copy específica
+// del labels (`place_full` murió con el cap de 150 — ADR-0053 §6, migration
+// 0030). Factor común para no repetir el setup boilerplate (canon CLAUDE.md
+// §"sin abstracciones prematuras" — la repetición con sólo 2 vars
+// cambiantes amerita el helper, evita 40+ LOC duplicadas).
 describe("InviteAcceptancePanel — error mappings DEFINER → UX", () => {
   it.each([
     ["6. expired", "expired" as const, labels.errorExpired],
     ["7. already_used", "already_used" as const, labels.errorAlreadyUsed],
-    ["8. place_full", "place_full" as const, labels.errorPlaceFull],
   ])("%s → panel error copy correcto", async (_label, kind, expectedCopy) => {
     const action = buildAction({ status: "error", error: { kind } });
     const onLogout = vi.fn();

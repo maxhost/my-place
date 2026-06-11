@@ -7,8 +7,9 @@ import { type RlsTx, endRlsAdminPool, inRlsTx } from "./db-test-pool";
 //     la capability; la fila `invitation` es owner-only por RLS → el invitado
 //     no la escanea bajo su rol). Valida existe/no vencido/no usado.
 //   - `app.accept_invitation(token)`   → atómico, requiere caller (claim):
-//     valida + email-match estricto + cap 150 + test-and-set de `accepted_at`
+//     valida + email-match estricto + test-and-set de `accepted_at`
 //     (`UPDATE … WHERE accepted_at IS NULL`) + crea `membership` (SIN place).
+//     El cap de 150 miembros murió con ADR-0053 §6 (migration 0030).
 // `ensureAppUser` corre app-side ANTES (como en S5b); la función exige que el
 // `app_user` del caller exista (P0002 si no). Concurrencia wall-clock real =
 // preview/integración; acá el PREDICADO test-and-set se unit-testea de forma
@@ -195,27 +196,16 @@ describe("S6 app.accept_invitation — aceptación atómica (ADR-0010 §2.2)", (
     });
   });
 
-  it("cap 150: place lleno → el miembro 151 rechazado, nada en DB", async () => {
+  it("sin cap de miembros (ADR-0053 §6, migration 0030): el cuerpo del DEFINER no contiene el check 150/P0009", async () => {
+    // Test estructural por ausencia: sembrar 150 memberships para probar que
+    // el 151 entra sería caro y frágil; alcanza con verificar que el cuerpo
+    // vigente de la función ya no expresa el cap (removido en migration 0030).
     await inRlsTx(async (tx) => {
-      const { placeId } = await seedPlace(tx, "place-a"); // owner = miembro #1
-      await tx.seed(
-        `INSERT INTO app_user (auth_user_id,email,display_name,handle)
-         SELECT 'f'||g,'f'||g||'@x.com','F'||g,'h_f'||g FROM generate_series(1,149) g`,
-      );
-      await tx.seed(
-        `INSERT INTO membership (user_id,place_id)
-         SELECT id,$1 FROM app_user WHERE auth_user_id LIKE 'f%'`,
-        [placeId],
-      ); // 149 + owner = 150 activos
-      const uid = await seedUser(tx, "guest", "g@x.com");
-      const token = await seedInvitation(tx, placeId, "g@x.com");
-      await tx.as("guest");
-      expect(await tx.denied("SELECT app.accept_invitation($1)", [token])).toBe(true);
-      const [{ n }] = (await tx.seed(
-        `SELECT count(*)::int n FROM membership WHERE user_id=$1`,
-        [uid],
-      )) as Array<{ n: number }>;
-      expect(n).toBe(0);
+      const [{ def }] = (await tx.seed(
+        `SELECT pg_get_functiondef('app.accept_invitation(text)'::regprocedure) AS def`,
+      )) as Array<{ def: string }>;
+      expect(def).not.toContain("150");
+      expect(def).not.toContain("P0009");
     });
   });
 

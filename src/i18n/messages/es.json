@@ -543,7 +543,6 @@
     "emailMismatchLogoutCta": "Cerrar sesión y entrar como {invEmail}",
     "errorExpired": "Esta invitación venció. Pedí una nueva a quien te invitó.",
     "errorAlreadyUsed": "Esta invitación ya se usó.",
-    "errorPlaceFull": "Este lugar alcanzó su cupo máximo (150 oyentes). Hablá con quien te invitó.",
     "errorRateLimited": "Demasiados intentos. Esperá {seconds} segundos y volvé a intentar.",
     "errorUnknown": "Algo salió mal. Intentá de nuevo o pedí una nueva invitación."
   }
